@@ -1,0 +1,255 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-surface-tint: #643be0;
+  --color-on-surface: #191c1f;
+  --color-primary: #3700a1;
+  --color-on-error: #ffffff;
+  --color-on-tertiary-container: #c1b2e9;
+  --color-inverse-primary: #cbbeff;
+  --color-surface-container-highest: #e1e2e7;
+  --color-secondary: #6000da;
+  --color-secondary-fixed-dim: #d1bcff;
+  --color-primary-fixed-dim: #cbbeff;
+  --color-surface-container-lowest: #ffffff;
+  --color-background: #f8f9fe;
+  --color-inverse-surface: #2e3134;
+  --color-on-tertiary-fixed: #1f1340;
+  --color-on-secondary-container: #ebdfff;
+  --color-tertiary-fixed: #e8ddff;
+  --color-surface-container-high: #e7e8ed;
+  --color-surface-container-low: #f2f3f8;
+  --color-on-background: #191c1f;
+  --color-on-surface-variant: #484455;
+  --color-surface-bright: #f8f9fe;
+  --color-tertiary-container: #4f4372;
+  --color-on-secondary: #ffffff;
+  --color-tertiary: #382c5a;
+  --color-tertiary-fixed-dim: #cebef6;
+  --color-inverse-on-surface: #eff0f5;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #e7deff;
+  --color-on-secondary-fixed: #24005b;
+  --color-on-tertiary: #ffffff;
+  --color-surface-container: #eceef3;
+  --color-on-primary-fixed: #1e0060;
+  --color-on-tertiary-fixed-variant: #4b3f6e;
+  --color-on-primary-container: #bfafff;
+  --color-surface-dim: #d8dadf;
+  --color-on-primary-fixed-variant: #4b15c8;
+  --color-error-container: #ffdad6;
+  --color-on-secondary-fixed-variant: #5700c8;
+  --color-surface-variant: #e1e2e7;
+  --color-surface: #f8f9fe;
+  --color-secondary-container: #7a2dfe;
+  --color-outline-variant: #cac3d8;
+  --color-primary-container: #4f1dcc;
+  --color-on-primary: #ffffff;
+  --color-outline: #797487;
+  --color-secondary-fixed: #eaddff;
+  --color-error: #ba1a1a;
+
+  /* Spacing */
+  --spacing-base: 4px;
+  --spacing-container-margin: 20px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-gutter: 16px;
+
+  /* Typography Fonts */
+  --font-headline-lg-mobile: 'Hanken Grotesk', sans-serif;
+  --font-body-sm: 'Hanken Grotesk', sans-serif;
+  --font-title-md: 'Hanken Grotesk', sans-serif;
+  --font-caption: 'Hanken Grotesk', sans-serif;
+  --font-label-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Hanken Grotesk', sans-serif;
+  --font-body-lg: 'Hanken Grotesk', sans-serif;
+  --font-headline-lg: 'Hanken Grotesk', sans-serif;
+
+  /* Typography Utility Classes overrides logic */
+  /* We use the custom class below to match the fontSize/lineHeight configs */
+}
+
+/* Custom Typography Classes */
+@layer utilities {
+  .text-headline-lg-mobile {
+    font-size: 24px;
+    line-height: 32px;
+    font-weight: 700;
+  }
+  .text-body-sm {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+  .text-title-md {
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 600;
+  }
+  .text-caption {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+  }
+  .text-label-mono {
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+  .text-display {
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+  }
+  .text-body-lg {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 400;
+  }
+  .text-headline-lg {
+    font-size: 32px;
+    line-height: 40px;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.premium-gradient {
+  background: radial-gradient(circle at top left, #7B2FFF 0%, #4F1DCC 100%);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); filter: blur(20px); }
+  50% { opacity: 1; transform: scale(1.1); filter: blur(35px); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+@keyframes slide-up-fade {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-reveal {
+  animation: slide-up-fade 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.mesh-bg {
+  background-image: 
+      radial-gradient(at 0% 0%, rgba(123, 47, 255, 0.3) 0, transparent 50%), 
+      radial-gradient(at 100% 100%, rgba(79, 29, 204, 0.4) 0, transparent 50%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.mesh-gradient {
+  background-color: #f8f9fe;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(100, 59, 224, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(122, 45, 254, 0.08) 0px, transparent 50%);
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
+}
+
+.btn-primary-gradient {
+  background: linear-gradient(135deg, #4f1dcc 0%, #7a2dfe 100%);
+}
+
+.interaction-scale:active {
+  transform: scale(0.96);
+  transition: transform 0.1s ease;
+}
+
+.glass-header {
+  background: rgba(248, 249, 254, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.cta-gradient {
+  background: linear-gradient(135deg, #3700a1 0%, #6000da 100%);
+}
+
+@keyframes subtle-float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.float-animation {
+  animation: subtle-float 6s ease-in-out infinite;
+}
+
+.otp-input:focus {
+  box-shadow: 0 0 0 2px #3700a1, 0 4px 12px rgba(55, 0, 161, 0.2);
+  background-color: white;
+  border-color: #3700a1;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both;
+  animation-iteration-count: 2;
+}
+
+/* Remove default focus styles from number input */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Autofill styling override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+}
+
+/* Hide scrollbars on scroll-hide elements */
+.scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+.scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
