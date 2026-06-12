@@ -29,7 +29,7 @@ export default function ExploreScreen() {
       distance: "1.5 miles away",
       tag: "Organic Groceries",
       category: "Groceries",
-      img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAvcE1GSOY93nQcWNrKv_i4LjarvfisOzTMM0s4I1rj4yr2GdHDGpD62jU3EqvDDmgT9g3MbEIzdoeWRu73EkctS86m6I"
+      img: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&h=300&q=80"
     },
     {
       id: 3,

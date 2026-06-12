@@ -14,7 +14,7 @@ export default function WalletPassbookScreen() {
       id: 1,
       name: "Apple Premium Reseller",
       time: "Oct 24, 2023 • 14:30",
-      amount: "-$129.00",
+      amount: "-₹129.00",
       type: "Debited",
       status: "Completed",
       icon: "shopping_bag"
@@ -23,7 +23,7 @@ export default function WalletPassbookScreen() {
       id: 2,
       name: "L'Artusi Restaurant",
       time: "Oct 23, 2023 • 20:15",
-      amount: "+$12.50",
+      amount: "+₹12.50",
       type: "Credited",
       status: "Completed",
       icon: "restaurant"
@@ -32,7 +32,7 @@ export default function WalletPassbookScreen() {
       id: 3,
       name: "Cashout Transfer to Bank",
       time: "Oct 20, 2023 • 09:00",
-      amount: "-$50.00",
+      amount: "-₹50.00",
       type: "Debited",
       status: "Completed",
       icon: "account_balance"
@@ -41,7 +41,7 @@ export default function WalletPassbookScreen() {
       id: 4,
       name: "Shell Gas Station",
       time: "Just now",
-      amount: "+$4.20",
+      amount: "+₹4.20",
       type: "Credited",
       status: "Pending",
       icon: "local_gas_station"
@@ -59,18 +59,18 @@ export default function WalletPassbookScreen() {
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       
       {/* Header with Search and Filter tab */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm space-y-md">
-        <div className="flex items-center gap-xs">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-3 border-b border-outline-variant/10 shadow-sm space-y-2.5">
+        <div className="flex items-center gap-2">
           <button 
             onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
+            <span className="material-symbols-outlined text-primary text-[20px]">arrow_back</span>
           </button>
           <div className="flex-grow relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
             <input 
-              className="w-full h-11 pl-10 pr-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-body-lg font-body-lg placeholder:text-outline transition-all"
+              className="w-full h-9 pl-9 pr-4 bg-[#F3F4F6] rounded-lg border-none focus:ring-2 focus:ring-primary focus:bg-white text-sm placeholder:text-outline transition-all"
               placeholder="Search statements..."
               type="text"
               value={searchQuery}
@@ -80,12 +80,12 @@ export default function WalletPassbookScreen() {
         </div>
 
         {/* Filter Pills */}
-        <div className="flex gap-sm overflow-x-auto pb-1 scroll-hide">
+        <div className="flex gap-2 overflow-x-auto pb-0.5 scroll-hide">
           {filters.map((fil) => (
             <button
               key={fil}
               onClick={() => setActiveFilter(fil)}
-              className={`px-4 py-2 rounded-full font-title-md text-[13px] whitespace-nowrap cursor-pointer transition-colors ${
+              className={`px-3 py-1 rounded-full font-title-md text-xs whitespace-nowrap cursor-pointer transition-colors ${
                 activeFilter === fil 
                   ? 'bg-primary text-white shadow-sm'
                   : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-variant'

@@ -97,12 +97,12 @@ export default function RequestDetailsScreen() {
             </div>
             <div>
               <p className="font-caption text-[10px] uppercase">Bill Amount</p>
-              <p className="font-bold text-on-surface">${request.amount}</p>
+              <p className="font-bold text-on-surface">₹{request.amount}</p>
             </div>
             <div>
               <p className="font-caption text-[10px] uppercase text-secondary font-bold">Cashback Earned</p>
               <p className="font-bold text-secondary font-display text-body-lg">
-                +${request.cashbackAmount}
+                +₹{request.cashbackAmount}
               </p>
             </div>
           </div>

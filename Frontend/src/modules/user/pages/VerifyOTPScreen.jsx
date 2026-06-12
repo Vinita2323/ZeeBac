@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function VerifyOTPScreen() {
   const [otp, setOtp] = useState(['', '', '', '']);
@@ -7,6 +7,8 @@ export default function VerifyOTPScreen() {
   const [isShake, setIsShake] = useState(false);
   const inputRefs = useRef([]);
   const navigate = useNavigate();
+  const location = useLocation();
+  const mobileNumber = location.state?.mobileNumber || '';
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -74,7 +76,7 @@ export default function VerifyOTPScreen() {
         <div className="text-left space-y-1">
           <h1 className="text-[26px] font-black tracking-tight text-on-surface leading-tight">Enter Code</h1>
           <p className="text-body-sm text-on-surface-variant">
-            We sent a 4-digit OTP to your registered phone number.
+            We sent a 4-digit OTP to {mobileNumber ? <>your registered number <span className="font-bold text-primary">+91 {mobileNumber}</span></> : 'your registered phone number'}.
           </p>
         </div>
 

@@ -63,8 +63,8 @@ export default function TransactionSuccessScreen() {
         ))}
       </div>
 
-      {/* Verification Card */}
-      <main className="w-full max-w-[440px] bg-white/60 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-lg space-y-lg text-center relative z-10 animate-reveal">
+      {/* Verification Card - container card styling removed */}
+      <main className="w-full max-w-[440px] p-lg space-y-lg text-center relative z-10 animate-reveal">
         
         {/* Checkmark icon */}
         <div className="relative w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg text-white">
@@ -77,23 +77,19 @@ export default function TransactionSuccessScreen() {
           <p className="text-body-sm text-on-surface-variant">Your transaction has been processed securely.</p>
         </div>
 
-        {/* Payment and Cashback stats */}
-        <div className="bg-surface-container-low rounded-2xl p-md border border-outline-variant/20 grid grid-cols-2 gap-md text-left">
-          <div>
-            <p className="text-caption text-on-surface-variant uppercase text-[10px] tracking-wider leading-none">Paid Amount</p>
-            <p className="font-display text-headline-lg text-on-surface font-black pt-1">${details.amount}</p>
-          </div>
-          <div>
-            <p className="text-caption text-secondary uppercase text-[10px] tracking-wider leading-none">Cashback Earned</p>
-            <p className="font-display text-headline-lg text-secondary font-black pt-1">+${details.cashback}</p>
-          </div>
-        </div>
-
         {/* Detail sheet statement */}
         <div className="space-y-sm text-left border-t border-outline-variant/10 pt-md text-body-sm text-on-surface-variant">
           <div className="flex justify-between">
             <span>Paid To</span>
             <span className="font-bold text-on-surface">{details.vendorName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Paid Amount</span>
+            <span className="font-bold text-on-surface">₹{details.amount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Cashback Earned</span>
+            <span className="font-bold text-[#420093]">+₹{details.cashback}</span>
           </div>
           <div className="flex justify-between">
             <span>Transaction ID</span>

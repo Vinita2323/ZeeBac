@@ -13,6 +13,8 @@ import WalletPassbookScreen from './pages/WalletPassbookScreen';
 import RequestCashbackScreen from './pages/RequestCashbackScreen';
 import RequestHistoryScreen from './pages/RequestHistoryScreen';
 import RequestDetailsScreen from './pages/RequestDetailsScreen';
+import ProfileScreen from './pages/ProfileScreen';
+import ScanQRScreen from './pages/ScanQRScreen';
 
 export default function UserRoutes() {
   return (
@@ -31,6 +33,8 @@ export default function UserRoutes() {
       <Route path="/request-cashback" element={<RequestCashbackScreen />} />
       <Route path="/request-history" element={<RequestHistoryScreen />} />
       <Route path="/request/:id" element={<RequestDetailsScreen />} />
+      <Route path="/profile" element={<ProfileScreen />} />
+      <Route path="/scan" element={<ScanQRScreen />} />
     </Routes>
   );
 }

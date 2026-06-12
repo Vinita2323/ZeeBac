@@ -132,7 +132,7 @@ export default function VendorDetailScreen() {
               </div>
               <div className="text-left space-y-0.5">
                 <p className="font-title-md font-extrabold text-secondary text-body-sm">Spend Bonus</p>
-                <p className="font-caption text-[11px] text-on-surface-variant">Get flat $10 reward when spending over $100.</p>
+                <p className="font-caption text-[11px] text-on-surface-variant">Get flat ₹10 reward when spending over ₹100.</p>
               </div>
             </div>
           </div>

@@ -35,7 +35,7 @@ export default function WalletScreen() {
       id: 1,
       name: "Noir Concept Store",
       time: "Today, 2:45 PM",
-      amount: "+$37.50",
+      amount: "+₹37.50",
       status: "Credited",
       icon: "shopping_bag"
     },
@@ -43,7 +43,7 @@ export default function WalletScreen() {
       id: 2,
       name: "Fresh Foods Organic",
       time: "Yesterday, 11:20 AM",
-      amount: "+$7.70",
+      amount: "+₹7.70",
       status: "Credited",
       icon: "shopping_basket"
     },
@@ -51,7 +51,7 @@ export default function WalletScreen() {
       id: 3,
       name: "Bank Cashout Deposit",
       time: "Oct 22, 2023",
-      amount: "-$50.00",
+      amount: "-₹50.00",
       status: "Debited",
       icon: "account_balance"
     }
@@ -80,7 +80,7 @@ export default function WalletScreen() {
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
           <div className="space-y-sm">
             <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-widest leading-none">Total Cashback Reward</p>
-            <h2 className="text-[44px] font-display font-black text-primary leading-none">${balance.toFixed(2)}</h2>
+            <h2 className="text-[44px] font-display font-black text-primary leading-none">₹{balance.toFixed(2)}</h2>
           </div>
 
           {/* Quick buttons */}

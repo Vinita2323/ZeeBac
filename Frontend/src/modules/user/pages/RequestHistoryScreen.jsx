@@ -147,11 +147,11 @@ export default function RequestHistoryScreen() {
                 <div className="grid grid-cols-2 gap-sm pt-xs border-t border-outline-variant/10 text-body-sm text-on-surface-variant">
                   <div>
                     <p className="font-caption text-[10px] uppercase">Bill Amount</p>
-                    <p className="font-bold text-on-surface">${req.amount}</p>
+                    <p className="font-bold text-on-surface">₹{req.amount}</p>
                   </div>
                   <div>
                     <p className="font-caption text-[10px] uppercase text-secondary font-bold">Est. Cashback</p>
-                    <p className="font-bold text-secondary">${req.cashbackAmount}</p>
+                    <p className="font-bold text-secondary">₹{req.cashbackAmount}</p>
                   </div>
                 </div>
 

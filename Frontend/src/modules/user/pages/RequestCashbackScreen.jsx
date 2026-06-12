@@ -345,7 +345,7 @@ export default function RequestCashbackScreen() {
                 </div>
 
                 <div>
-                  <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Bill Amount ($)</label>
+                  <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Bill Amount (₹)</label>
                   <input 
                     type="number"
                     step="0.01"
@@ -481,12 +481,12 @@ export default function RequestCashbackScreen() {
                   </div>
                   <div>
                     <p className="font-caption text-[10px] uppercase">Bill Amount</p>
-                    <p className="font-bold text-on-surface">${parseFloat(billAmount).toFixed(2)}</p>
+                    <p className="font-bold text-on-surface">₹{parseFloat(billAmount).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="font-caption text-[10px] uppercase text-secondary font-bold">Estimated Cashback</p>
                     <p className="font-bold text-secondary font-display text-body-lg">
-                      +${(parseFloat(billAmount) * selectedVendor.cashbackRate).toFixed(2)}
+                      +₹{(parseFloat(billAmount) * selectedVendor.cashbackRate).toFixed(2)}
                     </p>
                   </div>
                 </div>

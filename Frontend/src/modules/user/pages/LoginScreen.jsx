@@ -17,7 +17,7 @@ export default function LoginScreen() {
   const handleContinue = (e) => {
     e.preventDefault();
     if (isFormValid) {
-      navigate('/verify-otp');
+      navigate('/verify-otp', { state: { mobileNumber } });
     }
   };
 
@@ -25,20 +25,18 @@ export default function LoginScreen() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f9f9ff] text-on-surface font-body-lg">
       <main className="w-full max-w-[440px] flex flex-col px-container-margin py-xl space-y-lg">
         
-        {/* Welcome Image Illustration */}
-        <div className="relative overflow-hidden rounded-xl aspect-[4/3] w-full flex items-center justify-center shadow-lg bg-surface-container-low">
+        {/* Welcome Logo */}
+        <div className="w-full flex items-center justify-center pt-4 pb-2">
           <img 
-            alt="Welcome Illustration" 
-            className="w-full h-full object-cover" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkQ53e83kMjUCESoFhZrvjzXFDD3ZJ5PFdSVAN4OIJQve06lxI5gHAPr17d94Ye6vOjVpsl14r09UC0bC5AlQIbqQal8am74nwS-g2ZhSvCx_HA4R_CcYosz4I4x4Uh6jzCX3SWJWJpGVWdj4yF_hDdTYzoUJ07wTtaHDEdsdhBRGXOMjlM2JAWnYd7afykLgG7_F6z0lsDkKMNksegHX-CXEYzNI-4_T1ApCobFWRCL024CT7-D9l6rthVxSqJXqXW1KAr6uilc_O"
+            alt="Zeebac Logo" 
+            className="w-48 md:w-64 h-auto drop-shadow-md" 
+            src="/Logo (6).png"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent"></div>
         </div>
 
         {/* Identity Section */}
         <div className="space-y-xs text-center">
           <h1 className="text-headline-lg-mobile text-primary tracking-tight font-extrabold">Welcome to Zeebac</h1>
-          <p className="text-body-sm text-on-surface-variant">The premium ecosystem for rewards and global transactions.</p>
         </div>
 
         {/* Mobile Number Entry Form */}
@@ -54,7 +52,7 @@ export default function LoginScreen() {
               {/* Number Input */}
               <div className="flex-1 h-full relative">
                 <input 
-                  className={`w-full h-full px-md bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary-container focus:bg-white text-body-lg placeholder:text-outline transition-all ${isFormValid ? 'ring-2 ring-primary-container bg-white' : ''}`}
+                  className={`w-full h-full px-md bg-[#F3F4F6] rounded-xl outline-none border-2 border-transparent focus:border-[#420093] focus:bg-white text-body-lg placeholder:text-outline transition-all ${isFormValid ? 'border-[#420093] bg-white' : ''}`}
                   maxLength="10" 
                   placeholder="Enter number" 
                   type="tel"
