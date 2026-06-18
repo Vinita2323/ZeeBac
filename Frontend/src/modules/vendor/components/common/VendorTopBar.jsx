@@ -7,13 +7,11 @@ export default function VendorTopBar() {
     <header className="sticky top-0 z-30 bg-[#f8f9fc]/90 backdrop-blur-md px-4 py-2 flex items-center justify-between">
       <img 
         alt="Zeebac Logo" 
-        className="h-[40px] object-contain ml-[-8px] md:hidden" 
+        className="h-[40px] object-contain ml-[-8px] md:hidden cursor-pointer" 
         src="/Logo (6).png"
+        onClick={() => navigate('/vendor')}
       />
       <div className="flex items-center gap-1">
-        <span className="hidden md:inline-block px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] font-bold uppercase rounded tracking-wider mr-2">
-          Vendor
-        </span>
         <button 
           onClick={() => navigate('/vendor/notifications')}
           className="text-on-surface hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container-low active:scale-95 relative"

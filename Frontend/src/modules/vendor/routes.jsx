@@ -10,6 +10,7 @@ import CustomersPage from './pages/CustomersPage';
 import ProfilePage from './pages/ProfilePage';
 import RatingsPage from './pages/RatingsPage';
 import NotificationsPage from './pages/NotificationsPage';
+import ChatPage from './pages/ChatPage';
 
 export default function VendorRoutes() {
   return (
@@ -23,6 +24,7 @@ export default function VendorRoutes() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="ratings" element={<RatingsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="chat" element={<ChatPage />} />
       </Routes>
     </VendorLayout>
   );

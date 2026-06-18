@@ -7,6 +7,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },
+    { label: 'Chat', icon: 'chat', path: '/vendor/chat' },
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },
     { label: 'Passbook', icon: 'receipt_long', path: '/vendor/passbook' },
     { label: 'Customers', icon: 'groups', path: '/vendor/customers' },
@@ -27,8 +28,9 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
         <div className="flex items-center justify-center w-full">
           <img 
             alt="Zeebac Logo" 
-            className={`object-contain transition-all duration-300 ${isCollapsed ? 'h-5 max-w-[64px]' : 'h-7'}`} 
+            className={`object-contain transition-all duration-300 cursor-pointer ${isCollapsed ? 'h-5 max-w-[64px]' : 'h-7'}`} 
             src="/Logo (6).png"
+            onClick={() => navigate('/vendor')}
           />
           {!isCollapsed && (
             <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap">

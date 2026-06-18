@@ -111,6 +111,14 @@ export default function VendorDetailScreen() {
                 <span>Open Daily: 09:00 AM - 10:00 PM</span>
               </div>
             </div>
+
+            <button 
+              onClick={() => navigate('/chat')} 
+              className="mt-6 w-full h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
+            >
+              <span className="material-symbols-outlined text-[20px]">chat</span>
+              Message Shop
+            </button>
           </div>
         )}
 
@@ -142,7 +150,7 @@ export default function VendorDetailScreen() {
           <div className="space-y-md animate-reveal">
             <div className="flex items-center gap-lg border-b border-outline-variant/10 pb-md">
               <div className="text-left">
-                <h4 className="text-[36px] font-display font-black text-on-surface leading-none">{vendor.rating.split(' ')[0]}</h4>
+                <h4 className="text-[36px] font-display font-black text-on-surface leading-none">{(vendor?.rating || '4.5').split(' ')[0]}</h4>
                 <p className="text-caption text-outline font-semibold tracking-wider">OUT OF 5</p>
               </div>
               <div className="flex-grow space-y-1">

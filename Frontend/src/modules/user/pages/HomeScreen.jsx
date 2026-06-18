@@ -33,12 +33,18 @@ export default function HomeScreen() {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-2 flex items-center justify-between border-b border-outline-variant/10 shadow-sm">
         <img 
           alt="Zeebac Logo" 
-          className="h-[56px] object-contain" 
+          className="h-[56px] object-contain cursor-pointer" 
           src="/Logo (6).png"
+          onClick={() => navigate('/home')}
         />
-        <button className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
-          <span className="material-symbols-outlined text-[24px]">notifications</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/chat')} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
+            <span className="material-symbols-outlined text-[24px]">chat_bubble</span>
+          </button>
+          <button className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
+            <span className="material-symbols-outlined text-[24px]">notifications</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -67,22 +73,23 @@ export default function HomeScreen() {
         <div className="flex flex-col items-center justify-center py-2 space-y-3">
           <button 
             onClick={() => navigate('/scan')}
-            className="relative w-30 h-30 rounded-full bg-gradient-to-b from-[#5c10bd] to-[#2c006b] flex items-center justify-center shadow-lg hover:shadow-xl active:scale-[0.95] transition-all duration-150 cursor-pointer overflow-hidden border border-white/10 group"
+            className="relative w-full max-w-[240px] aspect-square rounded-[36px] bg-white flex flex-col items-center justify-center shadow-lg hover:shadow-xl active:scale-[0.98] transition-all duration-200 cursor-pointer border border-outline-variant/20 group mx-auto"
           >
-            {/* Glass Highlight Sheen */}
-            <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-b from-white/20 to-transparent rounded-t-full pointer-events-none" />
-            
-            {/* Glossy radial gradient */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
+            {/* Soft Glowing Background */}
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent rounded-[36px] pointer-events-none"></div>
 
-            {/* Inner Blob Shape */}
-            <div 
-              className="w-[86px] h-[86px] bg-gradient-to-br from-[#a67cff] to-[#7c4dff] shadow-md flex items-center justify-center p-2.5 rotate-[-8deg] transition-transform duration-300 group-hover:scale-105" 
-              style={{ borderRadius: '42% 58% 70% 30% / 45% 45% 55% 55%' }}
-            >
-              <span className="font-display text-[13px] font-black text-white leading-tight tracking-tight text-center select-none">
-                Scan &<br/>Request
-              </span>
+            {/* Scanner Reticle Corners */}
+            <div className="absolute top-6 left-6 w-12 h-12 border-t-4 border-l-4 border-[#420093] rounded-tl-[16px] transition-all duration-300 group-hover:-translate-x-1 group-hover:-translate-y-1 pointer-events-none"></div>
+            <div className="absolute top-6 right-6 w-12 h-12 border-t-4 border-r-4 border-[#420093] rounded-tr-[16px] transition-all duration-300 group-hover:translate-x-1 group-hover:-translate-y-1 pointer-events-none"></div>
+            <div className="absolute bottom-6 left-6 w-12 h-12 border-b-4 border-l-4 border-[#420093] rounded-bl-[16px] transition-all duration-300 group-hover:-translate-x-1 group-hover:translate-y-1 pointer-events-none"></div>
+            <div className="absolute bottom-6 right-6 w-12 h-12 border-b-4 border-r-4 border-[#420093] rounded-br-[16px] transition-all duration-300 group-hover:translate-x-1 group-hover:translate-y-1 pointer-events-none"></div>
+
+            {/* Huge Central Icon & Text */}
+            <div className="relative z-10 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
+               <div className="w-24 h-24 rounded-full bg-[#420093]/10 flex items-center justify-center mb-3">
+                 <span className="material-symbols-outlined text-[56px] text-[#420093]">qr_code_scanner</span>
+               </div>
+               <span className="text-[#420093] font-display font-black text-[18px] tracking-wide uppercase">Scan & Pay</span>
             </div>
           </button>
           

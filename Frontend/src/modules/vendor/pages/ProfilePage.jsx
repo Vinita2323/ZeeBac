@@ -16,6 +16,14 @@ export default function ProfilePage() {
     return <SkeletonLoader type="profile" />;
   }
 
+  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+  const storeName = currentUser.storeName || 'Noir Concept Store';
+  const category = currentUser.category || 'Premium Fashion';
+  const phone = currentUser.phone ? `+91 ${currentUser.phone}` : '+91 98765 43210';
+  const email = currentUser.email || 'hello@noirconcept.in';
+  const address = currentUser.address || '124, High Street Avenue, Kormangala, Bangalore - 560034';
+  const firstLetter = storeName.charAt(0).toUpperCase();
+
   return (
     <div className="animate-reveal text-left">
       
@@ -56,7 +64,7 @@ export default function ProfilePage() {
           <div className="flex items-end gap-4 -mt-10 mb-5">
             <div className="w-24 h-24 bg-white rounded-[24px] shadow-md border-[6px] border-white flex items-center justify-center text-primary text-4xl font-black relative group">
               <span className="absolute inset-0 bg-primary/5 rounded-[18px]"></span>
-              N
+              {firstLetter}
               {isEditing && (
                 <div className="absolute inset-0 bg-black/40 rounded-[18px] flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                   <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -65,13 +73,13 @@ export default function ProfilePage() {
             </div>
             <div className="pb-2 flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-[20px] font-black text-on-surface truncate">Noir Concept Store</h2>
+                <h2 className="text-[20px] font-black text-on-surface truncate">{storeName}</h2>
                 <span className="px-1.5 py-0.5 bg-green-500/10 text-green-600 text-[9px] font-bold uppercase rounded flex items-center gap-0.5 flex-shrink-0">
                   <span className="material-symbols-outlined text-[10px]">verified</span>
                   Verified
                 </span>
               </div>
-              <p className="text-on-surface-variant text-[13px] font-medium mt-0.5 truncate">Premium Fashion • Est. 2021</p>
+              <p className="text-on-surface-variant text-[13px] font-medium mt-0.5 truncate">{category} • Est. 2021</p>
             </div>
           </div>
 
@@ -81,7 +89,7 @@ export default function ProfilePage() {
               <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Business Name</label>
               <input 
                 type="text" 
-                defaultValue="Noir Concept Store"
+                defaultValue={storeName}
                 disabled={!isEditing}
                 className="w-full px-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all disabled:opacity-70 text-[14px]"
               />
@@ -91,8 +99,12 @@ export default function ProfilePage() {
               <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Category</label>
               <select 
                 disabled={!isEditing}
+                defaultValue={category}
                 className="w-full px-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all disabled:opacity-70 text-[14px] appearance-none"
               >
+                {!['Premium Fashion', 'Electronics', 'Groceries', 'Food & Beverage'].includes(category) && (
+                  <option>{category}</option>
+                )}
                 <option>Premium Fashion</option>
                 <option>Electronics</option>
                 <option>Groceries</option>
@@ -104,7 +116,7 @@ export default function ProfilePage() {
               <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Contact Number</label>
               <input 
                 type="text" 
-                defaultValue="+91 98765 43210"
+                defaultValue={phone}
                 disabled={!isEditing}
                 className="w-full px-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all disabled:opacity-70 text-[14px]"
               />
@@ -114,7 +126,7 @@ export default function ProfilePage() {
               <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Business Email</label>
               <input 
                 type="email" 
-                defaultValue="hello@noirconcept.in"
+                defaultValue={email}
                 disabled={!isEditing}
                 className="w-full px-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all disabled:opacity-70 text-[14px]"
               />
@@ -124,7 +136,7 @@ export default function ProfilePage() {
               <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Store Address</label>
               <textarea 
                 rows="2"
-                defaultValue="124, High Street Avenue, Kormangala, Bangalore - 560034"
+                defaultValue={address}
                 disabled={!isEditing}
                 className="w-full px-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all disabled:opacity-70 text-[14px] resize-none"
               />
@@ -204,6 +216,52 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* KYC Identity Info */}
+      {(() => {
+        const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || 'null');
+        if (!currentUser?.aadhaar) return null;
+        const maskedAadhaar = `•••• •••• ${currentUser.aadhaar.slice(-4)}`;
+        const maskedPan = currentUser.pan ? `${currentUser.pan.slice(0, 2)}••••••${currentUser.pan.slice(-2)}` : '';
+        return (
+          <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden">
+            <div className="px-5 py-4 border-b border-outline-variant/10 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-primary/5 flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-[15px] text-on-surface">Owner Identity</h3>
+                <p className="text-[12px] text-on-surface-variant mt-0.5">KYC verified documents</p>
+              </div>
+              <span className="ml-auto text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
+            </div>
+            <div className="p-5 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Aadhaar</p>
+                <p className="text-[13px] font-bold text-on-surface font-label-mono tracking-wider">{maskedAadhaar}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">PAN Card</p>
+                <p className="text-[13px] font-bold text-on-surface font-label-mono tracking-wider uppercase">{maskedPan}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Logout */}
+      <button 
+        onClick={() => {
+          localStorage.removeItem('zeebac_current_user');
+          localStorage.removeItem('vendor_transactions');
+          localStorage.removeItem('vendor_balance');
+          navigate('/login');
+        }}
+        className="w-full py-3.5 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold text-[14px] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm border border-red-100"
+      >
+        <span className="material-symbols-outlined text-[18px]">logout</span>
+        Logout Account
+      </button>
 
       </div>
 

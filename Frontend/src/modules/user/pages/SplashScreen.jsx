@@ -15,9 +15,19 @@ export default function SplashScreen() {
 
     window.addEventListener('mousemove', handleMouseMove);
 
-    // Timeout redirection
+    // Check for existing session
     const timer = setTimeout(() => {
-      navigate('/login');
+      const currentUser = localStorage.getItem('zeebac_current_user');
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        if (user.role === 'vendor') {
+          navigate('/vendor');
+        } else {
+          navigate('/home');
+        }
+      } else {
+        navigate('/login');
+      }
     }, 3000);
 
     return () => {

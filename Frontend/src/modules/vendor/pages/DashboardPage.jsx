@@ -12,10 +12,10 @@ export default function DashboardPage() {
   }, []);
 
   const stats = [
-    { label: 'Today\'s Revenue', value: '₹4,250', icon: 'payments', trend: '+12%', color: 'text-green-600', bg: 'bg-green-500/10' },
-    { label: 'Pending', value: '3', icon: 'pending_actions', trend: 'Action needed', color: 'text-orange-500', bg: 'bg-orange-500/10' },
-    { label: 'Cashback', value: '₹340', icon: 'redeem', trend: '8% avg', color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Customers', value: '128', icon: 'groups', trend: '+5 this week', color: 'text-secondary', bg: 'bg-secondary/10' },
+    { label: 'Today\'s Revenue', value: '₹4,250', icon: 'payments', trend: '+12%', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
+    { label: 'Pending', value: '3', icon: 'pending_actions', trend: 'Action needed', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/transactions' },
+    { label: 'Cashback', value: '₹340', icon: 'redeem', trend: '8% avg', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/passbook' },
+    { label: 'Customers', value: '128', icon: 'groups', trend: '+5 this week', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
   ];
 
   const pendingRequests = [
@@ -40,7 +40,9 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Welcome back</p>
-          <h1 className="font-display text-[18px] font-black text-on-surface leading-none tracking-tight">Noir Concept Store</h1>
+          <h1 className="font-display text-[18px] font-black text-on-surface leading-none tracking-tight">
+            {JSON.parse(localStorage.getItem('zeebac_current_user') || '{}').storeName || 'Noir Concept Store'}
+          </h1>
         </div>
       </div>
 
@@ -49,7 +51,11 @@ export default function DashboardPage() {
       {/* Stats Grid - 2x2 Compact */}
       <div className="grid grid-cols-2 gap-3">
         {stats.map((stat, index) => (
-          <div key={index} className="bg-white rounded-2xl p-3.5 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+          <div 
+            key={index} 
+            onClick={() => navigate(stat.link)}
+            className="bg-white rounded-2xl p-3.5 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer hover:shadow-md hover:border-primary/20 transition-all active:scale-[0.98]"
+          >
             <div className="flex justify-between items-start mb-2">
               <div className={`w-8 h-8 rounded-full ${stat.bg} ${stat.color} flex items-center justify-center`}>
                 <span className="material-symbols-outlined text-[16px]">{stat.icon}</span>
@@ -70,7 +76,12 @@ export default function DashboardPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-[16px] font-extrabold text-on-surface">Action Required</h3>
-          <button className="text-[12px] text-primary font-bold">View All</button>
+          <button 
+            onClick={() => navigate('/vendor/transactions')} 
+            className="text-[12px] text-primary font-bold cursor-pointer hover:underline"
+          >
+            View All
+          </button>
         </div>
 
         <div className="space-y-3">

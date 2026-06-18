@@ -149,6 +149,33 @@ export default function ProfileScreen() {
           </button>
         </div>
 
+        {/* KYC Identity Info */}
+        {(() => {
+          const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || 'null');
+          if (!currentUser?.aadhaar) return null;
+          const maskedAadhaar = `•••• •••• ${currentUser.aadhaar.slice(-4)}`;
+          const maskedPan = currentUser.pan ? `${currentUser.pan.slice(0, 2)}••••••${currentUser.pan.slice(-2)}` : '';
+          return (
+            <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-4 py-3 border-b border-outline-variant/10 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
+                <span className="text-[12px] font-bold text-on-surface uppercase tracking-wider">Identity Verified</span>
+                <span className="ml-auto text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">KYC Done</span>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Aadhaar</p>
+                  <p className="text-[13px] font-bold text-on-surface font-label-mono tracking-wider">{maskedAadhaar}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">PAN Card</p>
+                  <p className="text-[13px] font-bold text-on-surface font-label-mono tracking-wider uppercase">{maskedPan}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#D4E9FC]/40 border border-[#D4E9FC]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px]">
@@ -315,7 +342,11 @@ export default function ProfileScreen() {
         {/* Logout */}
         <button 
           onClick={() => {
-            localStorage.clear();
+            localStorage.removeItem('zeebac_current_user');
+            localStorage.removeItem('user_profile');
+            localStorage.removeItem('payment_details');
+            localStorage.removeItem('vendor_transactions');
+            localStorage.removeItem('vendor_balance');
             navigate('/login');
           }}
           className="w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"
