@@ -12,6 +12,7 @@ export default function AuthOTPScreen() {
   const location = useLocation();
   const mobileNumber = location.state?.mobileNumber || '';
   const flow = location.state?.flow || 'login';
+  const role = location.state?.role || 'customer';
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -48,7 +49,7 @@ export default function AuthOTPScreen() {
       if (flow === 'login') {
         // Look up user and set session
         const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-        const user = users.find(u => u.phone === mobileNumber);
+        const user = users.find(u => u.phone === mobileNumber && u.role === role);
 
         if (!user) {
           setError('Account not found. Please sign up.');
@@ -104,7 +105,7 @@ export default function AuthOTPScreen() {
       {/* Header */}
       <header className="fixed top-0 left-0 w-full z-50 flex items-center px-container-margin h-16 border-b border-outline-variant/10 bg-white/80 backdrop-blur-md">
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => navigate(role === 'vendor' ? '/vendor-app/login' : '/login')}
           className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200 cursor-pointer"
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>

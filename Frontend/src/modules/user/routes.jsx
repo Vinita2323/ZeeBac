@@ -13,6 +13,8 @@ import RequestHistoryScreen from './pages/RequestHistoryScreen';
 import RequestDetailsScreen from './pages/RequestDetailsScreen';
 import ProfileScreen from './pages/ProfileScreen';
 import ScanQRScreen from './pages/ScanQRScreen';
+import FindVendorScreen from './pages/FindVendorScreen';
+import PayVendorScreen from './pages/PayVendorScreen';
 import ChatScreen from './pages/ChatScreen';
 import ProtectedRoute from '../auth/components/ProtectedRoute';
 
@@ -38,6 +40,8 @@ export default function UserRoutes() {
         <Route path="/request/:id" element={<RequestDetailsScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />
         <Route path="/scan" element={<ScanQRScreen />} />
+        <Route path="/find-vendor" element={<FindVendorScreen />} />
+        <Route path="/pay-vendor" element={<PayVendorScreen />} />
       </Route>
     </Routes>
   );
@@ -48,4 +52,3 @@ import { Outlet } from 'react-router-dom';
 function RouteWrapper() {
   return <Outlet />;
 }
-

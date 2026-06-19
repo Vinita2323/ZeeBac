@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavBar from '../components/common/BottomNavBar';
 
@@ -9,44 +9,39 @@ export default function WalletPassbookScreen() {
 
   const filters = ['All', 'Credited', 'Debited', 'Pending'];
 
-  const transactions = [
-    {
-      id: 1,
-      name: "Apple Premium Reseller",
-      time: "Oct 24, 2023 • 14:30",
-      amount: "-₹129.00",
-      type: "Debited",
-      status: "Completed",
-      icon: "shopping_bag"
-    },
-    {
-      id: 2,
-      name: "L'Artusi Restaurant",
-      time: "Oct 23, 2023 • 20:15",
-      amount: "+₹12.50",
+  const [transactions, setTransactions] = useState([]);
+
+  useEffect(() => {
+    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
+    const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+    
+    // Filter transactions for this customer
+    const myTxns = txns.filter(t => t.customerId === currentUser.zeebacId || t.customerPhone === currentUser.phone);
+    
+    const formatted = myTxns.map(t => ({
+      id: t.id,
+      name: t.vendorName,
+      time: new Date(t.timestamp).toLocaleString(),
+      amount: `+₹${t.cashbackAmount.toFixed(2)}`,
       type: "Credited",
       status: "Completed",
-      icon: "restaurant"
-    },
-    {
-      id: 3,
-      name: "Cashout Transfer to Bank",
-      time: "Oct 20, 2023 • 09:00",
-      amount: "-₹50.00",
-      type: "Debited",
-      status: "Completed",
-      icon: "account_balance"
-    },
-    {
-      id: 4,
-      name: "Shell Gas Station",
-      time: "Just now",
-      amount: "+₹4.20",
-      type: "Credited",
-      status: "Pending",
-      icon: "local_gas_station"
+      icon: "storefront"
+    }));
+
+    if (formatted.length === 0) {
+      formatted.push({
+        id: 'dummy',
+        name: "Welcome Bonus",
+        time: "Just now",
+        amount: "+₹50.00",
+        type: "Credited",
+        status: "Completed",
+        icon: "card_giftcard"
+      });
     }
-  ];
+    
+    setTransactions(formatted);
+  }, []);
 
   // Filtering transactions
   const filteredTx = transactions.filter(tx => {

@@ -96,7 +96,7 @@ export default function HomeScreen() {
           <div className="text-on-surface-variant font-bold text-body-sm">Or</div>
 
           <button 
-            onClick={() => navigate('/create-transaction')}
+            onClick={() => navigate('/find-vendor')}
             className="w-full h-12 rounded-xl border border-[#420093] text-[#420093] bg-white flex items-center justify-center gap-2 hover:bg-[#420093]/5 active:scale-[0.98] transition-all cursor-pointer font-bold text-body-md"
           >
             <span className="material-symbols-outlined text-[#420093] text-[20px]">contact_phone</span>

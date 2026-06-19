@@ -1,20 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (isLoading) {
-    return <SkeletonLoader type="profile" />;
-  }
 
   const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
   const storeName = currentUser.storeName || 'Noir Concept Store';
@@ -23,6 +12,25 @@ export default function ProfilePage() {
   const email = currentUser.email || 'hello@noirconcept.in';
   const address = currentUser.address || '124, High Street Avenue, Kormangala, Bangalore - 560034';
   const firstLetter = storeName.charAt(0).toUpperCase();
+  
+  const [profilePic, setProfilePic] = useState(currentUser.profilePic || null);
+  const fileInputRef = useRef(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setProfilePic(base64String);
+        
+        // Save directly to local storage for persistence
+        const updatedUser = { ...currentUser, profilePic: base64String };
+        localStorage.setItem('zeebac_current_user', JSON.stringify(updatedUser));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="animate-reveal text-left">
@@ -62,11 +70,27 @@ export default function ProfilePage() {
         {/* Profile Info */}
         <div className="px-5 pb-6">
           <div className="flex items-end gap-4 -mt-10 mb-5">
-            <div className="w-24 h-24 bg-white rounded-[24px] shadow-md border-[6px] border-white flex items-center justify-center text-primary text-4xl font-black relative group">
+            <div 
+              className="w-24 h-24 bg-white rounded-[24px] shadow-md border-[6px] border-white flex items-center justify-center text-primary text-4xl font-black relative group overflow-hidden"
+              onClick={() => isEditing && fileInputRef.current?.click()}
+            >
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleImageUpload}
+              />
               <span className="absolute inset-0 bg-primary/5 rounded-[18px]"></span>
-              {firstLetter}
+              
+              {profilePic ? (
+                <img src={profilePic} alt="Store" className="w-full h-full object-cover rounded-[18px] relative z-10" />
+              ) : (
+                <span className="relative z-10">{firstLetter}</span>
+              )}
+              
               {isEditing && (
-                <div className="absolute inset-0 bg-black/40 rounded-[18px] flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                <div className="absolute inset-0 bg-black/40 rounded-[18px] flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20">
                   <span className="material-symbols-outlined text-[20px]">edit</span>
                 </div>
               )}
@@ -144,6 +168,55 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* My Store QR Code */}
+      {(() => {
+        const zeebacId = currentUser.zeebacId || 'ZBV-0000';
+        const cashbackRate = currentUser.cashbackRate || 10;
+        const qrData = `zeebac://vendor/${zeebacId}`;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=0-128-128&data=${encodeURIComponent(qrData)}`;
+        return (
+          <div className="bg-white p-5 rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center gap-4 border-b border-outline-variant/5 pb-4 mb-4">
+              <div className="w-11 h-11 rounded-full bg-secondary/5 flex items-center justify-center text-secondary">
+                <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-[15px] text-on-surface">My Store QR</h3>
+                <p className="text-[12px] text-on-surface-variant mt-0.5">Show this to customers for instant cashback</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-4">
+              {/* QR Image */}
+              <div className="bg-[#f8fffe] border border-secondary/15 rounded-2xl p-4 w-48 h-48 flex items-center justify-center shadow-inner">
+                <img src={qrUrl} alt="Store QR" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+              </div>
+
+              {/* ID + Cashback Rate */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 rounded-full">
+                  <span className="material-symbols-outlined text-secondary text-[14px]">badge</span>
+                  <span className="text-[12px] font-mono font-black text-secondary">{zeebacId}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 rounded-full">
+                  <span className="material-symbols-outlined text-green-600 text-[14px]">percent</span>
+                  <span className="text-[12px] font-black text-green-600">{cashbackRate}%</span>
+                </div>
+              </div>
+
+              {/* Copy Button */}
+              <button 
+                onClick={() => { navigator.clipboard.writeText(zeebacId); }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-secondary/10 text-secondary rounded-xl font-bold text-[13px] hover:bg-secondary/20 active:scale-[0.97] transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                Copy Store ID
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Verification Documents */}
       <div className="bg-white p-5 rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-4">

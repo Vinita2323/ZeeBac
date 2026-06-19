@@ -1,37 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
 
   const tabs = ['All', 'Pending', 'Approved', 'Rejected'];
 
-  const initialTransactions = [
-    { id: 'TRX-9921', customer: 'Rahul Sharma', amount: '₹850', time: 'Oct 24, 2:30 PM', status: 'Pending', hasReceipt: true },
-    { id: 'TRX-9920', customer: 'Sneha Patel', amount: '₹1,200', time: 'Oct 24, 2:15 PM', status: 'Pending', hasReceipt: false },
-    { id: 'TRX-9919', customer: 'Amit Kumar', amount: '₹450', time: 'Oct 24, 1:00 PM', status: 'Approved' },
-    { id: 'TRX-9918', customer: 'Priya Singh', amount: '₹2,100', time: 'Oct 24, 11:30 AM', status: 'Approved' },
-    { id: 'TRX-9917', customer: 'Vikram Gupta', amount: '₹150', time: 'Oct 24, 10:15 AM', status: 'Rejected' },
-    { id: 'TRX-9916', customer: 'Neha Jain', amount: '₹3,400', time: 'Oct 23, 6:45 PM', status: 'Approved' },
-    { id: 'TRX-9915', customer: 'Rohan Desai', amount: '₹720', time: 'Oct 23, 4:20 PM', status: 'Approved' },
-  ];
-
-  const [transactions, setTransactions] = useState(initialTransactions);
+  const [transactions, setTransactions] = useState([]);
 
   useEffect(() => {
-    const localTxs = JSON.parse(localStorage.getItem('vendor_transactions') || '[]');
-    if (localTxs.length > 0) {
-      setTransactions([...localTxs, ...initialTransactions]);
+    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
+    const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+    
+    const myTxns = txns.filter(t => t.vendorId === currentUser.zeebacId || t.vendorPhone === currentUser.phone);
+    
+    const formatted = myTxns.map(t => ({
+      id: t.id,
+      customer: t.customerName,
+      amount: `₹${t.purchaseAmount.toLocaleString()}`,
+      time: new Date(t.timestamp).toLocaleString(),
+      status: 'Approved',
+      hasReceipt: false
+    }));
+
+    if (formatted.length === 0) {
+      formatted.push({ id: 'dummy', customer: 'Welcome transaction', amount: '₹0', time: 'Just now', status: 'Approved', hasReceipt: false });
     }
+    
+    setTransactions(formatted);
   }, []);
 
   const filteredTransactions = transactions.filter(t => {
@@ -48,10 +46,6 @@ export default function TransactionsPage() {
       default: return 'text-gray-500 bg-gray-100 border-gray-200';
     }
   };
-
-  if (isLoading) {
-    return <SkeletonLoader type="list" count={5} />;
-  }
 
   return (
     <div className="animate-reveal text-left">

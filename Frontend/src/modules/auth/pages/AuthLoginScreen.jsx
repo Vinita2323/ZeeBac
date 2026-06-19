@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
-export default function AuthLoginScreen() {
+export default function AuthLoginScreen({ role = 'customer' }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const isVendor = role === 'vendor';
 
   const handleInputChange = (e) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
@@ -20,45 +21,58 @@ export default function AuthLoginScreen() {
     e.preventDefault();
     if (!isFormValid) return;
 
-    // Check if user exists in mock DB
+    // Check if user exists in mock DB — scoped to the specific role
     const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const existingUser = users.find(u => u.phone === mobileNumber);
+    const existingUser = users.find(u => u.phone === mobileNumber && u.role === role);
 
     if (!existingUser) {
-      setError('No account found with this number. Please sign up first.');
+      setError(isVendor
+        ? 'No vendor account found with this number. Please register first.'
+        : 'No account found with this number. Please sign up first.'
+      );
       return;
     }
 
-    navigate('/verify-otp', { state: { mobileNumber, flow: 'login' } });
+    navigate(isVendor ? '/vendor-app/verify-otp' : '/verify-otp', { state: { mobileNumber, flow: 'login', role } });
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f9f9ff] text-on-surface font-body-lg relative overflow-hidden">
 
       {/* Decorative Blobs */}
-      <div className="absolute -top-32 -right-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-32 -left-32 w-72 h-72 bg-secondary/5 rounded-full blur-3xl pointer-events-none" />
+      <div className={`absolute -top-32 -right-32 w-64 h-64 ${isVendor ? 'bg-secondary/8' : 'bg-primary/5'} rounded-full blur-3xl pointer-events-none`} />
+      <div className={`absolute -bottom-32 -left-32 w-72 h-72 ${isVendor ? 'bg-primary/5' : 'bg-secondary/5'} rounded-full blur-3xl pointer-events-none`} />
 
-      <main className="w-full max-w-[440px] flex flex-col px-container-margin py-xl space-y-lg relative z-10">
+      <main className="w-full max-w-[440px] flex flex-col px-container-margin py-6 md:py-10 space-y-5 md:space-y-6 relative z-10">
 
         {/* Welcome Logo */}
-        <div className="w-full flex items-center justify-center pt-4 pb-2">
+        <div className="w-full flex flex-col items-center justify-center pt-2 pb-1">
           <img
             alt="Zeebac Logo"
-            className="w-48 md:w-64 h-auto drop-shadow-md"
+            className="w-36 md:w-48 h-auto drop-shadow-md"
             src="/Logo (6).png"
           />
+          {isVendor && (
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-secondary/10 rounded-full mt-3">
+              <span className="material-symbols-outlined text-secondary text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>storefront</span>
+              <span className="text-[12px] font-black text-secondary uppercase tracking-widest">Vendor Partner</span>
+            </div>
+          )}
         </div>
 
         {/* Identity Section */}
-        <div className="space-y-xs text-center">
-          <h1 className="text-headline-lg-mobile text-primary tracking-tight font-extrabold">Welcome to Zeebac</h1>
-          <p className="text-[14px] text-on-surface-variant">Enter your mobile number to sign in</p>
+        <div className="space-y-1 text-center">
+          <h1 className={`text-[24px] tracking-tight font-extrabold leading-tight ${isVendor ? 'text-secondary' : 'text-primary'}`}>
+            {isVendor ? 'Zeebac Vendor Partner' : 'Zeebac: Cashback & more'}
+          </h1>
+          <p className="text-[14px] text-on-surface-variant">
+            {isVendor ? 'Sign in to your vendor dashboard' : 'Enter your mobile number to sign in'}
+          </p>
         </div>
 
         {/* Mobile Number Entry Form */}
-        <form className="space-y-lg" onSubmit={handleContinue}>
-          <div className="space-y-xs text-left">
+        <form className="space-y-5" onSubmit={handleContinue}>
+          <div className="space-y-1.5 text-left">
             <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase">MOBILE NUMBER</label>
             <div className="flex items-center gap-xs h-[56px]">
               {/* Country Code Picker */}
@@ -91,7 +105,9 @@ export default function AuthLoginScreen() {
           <button
             type="submit"
             disabled={!isFormValid}
-            className={`w-full h-[56px] rounded-xl font-title-md text-on-primary shadow-lg transition-all flex items-center justify-center cursor-pointer ${isFormValid ? 'btn-primary-gradient hover:opacity-90 active:scale-[0.98]' : 'bg-outline-variant/60 cursor-not-allowed opacity-50'}`}
+            className={`w-full h-[56px] rounded-xl font-title-md text-on-primary shadow-lg transition-all flex items-center justify-center cursor-pointer ${isFormValid
+              ? (isVendor ? 'bg-secondary hover:bg-secondary/90 text-white' : 'btn-primary-gradient hover:opacity-90') + ' active:scale-[0.98]'
+              : 'bg-outline-variant/60 cursor-not-allowed opacity-50'}`}
           >
             Continue
           </button>
@@ -105,16 +121,22 @@ export default function AuthLoginScreen() {
             <div className="flex-1 h-px bg-outline-variant/20" />
           </div>
           <button
-            onClick={() => navigate('/signup')}
-            className="w-full h-[52px] rounded-xl font-title-md border-2 border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
+            onClick={() => navigate(isVendor ? '/vendor-app/signup' : '/signup')}
+            className={`w-full h-[52px] rounded-xl font-title-md border-2 transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer ${
+              isVendor
+                ? 'border-secondary/20 text-secondary bg-secondary/5 hover:bg-secondary/10'
+                : 'border-primary/20 text-primary bg-primary/5 hover:bg-primary/10'
+            }`}
           >
-            <span className="material-symbols-outlined text-[20px]">person_add</span>
-            Create New Account
+            <span className="material-symbols-outlined text-[20px]">{isVendor ? 'store' : 'person_add'}</span>
+            {isVendor ? 'Register Your Business' : 'Create New Account'}
           </button>
         </div>
 
+
+
         {/* Footer Note */}
-        <p className="text-center text-body-sm text-on-surface-variant pt-md">
+        <p className="text-center text-[11px] text-on-surface-variant pt-2 mt-auto">
           By continuing, you agree to our <Link to="/terms" className="text-secondary font-bold hover:underline">Terms</Link> and <Link to="/privacy" className="text-secondary font-bold hover:underline">Privacy Policy</Link>.
         </p>
       </main>

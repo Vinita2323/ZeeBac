@@ -4,12 +4,14 @@ import BottomNavBar from '../components/common/BottomNavBar';
 
 export default function WalletScreen() {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(1200.00);
+  const [balance, setBalance] = useState(() => {
+    return parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
+  });
 
   // Available rewards count up animation
   useEffect(() => {
-    let start = 1200.00;
-    const end = 1284.50;
+    const end = parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
+    let start = Math.max(0, end - 100);
     const duration = 1200;
     const stepTime = 30;
     const steps = duration / stepTime;
@@ -30,32 +32,37 @@ export default function WalletScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const activities = [
-    {
-      id: 1,
-      name: "Noir Concept Store",
-      time: "Today, 2:45 PM",
-      amount: "+₹37.50",
+  const [activities, setActivities] = useState([]);
+
+  useEffect(() => {
+    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
+    const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+    
+    // Filter transactions for this customer
+    const myTxns = txns.filter(t => t.customerId === currentUser.zeebacId || t.customerPhone === currentUser.phone);
+    
+    const formatted = myTxns.slice(0, 5).map(t => ({
+      id: t.id,
+      name: t.vendorName,
+      time: new Date(t.timestamp).toLocaleString(),
+      amount: `+₹${t.cashbackAmount.toFixed(2)}`,
       status: "Credited",
-      icon: "shopping_bag"
-    },
-    {
-      id: 2,
-      name: "Fresh Foods Organic",
-      time: "Yesterday, 11:20 AM",
-      amount: "+₹7.70",
-      status: "Credited",
-      icon: "shopping_basket"
-    },
-    {
-      id: 3,
-      name: "Bank Cashout Deposit",
-      time: "Oct 22, 2023",
-      amount: "-₹50.00",
-      status: "Debited",
-      icon: "account_balance"
+      icon: "storefront"
+    }));
+
+    if (formatted.length === 0) {
+      formatted.push({
+        id: 'dummy',
+        name: "Welcome Bonus",
+        time: "Just now",
+        amount: "+₹50.00",
+        status: "Credited",
+        icon: "card_giftcard"
+      });
     }
-  ];
+    
+    setActivities(formatted);
+  }, []);
 
   return (
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">

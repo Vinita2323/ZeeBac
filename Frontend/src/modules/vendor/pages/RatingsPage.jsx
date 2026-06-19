@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function RatingsPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('All');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
 
   const stats = [
     { stars: 5, percentage: 75, count: 96 },
@@ -30,10 +23,6 @@ export default function RatingsPage() {
   const filteredReviews = filter === 'All' 
     ? reviews 
     : reviews.filter(r => filter === 'Verified' ? r.verified : r.rating === parseInt(filter.charAt(0)));
-
-  if (isLoading) {
-    return <SkeletonLoader type="list" count={4} />;
-  }
 
   return (
     <div className="animate-reveal text-left">

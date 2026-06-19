@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import OverviewTab from '../components/vendor-detail/OverviewTab';
+import ShopTab from '../components/vendor-detail/ShopTab';
+import PhotosTab from '../components/vendor-detail/PhotosTab';
+import ReviewsTab from '../components/vendor-detail/ReviewsTab';
 
 export default function VendorDetailScreen() {
   const navigate = useNavigate();
@@ -73,119 +77,28 @@ export default function VendorDetailScreen() {
       </header>
 
       {/* Tabs Menu Navigation */}
-      <nav className="bg-white border-b border-outline-variant/20 flex justify-around select-none">
-        {['overview', 'offers', 'reviews'].map((tab) => (
+      <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-0 z-30">
+        {['overview', 'shop', 'photos', 'reviews'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-grow py-3 font-title-md text-[14px] capitalize cursor-pointer border-b-2 text-center transition-all ${
+            className={`px-5 py-3.5 font-title-md text-[14px] capitalize cursor-pointer border-b-2 text-center whitespace-nowrap transition-all ${
               activeTab === tab 
                 ? 'border-primary text-primary font-bold' 
-                : 'border-transparent text-on-surface-variant'
+                : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest'
             }`}
           >
-            {tab}
+            {tab === 'photos' ? 'Photos & Videos' : tab}
           </button>
         ))}
       </nav>
 
       {/* Tab Pages content */}
       <main className="max-w-[440px] mx-auto w-full px-container-margin py-lg text-left">
-        {activeTab === 'overview' && (
-          <div className="space-y-md animate-reveal">
-            <div className="space-y-xs">
-              <h3 className="font-display text-title-md font-extrabold text-on-surface">About</h3>
-              <p className="text-body-sm text-on-surface-variant leading-relaxed">
-                Experience high-end design form factor and exclusive curation. Enjoy modern checkout convenience, premium customer support, and the highest rewards rates at {vendor.name} through Zeebac.
-              </p>
-            </div>
-            
-            <div className="space-y-xs pt-sm">
-              <h3 className="font-display text-title-md font-extrabold text-on-surface">Store Information</h3>
-              <div className="flex items-center gap-sm text-body-sm text-on-surface-variant">
-                <span className="material-symbols-outlined text-outline">location_on</span>
-                <span>{vendor.address || "42nd Luxury Blvd, Metro City"}</span>
-              </div>
-              <div className="flex items-center gap-sm text-body-sm text-on-surface-variant">
-                <span className="material-symbols-outlined text-outline">schedule</span>
-                <span>Open Daily: 09:00 AM - 10:00 PM</span>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => navigate('/chat')} 
-              className="mt-6 w-full h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
-            >
-              <span className="material-symbols-outlined text-[20px]">chat</span>
-              Message Shop
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'offers' && (
-          <div className="space-y-md animate-reveal">
-            <div className="p-md bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-md">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>percent</span>
-              </div>
-              <div className="text-left space-y-0.5">
-                <p className="font-title-md font-extrabold text-primary text-body-sm">Welcome Reward Boost</p>
-                <p className="font-caption text-[11px] text-on-surface-variant">Extra 5% cashback on your first payment this week.</p>
-              </div>
-            </div>
-
-            <div className="p-md bg-secondary/5 border border-secondary/20 rounded-2xl flex items-center gap-md">
-              <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>redeem</span>
-              </div>
-              <div className="text-left space-y-0.5">
-                <p className="font-title-md font-extrabold text-secondary text-body-sm">Spend Bonus</p>
-                <p className="font-caption text-[11px] text-on-surface-variant">Get flat ₹10 reward when spending over ₹100.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'reviews' && (
-          <div className="space-y-md animate-reveal">
-            <div className="flex items-center gap-lg border-b border-outline-variant/10 pb-md">
-              <div className="text-left">
-                <h4 className="text-[36px] font-display font-black text-on-surface leading-none">{(vendor?.rating || '4.5').split(' ')[0]}</h4>
-                <p className="text-caption text-outline font-semibold tracking-wider">OUT OF 5</p>
-              </div>
-              <div className="flex-grow space-y-1">
-                {[5, 4, 3, 2, 1].map((star, idx) => (
-                  <div key={star} className="flex items-center gap-xs">
-                    <span className="text-[10px] text-on-surface-variant w-2 font-bold">{star}</span>
-                    <div className="flex-grow h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full" style={{ width: idx === 0 ? '75%' : idx === 1 ? '18%' : '3%' }}></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Individual Review item */}
-            <div className="space-y-md">
-              <div className="text-left space-y-xs border-b border-outline-variant/10 pb-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-title-md font-bold text-body-sm text-on-surface">Sophia Mitchell</span>
-                  <span className="text-caption text-outline">Yesterday</span>
-                </div>
-                <div className="flex text-amber-400">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                </div>
-                <p className="text-body-sm text-on-surface-variant leading-relaxed">
-                  Beautiful curation! Paying via Zeebac was incredibly fast, and I instantly got my rewards credited. Highly recommend!
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'overview' && <OverviewTab vendor={vendor} />}
+        {activeTab === 'shop' && <ShopTab />}
+        {activeTab === 'photos' && <PhotosTab />}
+        {activeTab === 'reviews' && <ReviewsTab />}
       </main>
 
     </div>

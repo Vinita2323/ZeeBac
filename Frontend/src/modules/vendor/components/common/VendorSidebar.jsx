@@ -11,7 +11,8 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },
     { label: 'Passbook', icon: 'receipt_long', path: '/vendor/passbook' },
     { label: 'Customers', icon: 'groups', path: '/vendor/customers' },
-    { label: 'Profile', icon: 'storefront', path: '/vendor/profile' },
+    { label: 'Storefront', icon: 'storefront', path: '/vendor/storefront' },
+    { label: 'Profile', icon: 'person', path: '/vendor/profile' },
     { label: 'Ratings', icon: 'star_rate', path: '/vendor/ratings' },
     { label: 'Notifications', icon: 'notifications', path: '/vendor/notifications' },
   ];

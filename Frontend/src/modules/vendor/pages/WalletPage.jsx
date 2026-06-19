@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function WalletPage() {
   const navigate = useNavigate();
   const [balance, setBalance] = useState(24500);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const localBalance = localStorage.getItem('vendor_balance');
@@ -25,10 +23,6 @@ export default function WalletPage() {
     { id: 3, title: 'Cashback Deductions', type: 'debit', amount: '-₹340.00', status: 'Debited', date: 'Oct 23, 2023' },
     { id: 4, title: 'Daily Earnings Credit', type: 'credit', amount: '+₹3,800.00', status: 'Credited', date: 'Oct 22, 2023' },
   ];
-
-  if (isLoading) {
-    return <SkeletonLoader type="dashboard" />;
-  }
 
   return (
     <div className="animate-reveal text-left">

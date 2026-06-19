@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
+import { createPortal } from 'react-dom';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
+  const [showQRModal, setShowQRModal] = useState(false);
+  
+  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+  const zeebacId = currentUser.zeebacId || 'ZBV-0000';
+  const qrData = `zeebac://vendor/${zeebacId}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=96-0-218&data=${encodeURIComponent(qrData)}`;
 
   const stats = [
     { label: 'Today\'s Revenue', value: '₹4,250', icon: 'payments', trend: '+12%', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
@@ -29,10 +29,6 @@ export default function DashboardPage() {
     { id: 'TRX-9917', customer: 'Vikram Gupta', amount: '₹150', time: '5 hours ago', status: 'Rejected' },
   ];
 
-  if (isLoading) {
-    return <SkeletonLoader type="dashboard" />;
-  }
-
   return (
     <div className="space-y-6 pt-2 pb-6 text-left">
 
@@ -46,7 +42,33 @@ export default function DashboardPage() {
         </div>
       </div>
 
-
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 gap-3">
+        <button 
+          onClick={() => navigate('/vendor/scan-customer')}
+          className="flex items-center gap-3 p-4 rounded-2xl bg-secondary text-white shadow-lg hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
+          </div>
+          <div className="text-left">
+            <p className="text-[13px] font-bold leading-tight">Scan Customer</p>
+            <p className="text-[10px] text-white/70">Log a transaction</p>
+          </div>
+        </button>
+        <button 
+          onClick={() => setShowQRModal(true)}
+          className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
+            <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+          </div>
+          <div className="text-left">
+            <p className="text-[13px] font-bold leading-tight">My Store QR</p>
+            <p className="text-[10px] text-on-surface-variant">Show to customers</p>
+          </div>
+        </button>
+      </div>
 
       {/* Stats Grid - 2x2 Compact */}
       <div className="grid grid-cols-2 gap-3">
@@ -149,6 +171,40 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* QR Modal */}
+      {showQRModal && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
+          <div className="bg-white w-full max-w-[320px] rounded-3xl p-6 shadow-2xl relative mx-auto">
+            <button 
+              onClick={() => setShowQRModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+            
+            <div className="flex flex-col items-center pt-2">
+              <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-4">
+                <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+              </div>
+              <h3 className="font-display font-bold text-[20px] text-on-surface text-center leading-tight">My Store QR</h3>
+              <p className="text-[13px] text-on-surface-variant text-center mt-1 mb-6 px-4">
+                Show this code to customers for instant payments and cashback
+              </p>
+              
+              <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-5 w-56 h-56 flex items-center justify-center shadow-inner mb-6">
+                <img src={qrUrl} alt="Store QR" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+              </div>
+              
+              <div className="bg-surface-container py-2 px-4 rounded-full flex items-center gap-2">
+                <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Store ID:</span>
+                <span className="text-[14px] font-black tracking-widest text-on-surface">{zeebacId}</span>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );

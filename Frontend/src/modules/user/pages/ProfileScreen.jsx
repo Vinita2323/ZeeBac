@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavBar from '../components/common/BottomNavBar';
 
@@ -10,8 +10,28 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState({
     name: 'Guest User',
     phone: '+91 9999999999',
-    email: 'guest@zeebac.com'
+    email: 'guest@zeebac.com',
+    profileImage: null
   });
+
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const [showImageOptions, setShowImageOptions] = useState(false);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        const updatedProfile = { ...profile, profileImage: base64String };
+        setProfile(updatedProfile);
+        localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
+        setShowImageOptions(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Linked Accounts State
   const [paymentDetails, setPaymentDetails] = useState({
@@ -99,7 +119,6 @@ export default function ProfileScreen() {
     return (
       <QRCodeSubView 
         profile={profile}
-        paymentDetails={paymentDetails}
         onBack={() => setSubView(null)} 
       />
     );
@@ -128,11 +147,37 @@ export default function ProfileScreen() {
         
         {/* User Card */}
         <div className="glass-card rounded-[2rem] border border-outline-variant/30 p-md flex items-center gap-md shadow-sm relative bg-white">
-          <div className="relative">
-            <div className="w-18 h-18 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093] border border-[#420093]/20">
-              <span className="material-symbols-outlined text-[36px]">person</span>
+          <div 
+            className="relative cursor-pointer group"
+            onClick={() => setShowImageOptions(true)}
+          >
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
+            <input 
+              type="file" 
+              ref={cameraInputRef} 
+              className="hidden" 
+              accept="image/*"
+              capture="user"
+              onChange={handleImageUpload}
+            />
+            <div className="w-18 h-18 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093] border border-[#420093]/20 overflow-hidden relative">
+              {profile.profileImage ? (
+                <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="material-symbols-outlined text-[36px]">person</span>
+              )}
+              {/* Overlay on hover/click */}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="material-symbols-outlined text-white text-[20px]">photo_camera</span>
+              </div>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center z-10">
               <span className="material-symbols-outlined text-white text-[12px] font-bold">check</span>
             </div>
           </div>
@@ -357,6 +402,57 @@ export default function ProfileScreen() {
 
       </main>
 
+      {/* Profile Picture Source Modal */}
+      {showImageOptions && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center animate-reveal">
+          <div className="bg-white w-full max-w-[440px] rounded-t-3xl p-6 shadow-2xl relative">
+            <button 
+              onClick={() => setShowImageOptions(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-outline-variant/20 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span>
+            </button>
+            <h3 className="font-display text-title-md font-bold mb-6 text-on-surface">Change Profile Photo</h3>
+            
+            <div className="flex justify-around gap-4 mb-6">
+              <button 
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex-1 flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-[#420093]/5 hover:bg-[#420093]/10 border border-[#420093]/10 transition-colors cursor-pointer active:scale-95"
+              >
+                <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center text-[#420093]">
+                  <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
+                </div>
+                <span className="text-[12px] font-bold text-[#420093]">Take Photo</span>
+              </button>
+
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-secondary/5 hover:bg-secondary/10 border border-secondary/10 transition-colors cursor-pointer active:scale-95"
+              >
+                <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center text-secondary">
+                  <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
+                </div>
+                <span className="text-[12px] font-bold text-secondary">Choose Gallery</span>
+              </button>
+            </div>
+            {profile.profileImage && (
+              <button 
+                onClick={() => {
+                  const updatedProfile = { ...profile, profileImage: null };
+                  setProfile(updatedProfile);
+                  localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
+                  setShowImageOptions(false);
+                }}
+                className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold bg-red-50 hover:bg-red-100 transition-colors active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[20px]">delete</span>
+                Remove Photo
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <BottomNavBar />
     </div>
   );
@@ -373,7 +469,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!isValid) return;
-    onSave({ name, email, phone });
+    onSave({ ...initialProfile, name, email, phone });
   };
 
   return (
@@ -622,32 +718,30 @@ function SupportSubView({ onBack }) {
 }
 
 // SUBPAGE 4: MY QR CODE COMPONENT
-function QRCodeSubView({ profile, paymentDetails, onBack }) {
+function QRCodeSubView({ profile, onBack }) {
   const [copied, setCopied] = useState(false);
-  const upiId = paymentDetails.upiId || 'zeebac@upi';
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=66-0-147&data=${encodeURIComponent(
-    `upi://pay?pa=${upiId}&pn=${encodeURIComponent(profile.name)}&cu=INR`
-  )}`;
+  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+  const zeebacId = currentUser.zeebacId || 'ZBC-0000';
+  const qrData = `zeebac://customer/${zeebacId}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=66-0-147&data=${encodeURIComponent(qrData)}`;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(upiId);
+    navigator.clipboard.writeText(zeebacId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = async () => {
+    const text = `My Zeebac ID: ${zeebacId} — Scan my QR or enter this ID in the Zeebac app to transact with me!`;
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'My Zeebac Pay QR',
-          text: `Scan to pay me on Zeebac or UPI: ${upiId}`,
-          url: window.location.href,
-        });
+        await navigator.share({ title: 'My Zeebac QR', text, url: window.location.href });
       } catch (err) {
         console.log('Error sharing:', err);
       }
     } else {
-      alert(`Sharing details:\nUPI ID: ${upiId}`);
+      navigator.clipboard.writeText(text);
+      alert('Zeebac ID copied to clipboard!');
     }
   };
 
@@ -660,30 +754,33 @@ function QRCodeSubView({ profile, paymentDetails, onBack }) {
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary ml-4">My QR Code</span>
+        <span className="font-display text-title-md text-primary ml-4">My Zeebac QR</span>
       </header>
 
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-3 flex flex-col justify-between items-center text-center">
         <div className="w-full space-y-3 flex-grow flex flex-col justify-center items-center">
           {/* QR Container Card */}
           <div className="bg-white border border-outline-variant/30 rounded-2xl p-4 shadow-md w-full max-w-[280px] flex flex-col items-center relative overflow-hidden">
-            {/* Top design accent */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#420093]"></div>
 
             {/* Profile Info Header */}
             <div className="flex flex-col items-center mt-1 mb-2">
-              <div className="w-10 h-10 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093] font-bold border border-[#420093]/20 mb-1">
-                <span className="text-sm">{profile.name.charAt(0)}</span>
+              <div className="w-10 h-10 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093] font-bold border border-[#420093]/20 mb-1 overflow-hidden">
+                {profile.profileImage ? (
+                  <img src={profile.profileImage} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm">{profile.name.charAt(0)}</span>
+                )}
               </div>
               <h3 className="font-display text-sm font-extrabold text-on-surface">{profile.name}</h3>
               <p className="text-[10px] text-on-surface-variant font-medium">{profile.phone}</p>
             </div>
 
             {/* Actual QR Image */}
-            <div className="bg-[#fcfcff] border border-outline-variant/20 rounded-xl p-3 w-40 h-40 flex items-center justify-center shadow-inner relative group">
+            <div className="bg-[#fcfcff] border border-outline-variant/20 rounded-xl p-3 w-40 h-40 flex items-center justify-center shadow-inner">
               <img 
                 src={qrUrl} 
-                alt="Payment QR Code" 
+                alt="Zeebac QR Code" 
                 className="w-full h-full object-contain"
                 onError={(e) => {
                   e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f3f4f6"/><text x="50" y="55" font-size="8" text-anchor="middle" fill="%239ca3af">QR Code</text></svg>';
@@ -691,18 +788,17 @@ function QRCodeSubView({ profile, paymentDetails, onBack }) {
               />
             </div>
 
-            {/* Zeebac Branding */}
             <div className="mt-2.5 flex items-center gap-1">
               <span className="text-[9px] text-on-surface-variant font-bold tracking-widest uppercase">POWERED BY</span>
               <span className="text-[11px] font-black text-[#420093] tracking-tight">zeebac</span>
             </div>
           </div>
 
-          {/* UPI Address Box */}
+          {/* Zeebac ID Box */}
           <div className="w-full max-w-[280px] bg-white border border-outline-variant/20 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
             <div className="text-left">
-              <p className="text-[8px] text-on-surface-variant uppercase tracking-wider font-bold">Linked UPI ID</p>
-              <p className="text-xs font-mono font-bold text-on-surface select-all mt-0.5">{upiId}</p>
+              <p className="text-[8px] text-on-surface-variant uppercase tracking-wider font-bold">Zeebac ID</p>
+              <p className="text-xs font-mono font-bold text-on-surface select-all mt-0.5">{zeebacId}</p>
             </div>
             <button 
               onClick={handleCopy}
@@ -714,7 +810,7 @@ function QRCodeSubView({ profile, paymentDetails, onBack }) {
           </div>
 
           <p className="text-[9px] text-on-surface-variant/85 max-w-[260px] leading-snug mt-1">
-            Scan this QR code using any UPI app (GPay, PhonePe, Paytm) to send money directly to {profile.name}'s linked bank account.
+            Show this QR to vendors for instant wallet cashback transactions. No receipt needed!
           </p>
         </div>
 
@@ -724,13 +820,15 @@ function QRCodeSubView({ profile, paymentDetails, onBack }) {
             className="w-full h-11 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-xs shadow-md active:scale-95 transition-transform cursor-pointer text-sm"
           >
             <span className="material-symbols-outlined text-base">share</span>
-            Share QR Link
+            Share My Zeebac ID
           </button>
         </div>
       </main>
     </div>
   );
 }
+
+
 
 // SUBPAGE 5: REFER & EARN COMPONENT
 function ReferEarnSubView({ profile, onBack }) {

@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function CustomersPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
 
   const customers = [
     { id: 'CUST-001', name: 'Rahul Sharma', visits: 12, totalSpent: '₹14,500', lastVisit: '2 days ago', rating: 5, avatarBg: 'bg-blue-500/10 text-blue-600' },
@@ -19,10 +12,6 @@ export default function CustomersPage() {
     { id: 'CUST-004', name: 'Priya Singh', visits: 3, totalSpent: '₹2,100', lastVisit: 'Yesterday', rating: 0, avatarBg: 'bg-orange-500/10 text-orange-600' },
     { id: 'CUST-005', name: 'Vikram Gupta', visits: 1, totalSpent: '₹150', lastVisit: '3 weeks ago', rating: 3, avatarBg: 'bg-rose-500/10 text-rose-600' },
   ];
-
-  if (isLoading) {
-    return <SkeletonLoader type="list" count={5} />;
-  }
 
   return (
     <div className="animate-reveal text-left">

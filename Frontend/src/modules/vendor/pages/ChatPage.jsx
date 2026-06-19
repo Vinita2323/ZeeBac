@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function ChatPage() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const mockChats = [
     {
@@ -37,10 +30,6 @@ export default function ChatPage() {
       avatarColor: 'bg-orange-500/10 text-orange-600',
     },
   ];
-
-  if (isLoading) {
-    return <SkeletonLoader type="list" count={4} />;
-  }
 
   return (
     <div className="animate-reveal text-left">

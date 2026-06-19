@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function PassbookPage() {
   const navigate = useNavigate();
   const [dateFilter, setDateFilter] = useState('This Month');
-  const [isLoading, setIsLoading] = useState(true);
 
   const [balance, setBalance] = useState(24500);
 
@@ -26,10 +24,6 @@ export default function PassbookPage() {
     { id: 'LDG-100', date: 'Oct 22, 2023', time: '18:45', desc: 'Cashback (8%)', ref: 'TRX-9919', type: 'Debit', amount: '₹340.00', balance: '₹34,485.00' },
     { id: 'LDG-099', date: 'Oct 21, 2023', time: '11:20', desc: 'Payment - Priya S.', ref: 'TRX-9918', type: 'Credit', amount: '₹2,100.00', balance: '₹34,825.00' },
   ];
-
-  if (isLoading) {
-    return <SkeletonLoader type="list" count={6} />;
-  }
 
   return (
     <div className="animate-reveal text-left">

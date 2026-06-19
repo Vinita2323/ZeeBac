@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SkeletonLoader from '../components/common/SkeletonLoader';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
 
   const notificationsGroups = [
     {
@@ -37,10 +30,6 @@ export default function NotificationsPage() {
       default: return `bg-surface-container-high text-on-surface-variant`;
     }
   };
-
-  if (isLoading) {
-    return <SkeletonLoader type="list" count={4} />;
-  }
 
   return (
     <div className="animate-reveal text-left">
