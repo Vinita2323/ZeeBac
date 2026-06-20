@@ -72,39 +72,39 @@ export default function WalletPassbookScreen() {
     <div className="bg-white text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       
       {/* Top Gradient Area */}
-      <div className="bg-primary/5 pt-4 pb-6 px-container-margin rounded-b-[24px]">
+      <div className="bg-white pt-3 pb-3 px-container-margin border-b border-outline-variant/10">
         {/* Header */}
-        <header className="flex items-center gap-3 mb-6">
+        <header className="flex items-center gap-2 mb-3">
           <button 
             onClick={() => navigate(-1)}
             className="w-8 h-8 flex items-center justify-center text-on-surface active:scale-95 transition-transform"
           >
-            <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
           </button>
-          <h1 className="font-display text-title-lg text-primary font-bold tracking-tight">Balance & History</h1>
+          <h1 className="font-display text-title-md text-primary font-bold tracking-tight">Balance & History</h1>
         </header>
 
         {/* Your Accounts Section */}
-        <div className="space-y-3">
-          <h2 className="font-title-md text-on-surface font-bold text-body-lg px-1">Your Accounts</h2>
+        <div className="space-y-2">
+          <h2 className="text-[12px] uppercase tracking-wider text-on-surface-variant font-bold px-1">Your Accounts</h2>
           
           {/* Horizontal scroll for cards */}
-          <div className="flex gap-4 overflow-x-auto pb-2 scroll-hide">
+          <div className="flex gap-3 overflow-x-auto pb-1 scroll-hide">
             
             {/* ZeeBac Wallet Card */}
-            <div className="min-w-[220px] bg-gradient-to-br from-[#420093] via-[#5B00C2] to-[#31006E] rounded-[16px] p-3 text-white shadow-md relative overflow-hidden flex flex-col justify-between h-[110px]">
+            <div className="min-w-[220px] bg-gradient-to-br from-[#420093] via-[#5B00C2] to-[#31006E] rounded-[14px] p-3 text-white shadow-sm relative overflow-hidden flex flex-col justify-between h-[96px]">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-sm tracking-wide">ZeeBac Wallet</h3>
-                  <p className="text-[10px] text-white/80 mt-0.5">A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}</p>
+                  <h3 className="font-bold text-xs tracking-wide">ZeeBac Wallet</h3>
+                  <p className="text-[9px] text-white/80 mt-0.5">A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}</p>
                 </div>
-                <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shadow-inner">
-                  <span className="material-symbols-outlined text-white text-[14px]">account_balance_wallet</span>
+                <div className="w-5.5 h-5.5 bg-white/20 rounded-full flex items-center justify-center shadow-inner">
+                  <span className="material-symbols-outlined text-white text-[12px]">account_balance_wallet</span>
                 </div>
               </div>
               <button 
                 onClick={() => navigate('/wallet')}
-                className="bg-white hover:bg-white/90 text-primary text-xs font-bold py-1.5 rounded-lg w-full transition-colors active:scale-[0.98]"
+                className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98]"
               >
                 Check Balance
               </button>
@@ -115,46 +115,46 @@ export default function WalletPassbookScreen() {
       </div>
 
       {/* Main content */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin pt-6 text-left space-y-md">
+      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin pt-3 text-left space-y-3">
         
         {/* Payment History Header */}
         <div className="flex items-center justify-between px-1">
-          <h2 className="font-display text-title-md text-[#1A202C] font-black tracking-tight">Payment History</h2>
-          <div className="flex items-center gap-4 text-[#4A5568]">
-            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[24px]">search</span></button>
-            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[24px]">tune</span></button>
-            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[24px]">download</span></button>
+          <h2 className="font-display text-[15px] text-[#1A202C] font-black tracking-tight">Payment History</h2>
+          <div className="flex items-center gap-3.5 text-[#4A5568]">
+            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">search</span></button>
+            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">tune</span></button>
+            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">download</span></button>
           </div>
         </div>
 
         {/* Tab Toggle for ZeeBac logic */}
-        <div className="bg-surface-variant/40 p-1 rounded-xl flex mx-1 mt-2">
+        <div className="bg-surface-variant/30 p-0.5 rounded-lg flex mx-1 mt-1">
           <button 
             onClick={() => setActiveTab('Transactions')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'Transactions' ? 'bg-white text-[#1A202C] shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+            className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all ${activeTab === 'Transactions' ? 'bg-white text-[#1A202C] shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
           >
             Transactions
           </button>
           <button 
             onClick={() => setActiveTab('Cashback')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'Cashback' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+            className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all ${activeTab === 'Cashback' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
           >
             Cashback History
           </button>
         </div>
 
         {activeTab === 'Transactions' ? (
-          <div className="mt-4">
+          <div className="mt-2">
             {/* Month Header */}
-            <div className="bg-primary/5 flex justify-between items-center py-2 px-3 rounded-lg mx-1 mb-2">
-               <span className="font-bold text-primary text-sm">Recent Activity</span>
+            <div className="bg-primary/5 flex justify-between items-center py-1.5 px-2.5 rounded-lg mx-1 mb-1.5">
+               <span className="font-bold text-primary text-[12px]">Recent Activity</span>
                <div className="flex items-center gap-1.5">
                  <div className="text-right">
-                   <p className="text-[10px] text-on-surface-variant leading-tight">Current Balance</p>
-                   <p className="font-bold text-primary text-xs">₹{authBalance.toFixed(2)}</p>
+                   <p className="text-[8.5px] text-on-surface-variant leading-tight">Current Balance</p>
+                   <p className="font-bold text-primary text-[11px]">₹{authBalance.toFixed(2)}</p>
                  </div>
-                 <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
-                   <span className="material-symbols-outlined text-primary text-[14px]">chevron_right</span>
+                 <div className="w-4.5 h-4.5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                   <span className="material-symbols-outlined text-primary text-[12px]">chevron_right</span>
                  </div>
                </div>
             </div>
@@ -162,29 +162,30 @@ export default function WalletPassbookScreen() {
             <div className="space-y-0">
               {transactions.length > 0 ? (
                 transactions.map((tx, idx) => (
-                  <div key={tx.id} className={`p-3 flex items-start gap-3 ${idx !== transactions.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                  <div key={tx.id} className={`py-2 px-1 flex items-center gap-2.5 ${idx !== transactions.length - 1 ? 'border-b border-gray-100' : ''}`}>
                     {/* Circular Avatar */}
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'Credited' ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
-                      <span className="material-symbols-outlined text-[20px]">{tx.icon}</span>
+                    <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'Credited' ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
+                      <span className="material-symbols-outlined text-[16px]">{tx.icon}</span>
                     </div>
                     
                     {/* Center Details */}
-                    <div className="flex-grow space-y-0.5">
-                      <h4 className="font-bold text-on-surface text-sm leading-tight">{tx.name}</h4>
-                      <p className="text-on-surface-variant text-[11px]">{tx.time}</p>
-                      
-                      {/* Tag Pill */}
-                      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full mt-1 ${tx.type === 'Credited' ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
-                        <span className="material-symbols-outlined text-[10px]">{tx.tagIcon}</span>
-                        <span className="font-bold text-[9px]">{tx.tag}</span>
+                    <div className="flex-grow min-w-0 space-y-0.5">
+                      <h4 className="font-bold text-on-surface text-[12.5px] leading-tight truncate">{tx.name}</h4>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-on-surface-variant text-[9.5px]">{tx.time}</p>
+                        {/* Tag Pill */}
+                        <div className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full ${tx.type === 'Credited' ? 'bg-green-50 text-green-750' : 'bg-primary/5 text-primary'}`}>
+                          <span className="material-symbols-outlined text-[8px]">{tx.tagIcon}</span>
+                          <span className="font-black text-[8px] uppercase tracking-wide">{tx.tag}</span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Right Amount */}
-                    <div className="text-right space-y-1">
-                      <p className={`font-display font-bold text-sm ${tx.type === 'Credited' ? 'text-green-600' : 'text-on-surface'}`}>{tx.amount}</p>
-                      <p className="text-[10px] text-on-surface-variant flex items-center justify-end gap-1">
-                        From <span className="w-3 h-3 bg-primary rounded-full flex items-center justify-center text-white text-[8px] font-bold">Z</span>
+                    <div className="text-right shrink-0">
+                      <p className={`font-display font-black text-[12.5px] ${tx.type === 'Credited' ? 'text-green-600' : 'text-on-surface'}`}>{tx.amount}</p>
+                      <p className="text-[8.5px] text-on-surface-variant flex items-center justify-end gap-0.5 mt-0.5">
+                        From <span className="w-2.5 h-2.5 bg-primary rounded-full flex items-center justify-center text-white text-[7px] font-bold">Z</span>
                       </p>
                     </div>
                   </div>

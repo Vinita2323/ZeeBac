@@ -57,6 +57,39 @@ export default function SignupScreen({ role: roleProp }) {
   const [address, setAddress] = useState('');
   const [pincode, setPincode] = useState('');
   const [gstNumber, setGstNumber] = useState('');
+  const [storePhotos, setStorePhotos] = useState([]);
+  const [businessDocs, setBusinessDocs] = useState([]);
+
+  const handleFileChange = (e, type) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const fileObj = {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          data: reader.result
+        };
+        if (type === 'photos') {
+          setStorePhotos(prev => [...prev, fileObj]);
+        } else {
+          setBusinessDocs(prev => [...prev, fileObj]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeFile = (index, type) => {
+    if (type === 'photos') {
+      setStorePhotos(prev => prev.filter((_, i) => i !== index));
+    } else {
+      setBusinessDocs(prev => prev.filter((_, i) => i !== index));
+    }
+  };
 
   const totalSteps = isVendor ? 4 : 4;
 
@@ -93,6 +126,8 @@ export default function SignupScreen({ role: roleProp }) {
         pincode: pincode.trim(),
         gstNumber: gstNumber.trim(),
         cashbackRate: 10, // Default, admin can change
+        storePhotos,
+        businessDocs,
       }),
       createdAt: new Date().toISOString(),
     };
@@ -394,11 +429,11 @@ export default function SignupScreen({ role: roleProp }) {
               <h1 className="text-[24px] font-black tracking-tight text-on-surface leading-tight">
                 {role === 'vendor' ? 'Set up your business' : 'Complete your profile'}
               </h1>
-              <p className="text-[14px] text-on-surface-variant">
-                {role === 'vendor'
-                  ? 'Tell us about your business so customers can discover you.'
-                  : 'Just a few details and you\'re all set!'}
-              </p>
+              {role !== 'vendor' && (
+                <p className="text-[14px] text-on-surface-variant">
+                  Just a few details and you're all set!
+                </p>
+              )}
             </div>
 
             <div className="space-y-4 flex-1 overflow-y-auto scroll-hide pb-2">
@@ -507,28 +542,94 @@ export default function SignupScreen({ role: roleProp }) {
                     </div>
                   </div>
 
-                  {/* Store Image Upload (Mock) */}
+                  {/* Store Image Upload */}
                   <div className="space-y-1.5 text-left">
                     <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Store Photos <span className="text-on-surface-variant/50 normal-case">(Optional)</span></label>
-                    <div className="border-2 border-dashed border-outline-variant/30 rounded-xl p-6 flex flex-col items-center justify-center gap-2 bg-surface-container-low/50 hover:border-primary/30 transition-colors cursor-pointer"
-                      onClick={() => alert('File upload will be available with backend integration.')}
+                    <input
+                      type="file"
+                      id="store-photos-input"
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileChange(e, 'photos')}
+                    />
+                    <div className="border-2 border-dashed border-outline-variant/30 rounded-xl p-6 flex flex-col items-center justify-center gap-2 bg-surface-container-low/50 hover:border-secondary/30 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('store-photos-input').click()}
                     >
-                      <span className="material-symbols-outlined text-[32px] text-on-surface-variant/40">add_photo_alternate</span>
+                      <span className="material-symbols-outlined text-[32px] text-secondary">add_photo_alternate</span>
                       <p className="text-[12px] text-on-surface-variant font-medium">Tap to upload storefront images</p>
                       <p className="text-[10px] text-on-surface-variant/60">JPG, PNG up to 5MB each</p>
                     </div>
+
+                    {storePhotos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {storePhotos.map((file, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-outline-variant/30 group">
+                            <img src={file.data} alt="Store Preview" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFile(idx, 'photos');
+                              }}
+                              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/80 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">close</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Business Documents Upload (Mock) */}
+                  {/* Business Documents Upload */}
                   <div className="space-y-1.5 text-left">
                     <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Business Documents <span className="text-on-surface-variant/50 normal-case">(Optional)</span></label>
-                    <div className="border-2 border-dashed border-outline-variant/30 rounded-xl p-6 flex flex-col items-center justify-center gap-2 bg-surface-container-low/50 hover:border-primary/30 transition-colors cursor-pointer"
-                      onClick={() => alert('Document upload will be available with backend integration.')}
+                    <input
+                      type="file"
+                      id="business-docs-input"
+                      multiple
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileChange(e, 'docs')}
+                    />
+                    <div className="border-2 border-dashed border-outline-variant/30 rounded-xl p-6 flex flex-col items-center justify-center gap-2 bg-surface-container-low/50 hover:border-secondary/30 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('business-docs-input').click()}
                     >
-                      <span className="material-symbols-outlined text-[32px] text-on-surface-variant/40">upload_file</span>
+                      <span className="material-symbols-outlined text-[32px] text-secondary">upload_file</span>
                       <p className="text-[12px] text-on-surface-variant font-medium">Upload trade license, FSSAI, etc.</p>
                       <p className="text-[10px] text-on-surface-variant/60">PDF, JPG up to 10MB</p>
                     </div>
+
+                    {businessDocs.length > 0 && (
+                      <div className="space-y-1.5 mt-2">
+                        {businessDocs.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="material-symbols-outlined text-secondary">
+                                {file.type.includes('pdf') ? 'picture_as_pdf' : 'description'}
+                              </span>
+                              <span className="text-[12px] font-medium text-on-surface truncate max-w-[200px]">
+                                {file.name}
+                              </span>
+                              <span className="text-[10px] text-on-surface-variant">
+                                ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFile(idx, 'docs');
+                              }}
+                              className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">close</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}

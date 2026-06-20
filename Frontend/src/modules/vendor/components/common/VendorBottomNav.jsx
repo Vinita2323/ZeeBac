@@ -14,7 +14,7 @@ export default function VendorBottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-md border-t border-outline-variant/10 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] flex justify-around items-center w-full h-[60px] px-2">
+    <nav id="vendor-bottom-nav" className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-md border-t border-outline-variant/10 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] flex justify-around items-center w-full h-[60px] px-2">
       {navItems.map((item) => {
         const isActive = item.exact
           ? location.pathname === '/vendor' || location.pathname === '/vendor/'

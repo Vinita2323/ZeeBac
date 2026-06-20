@@ -30,10 +30,10 @@ export default function HomeScreen() {
   return (
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-2 flex items-center justify-between border-b border-outline-variant/10 shadow-sm">
+      <header className="sticky top-0 z-50 bg-white px-5 py-2 flex items-center justify-between border-b border-outline-variant/10 shadow-sm">
         <img 
           alt="Zeebac Logo" 
-          className="h-[56px] object-contain cursor-pointer" 
+          className="h-[68px] object-contain cursor-pointer" 
           src="/Logo (6).png"
           onClick={() => navigate('/home')}
         />
@@ -41,8 +41,9 @@ export default function HomeScreen() {
           <button onClick={() => navigate('/chat')} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
             <span className="material-symbols-outlined text-[24px]">chat_bubble</span>
           </button>
-          <button className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
+          <button className="relative text-[#420093] hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
             <span className="material-symbols-outlined text-[24px]">notifications</span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
         </div>
       </header>
@@ -73,23 +74,23 @@ export default function HomeScreen() {
         <div className="flex flex-col items-center justify-center py-2 space-y-3">
           <button 
             onClick={() => navigate('/scan')}
-            className="relative w-full max-w-[240px] aspect-square rounded-[36px] bg-white flex flex-col items-center justify-center shadow-lg hover:shadow-xl active:scale-[0.98] transition-all duration-200 cursor-pointer border border-outline-variant/20 group mx-auto"
+            className="relative w-full max-w-[180px] aspect-square rounded-[24px] bg-white flex flex-col items-center justify-center shadow-lg hover:shadow-xl active:scale-[0.98] transition-all duration-200 cursor-pointer border border-outline-variant/20 group mx-auto"
           >
             {/* Soft Glowing Background */}
-            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent rounded-[36px] pointer-events-none"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent rounded-[24px] pointer-events-none"></div>
 
             {/* Scanner Reticle Corners */}
-            <div className="absolute top-6 left-6 w-12 h-12 border-t-4 border-l-4 border-[#420093] rounded-tl-[16px] transition-all duration-300 group-hover:-translate-x-1 group-hover:-translate-y-1 pointer-events-none"></div>
-            <div className="absolute top-6 right-6 w-12 h-12 border-t-4 border-r-4 border-[#420093] rounded-tr-[16px] transition-all duration-300 group-hover:translate-x-1 group-hover:-translate-y-1 pointer-events-none"></div>
-            <div className="absolute bottom-6 left-6 w-12 h-12 border-b-4 border-l-4 border-[#420093] rounded-bl-[16px] transition-all duration-300 group-hover:-translate-x-1 group-hover:translate-y-1 pointer-events-none"></div>
-            <div className="absolute bottom-6 right-6 w-12 h-12 border-b-4 border-r-4 border-[#420093] rounded-br-[16px] transition-all duration-300 group-hover:translate-x-1 group-hover:translate-y-1 pointer-events-none"></div>
+            <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-[#420093] rounded-tl-[10px] transition-all duration-300 group-hover:-translate-x-0.5 group-hover:-translate-y-0.5 pointer-events-none"></div>
+            <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-[#420093] rounded-tr-[10px] transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 pointer-events-none"></div>
+            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-[#420093] rounded-bl-[10px] transition-all duration-300 group-hover:-translate-x-0.5 group-hover:translate-y-0.5 pointer-events-none"></div>
+            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-[#420093] rounded-br-[10px] transition-all duration-300 group-hover:translate-x-0.5 group-hover:translate-y-0.5 pointer-events-none"></div>
 
             {/* Huge Central Icon & Text */}
             <div className="relative z-10 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
-               <div className="w-24 h-24 rounded-full bg-[#420093]/10 flex items-center justify-center mb-3">
-                 <span className="material-symbols-outlined text-[56px] text-[#420093]">qr_code_scanner</span>
+               <div className="w-18 h-18 rounded-full bg-[#420093]/10 flex items-center justify-center mb-2">
+                 <span className="material-symbols-outlined text-[40px] text-[#420093]">qr_code_scanner</span>
                </div>
-               <span className="text-[#420093] font-display font-black text-[18px] tracking-wide uppercase">Scan & Pay</span>
+               <span className="text-[#420093] font-display font-black text-[14px] tracking-wide uppercase">Scan & Pay</span>
             </div>
           </button>
           

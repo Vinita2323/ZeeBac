@@ -66,15 +66,6 @@ export default function AuthLoginScreen({ role = 'customer' }) {
           )}
         </div>
 
-        {/* Identity Section */}
-        <div className="space-y-1 text-center">
-          <h1 className={`text-[24px] tracking-tight font-extrabold leading-tight ${isVendor ? 'text-secondary' : 'text-primary'}`}>
-            {isVendor ? 'Zeebac Vendor Partner' : 'Zeebac: Cashback & more'}
-          </h1>
-          <p className="text-[14px] text-on-surface-variant">
-            {isVendor ? 'Sign in to your vendor dashboard' : 'Enter your mobile number to sign in'}
-          </p>
-        </div>
 
         {/* Mobile Number Entry Form */}
         <form className="space-y-5" onSubmit={handleContinue}>

@@ -19,71 +19,69 @@ export default function WalletPage() {
     <div className="animate-reveal text-left">
       
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-[#f8f9fc]/90 backdrop-blur-md -mx-4 px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container-low flex items-center justify-center text-on-surface active:scale-95 cursor-pointer">
-            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
-          </button>
-          <span className="font-display text-[18px] text-on-surface font-black tracking-tight">Wallet</span>
-        </div>
+      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-2">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
+          <span className="material-symbols-outlined text-primary">arrow_back</span>
+        </button>
+        <span className="font-display text-title-md text-primary font-bold ml-1">Wallet</span>
       </header>
 
       <div className="space-y-6 pt-2 pb-6">
 
       {/* Constrain width on desktop so the card doesn't become massive */}
-      <div className="md:max-w-[400px] space-y-6">
+      <div className="md:max-w-[400px] space-y-4">
         {/* Balance Card — physical card style */}
-        <div className="relative overflow-hidden rounded-[20px] p-6 text-white shadow-lg bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] aspect-[1.7/1] flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-2xl p-4.5 text-white shadow-md bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] aspect-[2.1/1] flex flex-col justify-between">
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl -mt-10 -mr-10 pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/20 rounded-full blur-xl -mb-10 -ml-10 pointer-events-none" />
           
           {/* Card Header */}
           <div className="relative z-10 flex justify-between items-start">
-            <div className="flex items-center gap-1.5 opacity-80">
-              <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-              <span className="text-[11px] font-bold tracking-widest uppercase">Cashback Wallet</span>
+            <div className="flex items-center gap-1 opacity-80">
+              <span className="material-symbols-outlined text-[14px]">account_balance_wallet</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase">Cashback Wallet</span>
             </div>
-            <span className="material-symbols-outlined opacity-50">contactless</span>
+            <span className="material-symbols-outlined text-[18px] opacity-50">contactless</span>
           </div>
 
           {/* Balance Amount */}
-          <div className="relative z-10">
-            <h2 className="text-[34px] font-display font-black leading-none tracking-tight">
+          <div className="relative z-10 my-1">
+            <h2 className="text-[28px] font-display font-black leading-none tracking-tight">
               ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h2>
           </div>
 
           {/* Card Footer */}
           <div className="relative z-10 flex justify-between items-end opacity-70">
-            <div className="text-[10px] tracking-widest font-mono">**** **** **** 9921</div>
-            <div className="text-[10px] font-bold uppercase tracking-wider">Noir Concept</div>
+            <div className="text-[9px] tracking-widest font-mono">**** **** 9921</div>
+            <div className="text-[9px] font-bold uppercase tracking-wider">Noir Concept</div>
           </div>
         </div>
 
-        {/* Quick Actions (Extracted from card) */}
+        {/* Quick Actions */}
         <div className="flex gap-2">
           <button 
             onClick={() => alert('Add Funds Flow')}
-            className="flex-1 py-3 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-1 text-[11px]"
+            className="flex-1 py-2 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-0.5 text-[10.5px]"
           >
-            <span className="material-symbols-outlined text-[20px]">add_circle</span>
+            <span className="material-symbols-outlined text-[18px]">add_circle</span>
             Add Funds
           </button>
           
           <button 
             onClick={() => alert('Withdraw Flow')}
-            className="flex-1 py-3 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex flex-col items-center justify-center gap-1 text-[11px]"
+            className="flex-1 py-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex flex-col items-center justify-center gap-0.5 text-[10.5px]"
           >
-            <span className="material-symbols-outlined text-[20px]">account_balance</span>
+            <span className="material-symbols-outlined text-[18px]">account_balance</span>
             Withdraw
           </button>
 
           <button 
             onClick={() => navigate('/vendor/passbook')}
-            className="flex-1 py-3 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex flex-col items-center justify-center gap-1 text-[11px]"
+            className="flex-1 py-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex flex-col items-center justify-center gap-0.5 text-[10.5px]"
           >
-            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+            <span className="material-symbols-outlined text-[18px]">receipt_long</span>
             Ledger
           </button>
         </div>
@@ -91,34 +89,34 @@ export default function WalletPage() {
 
       {/* Stats Row - Compact */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl p-3.5 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-on-surface-variant font-bold text-[10px] uppercase tracking-wider">Earnings</span>
-            <div className="w-6 h-6 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
+        <div className="bg-white rounded-2xl p-3 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">Earnings</span>
+            <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[12px]">trending_up</span>
             </div>
           </div>
-          <p className="text-[18px] font-black text-on-surface leading-none tracking-tight">₹1,42,500</p>
-          <p className="text-[10px] font-medium text-on-surface-variant mt-1">This Month</p>
+          <p className="text-[16px] font-black text-on-surface leading-none tracking-tight">₹1,42,500</p>
+          <p className="text-[9px] font-medium text-on-surface-variant mt-1">This Month</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-3.5 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-on-surface-variant font-bold text-[10px] uppercase tracking-wider">Cashback</span>
-            <div className="w-6 h-6 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[14px]">redeem</span>
+        <div className="bg-white rounded-2xl p-3 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">Cashback</span>
+            <div className="w-5.5 h-5.5 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[12px]">redeem</span>
             </div>
           </div>
-          <p className="text-[18px] font-black text-on-surface leading-none tracking-tight">₹11,400</p>
-          <p className="text-[10px] font-medium text-on-surface-variant mt-1">This Month</p>
+          <p className="text-[16px] font-black text-on-surface leading-none tracking-tight">₹11,400</p>
+          <p className="text-[9px] font-medium text-on-surface-variant mt-1">This Month</p>
         </div>
       </div>
 
       {/* Wallet Activity */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-[16px] font-extrabold text-on-surface">Recent Activity</h3>
-          <button onClick={() => navigate('/vendor/passbook')} className="text-[12px] text-primary font-bold">See All</button>
+          <h3 className="font-display text-[18px] font-extrabold text-on-surface">Recent Activity</h3>
+          <button onClick={() => navigate('/vendor/passbook')} className="text-[14px] text-primary font-medium hover:underline cursor-pointer">See All</button>
         </div>
 
         <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">

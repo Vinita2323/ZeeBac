@@ -51,14 +51,14 @@ export default function TransactionsPage() {
     <div className="animate-reveal text-left">
 
       {/* Mobile Header — like user app sub-pages */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-lg">
+      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-2">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
         <span className="font-display text-title-md text-primary font-bold ml-1">Transactions</span>
       </header>
 
-      <div className="space-y-6 pt-4">
+      <div className="space-y-3.5 pt-1">
         {/* Search Bar */}
         <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>

@@ -31,7 +31,7 @@ export default function VendorLayout({ children }) {
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto scroll-smooth bg-[#f8f9fc]">
           {/* Mobile: constrained single-column like user app */}
-          <div className="md:hidden max-w-[440px] mx-auto w-full px-4 pb-28 space-y-4">
+          <div className="md:hidden max-w-[440px] mx-auto w-full px-container-margin pb-28 space-y-4">
             {children}
           </div>
           {/* Desktop: full-width dashboard */}

@@ -44,29 +44,29 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 max-w-[350px] mx-auto w-full">
         <button 
           onClick={() => navigate('/vendor/scan-customer')}
-          className="flex items-center gap-3 p-4 rounded-2xl bg-secondary text-white shadow-lg hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer"
+          className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
+          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
           </div>
           <div className="text-left">
-            <p className="text-[13px] font-bold leading-tight">Scan Customer</p>
-            <p className="text-[10px] text-white/70">Log a transaction</p>
+            <p className="text-[12px] font-bold leading-tight">Scan Customer</p>
+            <p className="text-[9px] text-white/70">Log a transaction</p>
           </div>
         </button>
         <button 
           onClick={() => setShowQRModal(true)}
-          className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer"
+          className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-            <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+          <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
+            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
           <div className="text-left">
-            <p className="text-[13px] font-bold leading-tight">My Store QR</p>
-            <p className="text-[10px] text-on-surface-variant">Show to customers</p>
+            <p className="text-[12px] font-bold leading-tight">My Store QR</p>
+            <p className="text-[9px] text-on-surface-variant">Show to customers</p>
           </div>
         </button>
       </div>
