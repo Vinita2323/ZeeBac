@@ -116,6 +116,21 @@ export default function WalletPassbookScreen() {
 
       {/* Main content */}
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin pt-3 text-left space-y-3">
+
+        {/* Upload Receipt CTA */}
+        <button 
+          onClick={() => navigate('/request-cashback')}
+          className="w-full flex items-center gap-3 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/15 rounded-xl px-4 py-3 active:scale-[0.98] transition-all group"
+        >
+          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+            <span className="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-bold text-[13px] text-on-surface leading-tight">Missing Cashback?</p>
+            <p className="text-[10.5px] text-on-surface-variant">Upload your receipt to claim it</p>
+          </div>
+          <span className="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
+        </button>
         
         {/* Payment History Header */}
         <div className="flex items-center justify-between px-1">
