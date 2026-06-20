@@ -1,15 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function WalletMonitorPage() {
   const [activeTab, setActiveTab] = useState('All');
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('newest');
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
 
   const stats = [
     { label: 'Total Platform Float', value: '₹14.2M', icon: 'account_balance', color: 'text-primary', bg: 'bg-primary/10' },
@@ -18,30 +12,6 @@ export default function WalletMonitorPage() {
     { label: 'Today\'s Debits', value: '₹45K', icon: 'arrow_upward', color: 'text-red-600', bg: 'bg-red-500/10' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="flex justify-between items-center mb-6">
-          <div className="space-y-2">
-            <div className="h-8 bg-outline-variant/20 rounded w-48"></div>
-            <div className="h-4 bg-outline-variant/10 rounded w-64"></div>
-          </div>
-          <div className="h-10 bg-outline-variant/10 rounded-xl w-40"></div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-outline-variant/10 rounded-2xl"></div>)}
-        </div>
-        <div className="bg-white rounded-xl border border-outline-variant/5 p-4 space-y-4">
-          <div className="flex justify-between items-center">
-            <div className="h-6 bg-outline-variant/10 rounded w-48"></div>
-            <div className="h-8 bg-outline-variant/10 rounded w-40"></div>
-          </div>
-          <div className="h-10 bg-outline-variant/10 rounded w-full mt-4"></div>
-          {[1,2,3,4].map(i => <div key={i} className="h-14 bg-outline-variant/5 rounded w-full"></div>)}
-        </div>
-      </div>
-    );
-  }
 
   const movements = [
     { id: 'W-001', type: 'Credit', amount: '₹12,400', user: 'Fresh Mart', description: 'Vendor Wallet Top-up', time: '10 mins ago' },

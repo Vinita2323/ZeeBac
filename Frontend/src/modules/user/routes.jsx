@@ -9,7 +9,6 @@ import TransactionSuccessScreen from './pages/TransactionSuccessScreen';
 import WalletScreen from './pages/WalletScreen';
 import WalletPassbookScreen from './pages/WalletPassbookScreen';
 import RequestCashbackScreen from './pages/RequestCashbackScreen';
-import RequestHistoryScreen from './pages/RequestHistoryScreen';
 import RequestDetailsScreen from './pages/RequestDetailsScreen';
 import ProfileScreen from './pages/ProfileScreen';
 import ScanQRScreen from './pages/ScanQRScreen';
@@ -36,7 +35,6 @@ export default function UserRoutes() {
         <Route path="/wallet" element={<WalletScreen />} />
         <Route path="/passbook" element={<WalletPassbookScreen />} />
         <Route path="/request-cashback" element={<RequestCashbackScreen />} />
-        <Route path="/request-history" element={<RequestHistoryScreen />} />
         <Route path="/request/:id" element={<RequestDetailsScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />
         <Route path="/scan" element={<ScanQRScreen />} />

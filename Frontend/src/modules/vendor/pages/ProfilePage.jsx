@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
 
-  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const logout = useAuthStore((state) => state.logout);
   const storeName = currentUser.storeName || 'Noir Concept Store';
   const category = currentUser.category || 'Premium Fashion';
   const phone = currentUser.phone ? `+91 ${currentUser.phone}` : '+91 98765 43210';
@@ -325,10 +327,8 @@ export default function ProfilePage() {
       {/* Logout */}
       <button 
         onClick={() => {
-          localStorage.removeItem('zeebac_current_user');
-          localStorage.removeItem('vendor_transactions');
-          localStorage.removeItem('vendor_balance');
-          navigate('/login');
+          logout();
+          navigate('/vendor-app/login');
         }}
         className="w-full py-3.5 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold text-[14px] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm border border-red-100"
       >

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function AdminLoginScreen() {
   const navigate = useNavigate();
@@ -11,7 +12,8 @@ export default function AdminLoginScreen() {
   const handleLogin = (e) => {
     e.preventDefault();
     if (email === 'admin@zeebac.com' && password === 'admin123') {
-      localStorage.setItem('zeebac_current_user', JSON.stringify({ role: 'admin', email: 'admin@zeebac.com' }));
+      // Use the global auth store instead of directly modifying localStorage
+      useAuthStore.getState().login({ role: 'admin', email: 'admin@zeebac.com', name: 'Super Admin' });
       navigate('/admin');
     } else {
       setError('Invalid admin credentials.');

@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react';
 
 export default function DashboardPage() {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
 
   const stats = [
     { label: 'Total Users', value: '45,231', icon: 'groups', trend: '+1,204 this week', color: 'text-primary', bg: 'bg-primary/10' },
@@ -31,16 +25,7 @@ export default function DashboardPage() {
 
   const chartData = [40, 65, 45, 80, 55, 90, 75]; // Mock volume data
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-8 bg-outline-variant/20 rounded w-48 mb-6"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-outline-variant/10 rounded-2xl"></div>)}
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="space-y-6 animate-reveal text-left">

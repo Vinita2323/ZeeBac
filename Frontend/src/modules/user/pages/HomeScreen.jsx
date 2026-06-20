@@ -56,8 +56,8 @@ export default function HomeScreen() {
             onClick={() => navigate('/wallet')}
             className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#D4E9FC] hover:bg-[#C2E0FB] text-[#0F4C81] shadow-sm transition-all active:scale-[0.97] cursor-pointer h-22"
           >
-            <span className="material-symbols-outlined text-[26px] mb-1">balance</span>
-            <span className="text-[12px] font-extrabold text-center leading-tight text-[#0F4C81]">Check<br/>Balance</span>
+            <span className="material-symbols-outlined text-[26px] mb-1">account_balance_wallet</span>
+            <span className="text-[12px] font-extrabold text-center leading-tight text-[#0F4C81]">Rewards<br/>Wallet</span>
           </div>
 
           <div 

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
+import useUIStore from '../../../store/useUIStore';
 
 // ─── Utility: Mock localStorage Auth ────────────────────────────────────────
 function getUsers() {
@@ -98,7 +100,12 @@ export default function SignupScreen({ role: roleProp }) {
     const users = getUsers();
     users.push(newUser);
     saveUsers(users);
-    setCurrentUser(newUser);
+
+    // Set session via global store
+    useAuthStore.getState().login(newUser);
+
+    // Show success feedback
+    useUIStore.getState().showSnackbar('Account created successfully!', 'success');
 
     // Also save to legacy profile keys for existing screens
     if (role === 'customer') {

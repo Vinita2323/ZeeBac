@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function AuthLoginScreen({ role = 'customer' }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const isVendor = role === 'vendor';
+
+  const login = useAuthStore((state) => state.login);
 
   const handleInputChange = (e) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
@@ -19,7 +22,10 @@ export default function AuthLoginScreen({ role = 'customer' }) {
 
   const handleContinue = (e) => {
     e.preventDefault();
-    if (!isFormValid) return;
+    if (!isFormValid) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
 
     // Check if user exists in mock DB — scoped to the specific role
     const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');

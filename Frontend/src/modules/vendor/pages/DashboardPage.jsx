@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
   
-  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
   const qrData = `zeebac://vendor/${zeebacId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=96-0-218&data=${encodeURIComponent(qrData)}`;
@@ -37,7 +38,7 @@ export default function DashboardPage() {
         <div>
           <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Welcome back</p>
           <h1 className="font-display text-[18px] font-black text-on-surface leading-none tracking-tight">
-            {JSON.parse(localStorage.getItem('zeebac_current_user') || '{}').storeName || 'Noir Concept Store'}
+            {currentUser.storeName || 'Noir Concept Store'}
           </h1>
         </div>
       </div>

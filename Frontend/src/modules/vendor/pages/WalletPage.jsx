@@ -1,19 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function WalletPage() {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(24500);
-
-  useEffect(() => {
-    const localBalance = localStorage.getItem('vendor_balance');
-    if (localBalance) {
-      setBalance(parseFloat(localBalance));
-    }
-    
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
+  const balance = useAuthStore((state) => state.walletBalance);
 
 
 
@@ -71,19 +62,28 @@ export default function WalletPage() {
         </div>
 
         {/* Quick Actions (Extracted from card) */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button 
             onClick={() => alert('Add Funds Flow')}
-            className="flex-1 py-3.5 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-[13px]"
+            className="flex-1 py-3 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-1 text-[11px]"
           >
-            <span className="material-symbols-outlined text-[18px]">add_circle</span>
+            <span className="material-symbols-outlined text-[20px]">add_circle</span>
             Add Funds
           </button>
+          
+          <button 
+            onClick={() => alert('Withdraw Flow')}
+            className="flex-1 py-3 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex flex-col items-center justify-center gap-1 text-[11px]"
+          >
+            <span className="material-symbols-outlined text-[20px]">account_balance</span>
+            Withdraw
+          </button>
+
           <button 
             onClick={() => navigate('/vendor/passbook')}
-            className="flex-1 py-3.5 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex items-center justify-center gap-2 text-[13px]"
+            className="flex-1 py-3 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm flex flex-col items-center justify-center gap-1 text-[11px]"
           >
-            <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
             Ledger
           </button>
         </div>

@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavBar from '../components/common/BottomNavBar';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
+  const logout = useAuthStore((state) => state.logout);
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
   const [subView, setSubView] = useState(null); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
   
   // Profile state
@@ -196,7 +199,6 @@ export default function ProfileScreen() {
 
         {/* KYC Identity Info */}
         {(() => {
-          const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || 'null');
           if (!currentUser?.aadhaar) return null;
           const maskedAadhaar = `•••• •••• ${currentUser.aadhaar.slice(-4)}`;
           const maskedPan = currentUser.pan ? `${currentUser.pan.slice(0, 2)}••••••${currentUser.pan.slice(-2)}` : '';
@@ -244,7 +246,7 @@ export default function ProfileScreen() {
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Accounts & History</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
             <div 
-              onClick={() => navigate('/request-history')}
+              onClick={() => navigate('/passbook')}
               className="p-md hover:bg-[#420093]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">
@@ -387,11 +389,7 @@ export default function ProfileScreen() {
         {/* Logout */}
         <button 
           onClick={() => {
-            localStorage.removeItem('zeebac_current_user');
-            localStorage.removeItem('user_profile');
-            localStorage.removeItem('payment_details');
-            localStorage.removeItem('vendor_transactions');
-            localStorage.removeItem('vendor_balance');
+            logout();
             navigate('/login');
           }}
           className="w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"

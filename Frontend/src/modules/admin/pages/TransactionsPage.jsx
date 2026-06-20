@@ -3,13 +3,7 @@ import { useState, useEffect } from 'react';
 export default function TransactionsPage() {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('newest');
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
 
   const transactions = [
     { id: 'TX-9204', customer: 'Amit Kumar', vendor: 'Noir Concept Store', amount: '₹4,500', cashback: '₹450', status: 'Approved', time: '10 mins ago', type: 'Credit Card' },
@@ -20,26 +14,7 @@ export default function TransactionsPage() {
     { id: 'TX-9209', customer: 'Karan Verma', vendor: 'Elite Electronics', amount: '₹45,000', cashback: '₹0', status: 'Flagged', time: 'Yesterday', type: 'Cash' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="flex justify-between items-center mb-6">
-          <div className="space-y-2">
-            <div className="h-8 bg-outline-variant/20 rounded w-48"></div>
-            <div className="h-4 bg-outline-variant/10 rounded w-64"></div>
-          </div>
-          <div className="flex gap-2">
-            <div className="h-10 bg-outline-variant/10 rounded-xl w-40"></div>
-            <div className="h-10 bg-outline-variant/10 rounded-xl w-24"></div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-outline-variant/5 p-4 space-y-4">
-          <div className="h-10 bg-outline-variant/10 rounded w-full"></div>
-          {[1,2,3,4,5,6].map(i => <div key={i} className="h-14 bg-outline-variant/5 rounded w-full"></div>)}
-        </div>
-      </div>
-    );
-  }
+
 
   let filteredTransactions = transactions.filter(t => 
     (filter === 'All' || t.status === filter) &&

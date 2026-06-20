@@ -6,8 +6,10 @@ import UsersPage from './pages/UsersPage';
 import VendorsPage from './pages/VendorsPage';
 import TransactionsPage from './pages/TransactionsPage';
 import CashbackRulesPage from './pages/CashbackRulesPage';
-import WalletMonitorPage from './pages/WalletMonitorPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import WalletMonitorPage from './pages/WalletMonitorPage';
+import FraudDetectionPage from './pages/FraudDetectionPage';
+import ReferralAnalyticsPage from './pages/ReferralAnalyticsPage';
 
 export default function AdminRoutes() {
   return (
@@ -18,8 +20,10 @@ export default function AdminRoutes() {
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/rules" element={<CashbackRulesPage />} />
-        <Route path="/wallet" element={<WalletMonitorPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/wallet" element={<WalletMonitorPage />} />
+        <Route path="/fraud" element={<FraudDetectionPage />} />
+        <Route path="/referrals" element={<ReferralAnalyticsPage />} />
       </Routes>
     </AdminLayout>
   );

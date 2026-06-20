@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function LogPurchasePage() {
   const navigate = useNavigate();
@@ -30,10 +31,10 @@ export default function LogPurchasePage() {
     const existing = JSON.parse(localStorage.getItem('vendor_transactions') || '[]');
     localStorage.setItem('vendor_transactions', JSON.stringify([newTx, ...existing]));
     
-    const currentBalance = parseFloat(localStorage.getItem('vendor_balance') || '24500');
+    const currentBalance = useAuthStore.getState().walletBalance;
     // Assuming 10% cashback for mock
     const cashbackAmount = parseFloat(amount) * 0.1;
-    localStorage.setItem('vendor_balance', (currentBalance - cashbackAmount).toString());
+    useAuthStore.getState().updateBalance(currentBalance - cashbackAmount);
 
     navigate('/vendor/transactions');
   };

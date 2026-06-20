@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react';
 
 export default function UsersPage() {
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name_asc');
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
 
   const users = [
     { id: 'U-9842', name: 'Amit Kumar', phone: '+91 98765 43210', aadhaar: 'XXXX-XXXX-4921', status: 'Active', joined: 'Oct 12, 2023' },
@@ -30,23 +24,7 @@ export default function UsersPage() {
     return 0;
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="flex justify-between items-center mb-6">
-          <div className="space-y-2">
-            <div className="h-8 bg-outline-variant/20 rounded w-48"></div>
-            <div className="h-4 bg-outline-variant/10 rounded w-64"></div>
-          </div>
-          <div className="h-10 bg-outline-variant/10 rounded-xl w-72"></div>
-        </div>
-        <div className="bg-white rounded-xl border border-outline-variant/5 p-4 space-y-4">
-          <div className="h-10 bg-outline-variant/10 rounded w-full"></div>
-          {[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-outline-variant/5 rounded w-full"></div>)}
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -83,6 +61,11 @@ export default function UsersPage() {
             </select>
             <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-[18px] pointer-events-none">expand_more</span>
           </div>
+
+          <button className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span className="sm:inline">Export</span>
+          </button>
         </div>
       </div>
 

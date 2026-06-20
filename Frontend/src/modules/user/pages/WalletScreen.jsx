@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavBar from '../components/common/BottomNavBar';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function WalletScreen() {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(() => {
-    return parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
-  });
+  const authBalance = useAuthStore((state) => state.walletBalance);
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
+  
+  const [balance, setBalance] = useState(() => authBalance);
 
   // Available rewards count up animation
   useEffect(() => {
-    const end = parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
+    const end = authBalance;
     let start = Math.max(0, end - 100);
     const duration = 1200;
     const stepTime = 30;
@@ -36,7 +38,7 @@ export default function WalletScreen() {
 
   useEffect(() => {
     const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-    const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+    
     
     // Filter transactions for this customer
     const myTxns = txns.filter(t => t.customerId === currentUser.zeebacId || t.customerPhone === currentUser.phone);
@@ -97,9 +99,9 @@ export default function WalletScreen() {
               className="flex flex-col items-center gap-xs cursor-pointer hover:opacity-85 active:scale-95"
             >
               <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+                <span className="material-symbols-outlined text-[20px]">history</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant">Passbook</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant">History</span>
             </button>
             <button 
               onClick={() => alert('Transfer to bank placeholder')}
@@ -124,7 +126,7 @@ export default function WalletScreen() {
 
         {/* Cashback Requests History Link Banner */}
         <div 
-          onClick={() => navigate('/request-history')}
+          onClick={() => navigate('/passbook')}
           className="bg-white border border-outline-variant/30 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors shadow-sm"
         >
           <div className="flex items-center gap-4">

@@ -1,14 +1,12 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function BottomNavBar() {
-  const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
     { label: 'Home', icon: 'home', path: '/home' },
     { label: 'Explore', icon: 'storefront', path: '/explore' },
-    { label: 'Wallet', icon: 'wallet', path: '/wallet' },
-    { label: 'Passbook', icon: 'receipt', path: '/passbook' },
+    { label: 'History', icon: 'history', path: '/passbook' },
     { label: 'Profile', icon: 'person', path: '/profile' }
   ];
 
@@ -17,9 +15,9 @@ export default function BottomNavBar() {
       {navItems.map((item) => {
         const isActive = location.pathname === item.path;
         return (
-          <button
+          <Link
             key={item.label}
-            onClick={() => navigate(item.path)}
+            to={item.path}
             className={`flex flex-col items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer py-1 px-3 rounded-xl ${
               isActive 
                 ? 'bg-[#420093] text-white shadow-sm font-semibold' 
@@ -33,7 +31,7 @@ export default function BottomNavBar() {
               {item.icon}
             </span>
             <span className="font-display text-[9px] mt-0.5 font-bold tracking-wide">{item.label}</span>
-          </button>
+          </Link>
         );
       })}
     </nav>

@@ -14,6 +14,11 @@ import PrivacyPolicyScreen from './modules/auth/pages/PrivacyPolicyScreen';
 import AdminLoginScreen from './modules/admin/pages/AdminLoginScreen';
 import VendorLandingScreen from './modules/vendor/pages/VendorLandingScreen';
 
+// Global State & UI
+import useAuthStore from './store/useAuthStore';
+import GlobalAlertDialog from './components/GlobalAlertDialog';
+import GlobalSnackbar from './components/GlobalSnackbar';
+
 function ScrollToTop() {
   const { pathname } = useLocation();
 
@@ -25,9 +30,17 @@ function ScrollToTop() {
 }
 
 function App() {
+  // Auth state is now synchronously hydrated inside useAuthStore.js
+
+
   return (
     <BrowserRouter>
       <ScrollToTop />
+
+      {/* Global UI Overlays */}
+      <GlobalAlertDialog />
+      <GlobalSnackbar />
+
       <Routes>
         {/* ─── Customer App Auth ─── */}
         <Route path="/login" element={<AuthLoginScreen role="customer" />} />

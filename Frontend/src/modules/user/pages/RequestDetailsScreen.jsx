@@ -30,7 +30,7 @@ export default function RequestDetailsScreen() {
           <span className="material-symbols-outlined text-outline text-[48px]">warning</span>
           <p className="font-title-md text-on-surface font-bold">Request details not found</p>
           <button 
-            onClick={() => navigate('/request-history')}
+            onClick={() => navigate('/passbook')}
             className="btn-primary-gradient px-lg py-sm text-white rounded-xl font-title-md shadow-md active:scale-95 transition-transform"
           >
             Back to Requests
@@ -56,7 +56,7 @@ export default function RequestDetailsScreen() {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
         <div className="flex items-center gap-xs">
           <button 
-            onClick={() => navigate('/request-history')}
+            onClick={() => navigate('/passbook')}
             className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined text-primary">arrow_back</span>

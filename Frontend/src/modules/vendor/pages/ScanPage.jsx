@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function ScanPage() {
   const navigate = useNavigate();
@@ -31,8 +32,8 @@ export default function ScanPage() {
     const existing = JSON.parse(localStorage.getItem('vendor_transactions') || '[]');
     localStorage.setItem('vendor_transactions', JSON.stringify([newTx, ...existing]));
     
-    const currentBalance = parseFloat(localStorage.getItem('vendor_balance') || '24500');
-    localStorage.setItem('vendor_balance', (currentBalance + 850).toString());
+    const currentBalance = useAuthStore.getState().walletBalance;
+    useAuthStore.getState().updateBalance(currentBalance + 850);
 
     navigate('/vendor/transactions');
   };

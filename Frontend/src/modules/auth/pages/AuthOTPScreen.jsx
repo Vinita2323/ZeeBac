@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
+import useUIStore from '../../../store/useUIStore';
 
 export default function AuthOTPScreen() {
   const [otp, setOtp] = useState(['', '', '', '']);
@@ -57,8 +59,9 @@ export default function AuthOTPScreen() {
           return;
         }
 
-        // Set current user session
-        localStorage.setItem('zeebac_current_user', JSON.stringify(user));
+        // Set current user session via global store
+        const login = useAuthStore.getState().login;
+        login(user);
 
         // Also set legacy profile data for existing screens
         if (user.role === 'customer') {
@@ -68,6 +71,9 @@ export default function AuthOTPScreen() {
             email: user.email
           }));
         }
+
+        // Show success snackbar
+        useUIStore.getState().showSnackbar('Logged in successfully!', 'success');
 
         setTimeout(() => {
           if (user.role === 'vendor') {

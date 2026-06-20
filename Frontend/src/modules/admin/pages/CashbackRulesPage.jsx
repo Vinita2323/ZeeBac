@@ -1,42 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function CashbackRulesPage() {
   const [globalMax, setGlobalMax] = useState(15);
   const [firstPurchaseEnabled, setFirstPurchaseEnabled] = useState(true);
   const [referralEnabled, setReferralEnabled] = useState(false);
   const [localShopEnabled, setLocalShopEnabled] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="space-y-2 mb-6">
-          <div className="h-8 bg-outline-variant/20 rounded w-48"></div>
-          <div className="h-4 bg-outline-variant/10 rounded w-64"></div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl border border-outline-variant/5 p-6 space-y-4">
-              <div className="h-6 bg-outline-variant/10 rounded w-32"></div>
-              <div className="h-16 bg-outline-variant/5 rounded w-full"></div>
-            </div>
-            <div className="bg-white rounded-xl border border-outline-variant/5 p-6 space-y-6">
-              <div className="h-6 bg-outline-variant/10 rounded w-40"></div>
-              {[1,2,3].map(i => <div key={i} className="h-12 bg-outline-variant/5 rounded w-full"></div>)}
-            </div>
-          </div>
-          <div className="space-y-6">
-            <div className="h-64 bg-outline-variant/10 rounded-xl w-full"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-reveal text-left">

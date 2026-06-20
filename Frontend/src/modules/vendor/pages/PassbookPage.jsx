@@ -1,20 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function PassbookPage() {
   const navigate = useNavigate();
   const [dateFilter, setDateFilter] = useState('This Month');
-
-  const [balance, setBalance] = useState(24500);
-
-  useEffect(() => {
-    const localBalance = localStorage.getItem('vendor_balance');
-    if (localBalance) {
-      setBalance(parseFloat(localBalance));
-    }
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
-  }, []);
+  const balance = useAuthStore((state) => state.walletBalance);
 
   const ledgerEntries = [
     { id: 'LDG-104', date: 'Oct 24, 2023', time: '14:30', desc: 'Payment - Rahul S.', ref: 'TRX-9921', type: 'Credit', amount: '₹850.00', balance: '₹24,500.00' },

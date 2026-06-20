@@ -1,12 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function AnalyticsPage() {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
+  const [timeframe, setTimeframe] = useState('This Month');
 
   const userGrowth = [30, 45, 60, 55, 75, 100];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
@@ -19,22 +14,6 @@ export default function AnalyticsPage() {
     { name: 'Other', percentage: 5, color: 'bg-outline-variant' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-pulse pb-10">
-        <div className="space-y-2 mb-6">
-          <div className="h-8 bg-outline-variant/20 rounded w-48"></div>
-          <div className="h-4 bg-outline-variant/10 rounded w-64"></div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-outline-variant/5 p-6 h-[320px]"></div>
-          <div className="bg-white rounded-xl border border-outline-variant/5 p-6 h-[320px]"></div>
-          <div className="bg-white rounded-xl border border-outline-variant/5 p-6 h-[320px]"></div>
-          <div className="bg-white rounded-xl border border-outline-variant/5 p-6 h-[320px]"></div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-reveal text-left pb-10">
