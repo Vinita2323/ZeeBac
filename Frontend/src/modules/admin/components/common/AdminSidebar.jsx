@@ -31,16 +31,16 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
   return (
     <aside className="h-full bg-[#31006E] text-white flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.1)]">
       {/* Logo Area */}
-      <div className={`h-[64px] flex items-center ${isCollapsed ? 'justify-center' : 'px-5 justify-between'} border-b border-white/10 relative shrink-0`}>
-        <div className="flex items-center justify-center w-full">
+      <div className={`h-[64px] flex items-center ${isCollapsed ? 'justify-center' : 'px-5 justify-between'} bg-white border-b border-outline-variant/20 relative shrink-0`}>
+        <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-start'}`}>
           <img 
             alt="Zeebac Logo" 
-            className={`object-contain transition-all duration-300 cursor-pointer ${isCollapsed ? 'h-5 max-w-[64px]' : 'h-6'}`} 
+            className={`object-contain transition-all duration-300 cursor-pointer ${isCollapsed ? 'h-5 max-w-[64px]' : 'h-8'}`} 
             src="/Logo (6).png"
             onClick={() => navigate('/admin')}
           />
           {!isCollapsed && (
-            <span className="ml-2 px-1.5 py-0.5 bg-red-500/10 text-red-600 text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap">
+            <span className="ml-2.5 px-1.5 py-0.5 bg-red-500/10 text-red-600 text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap">
               Admin
             </span>
           )}
@@ -50,7 +50,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
         {onToggleCollapse && (
           <button 
             onClick={onToggleCollapse}
-            className={`hidden md:flex absolute ${isCollapsed ? '-right-3' : 'right-4'} top-1/2 -translate-y-1/2 w-6 h-6 bg-[#420093] border border-white/30 rounded-full items-center justify-center text-white/70 hover:text-white hover:border-white shadow-sm z-10 cursor-pointer`}
+            className={`hidden md:flex absolute ${isCollapsed ? '-right-3' : 'right-4'} top-1/2 -translate-y-1/2 w-6 h-6 bg-[#31006E] border border-white/20 rounded-full items-center justify-center text-white/80 hover:text-white shadow-sm z-10 cursor-pointer`}
           >
             <span className="material-symbols-outlined text-[14px]">
               {isCollapsed ? 'chevron_right' : 'chevron_left'}
