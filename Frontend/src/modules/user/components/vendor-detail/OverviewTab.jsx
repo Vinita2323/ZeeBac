@@ -49,7 +49,7 @@ export default function OverviewTab({ vendor }) {
       </div>
 
       <button 
-        onClick={() => navigate('/chat')} 
+        onClick={() => navigate('/chat', { state: { selectedChat: vendor.id, vendorData: vendor } })} 
         className="w-full h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
       >
         <span className="material-symbols-outlined text-[20px]">chat</span>

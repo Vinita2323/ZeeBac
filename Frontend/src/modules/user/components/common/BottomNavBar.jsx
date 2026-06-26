@@ -7,6 +7,7 @@ export default function BottomNavBar() {
     { label: 'Home', icon: 'home', path: '/home' },
     { label: 'Explore', icon: 'storefront', path: '/explore' },
     { label: 'History', icon: 'history', path: '/passbook' },
+    { label: 'Chats', icon: 'forum', path: '/chat' },
     { label: 'Profile', icon: 'person', path: '/profile' }
   ];
 

@@ -1,10 +1,49 @@
 import { useState } from 'react';
 
 export default function CashbackRulesPage() {
-  const [globalMax, setGlobalMax] = useState(15);
-  const [firstPurchaseEnabled, setFirstPurchaseEnabled] = useState(true);
-  const [referralEnabled, setReferralEnabled] = useState(false);
-  const [localShopEnabled, setLocalShopEnabled] = useState(true);
+
+
+  const [shopRules, setShopRules] = useState([
+    { id: 1, shopType: 'Local Shops', minCashback: 5 },
+    { id: 2, shopType: 'Big Shops and Brands', minCashback: 2 }
+  ]);
+  const [editingRuleId, setEditingRuleId] = useState(null);
+  const [editFormData, setEditFormData] = useState({ shopType: '', minCashback: 0 });
+  const [isAddingNew, setIsAddingNew] = useState(false);
+
+  const handleEditClick = (rule) => {
+    setEditingRuleId(rule.id);
+    setEditFormData({ shopType: rule.shopType, minCashback: rule.minCashback });
+    setIsAddingNew(false);
+  };
+
+  const handleSaveEdit = () => {
+    setShopRules(shopRules.map(rule => 
+      rule.id === editingRuleId ? { ...rule, ...editFormData } : rule
+    ));
+    setEditingRuleId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRuleId(null);
+    setIsAddingNew(false);
+  };
+
+  const handleDelete = (id) => {
+    setShopRules(shopRules.filter(rule => rule.id !== id));
+  };
+
+  const handleAddNew = () => {
+    setIsAddingNew(true);
+    setEditingRuleId(null);
+    setEditFormData({ shopType: '', minCashback: 0 });
+  };
+
+  const handleSaveNew = () => {
+    const newId = shopRules.length > 0 ? Math.max(...shopRules.map(r => r.id)) + 1 : 1;
+    setShopRules([...shopRules, { id: newId, ...editFormData }]);
+    setIsAddingNew(false);
+  };
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -18,70 +57,116 @@ export default function CashbackRulesPage() {
         {/* Main Configuration Settings */}
         <div className="lg:col-span-2 space-y-6">
           
+
           <div className="bg-white p-6 rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-            <h3 className="font-title-lg font-bold text-on-surface mb-4">Global Limits</h3>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-title-lg font-bold text-on-surface">Minimum Cashback Rules</h3>
+              <button 
+                onClick={handleAddNew}
+                className="px-4 py-2 bg-primary/10 text-primary rounded-xl font-bold hover:bg-primary/20 transition-colors text-sm"
+              >
+                + Add Rule
+              </button>
+            </div>
+            
             <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-[14px] font-bold text-on-surface-variant">Maximum Vendor Cashback allowed (%)</label>
-                  <span className="font-display text-[24px] font-black text-primary">{globalMax}%</span>
+              {shopRules.map((rule) => (
+                <div key={rule.id} className="p-4 rounded-xl border border-outline-variant/20 bg-surface-container-low/30">
+                  {editingRuleId === rule.id ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-on-surface-variant mb-1">Shop Type</label>
+                          <input 
+                            type="text"
+                            value={editFormData.shopType}
+                            onChange={(e) => setEditFormData({...editFormData, shopType: e.target.value})}
+                            className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            placeholder="e.g. Local Shops"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-on-surface-variant mb-1">Min Cashback (%)</label>
+                          <input 
+                            type="number"
+                            value={editFormData.minCashback}
+                            onChange={(e) => setEditFormData({...editFormData, minCashback: Number(e.target.value)})}
+                            className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            min="0"
+                            max="100"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={handleCancelEdit} className="px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors cursor-pointer">Cancel</button>
+                        <button onClick={handleSaveEdit} className="px-4 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shadow-sm cursor-pointer">Save</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-on-surface">{rule.shopType}</h4>
+                        <p className="text-sm text-on-surface-variant">Minimum {rule.minCashback}% cashback required</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleEditClick(rule)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(rule.id)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-error hover:bg-error/10 transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <input 
-                  type="range" 
-                  min="1" max="50" 
-                  value={globalMax} 
-                  onChange={(e) => setGlobalMax(e.target.value)}
-                  className="w-full h-2 bg-surface-container-low rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <p className="text-[12px] text-on-surface-variant mt-2">Vendors cannot set their store cashback rate higher than this global limit.</p>
-              </div>
+              ))}
+
+              {isAddingNew && (
+                <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-on-surface-variant mb-1">Shop Type</label>
+                        <input 
+                          type="text"
+                          value={editFormData.shopType}
+                          onChange={(e) => setEditFormData({...editFormData, shopType: e.target.value})}
+                          className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                          placeholder="e.g. Local Shops"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-on-surface-variant mb-1">Min Cashback (%)</label>
+                        <input 
+                          type="number"
+                          value={editFormData.minCashback}
+                          onChange={(e) => setEditFormData({...editFormData, minCashback: Number(e.target.value)})}
+                          className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                          min="0"
+                          max="100"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={handleCancelEdit} className="px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors cursor-pointer">Cancel</button>
+                      <button onClick={handleSaveNew} className="px-4 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shadow-sm cursor-pointer">Add Rule</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {shopRules.length === 0 && !isAddingNew && (
+                <div className="text-center py-6 text-on-surface-variant text-sm">
+                  No minimum cashback rules defined.
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-            <h3 className="font-title-lg font-bold text-on-surface mb-6">Program Toggles</h3>
-            
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-[15px] font-bold text-on-surface">First Purchase Bonus</h4>
-                  <p className="text-[12px] text-on-surface-variant">Automatically double the cashback on a user's first platform transaction.</p>
-                </div>
-                <button 
-                  onClick={() => setFirstPurchaseEnabled(!firstPurchaseEnabled)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${firstPurchaseEnabled ? 'bg-primary' : 'bg-outline-variant/30'}`}
-                >
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${firstPurchaseEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-[15px] font-bold text-on-surface">Referral Program</h4>
-                  <p className="text-[12px] text-on-surface-variant">Give ₹50 bonus when a referred user makes their first transaction.</p>
-                </div>
-                <button 
-                  onClick={() => setReferralEnabled(!referralEnabled)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${referralEnabled ? 'bg-primary' : 'bg-outline-variant/30'}`}
-                >
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${referralEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-[15px] font-bold text-on-surface">Local Shop Mode (No Receipt)</h4>
-                  <p className="text-[12px] text-on-surface-variant">Allow unverified local vendors to accept face-to-face payments with 0% cashback.</p>
-                </div>
-                <button 
-                  onClick={() => setLocalShopEnabled(!localShopEnabled)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${localShopEnabled ? 'bg-primary' : 'bg-outline-variant/30'}`}
-                >
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${localShopEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                </button>
-              </div>
-            </div>
-            
           </div>
 
           <div className="flex justify-end">
@@ -101,7 +186,8 @@ export default function CashbackRulesPage() {
             </p>
             <ol className="list-decimal list-inside mt-4 space-y-2 text-[13px] font-bold text-white/90">
               <li>Local Shop override (forces 0%)</li>
-              <li>Global Maximum Cap</li>
+
+              <li>Minimum Category Cashback</li>
               <li>Vendor Custom Rate</li>
               <li>First Purchase Multiplier</li>
             </ol>

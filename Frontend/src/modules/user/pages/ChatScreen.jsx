@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function ChatScreen() {
   const navigate = useNavigate();
-  const [selectedChat, setSelectedChat] = useState(null);
+  const location = useLocation();
+  const [selectedChat, setSelectedChat] = useState(location.state?.selectedChat || null);
   const [inputText, setInputText] = useState('');
 
   const mockChats = [
@@ -35,9 +36,26 @@ export default function ChatScreen() {
     }
   ];
 
-  const [chats, setChats] = useState(mockChats);
+  const [chats, setChats] = useState(() => {
+    let initialChats = [...mockChats];
+    if (location.state?.vendorData && location.state?.selectedChat) {
+      const exists = initialChats.find(c => String(c.id) === String(location.state.selectedChat));
+      if (!exists) {
+        initialChats.unshift({
+          id: location.state.selectedChat,
+          shop: location.state.vendorData.name,
+          message: 'Start a conversation...',
+          time: 'Just now',
+          unread: 0,
+          avatar: location.state.vendorData.name ? location.state.vendorData.name.charAt(0) : 'V',
+          messages: []
+        });
+      }
+    }
+    return initialChats;
+  });
 
-  const activeChatData = chats.find(c => c.id === selectedChat);
+  const activeChatData = chats.find(c => String(c.id) === String(selectedChat));
 
   const handleSendMessage = (e) => {
     e.preventDefault();
@@ -89,6 +107,10 @@ export default function ChatScreen() {
               Online
             </p>
           </div>
+          
+          <button className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2">
+            <span className="material-symbols-outlined text-[20px]">call</span>
+          </button>
         </header>
 
         {/* Messages List */}

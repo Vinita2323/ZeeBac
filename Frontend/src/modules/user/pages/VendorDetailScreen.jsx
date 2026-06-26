@@ -77,7 +77,7 @@ export default function VendorDetailScreen() {
       </header>
 
       {/* Tabs Menu Navigation */}
-      <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-0 z-30">
+      <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto select-none sticky top-0 z-30 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {['overview', 'shop', 'photos', 'reviews'].map((tab) => (
           <button
             key={tab}

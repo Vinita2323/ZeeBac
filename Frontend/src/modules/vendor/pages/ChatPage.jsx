@@ -119,6 +119,10 @@ export default function ChatPage() {
               Online
             </p>
           </div>
+          
+          <button className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2">
+            <span className="material-symbols-outlined text-[20px]">call</span>
+          </button>
         </header>
 
         {/* Messages List */}

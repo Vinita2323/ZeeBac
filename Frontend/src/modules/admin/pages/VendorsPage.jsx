@@ -1,18 +1,45 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export default function VendorsPage() {
   const [activeTab, setActiveTab] = useState('All');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('name_asc');
-  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
-  const [selectedVendorDocs, setSelectedVendorDocs] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedVendorDetails, setSelectedVendorDetails] = useState(null);
+  const [expandedDoc, setExpandedDoc] = useState(null);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+
+  useEffect(() => {
+    const mainContent = document.querySelector('main');
+    const scrollTargets = [document.body, document.documentElement, mainContent].filter(Boolean);
+    
+    if (isDetailsModalOpen || fullscreenImage) {
+      scrollTargets.forEach(el => {
+        el.style.setProperty('overflow', 'hidden', 'important');
+        el.style.setProperty('overflow-y', 'hidden', 'important');
+      });
+    } else {
+      scrollTargets.forEach(el => {
+        el.style.removeProperty('overflow');
+        el.style.removeProperty('overflow-y');
+      });
+    }
+    
+    return () => {
+      scrollTargets.forEach(el => {
+        el.style.removeProperty('overflow');
+        el.style.removeProperty('overflow-y');
+      });
+    };
+  }, [isDetailsModalOpen, fullscreenImage]);
 
   const vendors = [
-    { id: 'V-1042', name: 'Coffee House Central', owner: 'Ramesh K.', category: 'Food & Beverage', aadhaar: 'XXXX-XXXX-1122', pan: 'ABCDE1234F', status: 'Pending', joined: 'Today' },
-    { id: 'V-1043', name: 'Elite Electronics', owner: 'Suresh M.', category: 'Retail', aadhaar: 'XXXX-XXXX-3344', pan: 'XYZDE5678G', status: 'Pending', joined: 'Yesterday' },
-    { id: 'V-0921', name: 'Noir Concept Store', owner: 'Karan V.', category: 'Premium Fashion', aadhaar: 'XXXX-XXXX-9988', pan: 'NOIRP9999X', status: 'Verified', joined: 'Oct 12, 2023' },
-    { id: 'V-0922', name: 'Fresh Mart', owner: 'Anita S.', category: 'Groceries', aadhaar: 'XXXX-XXXX-5566', pan: 'FMSAA8888B', status: 'Verified', joined: 'Oct 15, 2023' },
-    { id: 'V-0923', name: 'Tech Zone', owner: 'Pooja R.', category: 'Electronics', aadhaar: 'XXXX-XXXX-7777', pan: 'TECHP7777T', status: 'Rejected', joined: 'Nov 02, 2023' },
+    { id: 'V-1042', name: 'Coffee House Central', owner: 'Ramesh K.', category: 'Food & Beverage', shopType: 'Local Shop', location: 'Indiranagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-1122', pan: 'ABCDE1234F', status: 'Pending', joined: 'Today' },
+    { id: 'V-1043', name: 'Elite Electronics', owner: 'Suresh M.', category: 'Retail', shopType: 'Local Shop', location: 'Koramangala, Bangalore', subscription: 'Pro Plan (Paid)', aadhaar: 'XXXX-XXXX-3344', pan: 'XYZDE5678G', status: 'Pending', joined: 'Yesterday' },
+    { id: 'V-0921', name: 'Noir Concept Store', owner: 'Karan V.', category: 'Premium Fashion', shopType: 'Big Brand', location: 'UB City, Bangalore', subscription: 'Enterprise Plan', aadhaar: 'XXXX-XXXX-9988', pan: 'NOIRP9999X', status: 'Verified', joined: 'Oct 12, 2023' },
+    { id: 'V-0922', name: 'Fresh Mart', owner: 'Anita S.', category: 'Groceries', shopType: 'Local Shop', location: 'HSR Layout, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-5566', pan: 'FMSAA8888B', status: 'Verified', joined: 'Oct 15, 2023' },
+    { id: 'V-0923', name: 'Tech Zone', owner: 'Pooja R.', category: 'Electronics', shopType: 'Local Shop', location: 'Jayanagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-7777', pan: 'TECHP7777T', status: 'Rejected', joined: 'Nov 02, 2023' },
   ];
 
   let filteredVendors = vendors.filter(v => 
@@ -26,6 +53,12 @@ export default function VendorsPage() {
     if (sortBy === 'category') return a.category.localeCompare(b.category);
     return 0;
   });
+
+  const handleOpenDetails = (vendor) => {
+    setSelectedVendorDetails(vendor);
+    setIsDetailsModalOpen(true);
+    setExpandedDoc(null);
+  };
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -73,7 +106,7 @@ export default function VendorsPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 font-title-md text-[14px] capitalize transition-all border-b-2 ${
+            className={`px-6 py-3 font-title-md text-[14px] capitalize transition-all border-b-2 cursor-pointer ${
               activeTab === tab 
                 ? 'border-primary text-primary font-bold' 
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -125,13 +158,10 @@ export default function VendorsPage() {
                     {vendor.status === 'Pending' ? (
                       <>
                         <button 
-                          onClick={() => {
-                            setSelectedVendorDocs(vendor);
-                            setIsDocsModalOpen(true);
-                          }}
+                          onClick={() => handleOpenDetails(vendor)}
                           className="px-3 py-1.5 bg-blue-500/10 text-blue-600 font-bold text-[12px] rounded-lg hover:bg-blue-500 hover:text-white transition-colors cursor-pointer"
                         >
-                          View Docs
+                          View Details
                         </button>
                         <button className="px-3 py-1.5 bg-green-500/10 text-green-600 font-bold text-[12px] rounded-lg hover:bg-green-500 hover:text-white transition-colors cursor-pointer">
                           Approve
@@ -143,13 +173,10 @@ export default function VendorsPage() {
                     ) : (
                       <>
                         <button 
-                          onClick={() => {
-                            setSelectedVendorDocs(vendor);
-                            setIsDocsModalOpen(true);
-                          }}
+                          onClick={() => handleOpenDetails(vendor)}
                           className="px-3 py-1.5 bg-primary/10 text-primary font-bold text-[12px] rounded-lg hover:bg-primary hover:text-white transition-colors cursor-pointer"
                         >
-                          Docs
+                          Details
                         </button>
                         <button className="px-3 py-1.5 bg-red-500/10 text-red-600 font-bold text-[12px] rounded-lg hover:bg-red-500 hover:text-white transition-colors cursor-pointer">
                           Suspend
@@ -171,79 +198,192 @@ export default function VendorsPage() {
         </div>
       </div>
 
-      {/* KYC Document Viewer Modal */}
-      {isDocsModalOpen && selectedVendorDocs && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      {/* Vendor Details Modal */}
+      {isDetailsModalOpen && selectedVendorDetails && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+        >
           <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
               <div>
-                <h3 className="font-bold text-title-md text-on-surface">KYC Documents</h3>
-                <p className="text-[12px] text-on-surface-variant">{selectedVendorDocs.name} - {selectedVendorDocs.owner}</p>
+                <h3 className="font-bold text-title-md text-on-surface">Vendor Complete Details</h3>
+                <p className="text-[12px] text-on-surface-variant">ID: {selectedVendorDetails.id}</p>
               </div>
               <button 
-                onClick={() => setIsDocsModalOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-low text-on-surface-variant"
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-low text-on-surface-variant cursor-pointer"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             
             <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-[#f8f9fa]">
-              {/* Aadhaar Section */}
+              {/* Store Information */}
               <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/10">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-bold text-[14px] text-on-surface flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[18px]">badge</span>
-                    Aadhaar Card
-                  </h4>
-                  <span className="font-mono text-[13px] bg-primary/5 text-primary px-2 py-1 rounded-md">{selectedVendorDocs.aadhaar}</span>
-                </div>
-                <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-dashed border-outline-variant/30 text-on-surface-variant">
-                  {/* Mock Image Placeholder */}
-                  <div className="text-center">
-                    <span className="material-symbols-outlined text-[48px] opacity-20 mb-2">image</span>
-                    <p className="text-[12px] font-medium">Aadhaar Front & Back Image (Mock)</p>
+                <h4 className="font-bold text-[14px] text-on-surface mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[18px]">store</span>
+                  Store Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4 text-[13px]">
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Store Name</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Category</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.category}</p>
+                  </div>
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Shop Type</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.shopType}</p>
+                  </div>
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Location</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.location}</p>
+                  </div>
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Joined Date</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.joined}</p>
+                  </div>
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Status</p>
+                    <span className={`px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide inline-block
+                      ${selectedVendorDetails.status === 'Verified' ? 'bg-green-500/10 text-green-600' : ''}
+                      ${selectedVendorDetails.status === 'Pending' ? 'bg-orange-500/10 text-orange-600' : ''}
+                      ${selectedVendorDetails.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : ''}
+                    `}>
+                      {selectedVendorDetails.status}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* PAN Section */}
+              {/* Owner & Account Information */}
               <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/10">
-                <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-[14px] text-on-surface mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[18px]">person</span>
+                  Owner & Account Info
+                </h4>
+                <div className="grid grid-cols-2 gap-4 text-[13px]">
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Owner Name</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.owner}</p>
+                  </div>
+                  <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Contact Email</p>
+                    <p className="font-medium text-on-surface">contact@{selectedVendorDetails.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com</p>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Active Subscription</p>
+                    <span className="font-mono text-[12px] bg-primary/10 text-primary px-2 py-1 rounded-md font-bold">{selectedVendorDetails.subscription}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aadhaar Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+                <div 
+                  className="flex justify-between items-center p-4 cursor-pointer hover:bg-surface-container-low transition-colors"
+                  onClick={() => setExpandedDoc(expandedDoc === 'aadhaar' ? null : 'aadhaar')}
+                >
+                  <h4 className="font-bold text-[14px] text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-[18px]">badge</span>
+                    Aadhaar Card
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[13px] bg-primary/5 text-primary px-2 py-1 rounded-md">{selectedVendorDetails.aadhaar}</span>
+                    <span className="material-symbols-outlined text-on-surface-variant transition-transform duration-200" style={{ transform: expandedDoc === 'aadhaar' ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
+                  </div>
+                </div>
+                {expandedDoc === 'aadhaar' && (
+                  <div className="px-4 pb-4 animate-reveal">
+                    <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
+                      <img 
+                        src="https://placehold.co/600x300/f8f9fa/475569?text=Aadhaar+Card+Image+(Mock)" 
+                        alt="Aadhaar Card" 
+                        className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
+                        onClick={() => setFullscreenImage("https://placehold.co/600x300/f8f9fa/475569?text=Aadhaar+Card+Image+(Mock)")}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PAN Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+                <div 
+                  className="flex justify-between items-center p-4 cursor-pointer hover:bg-surface-container-low transition-colors"
+                  onClick={() => setExpandedDoc(expandedDoc === 'pan' ? null : 'pan')}
+                >
                   <h4 className="font-bold text-[14px] text-on-surface flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary text-[18px]">credit_card</span>
                     PAN Card
                   </h4>
-                  <span className="font-mono text-[13px] bg-primary/5 text-primary px-2 py-1 rounded-md">{selectedVendorDocs.pan}</span>
-                </div>
-                <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-dashed border-outline-variant/30 text-on-surface-variant">
-                  {/* Mock Image Placeholder */}
-                  <div className="text-center">
-                    <span className="material-symbols-outlined text-[48px] opacity-20 mb-2">image</span>
-                    <p className="text-[12px] font-medium">PAN Card Image (Mock)</p>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[13px] bg-primary/5 text-primary px-2 py-1 rounded-md">{selectedVendorDetails.pan}</span>
+                    <span className="material-symbols-outlined text-on-surface-variant transition-transform duration-200" style={{ transform: expandedDoc === 'pan' ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
                   </div>
                 </div>
+                {expandedDoc === 'pan' && (
+                  <div className="px-4 pb-4 animate-reveal">
+                    <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
+                      <img 
+                        src="https://placehold.co/600x300/f8f9fa/475569?text=PAN+Card+Image+(Mock)" 
+                        alt="PAN Card" 
+                        className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
+                        onClick={() => setFullscreenImage("https://placehold.co/600x300/f8f9fa/475569?text=PAN+Card+Image+(Mock)")}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="p-4 border-t border-outline-variant/10 flex justify-end gap-3 bg-white">
               <button 
-                onClick={() => setIsDocsModalOpen(false)}
-                className="px-6 py-2 rounded-xl border border-outline-variant/20 font-bold text-[14px] text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="px-6 py-2 rounded-xl border border-outline-variant/20 font-bold text-[14px] text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer"
               >
                 Close
               </button>
-              {selectedVendorDocs.status === 'Pending' && (
+              {selectedVendorDetails.status === 'Pending' && (
                 <button 
-                  onClick={() => setIsDocsModalOpen(false)}
-                  className="px-6 py-2 rounded-xl bg-primary text-white font-bold text-[14px] hover:bg-primary/90 transition-colors shadow-md"
+                  onClick={() => setIsDetailsModalOpen(false)}
+                  className="px-6 py-2 rounded-xl bg-primary text-white font-bold text-[14px] hover:bg-primary/90 transition-colors shadow-md cursor-pointer"
                 >
                   Verify & Approve
                 </button>
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Fullscreen Image Modal */}
+      {fullscreenImage && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 cursor-zoom-out"
+          style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+          onClick={() => setFullscreenImage(null)}
+        >
+          <img 
+            src={fullscreenImage} 
+            alt="Fullscreen Document" 
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+          />
+          <button 
+            className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullscreenImage(null);
+            }}
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>,
+        document.body
       )}
 
     </div>
