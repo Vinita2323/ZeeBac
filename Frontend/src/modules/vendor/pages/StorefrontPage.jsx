@@ -28,9 +28,31 @@ export default function StorefrontPage() {
   const [promotions, setPromotions] = useState(initialPromotions);
   
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newProductName, setNewProductName] = useState('');
-  const [newProductPrice, setNewProductPrice] = useState('');
-  const [newProductImg, setNewProductImg] = useState('');
+  const [addProductStep, setAddProductStep] = useState(1);
+  const [productForm, setProductForm] = useState({
+    isBranded: null,
+    brandLogo: null,
+    brandName: '',
+    brandCompany: '',
+    brandWebsite: '',
+    brandDescription: '',
+    brandEmail: '',
+    brandContact: '',
+    cashbackPercentage: 10,
+    image: null,
+    name: '',
+    category: '',
+    sku: '',
+    price: '',
+    discountPrice: '',
+    stock: '',
+    description: '',
+    highlight: false,
+  });
+
+  const updateProductForm = (key, value) => {
+    setProductForm(prev => ({ ...prev, [key]: value }));
+  };
 
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState('');
@@ -50,35 +72,41 @@ export default function StorefrontPage() {
     }));
   };
 
-  const handleFileChange = (e) => {
+  const handleProductFileChange = (e, key) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewProductImg(reader.result);
-      };
-      reader.readAsDataURL(file);
+      updateProductForm(key, { name: file.name, type: file.type, size: file.size, mockUrl: URL.createObjectURL(file) });
     }
   };
 
   const handleAddProduct = (e) => {
     e.preventDefault();
-    if (!newProductName.trim() || !newProductPrice) return;
+    if (productForm.isBranded) {
+      if (!productForm.brandName || !productForm.brandCompany) {
+        alert("Brand Name and Company are required.");
+        return;
+      }
+    }
+    if (!productForm.name || !productForm.price) {
+       alert("Product Name and Price are required.");
+       return;
+    }
 
     const newProduct = {
       id: Date.now(),
-      name: newProductName,
-      price: `₹${Number(newProductPrice).toLocaleString('en-IN')}`,
-      category: 'Bestsellers',
-      isHighlight: false,
-      img: newProductImg || 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'
+      name: productForm.name,
+      price: `₹${Number(productForm.price).toLocaleString('en-IN')}`,
+      category: productForm.category || 'Bestsellers',
+      isHighlight: productForm.highlight,
+      img: productForm.image ? productForm.image.mockUrl : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'
     };
 
     setProducts([newProduct, ...products]);
-    setNewProductName('');
-    setNewProductPrice('');
-    setNewProductImg('');
     setShowAddModal(false);
+    setAddProductStep(1);
+    setProductForm({
+      isBranded: null, brandLogo: null, brandName: '', brandCompany: '', brandWebsite: '', brandDescription: '', brandEmail: '', brandContact: '', cashbackPercentage: 10, image: null, name: '', category: '', sku: '', price: '', discountPrice: '', stock: '', description: '', highlight: false,
+    });
   };
 
   const handleMediaUpload = (e) => {
@@ -299,84 +327,177 @@ export default function StorefrontPage() {
 
       </main>
 
-      {/* Add Catalog Modal */}
+      {/* Full-Screen Add Catalog Modal */}
       {showAddModal && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
-          <form onSubmit={handleAddProduct} className="bg-white w-full max-w-[320px] rounded-3xl p-6 shadow-2xl relative mx-auto text-left space-y-4">
+        <div className="fixed inset-0 z-[200] flex flex-col bg-gray-50 animate-reveal m-0 overflow-hidden">
+          {/* Header */}
+          <header className="flex-shrink-0 sticky top-0 z-30 bg-white border-b border-gray-100 flex items-center px-4 h-16 shadow-sm">
             <button 
               type="button"
               onClick={() => {
-                setShowAddModal(false);
-                setNewProductImg('');
+                if (addProductStep === 2) {
+                  setAddProductStep(1);
+                } else {
+                  setShowAddModal(false);
+                  setAddProductStep(1);
+                }
               }}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
+              className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 active:scale-95 transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[20px]">close</span>
+              <span className="material-symbols-outlined text-[#5B21B6]">{addProductStep === 2 ? 'arrow_back' : 'close'}</span>
             </button>
-            
-            <h3 className="font-display font-black text-[20px] text-on-surface">Add Catalog Item</h3>
-            
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase">Product Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newProductName}
-                  onChange={(e) => setNewProductName(e.target.value)}
-                  placeholder="e.g. Silk Scarf"
-                  className="w-full h-11 px-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-[13.5px]"
-                />
-              </div>
+            <span className="font-display text-[18px] font-black ml-2 text-gray-900">Add Product</span>
+            <span className="ml-auto text-[13px] font-bold text-[#5B21B6] bg-[#5B21B6]/10 px-3 py-1 rounded-full">
+              Step {addProductStep}/2
+            </span>
+          </header>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase">Price (₹)</label>
-                <input
-                  type="number"
-                  required
-                  value={newProductPrice}
-                  onChange={(e) => setNewProductPrice(e.target.value)}
-                  placeholder="e.g. 1500"
-                  className="w-full h-11 px-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-[13.5px]"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase">Product Image</label>
-                
-                {newProductImg ? (
-                  <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-outline-variant/10 shadow-sm">
-                    <img src={newProductImg} alt="Preview" className="w-full h-full object-cover" />
-                    <button 
-                      type="button" 
-                      onClick={() => setNewProductImg('')}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black"
-                    >
-                      <span className="material-symbols-outlined text-[12px]">close</span>
-                    </button>
+          <main className="flex-1 overflow-y-auto w-full">
+            <div className="max-w-[600px] mx-auto w-full pb-24">
+              
+              {addProductStep === 1 && (
+                <div className="p-6 animate-reveal">
+                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center mb-6">
+                    <h2 className="text-[22px] font-black tracking-tight text-gray-900 mb-2">Is this a branded product?</h2>
+                    <p className="text-[14px] text-gray-500">Select whether this product belongs to an existing or registered brand.</p>
                   </div>
-                ) : (
-                  <label className="w-full h-20 rounded-xl border-2 border-dashed border-primary/20 bg-[#F3F4F6] hover:bg-[#eaecef] transition-colors flex flex-col items-center justify-center cursor-pointer text-primary">
-                    <span className="material-symbols-outlined text-[24px]">add_photo_alternate</span>
-                    <span className="text-[11px] font-bold mt-1">Choose from Gallery</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleFileChange} 
-                      className="hidden" 
-                    />
-                  </label>
-                )}
+                  
+                  <div className="space-y-4">
+                    <div 
+                      onClick={() => { updateProductForm('isBranded', true); setAddProductStep(2); }}
+                      className="bg-white rounded-2xl p-6 shadow-sm border-2 border-transparent hover:border-[#5B21B6]/30 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-5 group"
+                    >
+                      <div className="w-14 h-14 rounded-2xl bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] group-hover:scale-110 transition-transform">
+                        <span className="material-symbols-outlined text-[28px]">sell</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-black text-[16px] text-gray-900 mb-1">Yes, this is a branded product</h3>
+                        <p className="text-[13px] text-gray-500">This product belongs to a brand.</p>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-300 group-hover:text-[#5B21B6] transition-colors">chevron_right</span>
+                    </div>
+
+                    <div 
+                      onClick={() => { updateProductForm('isBranded', false); setAddProductStep(2); }}
+                      className="bg-white rounded-2xl p-6 shadow-sm border-2 border-transparent hover:border-[#5B21B6]/30 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-5 group"
+                    >
+                      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600 group-hover:scale-110 transition-transform group-hover:bg-[#5B21B6]/10 group-hover:text-[#5B21B6]">
+                        <span className="material-symbols-outlined text-[28px]">inventory_2</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-black text-[16px] text-gray-900 mb-1">No, this is my own/local product</h3>
+                        <p className="text-[13px] text-gray-500">This product is not associated with any brand.</p>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-300 group-hover:text-[#5B21B6] transition-colors">chevron_right</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {addProductStep === 2 && (
+                <div className="p-4 md:p-6 space-y-6 animate-reveal">
+                  
+                  {productForm.isBranded && (
+                    <>
+                      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+                        <h2 className="text-[18px] font-black text-gray-900 flex items-center gap-2 mb-4">
+                          <span className="material-symbols-outlined text-[#5B21B6]">verified</span> Brand Information
+                        </h2>
+                        <StorefrontUploadCard label="Brand Logo *" file={productForm.brandLogo} onUpload={e => handleProductFileChange(e, 'brandLogo')} onRemove={() => updateProductForm('brandLogo', null)} />
+                        <StorefrontFloatingInput label="Brand Name *" value={productForm.brandName} onChange={e => updateProductForm('brandName', e.target.value)} />
+                        <StorefrontFloatingInput label="Brand Owner / Company Name *" value={productForm.brandCompany} onChange={e => updateProductForm('brandCompany', e.target.value)} />
+                        <StorefrontFloatingInput label="Brand Website (Optional)" type="url" value={productForm.brandWebsite} onChange={e => updateProductForm('brandWebsite', e.target.value)} />
+                        <StorefrontFloatingInput label="Brand Description" multiline value={productForm.brandDescription} onChange={e => updateProductForm('brandDescription', e.target.value)} />
+                        <StorefrontFloatingInput label="Brand Email" type="email" value={productForm.brandEmail} onChange={e => updateProductForm('brandEmail', e.target.value)} />
+                        <StorefrontFloatingInput label="Brand Contact Number" type="tel" value={productForm.brandContact} onChange={e => updateProductForm('brandContact', e.target.value.replace(/[^0-9]/g, ''))} />
+                      </div>
+
+                      <div className="bg-[#5B21B6]/5 rounded-2xl p-5 shadow-sm border border-[#5B21B6]/10 space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6]">
+                            <span className="material-symbols-outlined">payments</span>
+                          </div>
+                          <div>
+                            <h2 className="text-[16px] font-black text-gray-900">Brand Cashback</h2>
+                            <p className="text-[12px] text-gray-600">Choose the cashback % for customers.</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <input type="range" min="0" max="100" value={productForm.cashbackPercentage} onChange={e => updateProductForm('cashbackPercentage', e.target.value)} className="flex-1 accent-[#5B21B6] h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                          <div className="w-16 h-10 bg-white border border-gray-200 rounded-lg flex items-center justify-center font-bold text-[#5B21B6]">
+                            {productForm.cashbackPercentage}%
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl p-3 flex justify-between items-center shadow-sm border border-[#5B21B6]/20">
+                          <span className="text-[13px] font-bold text-gray-700">Live Preview: Customer Cashback</span>
+                          <span className="text-[16px] font-black text-green-600">+{productForm.cashbackPercentage}%</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+                    <h2 className="text-[18px] font-black text-gray-900 flex items-center gap-2 mb-4">
+                      <span className="material-symbols-outlined text-[#5B21B6]">inventory_2</span> Product Details
+                    </h2>
+                    <StorefrontUploadCard label="Product Image *" file={productForm.image} onUpload={e => handleProductFileChange(e, 'image')} onRemove={() => updateProductForm('image', null)} />
+                    <StorefrontFloatingInput label="Product Name *" value={productForm.name} onChange={e => updateProductForm('name', e.target.value)} />
+                    
+                    <div className="relative">
+                      <select value={productForm.category} onChange={e => updateProductForm('category', e.target.value)} className="w-full h-14 px-4 bg-white border-2 rounded-lg outline-none appearance-none font-medium transition-all text-[15px] border-gray-200 text-gray-800 focus:border-[#5B21B6]">
+                        <option value="" disabled>Select Category</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Fashion & Apparel">Fashion & Apparel</option>
+                        <option value="Groceries">Groceries</option>
+                        <option value="Home & Furniture">Home & Furniture</option>
+                        <option value="Beauty & Personal Care">Beauty & Personal Care</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                    </div>
+
+                    <StorefrontFloatingInput label="SKU (Optional)" value={productForm.sku} onChange={e => updateProductForm('sku', e.target.value)} />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <StorefrontFloatingInput label="Price (₹) *" type="number" value={productForm.price} onChange={e => updateProductForm('price', e.target.value)} />
+                      <StorefrontFloatingInput label="Discount Price (₹)" type="number" value={productForm.discountPrice} onChange={e => updateProductForm('discountPrice', e.target.value)} />
+                    </div>
+                    
+                    <StorefrontFloatingInput label="Stock Quantity" type="number" value={productForm.stock} onChange={e => updateProductForm('stock', e.target.value)} />
+                    <StorefrontFloatingInput label="Product Description" multiline value={productForm.description} onChange={e => updateProductForm('description', e.target.value)} />
+                    
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <div>
+                        <p className="text-[14px] font-bold text-gray-900">Highlight Product</p>
+                        <p className="text-[12px] text-gray-500">Feature this product in your store.</p>
+                      </div>
+                      <div onClick={() => updateProductForm('highlight', !productForm.highlight)} className={`w-12 h-6 rounded-full p-1 flex items-center cursor-pointer transition-colors ${productForm.highlight ? 'bg-[#5B21B6]' : 'bg-gray-200'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transition-transform ${productForm.highlight ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                  </div>
+                  
+                </div>
+              )}
+              
+            </div>
+          </main>
+
+          {/* Sticky Footer */}
+          {addProductStep === 2 && (
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40">
+              <div className="max-w-[600px] mx-auto">
+                <button 
+                  onClick={handleAddProduct}
+                  className="w-full h-12 bg-[#5B21B6] text-white rounded-xl font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-1 shadow-md shadow-[#5B21B6]/30 cursor-pointer"
+                >
+                  Save Product
+                </button>
               </div>
             </div>
-
-            <button 
-              type="submit"
-              className="w-full h-12 bg-primary text-white rounded-xl font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-1 shadow-md shadow-primary/25 cursor-pointer mt-4"
-            >
-              Add to Catalog
-            </button>
-          </form>
+          )}
         </div>,
         document.body
       )}
@@ -459,6 +580,76 @@ export default function StorefrontPage() {
         document.body
       )}
 
+    </div>
+  );
+}
+
+// ─── Shared Components ──────────────────────────────────────────────
+
+function StorefrontFloatingInput({ label, type = 'text', value, onChange, readOnly, placeholder, multiline }) {
+  const [focused, setFocused] = useState(false);
+  const isFilled = value && value.toString().length > 0;
+  const InputEl = multiline ? 'textarea' : 'input';
+
+  return (
+    <div className={`relative flex ${multiline ? 'items-start pt-4' : 'items-center'} bg-white border-2 rounded-lg transition-all duration-300 ${
+      focused ? 'border-[#5B21B6] shadow-[0_0_0_4px_rgba(91,33,182,0.08)]' : 'border-gray-200 hover:border-gray-300'
+    } ${readOnly ? 'bg-gray-50 border-gray-200' : ''}`}>
+      <InputEl
+        type={type}
+        readOnly={readOnly}
+        value={value}
+        onChange={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={focused || readOnly ? placeholder : ''}
+        rows={multiline ? 3 : undefined}
+        className={`w-full bg-transparent outline-none px-4 pt-[18px] pb-[10px] text-[15px] font-bold text-gray-900 ${multiline ? 'resize-none' : ''}`}
+      />
+      <label className={`absolute transition-all duration-200 pointer-events-none left-4 ${
+        focused || isFilled || placeholder 
+          ? 'top-2 text-[11px] font-bold text-[#5B21B6]' 
+          : `text-[15px] text-gray-500 ${multiline ? 'top-5' : 'top-1/2 -translate-y-1/2'}`
+      }`}>
+        {label}
+      </label>
+    </div>
+  );
+}
+
+function StorefrontUploadCard({ label, file, onUpload, onRemove }) {
+  const id = label.replace(/\s+/g, '-').toLowerCase();
+  
+  return (
+    <div className="relative overflow-hidden bg-white border-2 border-dashed border-gray-200 rounded-lg p-4 hover:border-[#5B21B6]/50 transition-colors">
+      <input type="file" id={id} className="hidden" onChange={onUpload} accept="image/*,.pdf" />
+      
+      {!file ? (
+        <div onClick={() => document.getElementById(id).click()} className="flex items-center gap-3 cursor-pointer">
+          <div className="w-12 h-12 rounded-xl bg-[#5B21B6]/5 flex items-center justify-center text-[#5B21B6]">
+            <span className="material-symbols-outlined">cloud_upload</span>
+          </div>
+          <div>
+            <h4 className="font-bold text-[14px] text-gray-900">{label}</h4>
+            <p className="text-[12px] text-gray-500">Tap to upload file</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
+              <span className="material-symbols-outlined">task</span>
+            </div>
+            <div>
+              <h4 className="font-bold text-[14px] text-gray-900 truncate max-w-[180px]">{file.name}</h4>
+              <p className="text-[12px] text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            </div>
+          </div>
+          <button onClick={onRemove} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
+            <span className="material-symbols-outlined text-[20px]">delete</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
