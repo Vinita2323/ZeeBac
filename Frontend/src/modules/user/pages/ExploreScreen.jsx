@@ -8,7 +8,7 @@ export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMap, setShowMap] = useState(false);
 
-  const categories = ['All', 'Fashion', 'Groceries', 'Dining', 'Tech', 'Travel'];
+  const categories = ['All', 'Fashion', 'Groceries', 'Dining', 'Tech', 'Travel', 'Independent Store', 'Chain & Brand'];
 
   const vendors = [
     {
@@ -19,6 +19,7 @@ export default function ExploreScreen() {
       distance: "0.8 miles away",
       tag: "Premium Fashion",
       category: "Fashion",
+      shopType: "Chain & Brand",
       img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAB0zwhnN-NjCJ7KBgLqBPBtZYKaQG19lm2DTBcnju7jVqU0FDx8tif4eFXUN-wuULWNus63OxRjxkqdPrtimsYDbHvQ5USEJzCDtUS1e-7mkikEbTzR_U9kb2s2o6UOr9etrYYr2-N5lnGk_T1BePpvGKXr8OZrc_xGZz-_JukPTCrwDPb5ZKLeyy6PjE2nwXVTBH5l-wBC6_ZMf0f9MgDNgEYpBYKN39M0d-u-oyilHFf-xEgjHRisFUN3iTUlUiNZulEamwbsU8"
     },
     {
@@ -29,6 +30,7 @@ export default function ExploreScreen() {
       distance: "1.5 miles away",
       tag: "Organic Groceries",
       category: "Groceries",
+      shopType: "Independent Store",
       img: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&h=300&q=80"
     },
     {
@@ -39,13 +41,16 @@ export default function ExploreScreen() {
       distance: "2.1 miles away",
       tag: "Italian Dining",
       category: "Dining",
+      shopType: "Independent Store",
       img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDL3ZuesRdA3RCqE0U3TVWBMU61p_gIF_-C-AHDy1Wqjcb0X1v1oZLY8FMc4HH2xYcQwh-Re_Dv95-zNxQqVOB_wSNgJb1QLYR6Q2uqKRTlts9Z8OC0IPFxlaty2NWDFsajBnaRpGg1z5ABbEQrSMmOPBtWJRBziIHfa2b05nQIcc7Yo_TcQXqmftq9knshKOcTTmIDmzbgg4yUcfbAaFqM4v0iD0eWdrCOi8LWPlf0UDoIoQpACJGX9eo6jKrUNV1-iWwcqOwpS1g"
     }
   ];
 
   // Filtering logic
   const filteredVendors = vendors.filter(vendor => {
-    const matchesCategory = activeCategory === 'All' || vendor.category === activeCategory;
+    const isShopTypeFilter = activeCategory === 'Independent Store' || activeCategory === 'Chain & Brand';
+    const matchesCategory = activeCategory === 'All' ||
+      (isShopTypeFilter ? vendor.shopType === activeCategory : vendor.category === activeCategory);
     const matchesSearch = vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           vendor.tag.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
@@ -138,9 +143,19 @@ export default function ExploreScreen() {
                   <div className="p-md space-y-xs">
                     <div className="flex items-center justify-between">
                       <span className="bg-primary/10 text-primary font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">{vendor.cashback}</span>
-                      <div className="flex items-center gap-[2px] text-amber-500 font-bold text-body-sm">
-                        <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                        {vendor.rating}
+                      <div className="flex items-center gap-1">
+                        {/* Shop Type Badge */}
+                        <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                          vendor.shopType === 'Chain & Brand'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {vendor.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
+                        </span>
+                        <div className="flex items-center gap-[2px] text-amber-500 font-bold text-body-sm">
+                          <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                          {vendor.rating}
+                        </div>
                       </div>
                     </div>
                     <h3 className="font-display text-title-md text-on-surface font-extrabold pt-1">{vendor.name}</h3>

@@ -15,6 +15,7 @@ export default function HomeScreen() {
       cashback: "UP TO 15% CASHBACK",
       distance: "0.8 miles away",
       tag: "Premium Fashion",
+      shopType: "Chain & Brand",
       img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAB0zwhnN-NjCJ7KBgLqBPBtZYKaQG19lm2DTBcnju7jVqU0FDx8tif4eFXUN-wuULWNus63OxRjxkqdPrtimsYDbHvQ5USEJzCDtUS1e-7mkikEbTzR_U9kb2s2o6UOr9etrYYr2-N5lnGk_T1BePpvGKXr8OZrc_xGZz-_JukPTCrwDPb5ZKLeyy6PjE2nwXVTBH5l-wBC6_ZMf0f9MgDNgEYpBYKN39M0d-u-oyilHFf-xEgjHRisFUN3iTUlUiNZulEamwbsU8"
     },
     {
@@ -23,6 +24,7 @@ export default function HomeScreen() {
       cashback: "FLAT 8% CASHBACK",
       distance: "1.5 miles away",
       tag: "Organic Groceries",
+      shopType: "Independent Store",
       img: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&h=300&q=80"
     }
   ];
@@ -138,6 +140,17 @@ export default function HomeScreen() {
                     <span>•</span>
                     {vendor.tag}
                   </div>
+                  {/* Shop Type Badge */}
+                  <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                    vendor.shopType === 'Chain & Brand'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-green-100 text-green-700'
+                  }`}>
+                    <span className="material-symbols-outlined text-[10px]">
+                      {vendor.shopType === 'Chain & Brand' ? 'apartment' : 'storefront'}
+                    </span>
+                    {vendor.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
+                  </span>
                 </div>
                 <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
               </div>

@@ -19,6 +19,7 @@ export default function VendorDetailScreen() {
     distance: "0.8 miles away",
     tag: "Premium Fashion",
     address: "42nd Luxury Blvd, Metro City",
+    shopType: "Chain & Brand",
     img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAB0zwhnN-NjCJ7KBgLqBPBtZYKaQG19lm2DTBcnju7jVqU0FDx8tif4eFXUN-wuULWNus63OxRjxkqdPrtimsYDbHvQ5USEJzCDtUS1e-7mkikEbTzR_U9kb2s2o6UOr9etrYYr2-N5lnGk_T1BePpvGKXr8OZrc_xGZz-_JukPTCrwDPb5ZKLeyy6PjE2nwXVTBH5l-wBC6_ZMf0f9MgDNgEYpBYKN39M0d-u-oyilHFf-xEgjHRisFUN3iTUlUiNZulEamwbsU8"
   };
 
@@ -73,6 +74,19 @@ export default function VendorDetailScreen() {
             <span>•</span>
             {vendor.tag}
           </div>
+          {/* Shop Type Badge */}
+          {vendor.shopType && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${
+              vendor.shopType === 'Chain & Brand'
+                ? 'bg-blue-500/30 text-blue-100 border border-blue-300/40'
+                : 'bg-green-500/30 text-green-100 border border-green-300/40'
+            }`}>
+              <span className="material-symbols-outlined text-[11px]">
+                {vendor.shopType === 'Chain & Brand' ? 'apartment' : 'storefront'}
+              </span>
+              {vendor.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
+            </span>
+          )}
         </div>
       </header>
 

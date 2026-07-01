@@ -31,7 +31,7 @@ export default function SignupScreen({ role: roleProp }) {
 
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
-  
+
   // OTP State for Steps 1 & 2
   const [otp, setOtp] = useState(['', '', '', '']);
 
@@ -42,6 +42,7 @@ export default function SignupScreen({ role: roleProp }) {
     name: '',
     email: '',
     // Vendor specifics
+    shopType: '',        // 'Independent Store' | 'Chain & Brand' — vendor selects their type
     storeLogo: null,
     storeName: '',
     category: '',
@@ -86,6 +87,7 @@ export default function SignupScreen({ role: roleProp }) {
   const goBack = () => { setError(''); setStep(s => s - 1); };
 
   const handleCreateAccount = () => {
+    // shopType directly comes from vendor's own selection — no auto-derive
     const newUser = {
       id: `USR-${Date.now()}`,
       zeebacId: isVendor ? `ZBV-${Math.floor(1000 + Math.random() * 9000)}` : `ZBC-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -110,13 +112,17 @@ export default function SignupScreen({ role: roleProp }) {
 
   const canProceedVendor = () => {
     const d = formData;
-    return d.name && d.storeName && d.category && d.description && d.address && d.city && d.state && d.pincode && 
-           d.accountHolderName && d.bankName && d.accountNumber && d.ifscCode;
+    // shopType selection is now REQUIRED before proceeding
+    if (!d.shopType) return false;
+    // Chain & Brand must provide GST number
+    if (d.shopType === 'Chain & Brand' && !d.gstNumber?.trim()) return false;
+    return d.name && d.storeName && d.category && d.description && d.address && d.city && d.state && d.pincode &&
+      d.accountHolderName && d.bankName && d.accountNumber && d.ifscCode;
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-white text-gray-900 font-body-lg">
-      
+
       {/* Top Header */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md">
         <div className="max-w-[600px] mx-auto w-full flex items-center px-4 h-16">
@@ -143,27 +149,26 @@ export default function SignupScreen({ role: roleProp }) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col max-w-[600px] mx-auto w-full">
-        
+
         {/* ================= STEP 1: MOBILE NUMBER ================= */}
         {step === 1 && (
           <div className="flex-1 flex flex-col px-6 py-8 animate-reveal">
             <h1 className="text-[28px] font-black tracking-tight text-gray-900 leading-tight mb-2">Enter your mobile number</h1>
             <p className="text-[15px] text-gray-500 mb-5">We'll send a 4-digit OTP to verify your number.</p>
-            
+
             <div className="flex-1">
-              <FloatingInput 
-                label="Mobile Number" 
-                icon="phone_iphone" 
-                type="tel" 
-                value={formData.phone} 
+              <FloatingInput
+                label="Mobile Number"
+                icon="phone_iphone"
+                type="tel"
+                value={formData.phone}
                 onChange={(e) => updateForm('phone', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
               />
             </div>
-            
+
             <button onClick={goNext} disabled={formData.phone.length !== 10}
-              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center mt-6 transition-all ${
-                formData.phone.length === 10 ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}>
+              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center mt-6 transition-all ${formData.phone.length === 10 ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}>
               Send OTP
             </button>
           </div>
@@ -174,29 +179,28 @@ export default function SignupScreen({ role: roleProp }) {
           <div className="flex-1 flex flex-col px-6 py-8 animate-reveal">
             <h1 className="text-[28px] font-black tracking-tight text-gray-900 leading-tight mb-2">Verify your number</h1>
             <p className="text-[15px] text-gray-500 mb-5">Enter the 4-digit code sent to <span className="font-bold text-gray-900">+91 {formData.phone}</span></p>
-            
+
             <div className="flex-1">
               <div className="flex justify-center gap-4 mb-5">
                 {otp.map((digit, index) => (
-                  <input key={index} id={`otp-${index}`} 
+                  <input key={index} id={`otp-${index}`}
                     className="w-16 h-20 border-2 border-gray-200 rounded-lg text-center text-[28px] font-black focus:border-[#5B21B6] focus:shadow-[0_0_0_4px_rgba(91,33,182,0.1)] outline-none transition-all text-gray-800"
                     value={digit} maxLength="1" type="tel"
                     onChange={e => {
                       const val = e.target.value.replace(/[^0-9]/g, '');
-                      if(val.length > 1) return;
+                      if (val.length > 1) return;
                       const newOtp = [...otp]; newOtp[index] = val; setOtp(newOtp);
-                      if(val && index<3) document.getElementById(`otp-${index+1}`)?.focus();
+                      if (val && index < 3) document.getElementById(`otp-${index + 1}`)?.focus();
                     }}
-                    onKeyDown={e => { if (e.key === 'Backspace' && !otp[index] && index > 0) document.getElementById(`otp-${index-1}`)?.focus(); }}
+                    onKeyDown={e => { if (e.key === 'Backspace' && !otp[index] && index > 0) document.getElementById(`otp-${index - 1}`)?.focus(); }}
                   />
                 ))}
               </div>
             </div>
-            
-            <button onClick={goNext} disabled={otp.join('').length !== 4} 
-              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center mt-6 transition-all ${
-                otp.join('').length === 4 ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}>
+
+            <button onClick={goNext} disabled={otp.join('').length !== 4}
+              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center mt-6 transition-all ${otp.join('').length === 4 ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}>
               Verify
             </button>
           </div>
@@ -211,9 +215,8 @@ export default function SignupScreen({ role: roleProp }) {
               <FloatingInput label="Email Address (Optional)" type="email" icon="mail" value={formData.email} onChange={e => updateForm('email', e.target.value)} />
             </div>
             <button onClick={handleCreateAccount} disabled={!formData.name.trim()}
-              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${
-                formData.name.trim() ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}>
+              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${formData.name.trim() ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}>
               Create Account
             </button>
           </div>
@@ -228,14 +231,79 @@ export default function SignupScreen({ role: roleProp }) {
             </div>
 
             <div className="px-4 space-y-3">
-              
-              {/* 1. Basic Information */}
+
+              {/* 0. SHOP TYPE SELECTOR — sabse pehle puchho */}
+              <div className="bg-white rounded-xl p-4 shadow-sm border-2 border-[#5B21B6]/20">
+                <h2 className="text-[18px] font-black text-gray-900 mb-1 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">1</span>
+                  What type of business are you?
+                </h2>
+                <p className="text-[13px] text-gray-500 mb-4 ml-10">Select your shop type — this will determine your cashback plan and required documents.</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Independent Store Option */}
+                  <button
+                    type="button"
+                    onClick={() => { updateForm('shopType', 'Independent Store'); updateForm('gstNumber', ''); }}
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer ${formData.shopType === 'Independent Store'
+                      ? 'border-green-500 bg-green-50 shadow-[0_0_0_4px_rgba(34,197,94,0.1)]'
+                      : 'border-gray-200 bg-white hover:border-green-300 hover:bg-green-50/50'
+                      }`}
+                  >
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-2 text-3xl transition-all ${formData.shopType === 'Independent Store' ? 'bg-green-100' : 'bg-gray-100'
+                      }`}>
+                      🏪
+                    </div>
+                    <p className={`text-[14px] font-black ${formData.shopType === 'Independent Store' ? 'text-green-700' : 'text-gray-700'
+                      }`}>Independent Store</p>
+                    <p className="text-[11px] text-gray-400 text-center mt-1 leading-tight">Independent / Small Business</p>
+                    {formData.shopType === 'Independent Store' && (
+                      <span className="mt-2 flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                        <span className="material-symbols-outlined text-[12px]">check_circle</span> Selected
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Chain & Brand Option */}
+                  <button
+                    type="button"
+                    onClick={() => updateForm('shopType', 'Chain & Brand')}
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer ${formData.shopType === 'Chain & Brand'
+                      ? 'border-blue-500 bg-blue-50 shadow-[0_0_0_4px_rgba(59,130,246,0.1)]'
+                      : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'
+                      }`}
+                  >
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-2 text-3xl transition-all ${formData.shopType === 'Chain & Brand' ? 'bg-blue-100' : 'bg-gray-100'
+                      }`}>
+                      🏢
+                    </div>
+                    <p className={`text-[14px] font-black ${formData.shopType === 'Chain & Brand' ? 'text-blue-700' : 'text-gray-700'
+                      }`}>Chain & Brand</p>
+                    <p className="text-[11px] text-gray-400 text-center mt-1 leading-tight">Chain / Branded Store</p>
+                    {formData.shopType === 'Chain & Brand' && (
+                      <span className="mt-2 flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                        <span className="material-symbols-outlined text-[12px]">check_circle</span> Selected
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Validation hint if nothing selected */}
+                {!formData.shopType && (
+                  <p className="text-[12px] text-orange-500 font-medium mt-3 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">info</span>
+                    Please select an option to continue
+                  </p>
+                )}
+              </div>
+
+              {/* 2. Basic Information */}
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h2 className="text-[18px] font-black text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">1</span>
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">2</span>
                   Basic Information
                 </h2>
-                
+
                 <div className="flex justify-center mb-5">
                   <div className="relative">
                     <input type="file" id="logo" className="hidden" accept="image/*" onChange={e => handleFileChange(e, 'storeLogo')} />
@@ -262,38 +330,63 @@ export default function SignupScreen({ role: roleProp }) {
                 </div>
               </div>
 
-              {/* 2. Business Information */}
+              {/* 3. Business Information */}
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h2 className="text-[18px] font-black text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">2</span>
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">3</span>
                   Business Information
                 </h2>
-                
+
                 <div className="space-y-3">
                   <div className="relative">
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">category</span>
-                    <select value={formData.category} onChange={e => updateForm('category', e.target.value)} 
-                      className={`w-full h-[60px] pl-12 pr-12 bg-white border-2 rounded-lg outline-none appearance-none font-medium transition-all text-[15px] ${
-                        formData.category ? 'border-gray-200 text-gray-800' : 'border-gray-200 text-gray-500'
-                      } focus:border-[#5B21B6] focus:shadow-[0_0_0_4px_rgba(91,33,182,0.1)]`}>
+                    <select value={formData.category} onChange={e => updateForm('category', e.target.value)}
+                      className={`w-full h-[60px] pl-12 pr-12 bg-white border-2 rounded-lg outline-none appearance-none font-medium transition-all text-[15px] ${formData.category ? 'border-gray-200 text-gray-800' : 'border-gray-200 text-gray-500'
+                        } focus:border-[#5B21B6] focus:shadow-[0_0_0_4px_rgba(91,33,182,0.1)]`}>
                       <option value="" disabled>Select Business Category</option>
                       {BUSINESS_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                   </div>
                   <FloatingInput label="Business Description" icon="notes" multiline value={formData.description} onChange={e => updateForm('description', e.target.value)} />
-                  <FloatingInput label="GST Number (Optional)" icon="receipt_long" value={formData.gstNumber} onChange={e => updateForm('gstNumber', e.target.value.toUpperCase())} />
+
+                  {/* GST field — Required for Chain & Brand, Optional for Independent Store, Hidden if not selected yet */}
+                  {formData.shopType === 'Chain & Brand' && (
+                    <div>
+                      <FloatingInput
+                        label="GST Number (Required for Chain & Brand)"
+                        icon="receipt_long"
+                        value={formData.gstNumber}
+                        onChange={e => updateForm('gstNumber', e.target.value.toUpperCase())}
+                      />
+                      {!formData.gstNumber?.trim() && (
+                        <p className="text-[11px] text-red-500 font-medium mt-1 ml-1 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px]">error</span>
+                          GST Number is required for Chain & Brand
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {formData.shopType === 'Local Shop' && (
+                    <FloatingInput
+                      label="GST Number (Optional)"
+                      icon="receipt_long"
+                      value={formData.gstNumber}
+                      onChange={e => updateForm('gstNumber', e.target.value.toUpperCase())}
+                    />
+                  )}
+
                   <FloatingInput label="Registration Number (Optional)" icon="app_registration" value={formData.registrationNumber} onChange={e => updateForm('registrationNumber', e.target.value)} />
                 </div>
               </div>
 
-              {/* 3. Shop Address */}
+              {/* 4. Shop Address */}
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h2 className="text-[18px] font-black text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">3</span>
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">4</span>
                   Shop Address
                 </h2>
-                
+
                 <div className="space-y-3">
                   <FloatingInput label="Full Address" icon="home" multiline value={formData.address} onChange={e => updateForm('address', e.target.value)} />
                   <FloatingInput label="Landmark" icon="pin_drop" value={formData.landmark} onChange={e => updateForm('landmark', e.target.value)} />
@@ -302,20 +395,20 @@ export default function SignupScreen({ role: roleProp }) {
                     <FloatingInput label="State" value={formData.state} onChange={e => updateForm('state', e.target.value)} />
                   </div>
                   <FloatingInput label="PIN Code" icon="local_post_office" type="tel" value={formData.pincode} onChange={e => updateForm('pincode', e.target.value.replace(/[^0-9]/g, ''))} />
-                  
+
                   <button className="w-full h-[60px] rounded-lg border-2 border-[#5B21B6]/20 bg-[#5B21B6]/5 text-[#5B21B6] font-bold flex items-center justify-center gap-2 hover:bg-[#5B21B6]/10 transition-colors">
                     <span className="material-symbols-outlined">map</span> Pick Location on Map
                   </button>
                 </div>
               </div>
 
-              {/* 4. Bank Details */}
+              {/* 5. Bank Details */}
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h2 className="text-[18px] font-black text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">4</span>
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">5</span>
                   Bank Details
                 </h2>
-                
+
                 <div className="space-y-3">
                   <FloatingInput label="Account Holder Name" icon="badge" value={formData.accountHolderName} onChange={e => updateForm('accountHolderName', e.target.value)} />
                   <FloatingInput label="Bank Name" icon="account_balance" value={formData.bankName} onChange={e => updateForm('bankName', e.target.value)} />
@@ -325,13 +418,13 @@ export default function SignupScreen({ role: roleProp }) {
                 </div>
               </div>
 
-              {/* 5. Documents */}
+              {/* 6. Documents */}
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h2 className="text-[18px] font-black text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">5</span>
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">6</span>
                   Documents
                 </h2>
-                
+
                 <div className="grid gap-4">
                   <UploadCard label="Aadhaar / PAN Card (Optional)" file={formData.aadhaarPan} onUpload={e => handleFileChange(e, 'aadhaarPan')} onRemove={() => updateForm('aadhaarPan', null)} />
                   <UploadCard label="GST Certificate (Optional)" file={formData.gstCertificate} onUpload={e => handleFileChange(e, 'gstCertificate')} onRemove={() => updateForm('gstCertificate', null)} />
@@ -340,13 +433,13 @@ export default function SignupScreen({ role: roleProp }) {
                 </div>
               </div>
 
-              {/* 6. Social Links */}
+              {/* 7. Social Links */}
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-5">
                 <h2 className="text-[18px] font-black text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">6</span>
+                  <span className="w-8 h-8 rounded-full bg-[#5B21B6]/10 flex items-center justify-center text-[#5B21B6] text-[18px] font-bold">7</span>
                   Social Links <span className="text-[13px] font-medium text-gray-400 ml-1">(Optional)</span>
                 </h2>
-                
+
                 <div className="space-y-3">
                   <FloatingInput label="Website URL" icon="language" value={formData.website} onChange={e => updateForm('website', e.target.value)} />
                   <FloatingInput label="Instagram" icon="camera_alt" value={formData.instagram} onChange={e => updateForm('instagram', e.target.value)} />
@@ -356,14 +449,13 @@ export default function SignupScreen({ role: roleProp }) {
               </div>
 
             </div>
-            
+
             {/* Sticky Bottom Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40">
               <div className="max-w-[600px] mx-auto">
-                <button onClick={handleCreateAccount} disabled={!canProceedVendor()} 
-                  className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 transition-all ${
-                    canProceedVendor() ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}>
+                <button onClick={handleCreateAccount} disabled={!canProceedVendor()}
+                  className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 transition-all ${canProceedVendor() ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}>
                   Save & Continue
                 </button>
               </div>
@@ -384,16 +476,14 @@ function FloatingInput({ label, icon, type = 'text', value, onChange, readOnly, 
   const InputEl = multiline ? 'textarea' : 'input';
 
   return (
-    <div className={`relative flex ${multiline ? 'items-start pt-4' : 'items-center'} bg-white border-2 rounded-lg transition-all duration-300 ${
-      focused ? 'border-[#5B21B6] shadow-[0_0_0_4px_rgba(91,33,182,0.08)]' : 'border-gray-200 hover:border-gray-300'
-    } ${readOnly ? 'bg-gray-50 border-gray-200' : ''}`}>
-      
+    <div className={`relative flex ${multiline ? 'items-start pt-4' : 'items-center'} bg-white border-2 rounded-lg transition-all duration-300 ${focused ? 'border-[#5B21B6] shadow-[0_0_0_4px_rgba(91,33,182,0.08)]' : 'border-gray-200 hover:border-gray-300'
+      } ${readOnly ? 'bg-gray-50 border-gray-200' : ''}`}>
+
       {icon && (
-        <span className={`material-symbols-outlined absolute left-4 transition-colors ${
-          focused ? 'text-[#5B21B6]' : 'text-gray-400'
-        } ${multiline ? 'top-5' : ''}`}>{icon}</span>
+        <span className={`material-symbols-outlined absolute left-4 transition-colors ${focused ? 'text-[#5B21B6]' : 'text-gray-400'
+          } ${multiline ? 'top-5' : ''}`}>{icon}</span>
       )}
-      
+
       <InputEl
         type={type}
         readOnly={readOnly}
@@ -403,16 +493,14 @@ function FloatingInput({ label, icon, type = 'text', value, onChange, readOnly, 
         onBlur={() => setFocused(false)}
         placeholder={focused || readOnly ? placeholder : ''}
         rows={multiline ? 3 : undefined}
-        className={`w-full bg-transparent outline-none px-4 pt-[18px] pb-[10px] text-[15px] font-bold text-gray-900 ${
-          icon ? 'pl-12' : ''
-        } ${multiline ? 'resize-none' : ''}`}
+        className={`w-full bg-transparent outline-none px-4 pt-[18px] pb-[10px] text-[15px] font-bold text-gray-900 ${icon ? 'pl-12' : ''
+          } ${multiline ? 'resize-none' : ''}`}
       />
-      
-      <label className={`absolute transition-all duration-200 pointer-events-none ${icon ? 'left-12' : 'left-4'} ${
-        focused || isFilled || placeholder 
-          ? 'top-2 text-[11px] font-bold text-[#5B21B6]' 
-          : `text-[15px] text-gray-500 ${multiline ? 'top-5' : 'top-1/2 -translate-y-1/2'}`
-      }`}>
+
+      <label className={`absolute transition-all duration-200 pointer-events-none ${icon ? 'left-12' : 'left-4'} ${focused || isFilled || placeholder
+        ? 'top-2 text-[11px] font-bold text-[#5B21B6]'
+        : `text-[15px] text-gray-500 ${multiline ? 'top-5' : 'top-1/2 -translate-y-1/2'}`
+        }`}>
         {label}
       </label>
     </div>
@@ -421,11 +509,11 @@ function FloatingInput({ label, icon, type = 'text', value, onChange, readOnly, 
 
 function UploadCard({ label, file, onUpload, onRemove }) {
   const id = label.replace(/\s+/g, '-').toLowerCase();
-  
+
   return (
     <div className="relative overflow-hidden bg-white border-2 border-dashed border-gray-200 rounded-lg p-4 hover:border-[#5B21B6]/50 transition-colors">
       <input type="file" id={id} className="hidden" onChange={onUpload} accept="image/*,.pdf" />
-      
+
       {!file ? (
         <div onClick={() => document.getElementById(id).click()} className="flex items-center gap-3 cursor-pointer">
           <div className="w-12 h-12 rounded-xl bg-[#5B21B6]/5 flex items-center justify-center text-[#5B21B6]">

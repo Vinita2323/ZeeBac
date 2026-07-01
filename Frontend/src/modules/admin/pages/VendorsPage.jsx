@@ -35,11 +35,11 @@ export default function VendorsPage() {
   }, [isDetailsModalOpen, fullscreenImage]);
 
   const vendors = [
-    { id: 'V-1042', name: 'Coffee House Central', owner: 'Ramesh K.', category: 'Food & Beverage', shopType: 'Local Shop', location: 'Indiranagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-1122', pan: 'ABCDE1234F', status: 'Pending', joined: 'Today' },
-    { id: 'V-1043', name: 'Elite Electronics', owner: 'Suresh M.', category: 'Retail', shopType: 'Local Shop', location: 'Koramangala, Bangalore', subscription: 'Pro Plan (Paid)', aadhaar: 'XXXX-XXXX-3344', pan: 'XYZDE5678G', status: 'Pending', joined: 'Yesterday' },
-    { id: 'V-0921', name: 'Noir Concept Store', owner: 'Karan V.', category: 'Premium Fashion', shopType: 'Big Brand', location: 'UB City, Bangalore', subscription: 'Enterprise Plan', aadhaar: 'XXXX-XXXX-9988', pan: 'NOIRP9999X', status: 'Verified', joined: 'Oct 12, 2023' },
-    { id: 'V-0922', name: 'Fresh Mart', owner: 'Anita S.', category: 'Groceries', shopType: 'Local Shop', location: 'HSR Layout, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-5566', pan: 'FMSAA8888B', status: 'Verified', joined: 'Oct 15, 2023' },
-    { id: 'V-0923', name: 'Tech Zone', owner: 'Pooja R.', category: 'Electronics', shopType: 'Local Shop', location: 'Jayanagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-7777', pan: 'TECHP7777T', status: 'Rejected', joined: 'Nov 02, 2023' },
+    { id: 'V-1042', name: 'Coffee House Central', owner: 'Ramesh K.', category: 'Food & Beverage', shopType: 'Independent Store', location: 'Indiranagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-1122', pan: 'ABCDE1234F', status: 'Pending', joined: 'Today' },
+    { id: 'V-1043', name: 'Elite Electronics', owner: 'Suresh M.', category: 'Retail', shopType: 'Independent Store', location: 'Koramangala, Bangalore', subscription: 'Pro Plan (Paid)', aadhaar: 'XXXX-XXXX-3344', pan: 'XYZDE5678G', status: 'Pending', joined: 'Yesterday' },
+    { id: 'V-0921', name: 'Noir Concept Store', owner: 'Karan V.', category: 'Premium Fashion', shopType: 'Chain & Brand', location: 'UB City, Bangalore', subscription: 'Enterprise Plan', aadhaar: 'XXXX-XXXX-9988', pan: 'NOIRP9999X', status: 'Verified', joined: 'Oct 12, 2023' },
+    { id: 'V-0922', name: 'Fresh Mart', owner: 'Anita S.', category: 'Groceries', shopType: 'Independent Store', location: 'HSR Layout, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-5566', pan: 'FMSAA8888B', status: 'Verified', joined: 'Oct 15, 2023' },
+    { id: 'V-0923', name: 'Tech Zone', owner: 'Pooja R.', category: 'Electronics', shopType: 'Independent Store', location: 'Jayanagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-7777', pan: 'TECHP7777T', status: 'Rejected', joined: 'Nov 02, 2023' },
   ];
 
   let filteredVendors = vendors.filter(v => 
@@ -124,6 +124,7 @@ export default function VendorsPage() {
             <thead>
               <tr className="border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant bg-[#f8f9fc]">
                 <th className="p-4 font-bold">Store</th>
+                <th className="p-4 font-bold">Type</th>
                 <th className="p-4 font-bold">Category</th>
                 <th className="p-4 font-bold">Owner (KYC)</th>
                 <th className="p-4 font-bold">Joined</th>
@@ -137,6 +138,19 @@ export default function VendorsPage() {
                   <td className="p-4">
                     <p className="font-bold text-on-surface">{vendor.name}</p>
                     <p className="font-mono text-[11px] text-on-surface-variant mt-0.5">{vendor.id}</p>
+                  </td>
+                  {/* Shop Type Badge Column */}
+                  <td className="p-4">
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full ${
+                      vendor.shopType === 'Chain & Brand'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}>
+                      <span className="material-symbols-outlined text-[12px]">
+                        {vendor.shopType === 'Chain & Brand' ? 'apartment' : 'storefront'}
+                      </span>
+                      {vendor.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
+                    </span>
                   </td>
                   <td className="p-4 text-on-surface-variant">{vendor.category}</td>
                   <td className="p-4">
@@ -188,7 +202,7 @@ export default function VendorsPage() {
               ))}
               {filteredVendors.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-on-surface-variant">
+                  <td colSpan="7" className="p-8 text-center text-on-surface-variant">
                     No vendors found matching your criteria.
                   </td>
                 </tr>
@@ -236,7 +250,16 @@ export default function VendorsPage() {
                   </div>
                   <div>
                     <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Shop Type</p>
-                    <p className="font-medium text-on-surface">{selectedVendorDetails.shopType}</p>
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full ${
+                      selectedVendorDetails.shopType === 'Chain & Brand'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}>
+                      <span className="material-symbols-outlined text-[13px]">
+                        {selectedVendorDetails.shopType === 'Chain & Brand' ? 'apartment' : 'storefront'}
+                      </span>
+                      {selectedVendorDetails.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
+                    </span>
                   </div>
                   <div>
                     <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Location</p>
