@@ -2,21 +2,38 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import { VendorAPI } from '../../../services/api';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
   const qrData = `zeebac://vendor/${zeebacId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=96-0-218&data=${encodeURIComponent(qrData)}`;
 
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await VendorAPI.getDashboardStats();
+        setDashboardData(res);
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
   const stats = [
-    { label: 'Today\'s Revenue', value: '₹4,250', icon: 'payments', trend: '+12%', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
-    { label: 'Pending', value: '3', icon: 'pending_actions', trend: 'Action needed', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/transactions' },
-    { label: 'Cashback', value: '₹340', icon: 'redeem', trend: '8% avg', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/passbook' },
-    { label: 'Customers', value: '128', icon: 'groups', trend: '+5 this week', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
+    { label: 'Today\'s Revenue', value: dashboardData ? `₹${dashboardData.totalRevenue}` : '₹0', icon: 'payments', trend: '+0%', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
+    { label: 'Pending', value: '0', icon: 'pending_actions', trend: 'Up to date', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/transactions' },
+    { label: 'Total TXNs', value: dashboardData ? dashboardData.totalTransactions : '0', icon: 'sync_alt', trend: '0% avg', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/passbook' },
+    { label: 'Customers', value: dashboardData ? dashboardData.totalCustomers : '0', icon: 'groups', trend: 'Total unique', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
   ];
 
   const pendingRequests = [

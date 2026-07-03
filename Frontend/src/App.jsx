@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import UserRoutes from './modules/user/routes';
 import VendorRoutes from './modules/vendor/routes';
@@ -18,6 +18,7 @@ import VendorLandingScreen from './modules/vendor/pages/VendorLandingScreen';
 import useAuthStore from './store/useAuthStore';
 import GlobalAlertDialog from './components/GlobalAlertDialog';
 import GlobalSnackbar from './components/GlobalSnackbar';
+import { AuthAPI } from './services/api';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -30,9 +31,26 @@ function ScrollToTop() {
 }
 
 function App() {
-  // Auth state is now synchronously hydrated inside useAuthStore.js
+  const { accessToken, logout } = useAuthStore();
+  const fetchedRef = useRef(false);
 
-
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (accessToken && !fetchedRef.current) {
+        fetchedRef.current = true;
+        try {
+          const res = await AuthAPI.getMe();
+          if (res.data) {
+            useAuthStore.setState({ currentUser: res.data });
+          }
+        } catch (err) {
+          console.error("Session expired or invalid", err);
+          logout();
+        }
+      }
+    };
+    fetchUser();
+  }, [accessToken, logout]);
   return (
     <BrowserRouter>
       <ScrollToTop />
@@ -77,8 +95,9 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        {/* ─── Customer App (Protected & Public) ─── */}
+        <Route path="/*" element={<UserRoutes />} />
       </Routes>
-      <UserRoutes />
     </BrowserRouter>
   );
 }

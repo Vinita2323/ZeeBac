@@ -11,11 +11,15 @@ export default function ProtectedRoute({ children, allowedRole }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRole && currentUser.role !== allowedRole) {
+  const isRoleValid = allowedRole === 'admin' 
+    ? (currentUser.role === 'admin' || currentUser.role === 'super_admin')
+    : currentUser.role === allowedRole;
+
+  if (allowedRole && !isRoleValid) {
     // Logged in but trying to access the wrong role's pages
     // Redirect them to their own dashboard
     if (currentUser.role === 'vendor') return <Navigate to="/vendor" replace />;
-    if (currentUser.role === 'admin') return <Navigate to="/admin" replace />;
+    if (currentUser.role === 'admin' || currentUser.role === 'super_admin') return <Navigate to="/admin" replace />;
     return <Navigate to="/home" replace />;
   }
 

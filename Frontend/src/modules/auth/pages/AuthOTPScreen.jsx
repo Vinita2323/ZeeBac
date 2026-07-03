@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import useUIStore from '../../../store/useUIStore';
+import { AuthAPI } from '../../../services/api';
 
 export default function AuthOTPScreen() {
   const [otp, setOtp] = useState(['', '', '', '']);
@@ -9,6 +10,7 @@ export default function AuthOTPScreen() {
   const [isShake, setIsShake] = useState(false);
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef([]);
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,48 +44,52 @@ export default function AuthOTPScreen() {
     }
   };
 
-  const handleVerify = (e) => {
+  const handleVerify = async (e) => {
     e.preventDefault();
     const otpString = otp.join('');
     if (otpString.length === 4) {
-      setVerified(true);
-
       if (flow === 'login') {
-        // Look up user and set session
-        const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-        const user = users.find(u => u.phone === mobileNumber && u.role === role);
-
-        if (!user) {
-          setError('Account not found. Please sign up.');
-          setVerified(false);
-          return;
-        }
-
-        // Set current user session via global store
-        const login = useAuthStore.getState().login;
-        login(user);
-
-        // Also set legacy profile data for existing screens
-        if (user.role === 'customer') {
-          localStorage.setItem('user_profile', JSON.stringify({
-            name: user.name,
-            phone: `+91 ${user.phone}`,
-            email: user.email
-          }));
-        }
-
-        // Show success snackbar
-        useUIStore.getState().showSnackbar('Logged in successfully!', 'success');
-
-        setTimeout(() => {
-          if (user.role === 'vendor') {
-            navigate('/vendor');
+        try {
+          setIsLoading(true);
+          setError('');
+          
+          let response;
+          if (role === 'vendor') {
+            response = await AuthAPI.vendorLogin({ phone: mobileNumber, otp: otpString });
           } else {
-            navigate('/home');
+            response = await AuthAPI.customerLogin({ phone: mobileNumber, otp: otpString });
           }
-        }, 600);
+
+          const { user, vendor, accessToken, refreshToken } = response;
+          const account = user || vendor;
+
+          setVerified(true);
+
+          // Set current user session via global store (including tokens)
+          const login = useAuthStore.getState().login;
+          login(account, accessToken, refreshToken);
+
+          // Show success snackbar
+          useUIStore.getState().showSnackbar('Logged in successfully!', 'success');
+
+          setTimeout(() => {
+            if (account.role === 'vendor') {
+              navigate('/vendor');
+            } else {
+              navigate('/home');
+            }
+          }, 600);
+        } catch (err) {
+          setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+          setIsShake(true);
+          setTimeout(() => setIsShake(false), 500);
+        } finally {
+          setIsLoading(false);
+        }
       } else {
         // Signup flow — just go to location permission (handled by signup flow)
+        // Here we just accept the OTP as typed, real validation happens on final signup submit
+        setVerified(true);
         setTimeout(() => {
           navigate('/location-permission');
         }, 600);
@@ -94,11 +100,18 @@ export default function AuthOTPScreen() {
     }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (timeLeft === 0) {
-      setTimeLeft(45);
-      setOtp(['', '', '', '']);
-      inputRefs.current[0].focus();
+      try {
+        await AuthAPI.sendOtp({ phone: mobileNumber, purpose: flow, role });
+        setTimeLeft(45);
+        setOtp(['', '', '', '']);
+        inputRefs.current[0].focus();
+        useUIStore.getState().showSnackbar('OTP resent successfully!', 'success');
+        setError('');
+      } catch (err) {
+        setError(err.response?.data?.message || 'Failed to resend OTP.');
+      }
     }
   };
 
@@ -151,22 +164,11 @@ export default function AuthOTPScreen() {
           </div>
 
           <button
+            className={`w-full h-[56px] rounded-xl font-title-lg font-bold flex items-center justify-center transition-all duration-300 relative overflow-hidden ${otp.join('').length === 4 && !isLoading ? 'bg-[#420093] text-white shadow-lg hover:shadow-xl hover:-translate-y-1' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+            disabled={otp.join('').length !== 4 || isLoading}
             type="submit"
-            disabled={verified}
-            className={`w-full h-[56px] rounded-xl font-title-md shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              verified
-                ? 'bg-green-500 text-white'
-                : 'btn-primary-gradient text-white hover:opacity-90 active:scale-[0.98]'
-            }`}
           >
-            {verified ? (
-              <>
-                <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                Verified!
-              </>
-            ) : (
-              'Verify & Proceed'
-            )}
+            {isLoading ? 'Verifying...' : 'Verify OTP'}
           </button>
         </form>
 

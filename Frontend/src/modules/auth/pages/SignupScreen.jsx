@@ -2,14 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import useUIStore from '../../../store/useUIStore';
-
-// ─── Utility: Mock localStorage Auth ────────────────────────────────────────
-function getUsers() {
-  return JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-}
-function saveUsers(users) {
-  localStorage.setItem('zeebac_users', JSON.stringify(users));
-}
+import { AuthAPI } from '../../../services/api';
 
 const BUSINESS_CATEGORIES = [
   'Fashion & Apparel',
@@ -31,6 +24,7 @@ export default function SignupScreen({ role: roleProp }) {
 
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // OTP State for Steps 1 & 2
   const [otp, setOtp] = useState(['', '', '', '']);
@@ -78,35 +72,91 @@ export default function SignupScreen({ role: roleProp }) {
   const handleFileChange = (e, key) => {
     const file = e.target.files[0];
     if (file) {
-      // Avoid reading as DataURL to prevent QuotaExceededError in localStorage
-      updateForm(key, { name: file.name, type: file.type, size: file.size });
+      updateForm(key, file);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      await AuthAPI.sendOtp({ phone: formData.phone, purpose: 'signup', role });
+      setStep(2);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send OTP.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const goNext = () => { setError(''); setStep(s => s + 1); };
   const goBack = () => { setError(''); setStep(s => s - 1); };
 
-  const handleCreateAccount = () => {
-    // shopType directly comes from vendor's own selection — no auto-derive
-    const newUser = {
-      id: `USR-${Date.now()}`,
-      zeebacId: isVendor ? `ZBV-${Math.floor(1000 + Math.random() * 9000)}` : `ZBC-${Math.floor(1000 + Math.random() * 9000)}`,
-      role,
-      ...formData,
-      createdAt: new Date().toISOString(),
-    };
-    const users = getUsers();
-    users.push(newUser);
-    saveUsers(users);
+  const handleCreateAccount = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      if (role === 'customer') {
+        const response = await AuthAPI.customerSignup({
+          phone: formData.phone,
+          otp: otp.join(''),
+          name: formData.name,
+          email: formData.email
+        });
+        
+        useAuthStore.getState().login(response.user, response.accessToken, response.refreshToken);
+        useUIStore.getState().showSnackbar('Account created successfully!', 'success');
+        navigate('/location-permission');
+      } else {
+        // Vendor Signup - Multipart FormData
+        const data = new FormData();
+        data.append('phone', formData.phone);
+        data.append('otp', otp.join(''));
+        data.append('ownerName', formData.name);
+        data.append('storeName', formData.storeName);
+        data.append('shopType', formData.shopType);
+        data.append('category', formData.category);
+        data.append('description', formData.description);
+        if (formData.gstNumber) data.append('gstNumber', formData.gstNumber);
+        
+        data.append('fullAddress', formData.address);
+        if (formData.landmark) data.append('landmark', formData.landmark);
+        data.append('city', formData.city);
+        data.append('state', formData.state);
+        data.append('pincode', formData.pincode);
 
-    useAuthStore.getState().login(newUser);
-    useUIStore.getState().showSnackbar('Account created successfully!', 'success');
+        data.append('accountHolderName', formData.accountHolderName);
+        data.append('bankName', formData.bankName);
+        data.append('accountNumber', formData.accountNumber);
+        data.append('ifscCode', formData.ifscCode);
+        if (formData.upiId) data.append('upiId', formData.upiId);
 
-    if (role === 'customer') {
-      localStorage.setItem('user_profile', JSON.stringify({ name: newUser.name, phone: `+91 ${newUser.phone}`, email: newUser.email }));
-      navigate('/location-permission');
-    } else {
-      navigate('/vendor');
+        if (formData.website) data.append('website', formData.website);
+        if (formData.instagram) data.append('instagram', formData.instagram);
+        if (formData.facebook) data.append('facebook', formData.facebook);
+        if (formData.whatsapp) data.append('whatsapp', formData.whatsapp);
+
+        // Append files
+        if (formData.storeLogo) data.append('storeLogo', formData.storeLogo);
+        if (formData.aadhaarPan) data.append('aadhaarPan', formData.aadhaarPan);
+        if (formData.gstCertificate) data.append('gstCertificate', formData.gstCertificate);
+        if (formData.shopLicense) data.append('shopLicense', formData.shopLicense);
+        if (formData.cancelledCheque) data.append('cancelledCheque', formData.cancelledCheque);
+
+        await AuthAPI.vendorSignup(data);
+        
+        useUIStore.getState().showSnackbar('Application submitted! Pending approval.', 'success');
+        navigate(loginPath);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to create account.');
+      // If OTP expired during long vendor form fill, they might need to go back and resend
+      if (err.response?.data?.message?.toLowerCase().includes('otp')) {
+        setStep(2); // kick them back to OTP step to retry
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -166,10 +216,10 @@ export default function SignupScreen({ role: roleProp }) {
               />
             </div>
 
-            <button onClick={goNext} disabled={formData.phone.length !== 10}
-              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center mt-6 transition-all ${formData.phone.length === 10 ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            <button onClick={handleSendOtp} disabled={formData.phone.length !== 10 || isLoading}
+              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center mt-6 transition-all ${formData.phone.length === 10 && !isLoading ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}>
-              Send OTP
+              {isLoading ? 'Sending...' : 'Send OTP'}
             </button>
           </div>
         )}
@@ -214,11 +264,12 @@ export default function SignupScreen({ role: roleProp }) {
               <FloatingInput label="Full Name" icon="person" value={formData.name} onChange={e => updateForm('name', e.target.value)} />
               <FloatingInput label="Email Address (Optional)" type="email" icon="mail" value={formData.email} onChange={e => updateForm('email', e.target.value)} />
             </div>
-            <button onClick={handleCreateAccount} disabled={!formData.name.trim()}
-              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${formData.name.trim() ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            <button onClick={handleCreateAccount} disabled={!formData.name.trim() || isLoading}
+              className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${formData.name.trim() && !isLoading ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}>
-              Create Account
+              {isLoading ? 'Creating...' : 'Create Account'}
             </button>
+            {error && <p className="mt-4 text-center text-red-500 text-sm font-bold">{error}</p>}
           </div>
         )}
 
@@ -453,11 +504,12 @@ export default function SignupScreen({ role: roleProp }) {
             {/* Sticky Bottom Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40">
               <div className="max-w-[600px] mx-auto">
-                <button onClick={handleCreateAccount} disabled={!canProceedVendor()}
-                  className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 transition-all ${canProceedVendor() ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                <button onClick={handleCreateAccount} disabled={!canProceedVendor() || isLoading}
+                  className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 transition-all ${canProceedVendor() && !isLoading ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     }`}>
-                  Save & Continue
+                  {isLoading ? 'Submitting...' : 'Save & Continue'}
                 </button>
+                {error && <p className="mt-2 text-center text-red-500 text-sm font-bold">{error}</p>}
               </div>
             </div>
 

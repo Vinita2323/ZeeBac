@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { AdminAPI } from '../../../services/api';
 
 export default function VendorsPage() {
   const [activeTab, setActiveTab] = useState('All');
@@ -9,6 +10,45 @@ export default function VendorsPage() {
   const [selectedVendorDetails, setSelectedVendorDetails] = useState(null);
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [vendors, setVendors] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchVendors = async () => {
+    setIsLoading(true);
+    try {
+      // In a real app we'd pass page and search to the API.
+      // For now, getting all or filtering by status.
+      const statusFilter = activeTab === 'All' ? '' : activeTab;
+      const res = await AdminAPI.getVendors(statusFilter, 1);
+      
+      // Transform backend data to match frontend structure if needed
+      const formattedVendors = res.data.map(v => ({
+        id: v._id,
+        zeebacId: v.zeebacId,
+        name: v.storeName,
+        owner: v.ownerName,
+        category: v.category,
+        shopType: v.shopType,
+        location: v.address?.city + ', ' + v.address?.state,
+        subscription: v.subscription?.plan || 'Basic Plan (Free)',
+        aadhaar: v.aadhaar || 'Uploaded',
+        pan: v.pan || 'Uploaded',
+        gstNumber: v.gstNumber || 'N/A',
+        documents: v.documents || {},
+        status: v.status,
+        joined: new Date(v.createdAt).toLocaleDateString(),
+      }));
+      setVendors(formattedVendors);
+    } catch (error) {
+      console.error("Failed to fetch vendors", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVendors();
+  }, [activeTab]);
 
   useEffect(() => {
     const mainContent = document.querySelector('main');
@@ -34,14 +74,6 @@ export default function VendorsPage() {
     };
   }, [isDetailsModalOpen, fullscreenImage]);
 
-  const vendors = [
-    { id: 'V-1042', name: 'Coffee House Central', owner: 'Ramesh K.', category: 'Food & Beverage', shopType: 'Independent Store', location: 'Indiranagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-1122', pan: 'ABCDE1234F', status: 'Pending', joined: 'Today' },
-    { id: 'V-1043', name: 'Elite Electronics', owner: 'Suresh M.', category: 'Retail', shopType: 'Independent Store', location: 'Koramangala, Bangalore', subscription: 'Pro Plan (Paid)', aadhaar: 'XXXX-XXXX-3344', pan: 'XYZDE5678G', status: 'Pending', joined: 'Yesterday' },
-    { id: 'V-0921', name: 'Noir Concept Store', owner: 'Karan V.', category: 'Premium Fashion', shopType: 'Chain & Brand', location: 'UB City, Bangalore', subscription: 'Enterprise Plan', aadhaar: 'XXXX-XXXX-9988', pan: 'NOIRP9999X', status: 'Verified', joined: 'Oct 12, 2023' },
-    { id: 'V-0922', name: 'Fresh Mart', owner: 'Anita S.', category: 'Groceries', shopType: 'Independent Store', location: 'HSR Layout, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-5566', pan: 'FMSAA8888B', status: 'Verified', joined: 'Oct 15, 2023' },
-    { id: 'V-0923', name: 'Tech Zone', owner: 'Pooja R.', category: 'Electronics', shopType: 'Independent Store', location: 'Jayanagar, Bangalore', subscription: 'Basic Plan (Free)', aadhaar: 'XXXX-XXXX-7777', pan: 'TECHP7777T', status: 'Rejected', joined: 'Nov 02, 2023' },
-  ];
-
   let filteredVendors = vendors.filter(v => 
     (activeTab === 'All' || v.status === activeTab) &&
     (v.name.toLowerCase().includes(search.toLowerCase()) || v.owner.toLowerCase().includes(search.toLowerCase()))
@@ -58,6 +90,30 @@ export default function VendorsPage() {
     setSelectedVendorDetails(vendor);
     setIsDetailsModalOpen(true);
     setExpandedDoc(null);
+  };
+
+  const handleApprove = async (id) => {
+    const rate = prompt("Enter cashback rate (e.g. 5 for 5%):", "5");
+    if (rate !== null) {
+      try {
+        await AdminAPI.approveVendor(id, parseFloat(rate));
+        fetchVendors();
+      } catch (error) {
+        alert("Failed to approve vendor");
+      }
+    }
+  };
+
+  const handleReject = async (id) => {
+    const reason = prompt("Enter rejection reason:");
+    if (reason) {
+      try {
+        await AdminAPI.rejectVendor(id, reason);
+        fetchVendors();
+      } catch (error) {
+        alert("Failed to reject vendor");
+      }
+    }
   };
 
   return (
@@ -177,10 +233,16 @@ export default function VendorsPage() {
                         >
                           View Details
                         </button>
-                        <button className="px-3 py-1.5 bg-green-500/10 text-green-600 font-bold text-[12px] rounded-lg hover:bg-green-500 hover:text-white transition-colors cursor-pointer">
+                        <button 
+                          onClick={() => handleApprove(vendor.id)}
+                          className="px-3 py-1.5 bg-green-500/10 text-green-600 font-bold text-[12px] rounded-lg hover:bg-green-500 hover:text-white transition-colors cursor-pointer"
+                        >
                           Approve
                         </button>
-                        <button className="px-3 py-1.5 bg-red-500/10 text-red-600 font-bold text-[12px] rounded-lg hover:bg-red-500 hover:text-white transition-colors cursor-pointer">
+                        <button 
+                          onClick={() => handleReject(vendor.id)}
+                          className="px-3 py-1.5 bg-red-500/10 text-red-600 font-bold text-[12px] rounded-lg hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                        >
                           Reject
                         </button>
                       </>
@@ -266,6 +328,10 @@ export default function VendorsPage() {
                     <p className="font-medium text-on-surface">{selectedVendorDetails.location}</p>
                   </div>
                   <div>
+                    <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">GST Number</p>
+                    <p className="font-medium text-on-surface">{selectedVendorDetails.gstNumber}</p>
+                  </div>
+                  <div>
                     <p className="text-on-surface-variant mb-1 text-[11px] uppercase tracking-wider font-bold">Joined Date</p>
                     <p className="font-medium text-on-surface">{selectedVendorDetails.joined}</p>
                   </div>
@@ -322,12 +388,16 @@ export default function VendorsPage() {
                 {expandedDoc === 'aadhaar' && (
                   <div className="px-4 pb-4 animate-reveal">
                     <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
-                      <img 
-                        src="https://placehold.co/600x300/f8f9fa/475569?text=Aadhaar+Card+Image+(Mock)" 
-                        alt="Aadhaar Card" 
-                        className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
-                        onClick={() => setFullscreenImage("https://placehold.co/600x300/f8f9fa/475569?text=Aadhaar+Card+Image+(Mock)")}
-                      />
+                      {selectedVendorDetails.documents?.aadhaarPan?.fileUrl ? (
+                        <img 
+                          src={`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`}
+                          alt="Aadhaar Card" 
+                          className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
+                          onClick={() => setFullscreenImage(`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`)}
+                        />
+                      ) : (
+                        <span className="text-on-surface-variant font-medium text-[13px]">No document uploaded</span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -351,12 +421,48 @@ export default function VendorsPage() {
                 {expandedDoc === 'pan' && (
                   <div className="px-4 pb-4 animate-reveal">
                     <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
-                      <img 
-                        src="https://placehold.co/600x300/f8f9fa/475569?text=PAN+Card+Image+(Mock)" 
-                        alt="PAN Card" 
-                        className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
-                        onClick={() => setFullscreenImage("https://placehold.co/600x300/f8f9fa/475569?text=PAN+Card+Image+(Mock)")}
-                      />
+                      {selectedVendorDetails.documents?.aadhaarPan?.fileUrl ? (
+                        <img 
+                          src={`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`}
+                          alt="PAN Card" 
+                          className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
+                          onClick={() => setFullscreenImage(`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`)}
+                        />
+                      ) : (
+                        <span className="text-on-surface-variant font-medium text-[13px]">No document uploaded</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* GST Certificate Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+                <div 
+                  className="flex justify-between items-center p-4 cursor-pointer hover:bg-surface-container-low transition-colors"
+                  onClick={() => setExpandedDoc(expandedDoc === 'gst' ? null : 'gst')}
+                >
+                  <h4 className="font-bold text-[14px] text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-[18px]">receipt_long</span>
+                    GST Certificate
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-on-surface-variant transition-transform duration-200" style={{ transform: expandedDoc === 'gst' ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
+                  </div>
+                </div>
+                {expandedDoc === 'gst' && (
+                  <div className="px-4 pb-4 animate-reveal">
+                    <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
+                      {selectedVendorDetails.documents?.gstCertificate?.fileUrl ? (
+                        <img 
+                          src={`http://localhost:5000${selectedVendorDetails.documents.gstCertificate.fileUrl}`}
+                          alt="GST Certificate" 
+                          className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
+                          onClick={() => setFullscreenImage(`http://localhost:5000${selectedVendorDetails.documents.gstCertificate.fileUrl}`)}
+                        />
+                      ) : (
+                        <span className="text-on-surface-variant font-medium text-[13px]">No document uploaded</span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -372,7 +478,10 @@ export default function VendorsPage() {
               </button>
               {selectedVendorDetails.status === 'Pending' && (
                 <button 
-                  onClick={() => setIsDetailsModalOpen(false)}
+                  onClick={() => {
+                    handleApprove(selectedVendorDetails.id);
+                    setIsDetailsModalOpen(false);
+                  }}
                   className="px-6 py-2 rounded-xl bg-primary text-white font-bold text-[14px] hover:bg-primary/90 transition-colors shadow-md cursor-pointer"
                 >
                   Verify & Approve

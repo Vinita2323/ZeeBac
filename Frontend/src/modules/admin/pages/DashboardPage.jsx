@@ -1,19 +1,33 @@
 import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
 
 export default function DashboardPage() {
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await AdminAPI.getDashboardStats();
+        setData(res.data);
+      } catch (error) {
+        console.error("Failed to fetch stats", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const stats = [
-    { label: 'Total Users', value: '45,231', icon: 'groups', trend: '+1,204 this week', color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Total Vendors', value: '1,492', icon: 'storefront', trend: '12 pending approval', color: 'text-orange-500', bg: 'bg-orange-500/10' },
-    { label: 'Today\'s Volume', value: '₹4.2M', icon: 'payments', trend: '+15% vs yesterday', color: 'text-green-600', bg: 'bg-green-500/10' },
-    { label: 'Total Cashback', value: '₹842K', icon: 'redeem', trend: 'Avg 6.2% rate', color: 'text-secondary', bg: 'bg-secondary/10' },
+    { label: 'Total Users', value: data?.totalUsers || 0, icon: 'groups', trend: 'Total registered customers', color: 'text-primary', bg: 'bg-primary/10' },
+    { label: 'Total Vendors', value: data?.totalVendors || 0, icon: 'storefront', trend: `${data?.pendingVendors || 0} pending approval`, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { label: 'Total Revenue', value: `₹${data?.totalRevenue || 0}`, icon: 'payments', trend: 'Total volume processed', color: 'text-green-600', bg: 'bg-green-500/10' },
+    { label: 'Total Txns', value: data?.totalTransactions || 0, icon: 'receipt_long', trend: 'Total transactions', color: 'text-secondary', bg: 'bg-secondary/10' },
   ];
 
-  const pendingVendors = [
-    { id: 'V-1042', name: 'Coffee House Central', category: 'Food & Beverage', date: '2 hours ago' },
-    { id: 'V-1043', name: 'Elite Electronics', category: 'Retail', date: '5 hours ago' },
-    { id: 'V-1044', name: 'Sparkle Auto Spa', category: 'Services', date: 'Yesterday' },
-  ];
+  const pendingVendors = []; // We can fetch recent pending vendors if needed later
+
 
   const recentTransactions = [
     { id: 'TX-9204', customer: 'Amit K.', vendor: 'Noir Concept', amount: '₹4,500', status: 'Approved' },
@@ -141,7 +155,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border border-outline-variant/5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col">
           <div className="p-4 border-b border-outline-variant/5 flex justify-between items-center bg-[#fafafa]">
             <h3 className="font-title-md font-bold text-on-surface text-[14px]">Verification Queue</h3>
-            <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">12 Pending</span>
+            <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{data?.pendingVendors || 0} Pending</span>
           </div>
           <div className="p-3 space-y-2 flex-1">
             {pendingVendors.map((vendor, idx) => (

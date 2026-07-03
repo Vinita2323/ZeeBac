@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { AuthAPI } from '../../../../services/api';
 
 export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileClose }) {
   const navigate = useNavigate();
@@ -23,9 +24,16 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('zeebac_current_user');
-    navigate('/admin/login');
+  const handleLogout = async () => {
+    try {
+      await AuthAPI.logout();
+      navigate('/admin/login');
+    } catch (error) {
+      console.error('Logout failed', error);
+      // Fallback
+      localStorage.removeItem('zeebac_current_user');
+      navigate('/admin/login');
+    }
   };
 
   return (

@@ -2,20 +2,28 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import { VendorAPI } from '../../../services/api';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const logout = useAuthStore((state) => state.logout);
-  const updateProfile = useAuthStore((state) => state.updateProfile);
+  const updateProfileStore = useAuthStore((state) => state.updateProfile);
 
-  const storeName = currentUser.storeName || 'Vini Business';
-  const category = currentUser.category || 'Fashion & Apparel';
-  const phone = currentUser.phone || '+91 9111966732';
-  const email = currentUser.email || 'vinijinodiya@gmail.com';
-  const address = currentUser.address || 'Indore, India';
+  const [vendorData, setVendorData] = useState(null);
+  
+  const storeName = vendorData?.storeName || currentUser.storeName || 'Vini Business';
+  const category = vendorData?.category || currentUser.category || 'Fashion & Apparel';
+  const phone = vendorData?.phone || currentUser.phone || '+91 9111966732';
+  const email = vendorData?.ownerName || currentUser.email || 'Vendor'; // Just mock fallback for email since we don't save email in vendor schema
+  
+  const rawAddress = vendorData?.address || currentUser.address;
+  const address = typeof rawAddress === 'object' 
+    ? (rawAddress?.city || rawAddress?.fullAddress || 'Indore, India')
+    : (rawAddress || 'Indore, India');
   const firstLetter = storeName.charAt(0).toUpperCase();
 
   const [profilePic, setProfilePic] = useState(currentUser.profilePic || null);
@@ -51,18 +59,32 @@ export default function ProfilePage() {
     phone,
     email,
     address,
+    description: '',
+    upiId: ''
   });
 
-  // Keep form data updated if currentUser updates externally
   useEffect(() => {
-    setFormData({
-      storeName: currentUser.storeName || 'Vini Business',
-      category: currentUser.category || 'Fashion & Apparel',
-      phone: currentUser.phone || '+91 9111966732',
-      email: currentUser.email || 'vinijinodiya@gmail.com',
-      address: currentUser.address || 'Indore, India',
-    });
-  }, [currentUser]);
+    const fetchProfile = async () => {
+      try {
+        const res = await VendorAPI.getProfile();
+        setVendorData(res.data);
+        setFormData({
+          storeName: res.data.storeName || storeName,
+          category: res.data.category || category,
+          phone: res.data.phone || phone,
+          email: res.data.ownerName || email,
+          address: typeof res.data.address === 'object' ? (res.data.address?.city || res.data.address?.fullAddress) : (res.data.address || address),
+          description: res.data.description || '',
+          upiId: res.data.bankDetails?.upiId || ''
+        });
+      } catch (error) {
+        console.error('Failed to fetch profile', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
@@ -71,15 +93,24 @@ export default function ProfilePage() {
       reader.onloadend = () => {
         const base64String = reader.result;
         setProfilePic(base64String);
-        updateProfile({ profilePic: base64String });
+        updateProfileStore({ profilePic: base64String });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (isEditing) {
-      updateProfile(formData);
+      try {
+        await VendorAPI.updateProfile({
+          description: formData.description,
+          bankDetails: { upiId: formData.upiId }
+        });
+        setToastMessage('Profile updated successfully!');
+        setTimeout(() => setToastMessage(null), 2500);
+      } catch (error) {
+        console.error('Failed to update profile', error);
+      }
     }
     setIsEditing(!isEditing);
   };
@@ -174,16 +205,7 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Business Name</span>
               </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.storeName} 
-                  onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface">{storeName}</span>
-              )}
+              <span className="text-[12.5px] font-extrabold text-on-surface">{storeName}</span>
             </div>
 
             <div className="flex justify-between items-center py-2.5">
@@ -193,16 +215,7 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Category</span>
               </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.category} 
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface">{category}</span>
-              )}
+              <span className="text-[12.5px] font-extrabold text-on-surface">{category}</span>
             </div>
 
             <div className="flex justify-between items-center py-2.5">
@@ -212,16 +225,7 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Contact Number</span>
               </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.phone} 
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface">{phone}</span>
-              )}
+              <span className="text-[12.5px] font-extrabold text-on-surface">{phone}</span>
             </div>
 
             <div className="flex justify-between items-center py-2.5">
@@ -231,16 +235,7 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Business Email</span>
               </div>
-              {isEditing ? (
-                <input 
-                  type="email" 
-                  value={formData.email} 
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 truncate max-w-[180px]"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface truncate max-w-[180px]">{email}</span>
-              )}
+              <span className="text-[12.5px] font-extrabold text-on-surface truncate max-w-[180px]">{email}</span>
             </div>
 
             <div className="flex justify-between items-center py-2.5">
@@ -250,15 +245,46 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Store Address</span>
               </div>
+              <span className="text-[12.5px] font-extrabold text-on-surface">{address}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">description</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Description</span>
+              </div>
               {isEditing ? (
                 <input 
                   type="text" 
-                  value={formData.address} 
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
+                  value={formData.description} 
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="Short description"
                 />
               ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface">{address}</span>
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.description || 'No description'}</span>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">account_balance</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">UPI ID</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.upiId} 
+                  onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
+                  placeholder="example@upi"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface">{formData.upiId || 'Not provided'}</span>
               )}
             </div>
           </div>

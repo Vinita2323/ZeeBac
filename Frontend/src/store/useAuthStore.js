@@ -7,6 +7,7 @@ import { create } from 'zustand';
 const useAuthStore = create((set, get) => ({
   // ── State ──
   currentUser: null,        // { role, name, phone, email, storeName, ... }
+  accessToken: null,
   isAuthenticated: false,
   walletBalance: 0,
 
@@ -16,7 +17,8 @@ const useAuthStore = create((set, get) => ({
   hydrate: () => {
     try {
       const userStr = localStorage.getItem('zeebac_current_user');
-      if (userStr) {
+      const token = localStorage.getItem('zeebac_access_token');
+      if (userStr && token) {
         const user = JSON.parse(userStr);
         const role = user.role || user.userType;
 
@@ -30,6 +32,7 @@ const useAuthStore = create((set, get) => ({
 
         set({
           currentUser: user,
+          accessToken: token,
           isAuthenticated: true,
           walletBalance: balance,
         });
@@ -40,8 +43,11 @@ const useAuthStore = create((set, get) => ({
   },
 
   // Log in a user (customer, vendor, or admin)
-  login: (userData) => {
+  login: (userData, accessToken, refreshToken) => {
     localStorage.setItem('zeebac_current_user', JSON.stringify(userData));
+    localStorage.setItem('zeebac_access_token', accessToken);
+    if (refreshToken) localStorage.setItem('zeebac_refresh_token', refreshToken);
+    
     const role = userData.role || userData.userType;
 
     let balance = 0;
@@ -53,14 +59,22 @@ const useAuthStore = create((set, get) => ({
 
     set({
       currentUser: userData,
+      accessToken: accessToken,
       isAuthenticated: true,
       walletBalance: balance,
     });
   },
 
+  setAccessToken: (token) => {
+    localStorage.setItem('zeebac_access_token', token);
+    set({ accessToken: token });
+  },
+
   // Log out and clear all persisted session data
   logout: () => {
     localStorage.removeItem('zeebac_current_user');
+    localStorage.removeItem('zeebac_access_token');
+    localStorage.removeItem('zeebac_refresh_token');
     localStorage.removeItem('vendor_transactions');
     localStorage.removeItem('vendor_balance');
     localStorage.removeItem('zeebac_wallet_balance');
@@ -70,6 +84,7 @@ const useAuthStore = create((set, get) => ({
 
     set({
       currentUser: null,
+      accessToken: null,
       isAuthenticated: false,
       walletBalance: 0,
     });

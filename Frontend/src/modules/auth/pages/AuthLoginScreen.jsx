@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import useAuthStore from '../../../store/useAuthStore';
+import { AuthAPI } from '../../../services/api';
 
 export default function AuthLoginScreen({ role = 'customer' }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const isVendor = role === 'vendor';
-
-  const login = useAuthStore((state) => state.login);
 
   const handleInputChange = (e) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
@@ -20,26 +19,28 @@ export default function AuthLoginScreen({ role = 'customer' }) {
 
   const isFormValid = mobileNumber.length === 10;
 
-  const handleContinue = (e) => {
+  const handleContinue = async (e) => {
     e.preventDefault();
     if (!isFormValid) {
       setError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
-    // Check if user exists in mock DB — scoped to the specific role
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const existingUser = users.find(u => u.phone === mobileNumber && u.role === role);
-
-    if (!existingUser) {
-      setError(isVendor
-        ? 'No vendor account found with this number. Please register first.'
-        : 'No account found with this number. Please sign up first.'
-      );
-      return;
+    try {
+      setIsLoading(true);
+      setError('');
+      // Call real backend API
+      await AuthAPI.sendOtp({ phone: mobileNumber, purpose: 'login', role });
+      
+      // Navigate to OTP screen on success
+      navigate(isVendor ? '/vendor-app/verify-otp' : '/verify-otp', { 
+        state: { mobileNumber, flow: 'login', role } 
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-
-    navigate(isVendor ? '/vendor-app/verify-otp' : '/verify-otp', { state: { mobileNumber, flow: 'login', role } });
   };
 
   return (

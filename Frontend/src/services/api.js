@@ -4,41 +4,81 @@
 // with real axios/fetch calls. No component code needs to change.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import axios from 'axios';
+import useAuthStore from '../store/useAuthStore.js';
+
+// ─── Axios Instance & Interceptors ──────────────────────────────────────────
+export const apiClient = axios.create({
+  baseURL: 'http://localhost:5000/api',
+});
+
+apiClient.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().accessToken;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = localStorage.getItem('zeebac_refresh_token');
+        if (!refreshToken) throw new Error('No refresh token');
+        const { data } = await axios.post('http://localhost:5000/api/auth/refresh', { refreshToken });
+        useAuthStore.getState().setAccessToken(data.accessToken);
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        return apiClient(originalRequest);
+      } catch (err) {
+        useAuthStore.getState().logout();
+        return Promise.reject(err);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Simulates network delay (remove when connecting to real backend)
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ── Auth Service ──
-export const authService = {
-  // Mock login — will become: axios.post('/api/auth/login', { phone, pin })
-  login: async (phone, pin) => {
-    await delay(300);
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const user = users.find((u) => u.phone === phone);
-    if (!user) throw new Error('No account found with this number.');
-    // In production, PIN verification happens server-side
-    return user;
+// ── Auth Service (REAL BACKEND INTEGRATION) ──
+export const AuthAPI = {
+  sendOtp: async (data) => {
+    const res = await apiClient.post('/auth/send-otp', data);
+    return res.data;
   },
-
-  // Mock OTP verify — will become: axios.post('/api/auth/verify-otp', { phone, otp })
-  verifyOTP: async (phone, otp) => {
-    await delay(300);
-    // For mock, any 4-digit OTP works
-    if (otp.length !== 4) throw new Error('Please enter a valid 4-digit OTP.');
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const user = users.find((u) => u.phone === phone);
-    return user || null;
+  customerLogin: async (data) => {
+    const res = await apiClient.post('/auth/customer/login', data);
+    return res.data; // { success, accessToken, refreshToken, user }
   },
-
-  // Mock signup — will become: axios.post('/api/auth/signup', userData)
-  signup: async (userData) => {
-    await delay(300);
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const exists = users.find((u) => u.phone === userData.phone);
-    if (exists) throw new Error('An account with this number already exists.');
-    users.push(userData);
-    localStorage.setItem('zeebac_users', JSON.stringify(users));
-    return userData;
+  vendorLogin: async (data) => {
+    const res = await apiClient.post('/auth/vendor/login', data);
+    return res.data;
   },
+  adminLogin: async (data) => {
+    const res = await apiClient.post('/auth/admin/login', data);
+    return res.data;
+  },
+  customerSignup: async (formData) => {
+    // formData must be FormData object if sending files (profilePic)
+    const res = await apiClient.post('/auth/customer/signup', formData);
+    return res.data;
+  },
+  vendorSignup: async (formData) => {
+    // formData for multi-part document uploads
+    const res = await apiClient.post('/auth/vendor/signup', formData);
+    return res.data;
+  },
+  logout: async () => {
+    await apiClient.post('/auth/logout');
+    useAuthStore.getState().logout();
+  },
+  getMe: async () => {
+    const res = await apiClient.get('/auth/me');
+    return res.data;
+  }
 };
 
 // ── Wallet Service ──
@@ -77,4 +117,56 @@ export const transactionService = {
     localStorage.setItem(key, JSON.stringify([newTx, ...existing]));
     return newTx;
   },
+};
+
+// ── Admin Service ──
+export const AdminAPI = {
+  getDashboardStats: async () => {
+    const res = await apiClient.get('/admin/dashboard/stats');
+    return res.data;
+  },
+  getVendors: async (status = '', page = 1) => {
+    const res = await apiClient.get(`/admin/vendors?status=${status}&page=${page}`);
+    return res.data;
+  },
+  getVendorById: async (id) => {
+    const res = await apiClient.get(`/admin/vendors/${id}`);
+    return res.data;
+  },
+  approveVendor: async (id, cashbackRate) => {
+    const res = await apiClient.patch(`/admin/vendors/${id}/approve`, { cashbackRate });
+    return res.data;
+  },
+  rejectVendor: async (id, reason) => {
+    const res = await apiClient.patch(`/admin/vendors/${id}/reject`, { reason });
+    return res.data;
+  },
+  getUsers: async (page = 1, search = '') => {
+    const res = await apiClient.get(`/admin/users?page=${page}&search=${search}`);
+    return res.data;
+  },
+  suspendUser: async (id) => {
+    const res = await apiClient.patch(`/admin/users/${id}/suspend`);
+    return res.data;
+  },
+  unsuspendUser: async (id) => {
+    const res = await apiClient.patch(`/admin/users/${id}/unsuspend`);
+    return res.data;
+  },
+};
+
+// ── Vendor Service ──
+export const VendorAPI = {
+  getProfile: async () => {
+    const res = await apiClient.get('/vendor/me');
+    return res.data;
+  },
+  updateProfile: async (data) => {
+    const res = await apiClient.put('/vendor/me', data);
+    return res.data;
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get('/vendor/dashboard/stats');
+    return res.data;
+  }
 };

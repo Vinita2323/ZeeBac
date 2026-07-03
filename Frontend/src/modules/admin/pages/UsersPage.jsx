@@ -1,16 +1,52 @@
 import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
 
 export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('name_asc');
+  const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const users = [
-    { id: 'U-9842', name: 'Amit Kumar', phone: '+91 98765 43210', aadhaar: 'XXXX-XXXX-4921', status: 'Active', joined: 'Oct 12, 2023' },
-    { id: 'U-9843', name: 'Priya Singh', phone: '+91 87654 32109', aadhaar: 'XXXX-XXXX-8832', status: 'Active', joined: 'Oct 15, 2023' },
-    { id: 'U-9844', name: 'Rahul Sharma', phone: '+91 76543 21098', aadhaar: 'XXXX-XXXX-1129', status: 'Suspended', joined: 'Nov 02, 2023' },
-    { id: 'U-9845', name: 'Sneha Patel', phone: '+91 65432 10987', aadhaar: 'XXXX-XXXX-7743', status: 'Active', joined: 'Dec 05, 2023' },
-    { id: 'U-9846', name: 'Vikram Gupta', phone: '+91 54321 09876', aadhaar: 'XXXX-XXXX-3390', status: 'Active', joined: 'Jan 10, 2024' },
-  ];
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const res = await AdminAPI.getUsers(page, search);
+      const formattedUsers = res.data.map(u => ({
+        id: u.zeebacId,
+        _id: u._id,
+        name: u.name,
+        phone: u.phone,
+        aadhaar: 'XXXX-XXXX-XXXX', // From admin view
+        status: u.status,
+        joined: new Date(u.createdAt).toLocaleDateString()
+      }));
+      setUsers(formattedUsers);
+      setMeta(res.meta);
+    } catch (error) {
+      console.error('Failed to fetch users', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [page, search]);
+
+  const handleToggleStatus = async (user) => {
+    try {
+      if (user.status === 'Active') {
+        await AdminAPI.suspendUser(user._id);
+      } else {
+        await AdminAPI.unsuspendUser(user._id);
+      }
+      fetchUsers();
+    } catch (error) {
+      alert("Action failed");
+    }
+  };
 
   let displayedUsers = [...users].filter(u => 
     u.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -102,7 +138,9 @@ export default function UsersPage() {
                     <button className="px-3 py-1 bg-primary/10 text-primary font-bold text-[12px] rounded-lg hover:bg-primary hover:text-white transition-colors cursor-pointer">
                       View
                     </button>
-                    <button className={`px-3 py-1 font-bold text-[12px] rounded-lg transition-colors cursor-pointer
+                    <button 
+                      onClick={() => handleToggleStatus(user)}
+                      className={`px-3 py-1 font-bold text-[12px] rounded-lg transition-colors cursor-pointer
                       ${user.status === 'Active' ? 'bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white' : 'bg-green-500/10 text-green-600 hover:bg-green-500 hover:text-white'}
                     `}>
                       {user.status === 'Active' ? 'Suspend' : 'Activate'}
@@ -114,15 +152,24 @@ export default function UsersPage() {
           </table>
         </div>
         
-        {/* Pagination mock */}
         <div className="p-4 border-t border-outline-variant/10 flex items-center justify-between text-[13px] text-on-surface-variant">
-          <span>Showing 1 to 5 of 45,231 entries</span>
+          <span>Showing {users.length} of {meta?.total || 0} entries</span>
           <div className="flex gap-1">
-            <button className="w-8 h-8 rounded border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container-low disabled:opacity-50" disabled><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
-            <button className="w-8 h-8 rounded bg-primary text-white flex items-center justify-center font-bold">1</button>
-            <button className="w-8 h-8 rounded border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container-low">2</button>
-            <button className="w-8 h-8 rounded border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container-low">3</button>
-            <button className="w-8 h-8 rounded border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container-low"><span className="material-symbols-outlined text-[18px]">chevron_right</span></button>
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="w-8 h-8 rounded border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container-low disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            <button className="w-8 h-8 rounded bg-primary text-white flex items-center justify-center font-bold">{page}</button>
+            <button 
+              onClick={() => setPage(p => (meta?.totalPages > p ? p + 1 : p))}
+              disabled={page === (meta?.totalPages || 1)}
+              className="w-8 h-8 rounded border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container-low disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
           </div>
         </div>
       </div>

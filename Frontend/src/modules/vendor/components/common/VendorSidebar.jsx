@@ -1,8 +1,21 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { AuthAPI } from '../../../../services/api';
 
 export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleLogout = async (e) => {
+    e.stopPropagation(); // prevent triggering the profile navigation
+    try {
+      await AuthAPI.logout();
+      navigate('/auth/vendor/login');
+    } catch (error) {
+      console.error('Logout failed', error);
+      localStorage.removeItem('zeebac_current_user');
+      navigate('/auth/vendor/login');
+    }
+  };
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
@@ -103,7 +116,9 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
                 <p className="font-title-md font-bold text-[13px] text-on-surface truncate">Noir Concept</p>
                 <p className="text-[11px] text-on-surface-variant truncate">Premium Fashion</p>
               </div>
-              <span className="material-symbols-outlined text-outline text-[18px]">more_vert</span>
+              <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors">
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+              </button>
             </>
           )}
         </div>

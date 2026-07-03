@@ -1,24 +1,32 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import { AuthAPI } from '../../../services/api';
 
 export default function AdminLoginScreen() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (email === 'admin@zeebac.com' && password === 'admin123') {
-      // Use the global auth store instead of directly modifying localStorage
-      useAuthStore.getState().login({ role: 'admin', email: 'admin@zeebac.com', name: 'Super Admin' });
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      const response = await AuthAPI.adminLogin({ email, password });
+      
+      useAuthStore.getState().login(response.admin, response.accessToken, response.refreshToken);
       navigate('/admin');
-    } else {
-      setError('Invalid admin credentials.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Invalid admin credentials.');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -74,10 +82,11 @@ export default function AdminLoginScreen() {
 
           <button 
             type="submit"
-            className="w-full h-14 mt-4 bg-primary text-white font-title-md font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all cursor-pointer"
+            disabled={isLoading}
+            className={`w-full h-14 mt-4 text-white font-title-md font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${isLoading ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 active:scale-[0.98] cursor-pointer'}`}
           >
-            Authenticate
-            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            {isLoading ? 'Authenticating...' : 'Authenticate'}
+            {!isLoading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
           </button>
         </form>
         
