@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { VendorAPI } from '../../../services/api';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -10,26 +11,30 @@ export default function TransactionsPage() {
 
   const [transactions, setTransactions] = useState([]);
 
-  useEffect(() => {
-    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-    const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
-    
-    const myTxns = txns.filter(t => t.vendorId === currentUser.zeebacId || t.vendorPhone === currentUser.phone);
-    
-    const formatted = myTxns.map(t => ({
-      id: t.id,
-      customer: t.customerName,
-      amount: `₹${t.purchaseAmount.toLocaleString()}`,
-      time: new Date(t.timestamp).toLocaleString(),
-      status: 'Approved',
-      hasReceipt: false
-    }));
+  const [loading, setLoading] = useState(true);
 
-    if (formatted.length === 0) {
-      formatted.push({ id: 'dummy', customer: 'Welcome transaction', amount: '₹0', time: 'Just now', status: 'Approved', hasReceipt: false });
-    }
-    
-    setTransactions(formatted);
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const res = await VendorAPI.getTransactions();
+        if (res.success) {
+          const formatted = res.data.map(t => ({
+            id: t.transactionId,
+            customer: t.customerName || t.customerPhone,
+            amount: `₹${t.amount.toLocaleString()}`,
+            time: new Date(t.timestamp).toLocaleString(),
+            status: t.status,
+            hasReceipt: t.hasReceipt
+          }));
+          setTransactions(formatted);
+        }
+      } catch (err) {
+        console.error("Failed to fetch transactions", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTransactions();
   }, []);
 
   const filteredTransactions = transactions.filter(t => {
@@ -89,7 +94,12 @@ export default function TransactionsPage() {
 
         {/* Transaction Cards */}
         <div className="space-y-3">
-          {filteredTransactions.map(trx => (
+          {loading ? (
+            <div className="py-10 text-center">
+               <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+               <p className="font-bold text-on-surface-variant">Loading...</p>
+            </div>
+          ) : filteredTransactions.length > 0 ? filteredTransactions.map(trx => (
             <div key={trx.id} className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] p-4 active:scale-[0.98] transition-transform">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
@@ -143,9 +153,7 @@ export default function TransactionsPage() {
                 </div>
               )}
             </div>
-          ))}
-
-          {filteredTransactions.length === 0 && (
+          )) : (
             <div className="py-12 text-center text-on-surface-variant">
               <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">search_off</span>
               <p className="font-bold text-[16px]">No transactions found</p>

@@ -7,9 +7,11 @@
 import axios from 'axios';
 import useAuthStore from '../store/useAuthStore.js';
 
+export const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 // ─── Axios Instance & Interceptors ──────────────────────────────────────────
 export const apiClient = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: `${API_BASE_URL}/api`,
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -27,7 +29,7 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('zeebac_refresh_token');
         if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post('http://localhost:5000/api/auth/refresh', { refreshToken });
+        const { data } = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken });
         useAuthStore.getState().setAccessToken(data.accessToken);
         originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
         return apiClient(originalRequest);
@@ -167,6 +169,107 @@ export const VendorAPI = {
   },
   getDashboardStats: async () => {
     const res = await apiClient.get('/vendor/dashboard/stats');
+    return res.data;
+  },
+  // Phase 3B: Products
+  getProducts: async () => {
+    const res = await apiClient.get('/vendor/products');
+    return res.data;
+  },
+  createProduct: async (formData) => {
+    // using formData, so don't pass standard json. Axios interceptor usually handles this.
+    // wait, we need to let axios set the multipart/form-data boundary, so we don't set Content-Type manually.
+    const res = await apiClient.post('/vendor/products', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+  updateProduct: async (id, data) => {
+    // If it's a FormData object (when updating image), use multipart, else json
+    const isFormData = data instanceof FormData;
+    const res = await apiClient.put(`/vendor/products/${id}`, data, {
+      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined
+    });
+    return res.data;
+  },
+  deleteProduct: async (id) => {
+    const res = await apiClient.delete(`/vendor/products/${id}`);
+    return res.data;
+  },
+  // Phase 3C: Transaction & Wallet
+  lookupCustomerByPhone: async (phone) => {
+    console.log(`[Frontend API] Calling /vendor/customers/${phone}`);
+    try {
+      const res = await apiClient.get(`/vendor/customers/${phone}`);
+      console.log(`[Frontend API] Success response:`, res.data);
+      return res.data;
+    } catch (err) {
+      console.error(`[Frontend API] Error:`, err.response?.data || err.message);
+      throw err;
+    }
+  },
+  logPurchase: async (data) => {
+    const res = await apiClient.post('/vendor/transactions/log', data);
+    return res.data;
+  },
+  getTransactions: async () => {
+    const res = await apiClient.get('/vendor/transactions');
+    return res.data;
+  },
+  getWallet: async () => {
+    const res = await apiClient.get('/vendor/wallet');
+    return res.data;
+  },
+  createRazorpayOrder: async (amount) => {
+    const res = await apiClient.post('/vendor/wallet/create-order', { amount });
+    return res.data;
+  },
+  verifyRazorpayPayment: async (paymentData) => {
+    const res = await apiClient.post('/vendor/wallet/verify-payment', paymentData);
+    return res.data;
+  },
+  // Phase 3D: Final Dashboard & Withdrawals
+  getDashboardStats: async () => {
+    const res = await apiClient.get('/vendor/dashboard/stats');
+    return res.data;
+  },
+  getVendorCustomers: async () => {
+    const res = await apiClient.get('/vendor/customers/list');
+    return res.data;
+  },
+  requestWithdrawal: async (amount) => {
+    const res = await apiClient.post('/vendor/wallet/withdraw', { amount });
+    return res.data;
+  }
+};
+
+// ─── Customer API ───
+export const UserAPI = {
+  getProfile: async () => {
+    const res = await apiClient.get('/user/me');
+    return res.data;
+  },
+  updateLocation: async (data) => {
+    const res = await apiClient.put('/user/location', data);
+    return res.data;
+  },
+  // Vendor Lookup
+  lookupVendor: async (query) => {
+    const res = await apiClient.get(`/user/vendors/${encodeURIComponent(query)}`);
+    return res.data;
+  },
+  // Create Transaction (Customer pays vendor - Cash)
+  createTransaction: async (data) => {
+    const res = await apiClient.post('/user/transactions', data);
+    return res.data;
+  },
+  // Razorpay Flow
+  createRazorpayOrder: async (amount) => {
+    const res = await apiClient.post('/user/transactions/razorpay/order', { amount });
+    return res.data;
+  },
+  verifyRazorpayAndCreateTransaction: async (data) => {
+    const res = await apiClient.post('/user/transactions/razorpay/verify', data);
     return res.data;
   }
 };

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function SplashScreen() {
   const navigate = useNavigate();
   const [orbTranslate, setOrbTranslate] = useState({ x: 0, y: 0 });
+  const { accessToken, currentUser } = useAuthStore();
 
   useEffect(() => {
     // Parallax motion tracking
@@ -15,16 +17,12 @@ export default function SplashScreen() {
 
     window.addEventListener('mousemove', handleMouseMove);
 
-    // Check for existing session
+    // Check for existing session using AuthStore (not localStorage)
     const timer = setTimeout(() => {
-      const currentUser = localStorage.getItem('zeebac_current_user');
-      if (currentUser) {
-        const user = JSON.parse(currentUser);
-        if (user.role === 'vendor') {
-          navigate('/vendor');
-        } else {
-          navigate('/home');
-        }
+      if (accessToken && currentUser?.role === 'vendor') {
+        navigate('/vendor');
+      } else if (accessToken && currentUser?.role === 'customer') {
+        navigate('/home');
       } else {
         navigate('/login');
       }
@@ -34,7 +32,7 @@ export default function SplashScreen() {
       window.removeEventListener('mousemove', handleMouseMove);
       clearTimeout(timer);
     };
-  }, [navigate]);
+  }, [navigate, accessToken, currentUser]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-white relative overflow-hidden select-none">

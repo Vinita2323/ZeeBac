@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { VendorAPI } from '../../../services/api';
 
 export default function VendorScanCustomerScreen() {
   const navigate = useNavigate();
@@ -7,22 +8,28 @@ export default function VendorScanCustomerScreen() {
   const [query, setQuery] = useState('');
   const [showIdInput, setShowIdInput] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const lookupCustomer = (searchQuery) => {
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const clean = searchQuery.trim().toUpperCase();
-    return users.find(u =>
-      u.role === 'customer' && (
-        (u.zeebacId && u.zeebacId.toUpperCase() === clean) ||
-        u.phone === searchQuery.trim()
-      )
-    );
+  const lookupCustomer = async (searchQuery) => {
+    try {
+      setIsLoading(true);
+      const res = await VendorAPI.lookupCustomerByPhone(searchQuery);
+      if (res.success && res.data) {
+        return res.data;
+      }
+      return null;
+    } catch (err) {
+      console.error(err);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleManualSearch = () => {
+  const handleManualSearch = async () => {
     if (!query.trim()) return;
     setError('');
-    const customer = lookupCustomer(query);
+    const customer = await lookupCustomer(query);
     if (customer) {
       navigate('/vendor/log-transaction', { state: { customer } });
     } else {
@@ -30,15 +37,15 @@ export default function VendorScanCustomerScreen() {
     }
   };
 
-  const handleSimulateScan = () => {
-    // Find any registered customer to simulate scanning their QR
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const customers = users.filter(u => u.role === 'customer');
-    if (customers.length > 0) {
-      const randomCustomer = customers[Math.floor(Math.random() * customers.length)];
-      navigate('/vendor/log-transaction', { state: { customer: randomCustomer } });
+  const handleSimulateScan = async () => {
+    // In live mode, we can't fetch all customers easily, 
+    // so we'll simulate scanning the test customer (9999999999)
+    setError('');
+    const customer = await lookupCustomer('9999999999');
+    if (customer) {
+      navigate('/vendor/log-transaction', { state: { customer } });
     } else {
-      setError('No customers registered yet. Ask a customer to sign up first!');
+      setError('Test customer (9999999999) not found in DB. Please create one.');
     }
   };
 
@@ -142,16 +149,21 @@ export default function VendorScanCustomerScreen() {
                 placeholder="ZBC-1234 or phone"
                 className="flex-1 h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-secondary text-[15px] font-bold text-on-surface uppercase transition-all"
               />
-              <button
+              <button 
                 onClick={handleManualSearch}
-                disabled={!query.trim()}
-                className="h-12 px-5 bg-secondary text-white rounded-xl font-bold active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                disabled={isLoading}
+                className="w-12 h-12 bg-secondary text-white rounded-xl flex items-center justify-center hover:bg-secondary/90 active:scale-95 transition-all shadow-[0_4px_12px_rgba(96,0,218,0.3)] disabled:opacity-50"
               >
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                )}
               </button>
             </div>
+            
             {error && (
-              <p className="text-red-500 text-[11px] font-medium mt-2 flex items-center gap-1">
+              <p className="text-error text-[11px] mt-2 flex items-center gap-1 font-bold animate-reveal">
                 <span className="material-symbols-outlined text-[14px]">error</span>
                 {error}
               </p>

@@ -35,7 +35,7 @@ export default function TransactionSuccessScreen() {
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const timeStr = today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const transactionId = `ZB-${Math.floor(100000 + Math.random() * 900000)}-TX`;
+  const transactionId = details.transactionId || `ZB-${Math.floor(100000 + Math.random() * 900000)}-TX`;
 
   const handleHome = () => {
     navigate('/home');

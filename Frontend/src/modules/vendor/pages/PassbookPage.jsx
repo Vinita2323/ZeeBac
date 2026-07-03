@@ -1,20 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import { VendorAPI } from '../../../services/api';
 
 export default function PassbookPage() {
   const navigate = useNavigate();
   const [dateFilter, setDateFilter] = useState('This Month');
   const balance = useAuthStore((state) => state.walletBalance);
+  
+  const [ledgerEntries, setLedgerEntries] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const ledgerEntries = [
-    { id: 'LDG-104', date: 'Oct 24, 2023', time: '14:30', desc: 'Payment - Rahul S.', ref: 'TRX-9921', type: 'Credit', amount: '₹850.00', balance: '₹24,500.00' },
-    { id: 'LDG-103', date: 'Oct 24, 2023', time: '14:30', desc: 'Cashback (10%)', ref: 'TRX-9921', type: 'Debit', amount: '₹85.00', balance: '₹23,650.00' },
-    { id: 'LDG-102', date: 'Oct 23, 2023', time: '09:00', desc: 'Settlement - HDFC Bank', ref: 'SET-442', type: 'Debit', amount: '₹15,000.00', balance: '₹23,735.00' },
-    { id: 'LDG-101', date: 'Oct 22, 2023', time: '18:45', desc: 'Payment - Amit K.', ref: 'TRX-9919', type: 'Credit', amount: '₹4,250.00', balance: '₹38,735.00' },
-    { id: 'LDG-100', date: 'Oct 22, 2023', time: '18:45', desc: 'Cashback (8%)', ref: 'TRX-9919', type: 'Debit', amount: '₹340.00', balance: '₹34,485.00' },
-    { id: 'LDG-099', date: 'Oct 21, 2023', time: '11:20', desc: 'Payment - Priya S.', ref: 'TRX-9918', type: 'Credit', amount: '₹2,100.00', balance: '₹34,825.00' },
-  ];
+  useEffect(() => {
+    const fetchWallet = async () => {
+      try {
+        const res = await VendorAPI.getWallet();
+        if (res.success) {
+          const formattedLedger = res.data.ledger.map(entry => ({
+            id: entry._id,
+            date: new Date(entry.timestamp).toLocaleDateString(),
+            time: new Date(entry.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            desc: entry.description || entry.category,
+            ref: entry.referenceId || entry._id.substring(0,8),
+            type: entry.type === 'credit' ? 'Credit' : 'Debit',
+            amount: `₹${entry.amount.toLocaleString()}`,
+            balance: `₹${entry.balanceAfter.toLocaleString()}`
+          }));
+          setLedgerEntries(formattedLedger);
+        }
+      } catch (error) {
+        console.error('Failed to fetch ledger', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWallet();
+  }, []);
 
   return (
     <div className="animate-reveal text-left">
@@ -40,22 +61,9 @@ export default function PassbookPage() {
 
       {/* Summary Cards */}
       <div className="space-y-3">
-        <div className="bg-[#D1F2D9] p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-[#1B5E20] flex items-center justify-between">
-          <div>
-            <p className="text-[12px] font-bold opacity-80 mb-0.5">Total Credits (In)</p>
-            <p className="text-[22px] font-black">₹1,42,500</p>
-          </div>
-          <span className="material-symbols-outlined text-[32px] opacity-40">arrow_downward</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#FFE5D9] p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-[#BF360C]">
-            <p className="text-[11px] font-bold opacity-80 mb-0.5">Debits (Out)</p>
-            <p className="text-[18px] font-black">₹1,18,000</p>
-          </div>
-          <div className="bg-[#D4E9FC] p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-[#0F4C81]">
-            <p className="text-[11px] font-bold opacity-80 mb-0.5">Balance</p>
-            <p className="text-[18px] font-black">₹{balance.toLocaleString('en-IN')}</p>
-          </div>
+        <div className="bg-[#D4E9FC] p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-[#0F4C81]">
+          <p className="text-[11px] font-bold opacity-80 mb-0.5">Current Wallet Balance</p>
+          <p className="text-[22px] font-black">₹{balance.toLocaleString('en-IN')}</p>
         </div>
       </div>
 
@@ -76,25 +84,31 @@ export default function PassbookPage() {
 
       {/* Ledger Entries */}
       <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden">
-        {ledgerEntries.map((entry, index) => (
-          <div key={entry.id} className={`p-4 active:bg-surface-container-low/50 transition-colors ${
-            index !== ledgerEntries.length - 1 ? 'border-b border-outline-variant/5' : ''
-          }`}>
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex-1 min-w-0 mr-3">
-                <h4 className="font-bold text-[14px] text-on-surface truncate">{entry.desc}</h4>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">{entry.date} • {entry.time}</p>
+        {isLoading ? (
+          <div className="p-8 text-center text-on-surface-variant font-bold">Loading ledger...</div>
+        ) : ledgerEntries.length > 0 ? (
+          ledgerEntries.map((entry, index) => (
+            <div key={entry.id} className={`p-4 active:bg-surface-container-low/50 transition-colors ${
+              index !== ledgerEntries.length - 1 ? 'border-b border-outline-variant/5' : ''
+            }`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex-1 min-w-0 mr-3">
+                  <h4 className="font-bold text-[14px] text-on-surface truncate">{entry.desc}</h4>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">{entry.date} • {entry.time}</p>
+                </div>
+                <p className={`font-black font-label-mono text-[15px] whitespace-nowrap ${entry.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
+                  {entry.type === 'Credit' ? '+' : '-'}{entry.amount}
+                </p>
               </div>
-              <p className={`font-black font-label-mono text-[15px] whitespace-nowrap ${entry.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
-                {entry.type === 'Credit' ? '+' : '-'}{entry.amount}
-              </p>
+              <div className="flex justify-between items-center pt-2 border-t border-outline-variant/5 text-[11px]">
+                <span className="text-on-surface-variant font-label-mono">Ref: {entry.ref}</span>
+                <span className="font-bold text-on-surface font-label-mono">Bal: {entry.balance}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center pt-2 border-t border-outline-variant/5 text-[11px]">
-              <span className="text-on-surface-variant font-label-mono">Ref: {entry.ref}</span>
-              <span className="font-bold text-on-surface font-label-mono">Bal: {entry.balance}</span>
-            </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <div className="p-8 text-center text-on-surface-variant font-bold">No ledger entries found</div>
+        )}
       </div>
 
       </div>

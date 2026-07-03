@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { VendorAPI } from '../../../services/api';
 
 export default function VendorLogTransactionScreen() {
   const navigate = useNavigate();
@@ -8,9 +9,12 @@ export default function VendorLogTransactionScreen() {
   const [amount, setAmount] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [processing, setProcessing] = useState(false);
+  
+  // Store actual transaction data from backend
+  const [txnData, setTxnData] = useState(null);
 
   const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
-  const cashbackRate = currentUser.cashbackRate || 10;
+  const cashbackRate = currentUser.cashbackRate || 5; // Defaulting to 5% if missing for preview
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
   const isValid = purchaseAmount >= 1;
@@ -27,40 +31,29 @@ export default function VendorLogTransactionScreen() {
     );
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!isValid || processing) return;
     setProcessing(true);
 
-    const txn = {
-      id: `TXN-${Date.now()}`,
-      type: 'qr_cashback',
-      initiatedBy: 'vendor',
-      customerPhone: customer.phone,
-      customerName: customer.name,
-      customerId: customer.zeebacId || 'ZBC-0000',
-      vendorPhone: currentUser.phone,
-      vendorName: currentUser.storeName || 'Store',
-      vendorId: currentUser.zeebacId || 'ZBV-0000',
-      vendorCategory: currentUser.category,
-      purchaseAmount: purchaseAmount,
-      cashbackRate: cashbackRate,
-      cashbackAmount: cashbackAmount,
-      timestamp: new Date().toISOString(),
-    };
+    try {
+      // Call actual backend API
+      const res = await VendorAPI.logPurchase({
+        customerPhone: customer.phone,
+        amount: purchaseAmount
+      });
 
-    // Save transaction
-    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-    txns.unshift(txn);
-    localStorage.setItem('zeebac_transactions', JSON.stringify(txns));
-
-    // Credit customer's wallet
-    const currentBalance = parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
-    localStorage.setItem('zeebac_wallet_balance', String(currentBalance + cashbackAmount));
-
-    setTimeout(() => {
-      setConfirmed(true);
+      if (res.success) {
+        setTxnData(res.data);
+        setConfirmed(true);
+      } else {
+        alert('Failed to log purchase: ' + (res.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to log purchase. Check if you have enough balance.');
+    } finally {
       setProcessing(false);
-    }, 1200);
+    }
   };
 
   // Success State
@@ -78,8 +71,8 @@ export default function VendorLogTransactionScreen() {
             </p>
             <div className="bg-green-50 border border-green-200 rounded-2xl p-5 w-full">
               <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Cashback Credited to Customer</p>
-              <p className="text-[32px] font-black text-green-600 leading-none">₹{cashbackAmount.toFixed(2)}</p>
-              <p className="text-[11px] text-green-600/70 mt-1">{cashbackRate}% cashback on ₹{purchaseAmount.toLocaleString()}</p>
+              <p className="text-[32px] font-black text-green-600 leading-none">₹{txnData?.cashbackAmount?.toFixed(2)}</p>
+              <p className="text-[11px] text-green-600/70 mt-1">{txnData?.cashbackPercent}% cashback on ₹{purchaseAmount.toLocaleString()}</p>
             </div>
             <div className="flex gap-3 w-full mt-4">
               <button

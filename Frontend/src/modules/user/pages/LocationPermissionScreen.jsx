@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Lottie from 'lottie-react';
 import locationAnimation from '../../../assets/Lotties/Location.json';
+import { UserAPI } from '../../../services/api';
 
 export default function LocationPermissionScreen() {
   const navigate = useNavigate();
@@ -9,12 +10,28 @@ export default function LocationPermissionScreen() {
 
   const handleEnableLocation = () => {
     setStatus('requesting');
-    setTimeout(() => {
-      setStatus('authorized');
-      setTimeout(() => {
-        navigate('/home');
-      }, 800);
-    }, 1200);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await UserAPI.updateLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        } catch (err) {
+          console.error('Location update failed:', err);
+          // Non-blocking — continue even if API fails
+        } finally {
+          setStatus('authorized');
+          setTimeout(() => navigate('/home'), 800);
+        }
+      },
+      (error) => {
+        // User denied or error — still go to home
+        console.warn('GPS denied:', error.message);
+        setStatus('authorized');
+        setTimeout(() => navigate('/home'), 800);
+      }
+    );
   };
 
   const handleNotNow = () => {
@@ -26,7 +43,7 @@ export default function LocationPermissionScreen() {
       {/* Top AppBar */}
       <header className="fixed top-0 left-0 w-full z-50 flex items-center px-container-margin h-16">
         <button 
-          onClick={() => navigate('/verify-otp')}
+          onClick={() => navigate(-1)}
           className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200 cursor-pointer"
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>

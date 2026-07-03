@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { AdminAPI } from '../../../services/api';
+import { AdminAPI, API_BASE_URL } from '../../../services/api';
 
 export default function VendorsPage() {
   const [activeTab, setActiveTab] = useState('All');
@@ -390,10 +390,10 @@ export default function VendorsPage() {
                     <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
                       {selectedVendorDetails.documents?.aadhaarPan?.fileUrl ? (
                         <img 
-                          src={`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`}
+                          src={`${API_BASE_URL}${selectedVendorDetails.documents.aadhaarPan.fileUrl}`}
                           alt="Aadhaar Card" 
                           className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
-                          onClick={() => setFullscreenImage(`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`)}
+                          onClick={() => setFullscreenImage(`${API_BASE_URL}${selectedVendorDetails.documents.aadhaarPan.fileUrl}`)}
                         />
                       ) : (
                         <span className="text-on-surface-variant font-medium text-[13px]">No document uploaded</span>
@@ -423,10 +423,10 @@ export default function VendorsPage() {
                     <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
                       {selectedVendorDetails.documents?.aadhaarPan?.fileUrl ? (
                         <img 
-                          src={`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`}
+                          src={`${API_BASE_URL}${selectedVendorDetails.documents.aadhaarPan.fileUrl}`}
                           alt="PAN Card" 
                           className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
-                          onClick={() => setFullscreenImage(`http://localhost:5000${selectedVendorDetails.documents.aadhaarPan.fileUrl}`)}
+                          onClick={() => setFullscreenImage(`${API_BASE_URL}${selectedVendorDetails.documents.aadhaarPan.fileUrl}`)}
                         />
                       ) : (
                         <span className="text-on-surface-variant font-medium text-[13px]">No document uploaded</span>
@@ -455,10 +455,10 @@ export default function VendorsPage() {
                     <div className="w-full h-[200px] bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant/20 overflow-hidden">
                       {selectedVendorDetails.documents?.gstCertificate?.fileUrl ? (
                         <img 
-                          src={`http://localhost:5000${selectedVendorDetails.documents.gstCertificate.fileUrl}`}
+                          src={`${API_BASE_URL}${selectedVendorDetails.documents.gstCertificate.fileUrl}`}
                           alt="GST Certificate" 
                           className="w-full h-full object-contain cursor-pointer hover:scale-[1.02] transition-transform"
-                          onClick={() => setFullscreenImage(`http://localhost:5000${selectedVendorDetails.documents.gstCertificate.fileUrl}`)}
+                          onClick={() => setFullscreenImage(`${API_BASE_URL}${selectedVendorDetails.documents.gstCertificate.fileUrl}`)}
                         />
                       ) : (
                         <span className="text-on-surface-variant font-medium text-[13px]">No document uploaded</span>

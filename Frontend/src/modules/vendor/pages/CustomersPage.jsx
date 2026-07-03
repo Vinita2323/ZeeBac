@@ -1,17 +1,37 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { VendorAPI } from '../../../services/api';
 
 export default function CustomersPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const customers = [
-    { id: 'CUST-001', name: 'Rahul Sharma', visits: 12, totalSpent: '₹14,500', lastVisit: '2 days ago', rating: 5, avatarBg: 'bg-blue-500/10 text-blue-600' },
-    { id: 'CUST-002', name: 'Sneha Patel', visits: 8, totalSpent: '₹8,200', lastVisit: '1 week ago', rating: 4, avatarBg: 'bg-purple-500/10 text-purple-600' },
-    { id: 'CUST-003', name: 'Amit Kumar', visits: 24, totalSpent: '₹32,450', lastVisit: 'Today', rating: 5, avatarBg: 'bg-green-500/10 text-green-600' },
-    { id: 'CUST-004', name: 'Priya Singh', visits: 3, totalSpent: '₹2,100', lastVisit: 'Yesterday', rating: 0, avatarBg: 'bg-orange-500/10 text-orange-600' },
-    { id: 'CUST-005', name: 'Vikram Gupta', visits: 1, totalSpent: '₹150', lastVisit: '3 weeks ago', rating: 3, avatarBg: 'bg-rose-500/10 text-rose-600' },
-  ];
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const res = await VendorAPI.getVendorCustomers();
+        if (res.success) {
+          const formatted = res.data.map(c => ({
+            id: c.customerZeebacId,
+            name: c.customerName || c.customerPhone,
+            visits: c.totalTransactions,
+            totalSpent: `₹${c.totalSpent.toLocaleString()}`,
+            lastVisit: new Date(c.lastTransactionDate).toLocaleDateString(),
+            rating: 0, // Mock for now
+            avatarBg: 'bg-primary/10 text-primary'
+          }));
+          setCustomers(formatted);
+        }
+      } catch (err) {
+        console.error("Failed to fetch customers", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   return (
     <div className="animate-reveal text-left">
@@ -29,12 +49,8 @@ export default function CustomersPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-          <p className="text-on-surface-variant text-[11px] font-bold mb-1">Total</p>
-          <p className="text-[24px] font-black text-primary leading-none tracking-tight">128</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col items-center justify-center">
-          <p className="text-[12px] text-on-surface-variant font-bold uppercase tracking-wider mb-2">New (7d)</p>
-          <p className="text-[24px] font-black text-green-600 leading-none tracking-tight">+15</p>
+          <p className="text-on-surface-variant text-[11px] font-bold mb-1">Total Unique Customers</p>
+          <p className="text-[24px] font-black text-primary leading-none tracking-tight">{customers.length}</p>
         </div>
       </div>
 
@@ -52,7 +68,11 @@ export default function CustomersPage() {
 
       {/* Customer Cards */}
       <div className="space-y-3">
-        {customers.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).map(customer => (
+        {isLoading ? (
+          <div className="text-center py-10 font-bold text-on-surface-variant">Loading customers...</div>
+        ) : customers.length === 0 ? (
+          <div className="text-center py-10 font-bold text-on-surface-variant">No customers found</div>
+        ) : customers.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).map(customer => (
           <div key={customer.id} className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] p-4 active:scale-[0.98] transition-transform">
             <div className="flex items-center gap-3 mb-3">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-[18px] ${customer.avatarBg}`}>

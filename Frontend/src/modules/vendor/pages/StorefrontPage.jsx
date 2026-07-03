@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { VendorAPI } from '../../../services/api';
 
 export default function StorefrontPage() {
   const navigate = useNavigate();
@@ -23,12 +24,30 @@ export default function StorefrontPage() {
     { id: 2, title: "Spend Bonus", description: "Get flat ₹10 reward when spending over ₹100.", type: "redeem" }
   ];
 
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [mediaList, setMediaList] = useState(initialMedia);
   const [promotions, setPromotions] = useState(initialPromotions);
   
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await VendorAPI.getProducts();
+      setProducts(res.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [addProductStep, setAddProductStep] = useState(1);
+  const [editingProductId, setEditingProductId] = useState(null);
   const [productForm, setProductForm] = useState({
     isBranded: null,
     brandLogo: null,
@@ -59,27 +78,70 @@ export default function StorefrontPage() {
   const [newOfferDescription, setNewOfferDescription] = useState('');
   const [newOfferType, setNewOfferType] = useState('percent');
 
-  const handleDeleteProduct = (id) => {
-    setProducts(products.filter(p => p.id !== id));
+  const handleDeleteProduct = async (id) => {
+    try {
+      await VendorAPI.deleteProduct(id);
+      setProducts(products.filter(p => p._id !== id));
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      alert("Failed to delete product");
+    }
   };
 
-  const handleToggleHighlight = (id) => {
-    setProducts(products.map(p => {
-      if (p.id === id) {
-        return { ...p, isHighlight: !p.isHighlight };
-      }
-      return p;
-    }));
+  const handleToggleHighlight = async (id) => {
+    const product = products.find(p => p._id === id);
+    if (!product) return;
+    
+    try {
+      const newStatus = !product.isHighlight;
+      await VendorAPI.updateProduct(id, { isHighlight: newStatus });
+      setProducts(products.map(p => {
+        if (p._id === id) {
+          return { ...p, isHighlight: newStatus };
+        }
+        return p;
+      }));
+    } catch (error) {
+      console.error("Error updating highlight status:", error);
+      alert("Failed to update status");
+    }
   };
 
   const handleProductFileChange = (e, key) => {
     const file = e.target.files[0];
     if (file) {
-      updateProductForm(key, { name: file.name, type: file.type, size: file.size, mockUrl: URL.createObjectURL(file) });
+      // Store actual file for upload, but also keep mockUrl for preview
+      updateProductForm(key, { file, name: file.name, type: file.type, size: file.size, mockUrl: URL.createObjectURL(file) });
     }
   };
 
-  const handleAddProduct = (e) => {
+  const handleEditProduct = (product) => {
+    setEditingProductId(product._id);
+    setProductForm({
+      isBranded: product.branding?.isBranded || false,
+      brandLogo: null,
+      brandName: product.branding?.brandName || '',
+      brandCompany: product.branding?.brandCompany || '',
+      brandWebsite: product.branding?.brandWebsite || '',
+      brandDescription: product.branding?.brandDescription || '',
+      brandEmail: product.branding?.brandEmail || '',
+      brandContact: product.branding?.brandContact || '',
+      cashbackPercentage: product.branding?.cashbackPercentage || 10,
+      image: null,
+      name: product.name || '',
+      category: product.category || 'Bestsellers',
+      sku: product.sku || '',
+      price: product.price || '',
+      discountPrice: product.discountPrice || '',
+      stock: product.stock || '',
+      description: product.description || '',
+      highlight: product.isHighlight || false,
+    });
+    setAddProductStep(2);
+    setShowAddModal(true);
+  };
+
+  const handleAddProduct = async (e) => {
     e.preventDefault();
     if (productForm.isBranded) {
       if (!productForm.brandName || !productForm.brandCompany) {
@@ -92,21 +154,52 @@ export default function StorefrontPage() {
        return;
     }
 
-    const newProduct = {
-      id: Date.now(),
-      name: productForm.name,
-      price: `₹${Number(productForm.price).toLocaleString('en-IN')}`,
-      category: productForm.category || 'Bestsellers',
-      isHighlight: productForm.highlight,
-      img: productForm.image ? productForm.image.mockUrl : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'
-    };
+    try {
+      const formData = new FormData();
+      formData.append('name', productForm.name);
+      formData.append('price', productForm.price);
+      formData.append('discountPrice', productForm.discountPrice || '');
+      formData.append('category', productForm.category || 'Bestsellers');
+      formData.append('sku', productForm.sku || '');
+      formData.append('description', productForm.description || '');
+      formData.append('isHighlight', productForm.highlight);
+      formData.append('stock', productForm.stock || 0);
+      
+      formData.append('isBranded', productForm.isBranded === true);
+      if (productForm.isBranded) {
+        formData.append('brandName', productForm.brandName || '');
+        formData.append('brandCompany', productForm.brandCompany || '');
+        formData.append('brandWebsite', productForm.brandWebsite || '');
+        formData.append('brandDescription', productForm.brandDescription || '');
+        formData.append('brandEmail', productForm.brandEmail || '');
+        formData.append('brandContact', productForm.brandContact || '');
+        formData.append('cashbackPercentage', productForm.cashbackPercentage || 0);
+      }
 
-    setProducts([newProduct, ...products]);
-    setShowAddModal(false);
-    setAddProductStep(1);
-    setProductForm({
-      isBranded: null, brandLogo: null, brandName: '', brandCompany: '', brandWebsite: '', brandDescription: '', brandEmail: '', brandContact: '', cashbackPercentage: 10, image: null, name: '', category: '', sku: '', price: '', discountPrice: '', stock: '', description: '', highlight: false,
-    });
+      if (productForm.image && productForm.image.file) {
+        formData.append('image', productForm.image.file);
+      }
+      if (productForm.brandLogo && productForm.brandLogo.file) {
+        formData.append('brandLogo', productForm.brandLogo.file);
+      }
+
+      if (editingProductId) {
+        await VendorAPI.updateProduct(editingProductId, formData);
+      } else {
+        await VendorAPI.createProduct(formData);
+      }
+      fetchProducts(); // Refresh list from server
+
+      setShowAddModal(false);
+      setAddProductStep(1);
+      setEditingProductId(null);
+      setProductForm({
+        isBranded: null, brandLogo: null, brandName: '', brandCompany: '', brandWebsite: '', brandDescription: '', brandEmail: '', brandContact: '', cashbackPercentage: 10, image: null, name: '', category: '', sku: '', price: '', discountPrice: '', stock: '', description: '', highlight: false,
+      });
+    } catch (error) {
+      console.error("Error saving product:", error);
+      alert("Failed to save product");
+    }
   };
 
   const handleMediaUpload = (e) => {
@@ -187,7 +280,13 @@ export default function StorefrontPage() {
             <div className="flex justify-between items-center bg-white p-3 rounded-2xl border border-outline-variant/10 shadow-sm">
               <span className="text-[13px] font-bold text-on-surface-variant">Store Catalog ({products.length})</span>
               <button 
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  setEditingProductId(null);
+                  setProductForm({
+                    isBranded: null, brandLogo: null, brandName: '', brandCompany: '', brandWebsite: '', brandDescription: '', brandEmail: '', brandContact: '', cashbackPercentage: 10, image: null, name: '', category: '', sku: '', price: '', discountPrice: '', stock: '', description: '', highlight: false,
+                  });
+                  setShowAddModal(true);
+                }}
                 className="flex items-center gap-1.5 bg-primary text-white px-3.5 py-1.5 rounded-xl font-bold text-[12px] hover:bg-primary/95 active:scale-95 transition-all cursor-pointer shadow-sm shadow-primary/25"
               >
                 <span className="material-symbols-outlined text-[16px]">add_circle</span> Add Catalog
@@ -195,35 +294,67 @@ export default function StorefrontPage() {
             </div>
             
             <div className="space-y-3">
-              {products.map(product => (
-                <div key={product.id} className="flex gap-4 p-3 bg-white rounded-2xl border border-outline-variant/10 shadow-sm relative animate-reveal">
-                  <img src={product.img} alt={product.name} className="w-20 h-20 object-cover rounded-xl bg-surface-container" />
-                  <div className="flex-1 py-1">
-                    <p className="text-[15px] font-bold text-on-surface leading-tight">{product.name}</p>
-                    <p className="text-[14px] text-primary font-black mt-1">{product.price}</p>
-                    
-                    <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <span className="text-[11px] font-bold text-on-surface-variant">Highlight</span>
-                        <div 
-                          onClick={() => handleToggleHighlight(product.id)}
-                          className={`w-9 h-5 rounded-full flex items-center p-0.5 transition-colors ${product.isHighlight ? 'bg-primary' : 'bg-surface-variant'}`}
-                        >
-                          <div className={`w-4 h-4 bg-white rounded-full transition-transform ${product.isHighlight ? 'translate-x-4' : 'translate-x-0'}`}></div>
+              {loading ? (
+                <div className="py-12 text-center text-on-surface-variant">
+                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+                  <p className="font-bold">Loading catalog...</p>
+                </div>
+              ) : products.length > 0 ? products.map(product => (
+                <div key={product._id} className="flex flex-col sm:flex-row gap-4 p-4 bg-white rounded-2xl border border-outline-variant/10 shadow-sm animate-reveal">
+                  <div className="flex gap-4 flex-1">
+                    <img src={product.image ? `http://localhost:5000${product.image}` : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'} alt={product.name} className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-xl bg-surface-container flex-shrink-0" />
+                    <div className="flex-1 flex flex-col justify-between py-0.5">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="text-[15px] md:text-[16px] font-bold text-on-surface leading-tight line-clamp-2">{product.name}</p>
+                          {product.branding?.isBranded && (
+                            <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">Branded</span>
+                          )}
                         </div>
-                      </label>
+                        <p className="text-[14px] md:text-[15px] text-primary font-black mt-1">₹{product.price}</p>
+                        
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span className="bg-surface-variant text-on-surface-variant text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{product.category || 'Bestsellers'}</span>
+                          {product.stock > 0 ? (
+                             <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{product.stock} in stock</span>
+                          ) : (
+                             <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">Out of stock</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between sm:flex-col sm:justify-end sm:items-end gap-3 sm:gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-outline-variant/10 sm:min-w-[100px]">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-[11px] font-bold text-on-surface-variant sm:hidden">Highlight</span>
+                      <div 
+                        onClick={() => handleToggleHighlight(product._id)}
+                        className={`w-9 h-5 rounded-full flex items-center p-0.5 transition-colors ${product.isHighlight ? 'bg-primary' : 'bg-surface-variant'}`}
+                        title="Highlight Product"
+                      >
+                        <div className={`w-4 h-4 bg-white rounded-full transition-transform ${product.isHighlight ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                      </div>
+                    </label>
+                    <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => handleDeleteProduct(product.id)}
+                        onClick={() => handleEditProduct(product)}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Edit Product"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteProduct(product._id)}
                         className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+                        title="Delete Product"
                       >
                         <span className="material-symbols-outlined text-[16px]">delete</span>
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
-              
-              {products.length === 0 && (
+              )) : (
                 <div className="py-12 text-center text-on-surface-variant">
                   <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">storefront</span>
                   <p className="font-bold text-[16px]">Catalog is empty</p>
@@ -335,21 +466,24 @@ export default function StorefrontPage() {
             <button 
               type="button"
               onClick={() => {
-                if (addProductStep === 2) {
+                if (addProductStep === 2 && !editingProductId) {
                   setAddProductStep(1);
                 } else {
                   setShowAddModal(false);
                   setAddProductStep(1);
+                  setEditingProductId(null);
                 }
               }}
               className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 active:scale-95 transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[#5B21B6]">{addProductStep === 2 ? 'arrow_back' : 'close'}</span>
+              <span className="material-symbols-outlined text-[#5B21B6]">{(addProductStep === 2 && !editingProductId) ? 'arrow_back' : 'close'}</span>
             </button>
-            <span className="font-display text-[18px] font-black ml-2 text-gray-900">Add Product</span>
-            <span className="ml-auto text-[13px] font-bold text-[#5B21B6] bg-[#5B21B6]/10 px-3 py-1 rounded-full">
-              Step {addProductStep}/2
-            </span>
+            <span className="font-display text-[18px] font-black ml-2 text-gray-900">{editingProductId ? 'Edit Product' : 'Add Product'}</span>
+            {!editingProductId && (
+              <span className="ml-auto text-[13px] font-bold text-[#5B21B6] bg-[#5B21B6]/10 px-3 py-1 rounded-full">
+                Step {addProductStep}/2
+              </span>
+            )}
           </header>
 
           <main className="flex-1 overflow-y-auto w-full">
@@ -493,7 +627,7 @@ export default function StorefrontPage() {
                   onClick={handleAddProduct}
                   className="w-full h-12 bg-[#5B21B6] text-white rounded-xl font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-1 shadow-md shadow-[#5B21B6]/30 cursor-pointer"
                 >
-                  Save Product
+                  {editingProductId ? 'Save Changes' : 'Add Product'}
                 </button>
               </div>
             </div>

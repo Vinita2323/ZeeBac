@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
+  const [recentTransactions, setRecentTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const currentUser = useAuthStore((state) => state.currentUser) || {};
@@ -18,8 +19,22 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await VendorAPI.getDashboardStats();
-        setDashboardData(res);
+        const [statsRes, txnsRes] = await Promise.all([
+          VendorAPI.getDashboardStats(),
+          VendorAPI.getTransactions()
+        ]);
+        setDashboardData(statsRes);
+        if (txnsRes.success) {
+          // Take top 5 transactions for dashboard
+          setRecentTransactions(txnsRes.data.slice(0, 5).map(t => ({
+            id: t.transactionId,
+            customer: t.customerName || t.customerPhone,
+            amount: `₹${t.amount.toLocaleString()}`,
+            cashback: `₹${t.cashbackAmount?.toLocaleString()}`,
+            time: new Date(t.timestamp).toLocaleDateString(),
+            status: t.status
+          })));
+        }
       } catch (error) {
         console.error('Failed to fetch dashboard stats', error);
       } finally {
@@ -30,21 +45,16 @@ export default function DashboardPage() {
   }, []);
 
   const stats = [
-    { label: 'Today\'s Revenue', value: dashboardData ? `₹${dashboardData.totalRevenue}` : '₹0', icon: 'payments', trend: '+0%', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
-    { label: 'Pending', value: '0', icon: 'pending_actions', trend: 'Up to date', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/transactions' },
-    { label: 'Total TXNs', value: dashboardData ? dashboardData.totalTransactions : '0', icon: 'sync_alt', trend: '0% avg', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/passbook' },
-    { label: 'Customers', value: dashboardData ? dashboardData.totalCustomers : '0', icon: 'groups', trend: 'Total unique', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
+    { label: 'Total Revenue', value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: 'All time', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
+    { label: 'Cashback Given', value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString() || 0}` : '₹0', icon: 'savings', trend: 'All time', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/passbook' },
+    { label: 'Total TXNs', value: dashboardData ? dashboardData.data?.totalTransactions || 0 : '0', icon: 'sync_alt', trend: 'All time', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/passbook' },
+    { label: 'Customers', value: dashboardData ? dashboardData.data?.totalCustomers || 0 : '0', icon: 'groups', trend: 'Unique', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
   ];
 
+  // Restoring pending requests UI for Phase 4 (Customer-initiated transactions)
   const pendingRequests = [
     { id: 'TRX-9921', customer: 'Rahul Sharma', amount: '₹850', cashback: '₹85', time: '2 mins ago', hasReceipt: true, paymentMethod: 'Card' },
     { id: 'TRX-9920', customer: 'Sneha Patel', amount: '₹1,200', cashback: '₹120', time: '15 mins ago', hasReceipt: false, paymentMethod: 'UPI' },
-  ];
-
-  const recentTransactions = [
-    { id: 'TRX-9919', customer: 'Amit Kumar', amount: '₹450', time: '1 hour ago', status: 'Approved' },
-    { id: 'TRX-9918', customer: 'Priya Singh', amount: '₹2,100', time: '2 hours ago', status: 'Approved' },
-    { id: 'TRX-9917', customer: 'Vikram Gupta', amount: '₹150', time: '5 hours ago', status: 'Rejected' },
   ];
 
   return (
@@ -112,7 +122,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Pending Approvals */}
+      {/* Action Required (Pending Approvals) - Preserved for Phase 4 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-[16px] font-extrabold text-on-surface">Action Required</h3>
@@ -167,26 +177,32 @@ export default function DashboardPage() {
       <div className="space-y-3">
         <h3 className="font-display text-[16px] font-extrabold text-on-surface">Recent Activity</h3>
 
-        <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
-          {recentTransactions.map((trx, index) => (
-            <div key={trx.id} className={`p-3 flex items-center justify-between ${index !== recentTransactions.length - 1 ? 'border-b border-outline-variant/5' : ''}`}>
+        <div className="space-y-3">
+          {recentTransactions.map(tx => (
+            <div key={tx.id} className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-outline-variant/10 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${trx.status === 'Approved' ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <span className={`material-symbols-outlined text-[18px] ${trx.status === 'Approved' ? 'text-green-600' : 'text-red-600'}`}>
-                    {trx.status === 'Approved' ? 'check_circle' : 'cancel'}
-                  </span>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' : 
+                  tx.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : 'bg-orange-500/10 text-orange-600'
+                }`}>
+                  <span className="material-symbols-outlined text-[20px]">{tx.status === 'Approved' ? 'check_circle' : tx.status === 'Rejected' ? 'cancel' : 'pending'}</span>
                 </div>
                 <div>
-                  <p className="font-bold text-[13px] text-on-surface">{trx.customer}</p>
-                  <p className="text-[10px] text-on-surface-variant mt-0.5">{trx.time}</p>
+                  <h3 className="text-[13px] font-bold text-on-surface leading-tight">{tx.customer}</h3>
+                  <p className="text-[11px] text-on-surface-variant">{tx.id} • {tx.time}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-bold text-[14px] text-on-surface">{trx.amount}</p>
-                <p className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${trx.status === 'Approved' ? 'text-green-600' : 'text-red-600'}`}>{trx.status}</p>
+                <p className="text-[14px] font-black text-on-surface">{tx.amount}</p>
+                <p className={`text-[10px] font-bold ${tx.status === 'Approved' ? 'text-green-600' : 'text-on-surface-variant'}`}>{tx.status}</p>
               </div>
             </div>
           ))}
+          {recentTransactions.length === 0 && (
+            <div className="text-center py-6 text-on-surface-variant">
+              No recent transactions
+            </div>
+          )}
         </div>
       </div>
 

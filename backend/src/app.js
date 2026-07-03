@@ -29,10 +29,12 @@ app.get('/health', (req, res) => {
 import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import vendorRoutes from './routes/vendor.routes.js';
+import userRoutes from './routes/user.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
+app.use('/api/user', userRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

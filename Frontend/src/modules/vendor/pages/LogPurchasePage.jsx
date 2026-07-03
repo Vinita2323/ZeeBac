@@ -1,15 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuthStore from '../../../store/useAuthStore';
+import { VendorAPI } from '../../../services/api';
 
 export default function LogPurchasePage() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [detectedCustomer, setDetectedCustomer] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState('');
 
-  // Mock detection
-  const detectedCustomer = phone.length >= 10 ? 'Rahul Sharma' : null;
+  // Live customer detection
+  useEffect(() => {
+    const trimmedPhone = phone.trim();
+    const isPhone = /^\d{10}$/.test(trimmedPhone);
+    const isZeebacId = trimmedPhone.toUpperCase().startsWith('ZBC-') && trimmedPhone.length >= 8;
+
+    if (isPhone || isZeebacId) {
+      const searchCustomer = async () => {
+        setIsSearching(true);
+        setError('');
+        try {
+          const res = await VendorAPI.lookupCustomerByPhone(trimmedPhone.toUpperCase());
+          if (res.success && res.data) {
+            setDetectedCustomer(res.data.name);
+          } else {
+            setDetectedCustomer(null);
+            setError('Customer not found');
+          }
+        } catch (err) {
+          setDetectedCustomer(null);
+          // Distinguish between 404 and other errors if possible
+          if (err.response?.status === 404) {
+             setError('Customer not found');
+          } else {
+             setError('Server error or network issue');
+             console.error("Lookup error:", err);
+          }
+        } finally {
+          setIsSearching(false);
+        }
+      };
+      
+      const delayDebounceFn = setTimeout(() => {
+        searchCustomer();
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(delayDebounceFn);
+    } else {
+      setDetectedCustomer(null);
+      setError('');
+    }
+  }, [phone]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -18,25 +61,17 @@ export default function LogPurchasePage() {
     }
   };
 
-  const handleApprove = () => {
-    // Mock Data Update
-    const newTx = { 
-      id: `TRX-99${Math.floor(Math.random() * 90) + 10}`, 
-      customer: detectedCustomer, 
-      amount: `₹${amount}`, 
-      time: 'Just now', 
-      status: 'Approved' 
-    };
-    
-    const existing = JSON.parse(localStorage.getItem('vendor_transactions') || '[]');
-    localStorage.setItem('vendor_transactions', JSON.stringify([newTx, ...existing]));
-    
-    const currentBalance = useAuthStore.getState().walletBalance;
-    // Assuming 10% cashback for mock
-    const cashbackAmount = parseFloat(amount) * 0.1;
-    useAuthStore.getState().updateBalance(currentBalance - cashbackAmount);
-
-    navigate('/vendor/transactions');
+  const handleApprove = async () => {
+    try {
+      await VendorAPI.logPurchase({
+        customerPhone: phone,
+        amount: Number(amount)
+      });
+      // Optionally update local wallet balance if you store it, or just navigate
+      navigate('/vendor/transactions');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to log purchase. Ensure you have enough wallet balance.');
+    }
   };
 
   return (
@@ -59,22 +94,34 @@ export default function LogPurchasePage() {
           <div className="bg-white p-5 rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] w-[320px] max-w-full mx-4 space-y-5 text-left">
             {/* Phone Input */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Customer Mobile Number</label>
+              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider pl-1">Customer Mobile OR ZeeBac ID</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[16px] font-bold text-on-surface-variant">+91</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[20px] font-bold text-primary material-symbols-outlined">person_search</span>
                 <input 
-                  type="tel"
-                  placeholder="9876543210"
+                  type="text"
+                  placeholder="e.g. 9876543210 or ZBC-1234"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[16px] font-bold text-on-surface placeholder-on-surface-variant/40"
-                  maxLength={10}
+                  className="w-full pl-12 pr-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[16px] font-bold text-on-surface placeholder-on-surface-variant/40 uppercase"
+                  maxLength={15}
                 />
               </div>
-              {detectedCustomer && (
+              {isSearching && (
+                <p className="text-[12px] text-primary font-bold pl-1 pt-1 flex items-center gap-1">
+                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  Searching...
+                </p>
+              )}
+              {!isSearching && detectedCustomer && (
                 <p className="text-[12px] text-green-600 font-bold pl-1 pt-1 animate-reveal flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px]">check_circle</span>
                   Found: {detectedCustomer}
+                </p>
+              )}
+              {!isSearching && error && (phone.trim().length >= 8) && (
+                <p className="text-[12px] text-red-500 font-bold pl-1 pt-1 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  {error}
                 </p>
               )}
             </div>

@@ -1,32 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
 
 export default function FindVendorScreen() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [foundVendor, setFoundVendor] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = () => {
-    if (!query.trim()) return;
+  const handleSearch = async () => {
+    if (!query.trim() || isSearching) return;
     setError('');
     setFoundVendor(null);
-
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const cleanQuery = query.trim().toUpperCase();
-
-    // Search by Zeebac ID or phone
-    const vendor = users.find(u =>
-      u.role === 'vendor' && (
-        (u.zeebacId && u.zeebacId.toUpperCase() === cleanQuery) ||
-        u.phone === query.trim()
-      )
-    );
-
-    if (vendor) {
-      setFoundVendor(vendor);
-    } else {
-      setError('No vendor found with this ID or phone number. Please check and try again.');
+    setIsSearching(true);
+    try {
+      const res = await UserAPI.lookupVendor(query);
+      if (res.success) setFoundVendor(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'No vendor found. Please check and try again.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -126,42 +120,11 @@ export default function FindVendorScreen() {
           </div>
         )}
 
-        {/* Recent Vendors */}
         <div className="mt-8">
           <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-3">Recent Transactions</p>
-          {(() => {
-            const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-            const recentVendors = txns.slice(0, 3);
-            if (recentVendors.length === 0) {
-              return <p className="text-[13px] text-on-surface-variant/60 text-center py-6">No recent transactions yet</p>;
-            }
-            return (
-              <div className="space-y-2">
-                {recentVendors.map((txn) => (
-                  <div
-                    key={txn.id}
-                    onClick={() => {
-                      setQuery(txn.vendorId);
-                      // Auto-search
-                      const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-                      const v = users.find(u => u.zeebacId === txn.vendorId);
-                      if (v) setFoundVendor(v);
-                    }}
-                    className="bg-white rounded-xl border border-outline-variant/10 p-3 flex items-center gap-3 cursor-pointer hover:border-primary/20 transition-colors active:scale-[0.99]"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-                      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>storefront</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-on-surface truncate">{txn.vendorName}</p>
-                      <p className="text-[10px] text-on-surface-variant font-mono">{txn.vendorId}</p>
-                    </div>
-                    <span className="material-symbols-outlined text-outline-variant text-[18px]">chevron_right</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+          <p className="text-[13px] text-on-surface-variant/60 text-center py-6">
+            Your recent vendor payments will appear here.
+          </p>
         </div>
       </main>
     </div>

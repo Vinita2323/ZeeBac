@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const category = vendorData?.category || currentUser.category || 'Fashion & Apparel';
   const phone = vendorData?.phone || currentUser.phone || '+91 9111966732';
   const email = vendorData?.ownerName || currentUser.email || 'Vendor'; // Just mock fallback for email since we don't save email in vendor schema
+  const zeebacId = vendorData?.zeebacId || currentUser.zeebacId || 'ZBV-XXXX';
   
   const rawAddress = vendorData?.address || currentUser.address;
   const address = typeof rawAddress === 'object' 
@@ -179,6 +180,14 @@ export default function ProfilePage() {
                 <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0" title="Verified">
                   <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'wght' 900" }}>check</span>
                 </span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[11px] font-mono font-bold bg-white/20 text-white px-2 py-0.5 rounded-md shadow-sm border border-white/10 flex items-center gap-1 cursor-pointer hover:bg-white/30 transition-colors" onClick={() => { navigator.clipboard.writeText(zeebacId); setToastMessage('ID Copied!'); setTimeout(() => setToastMessage(null), 2500); }}>
+                  {zeebacId}
+                  <span className="material-symbols-outlined text-[10px]">content_copy</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1 font-medium mt-1">
                 <span className="text-[10px] text-white/80 font-medium">Verified</span>
               </div>
 

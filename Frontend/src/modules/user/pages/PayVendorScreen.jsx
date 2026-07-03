@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function PayVendorScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const vendor = location.state?.vendor;
   const [amount, setAmount] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const updateBalance = useAuthStore((state) => state.updateBalance);
 
   if (!vendor) {
     return (
@@ -21,78 +24,109 @@ export default function PayVendorScreen() {
     );
   }
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+
   const cashbackRate = vendor.cashbackRate || 10;
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
   const isValid = purchaseAmount >= 1;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!isValid || processing) return;
     setProcessing(true);
+    
+    // --- CASH FLOW (Direct API) ---
+    if (paymentMethod === 'Cash') {
+      try {
+        const res = await UserAPI.createTransaction({
+          vendorZeebacId: vendor.zeebacId, amount: parseFloat(amount), paymentMethod
+        });
+        if (res.success) handleSuccess(res.data);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Transaction failed.');
+        setProcessing(false);
+      }
+      return;
+    }
 
-    const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+    // --- RAZORPAY FLOW (UPI, Credit/Debit Card) ---
+    try {
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        alert("Razorpay SDK failed to load. Are you online?");
+        setProcessing(false);
+        return;
+      }
 
-    // Create transaction
-    const txn = {
-      id: `TXN-${Date.now()}`,
-      type: 'qr_cashback',
-      initiatedBy: 'customer',
-      customerPhone: currentUser.phone,
-      customerName: currentUser.name,
-      customerId: currentUser.zeebacId || 'ZBC-0000',
-      vendorPhone: vendor.phone,
-      vendorName: vendor.storeName || vendor.name,
-      vendorId: vendor.zeebacId || 'ZBV-0000',
-      vendorCategory: vendor.category,
-      purchaseAmount: purchaseAmount,
-      cashbackRate: cashbackRate,
-      cashbackAmount: cashbackAmount,
-      timestamp: new Date().toISOString(),
-    };
+      const orderRes = await UserAPI.createRazorpayOrder(parseFloat(amount));
+      if (!orderRes.success) throw new Error("Could not create Razorpay order");
+      
+      const options = {
+        key: orderRes.data.key,
+        amount: orderRes.data.amount,
+        currency: "INR",
+        name: vendor.storeName,
+        description: `Payment to ${vendor.storeName}`,
+        order_id: orderRes.data.id,
+        handler: async function (response) {
+          try {
+            const verifyRes = await UserAPI.verifyRazorpayAndCreateTransaction({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              vendorZeebacId: vendor.zeebacId,
+              amount: parseFloat(amount),
+              paymentMethod
+            });
+            if (verifyRes.success) handleSuccess(verifyRes.data);
+          } catch (err) {
+            console.error(err);
+            alert("Payment verification failed");
+            setProcessing(false);
+          }
+        },
+        prefill: { name: "Customer", contact: "9999999999" }, // Ideally fetch from customer profile
+        theme: { color: "#6200ea" }
+      };
 
-    // Save transaction
-    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-    txns.unshift(txn);
-    localStorage.setItem('zeebac_transactions', JSON.stringify(txns));
-
-    // Update wallet balance
-    const currentBalance = parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
-    localStorage.setItem('zeebac_wallet_balance', String(currentBalance + cashbackAmount));
-
-    setTimeout(() => {
-      setConfirmed(true);
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function () {
+        alert("Payment failed or cancelled");
+        setProcessing(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error(err);
+      alert("Error initializing payment gateway");
       setProcessing(false);
-    }, 1200);
+    }
   };
 
-  // Success State
-  if (confirmed) {
-    return (
-      <div className="min-h-screen bg-[#f9f9ff] flex flex-col items-center justify-center p-6 text-center font-body-lg">
-        <div className="animate-reveal space-y-6 max-w-[360px]">
-          <div className="w-24 h-24 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
-            <span className="material-symbols-outlined text-green-600 text-[56px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-          </div>
-          <h1 className="text-[28px] font-black text-on-surface tracking-tight">Cashback Earned!</h1>
-          <p className="text-on-surface-variant text-[14px]">
-            You spent ₹{purchaseAmount.toLocaleString()} at <strong>{vendor.storeName || vendor.name}</strong> and earned:
-          </p>
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
-            <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Cashback Credited</p>
-            <p className="text-[36px] font-black text-green-600 leading-none">₹{cashbackAmount.toFixed(2)}</p>
-            <p className="text-[11px] text-green-600/70 mt-1">at {cashbackRate}% cashback rate</p>
-          </div>
-          <button
-            onClick={() => navigate('/home')}
-            className="w-full h-[52px] rounded-xl bg-primary text-white font-title-md shadow-lg hover:bg-primary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px]">home</span>
-            Back to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleSuccess = (data) => {
+    const { cashbackEarned, newWalletBalance, vendorName, transaction } = data;
+    updateBalance(newWalletBalance);
+    navigate('/transaction-success', {
+      state: {
+        vendorName, 
+        amount: parseFloat(amount), 
+        cashback: cashbackEarned, 
+        transactionId: transaction.transactionId,
+      }
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#f9f9ff] text-on-surface flex flex-col font-body-lg">
@@ -174,6 +208,23 @@ export default function PayVendorScreen() {
               <p className="text-[10px] text-green-600/70 mt-1 text-right">{cashbackRate}% of ₹{purchaseAmount.toLocaleString()}</p>
             </div>
           )}
+
+          {/* Payment Method Selector */}
+          <div className="flex gap-2 flex-wrap justify-center mt-2">
+            {['Cash', 'UPI', 'Credit Card', 'Debit Card'].map((method) => (
+              <button
+                key={method}
+                onClick={() => setPaymentMethod(method)}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                  paymentMethod === method
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-white border border-outline-variant/20 text-on-surface-variant'
+                }`}
+              >
+                {method}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Confirm Button */}

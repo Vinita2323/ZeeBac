@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
 
 export default function ScanQRScreen() {
   const navigate = useNavigate();
@@ -7,38 +8,32 @@ export default function ScanQRScreen() {
   const [vendorId, setVendorId] = useState('');
   const [showIdInput, setShowIdInput] = useState(false);
   const [error, setError] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
-  const lookupVendor = (query) => {
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const clean = query.trim().toUpperCase();
-    return users.find(u =>
-      u.role === 'vendor' && (
-        (u.zeebacId && u.zeebacId.toUpperCase() === clean) ||
-        u.phone === query.trim()
-      )
-    );
-  };
-
-  const handleManualSearch = () => {
-    if (!vendorId.trim()) return;
+  const handleManualSearch = async () => {
+    if (!vendorId.trim() || isSearching) return;
     setError('');
-    const vendor = lookupVendor(vendorId);
-    if (vendor) {
-      navigate('/pay-vendor', { state: { vendor } });
-    } else {
-      setError('No vendor found. Check the ID and try again.');
+    setIsSearching(true);
+    try {
+      const res = await UserAPI.lookupVendor(vendorId);
+      if (res.success) {
+        navigate('/pay-vendor', { state: { vendor: res.data } });
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'No vendor found. Check the ID and try again.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
-  const handleSimulateScan = () => {
-    // Find any registered vendor to simulate scanning their QR
-    const users = JSON.parse(localStorage.getItem('zeebac_users') || '[]');
-    const vendors = users.filter(u => u.role === 'vendor');
-    if (vendors.length > 0) {
-      const randomVendor = vendors[Math.floor(Math.random() * vendors.length)];
-      navigate('/pay-vendor', { state: { vendor: randomVendor } });
-    } else {
-      setError('No vendors registered yet. Ask a vendor to sign up first!');
+  const handleSimulateScan = async () => {
+    setError('');
+    setIsSearching(true);
+    try {
+      // Try to find any vendor in the system as a simulation
+      setError('Use "Enter ID" below to type a real Vendor Zeebac ID (e.g. ZBV-XXXX)');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -55,7 +50,7 @@ export default function ScanQRScreen() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden relative font-body-lg select-none">
-      
+
       {/* Hidden File Input */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
 
@@ -83,46 +78,45 @@ export default function ScanQRScreen() {
 
       {/* Top Header */}
       <div className="absolute top-6 left-0 right-0 px-5 flex items-center justify-between z-20">
-        <button 
+        <button
           onClick={() => navigate('/home')}
           className="w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors active:scale-95 cursor-pointer"
         >
           <span className="material-symbols-outlined text-[24px]">arrow_back</span>
         </button>
-        
-        <button 
+
+        <button
           onClick={handleSimulateScan}
           className="px-4 py-2 rounded-full bg-[#a67cff] text-white text-[12px] font-bold hover:bg-[#9062e8] transition-colors active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-lg"
         >
           <span className="material-symbols-outlined text-[16px]">flash_on</span>
           Simulate Scan
         </button>
-        
+
         <div className="w-10 h-10" />
       </div>
 
       {/* Bottom controls */}
       <div className="absolute bottom-24 left-0 right-0 px-8 flex justify-between items-center z-20">
-        <button 
+        <button
           onClick={handleGalleryClick}
           className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-95 transition-all cursor-pointer"
         >
           <span className="material-symbols-outlined text-[24px]">image</span>
         </button>
 
-        <button 
+        <button
           onClick={() => setShowIdInput(!showIdInput)}
-          className={`px-5 py-3 rounded-full flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer text-[13px] font-bold ${
-            showIdInput 
-              ? 'bg-[#a67cff] text-white' 
+          className={`px-5 py-3 rounded-full flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer text-[13px] font-bold ${showIdInput
+              ? 'bg-[#a67cff] text-white'
               : 'bg-white/90 text-black'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined text-[18px]">dialpad</span>
           Enter ID
         </button>
 
-        <button 
+        <button
           onClick={() => navigate('/find-vendor')}
           className="w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 shadow-lg active:scale-95 transition-all cursor-pointer border border-white/10"
         >
