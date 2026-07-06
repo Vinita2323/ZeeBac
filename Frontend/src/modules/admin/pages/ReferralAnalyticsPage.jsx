@@ -1,10 +1,32 @@
+import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
+
 export default function ReferralAnalyticsPage() {
-  const topReferrers = [
-    { id: 1, name: "Sneha P.", invites: 42, earned: "₹6,300", status: "Active" },
-    { id: 2, name: "Rahul K.", invites: 38, earned: "₹5,700", status: "Active" },
-    { id: 3, name: "Amit B.", invites: 25, earned: "₹3,750", status: "Inactive" },
-    { id: 4, name: "Priya S.", invites: 19, earned: "₹2,850", status: "Active" }
-  ];
+  const [stats, setStats] = useState({
+    totalReferrals: 0,
+    totalPayouts: '₹0',
+    conversionRate: '0%',
+    topReferrers: []
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await AdminAPI.getReferralStats();
+        if (res.success) {
+          setStats(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to load referral stats:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  if (isLoading) return <div className="p-8 text-center text-on-surface-variant font-bold">Loading Stats...</div>;
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -19,21 +41,19 @@ export default function ReferralAnalyticsPage() {
         <div className="bg-white border border-outline-variant/10 rounded-2xl p-5 shadow-sm">
           <p className="text-on-surface-variant text-[11px] font-bold uppercase tracking-wider">Total Referrals</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <h3 className="text-primary text-[28px] font-black leading-none">1,284</h3>
-            <span className="text-green-600 text-[12px] font-bold flex items-center"><span className="material-symbols-outlined text-[14px]">arrow_upward</span> 12%</span>
+            <h3 className="text-primary text-[28px] font-black leading-none">{stats.totalReferrals}</h3>
           </div>
         </div>
         <div className="bg-white border border-outline-variant/10 rounded-2xl p-5 shadow-sm">
           <p className="text-on-surface-variant text-[11px] font-bold uppercase tracking-wider">Total Payouts</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <h3 className="text-primary text-[28px] font-black leading-none">₹192.6K</h3>
-            <span className="text-red-500 text-[12px] font-bold flex items-center"><span className="material-symbols-outlined text-[14px]">arrow_upward</span> 8%</span>
+            <h3 className="text-primary text-[28px] font-black leading-none">{stats.totalPayouts}</h3>
           </div>
         </div>
         <div className="bg-white border border-outline-variant/10 rounded-2xl p-5 shadow-sm">
           <p className="text-on-surface-variant text-[11px] font-bold uppercase tracking-wider">Conversion Rate</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <h3 className="text-primary text-[28px] font-black leading-none">34.2%</h3>
+            <h3 className="text-primary text-[28px] font-black leading-none">{stats.conversionRate}</h3>
             <span className="text-on-surface-variant text-[12px] font-medium">of invites accepted</span>
           </div>
         </div>
@@ -57,7 +77,7 @@ export default function ReferralAnalyticsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
-              {topReferrers.map((user, i) => (
+              {stats.topReferrers.map((user, i) => (
                 <tr key={i} className="hover:bg-surface-container-low transition-colors">
                   <td className="py-4 px-5">
                     <div className="flex items-center gap-3">

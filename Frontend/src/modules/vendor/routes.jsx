@@ -14,6 +14,7 @@ import ChatPage from './pages/ChatPage';
 import VendorScanCustomerScreen from './pages/VendorScanCustomerScreen';
 import VendorLogTransactionScreen from './pages/VendorLogTransactionScreen';
 import StorefrontPage from './pages/StorefrontPage';
+import RequestsPage from './pages/RequestsPage';
 
 export default function VendorRoutes() {
   return (
@@ -35,6 +36,7 @@ export default function VendorRoutes() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="chat" element={<ChatPage />} />
             <Route path="log-transaction" element={<VendorLogTransactionScreen />} />
+            <Route path="requests" element={<RequestsPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
           </Routes>
         </VendorLayout>

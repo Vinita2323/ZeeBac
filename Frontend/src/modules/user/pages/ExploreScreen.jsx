@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserAPI, API_BASE_URL } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 
 export default function ExploreScreen() {
@@ -7,57 +8,79 @@ export default function ExploreScreen() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showMap, setShowMap] = useState(false);
+  const [vendors, setVendors] = useState([]);
+  const [favoriteIds, setFavoriteIds] = useState(new Set());
+  const [isLoading, setIsLoading] = useState(false);
 
   const categories = ['All', 'Fashion', 'Groceries', 'Dining', 'Tech', 'Travel', 'Independent Store', 'Chain & Brand'];
 
-  const vendors = [
-    {
-      id: 1,
-      name: "Noir Concept Store",
-      cashback: "UP TO 15% CASHBACK",
-      rating: "4.9 (1.2k)",
-      distance: "0.8 miles away",
-      tag: "Premium Fashion",
-      category: "Fashion",
-      shopType: "Chain & Brand",
-      img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAB0zwhnN-NjCJ7KBgLqBPBtZYKaQG19lm2DTBcnju7jVqU0FDx8tif4eFXUN-wuULWNus63OxRjxkqdPrtimsYDbHvQ5USEJzCDtUS1e-7mkikEbTzR_U9kb2s2o6UOr9etrYYr2-N5lnGk_T1BePpvGKXr8OZrc_xGZz-_JukPTCrwDPb5ZKLeyy6PjE2nwXVTBH5l-wBC6_ZMf0f9MgDNgEYpBYKN39M0d-u-oyilHFf-xEgjHRisFUN3iTUlUiNZulEamwbsU8"
-    },
-    {
-      id: 2,
-      name: "Fresh Foods Organic",
-      cashback: "FLAT 8% CASHBACK",
-      rating: "4.8 (2.4k)",
-      distance: "1.5 miles away",
-      tag: "Organic Groceries",
-      category: "Groceries",
-      shopType: "Independent Store",
-      img: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&h=300&q=80"
-    },
-    {
-      id: 3,
-      name: "L'Artusi Restaurant",
-      cashback: "FLAT 10% CASHBACK",
-      rating: "5.0 (980)",
-      distance: "2.1 miles away",
-      tag: "Italian Dining",
-      category: "Dining",
-      shopType: "Independent Store",
-      img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDL3ZuesRdA3RCqE0U3TVWBMU61p_gIF_-C-AHDy1Wqjcb0X1v1oZLY8FMc4HH2xYcQwh-Re_Dv95-zNxQqVOB_wSNgJb1QLYR6Q2uqKRTlts9Z8OC0IPFxlaty2NWDFsajBnaRpGg1z5ABbEQrSMmOPBtWJRBziIHfa2b05nQIcc7Yo_TcQXqmftq9knshKOcTTmIDmzbgg4yUcfbAaFqM4v0iD0eWdrCOi8LWPlf0UDoIoQpACJGX9eo6jKrUNV1-iWwcqOwpS1g"
-    }
-  ];
+  // Fetch favorites on mount
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      try {
+        const res = await UserAPI.getFavorites();
+        if (res.success) {
+          setFavoriteIds(new Set(res.data.map(v => v._id)));
+        }
+      } catch (err) {
+        console.error('Failed to fetch favorites', err);
+      }
+    };
+    fetchFavorites();
+  }, []);
 
-  // Filtering logic
-  const filteredVendors = vendors.filter(vendor => {
-    const isShopTypeFilter = activeCategory === 'Independent Store' || activeCategory === 'Chain & Brand';
-    const matchesCategory = activeCategory === 'All' ||
-      (isShopTypeFilter ? vendor.shopType === activeCategory : vendor.category === activeCategory);
-    const matchesSearch = vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          vendor.tag.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Fetch vendors by category
+  useEffect(() => {
+    const fetchByCategory = async () => {
+      setIsLoading(true);
+      try {
+        const res = await UserAPI.getVendorsByCategory(activeCategory);
+        if (res.success) setVendors(res.data);
+      } catch (err) {
+        console.error('Failed to fetch vendors by category', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (!searchQuery) fetchByCategory();
+  }, [activeCategory, searchQuery]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery.trim()) return;
+    const timeout = setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const res = await UserAPI.searchVendors(searchQuery);
+        if (res.success) setVendors(res.data);
+      } catch (err) {
+        console.error('Failed to search vendors', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
 
   const handleVendorClick = (vendor) => {
     navigate('/vendor-detail', { state: { vendor } });
+  };
+
+  const handleToggleFavorite = async (e, vendorId) => {
+    e.stopPropagation(); // prevent clicking the card
+    try {
+      const res = await UserAPI.toggleFavorite(vendorId);
+      if (res.success) {
+        setFavoriteIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(vendorId)) newSet.delete(vendorId);
+          else newSet.add(vendorId);
+          return newSet;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to toggle favorite', err);
+    }
   };
 
   return (
@@ -113,9 +136,9 @@ export default function ExploreScreen() {
               className="w-full h-full object-cover" 
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuDR6lU_paT8suC7Y0iuxSdd3IQutJ4oAMJoxi8Hld2bUHqknZu3WDUqoyqEhC_MFk9jyqJul5eZn7HsXPkmdKlzf3x8Z2DukeQBh76A8_-OOA2OyZt3qLNpgMzq_0k2UMiu9tLuKY9MY6ExlYAdno7W8RHZhbnfr0GPMITMoi2zCDxNinsgiECCW1KltHrs5rEK5lS1Q03EqFYvjyg5hlIIJA9TqONZtt7_wYzQ4JLOYhP_ZDOt_1wtkpmouL4orX0YGmaEoaCoUhZb"
             />
-            {filteredVendors.map((vendor, idx) => (
+            {vendors.map((vendor, idx) => (
               <div 
-                key={vendor.id} 
+                key={vendor._id} 
                 onClick={() => handleVendorClick(vendor)}
                 className={`absolute w-8 h-8 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform ${
                   idx === 0 ? 'top-1/4 left-1/3' : idx === 1 ? 'bottom-1/3 right-1/4' : 'top-1/2 right-1/3'
@@ -128,52 +151,78 @@ export default function ExploreScreen() {
         ) : (
           /* List View Representation */
           <div className="space-y-md">
-            {filteredVendors.length > 0 ? (
-              filteredVendors.map((vendor) => (
-                <div 
-                  key={vendor.id}
-                  onClick={() => handleVendorClick(vendor)}
-                  className="glass-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md cursor-pointer transition-shadow border border-outline-variant/30 flex flex-col"
-                >
-                  <img 
-                    alt={vendor.name} 
-                    className="w-full h-44 object-cover" 
-                    src={vendor.img}
-                  />
-                  <div className="p-md space-y-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="bg-primary/10 text-primary font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">{vendor.cashback}</span>
-                      <div className="flex items-center gap-1">
-                        {/* Shop Type Badge */}
-                        <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                          vendor.shopType === 'Chain & Brand'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {vendor.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
-                        </span>
-                        <div className="flex items-center gap-[2px] text-amber-500 font-bold text-body-sm">
-                          <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                          {vendor.rating}
-                        </div>
-                      </div>
-                    </div>
-                    <h3 className="font-display text-title-md text-on-surface font-extrabold pt-1">{vendor.name}</h3>
-                    <div className="flex items-center justify-between text-caption text-on-surface-variant text-[12px]">
-                      <div className="flex items-center gap-xs">
-                        <span className="material-symbols-outlined text-[14px]">distance</span>
-                        {vendor.distance}
-                      </div>
-                      <span>{vendor.tag}</span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
+            {isLoading ? (
+              <div className="flex justify-center items-center h-40">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : vendors.length === 0 ? (
               <div className="py-20 text-center space-y-xs">
                 <span className="material-symbols-outlined text-outline text-[48px]">storefront</span>
                 <p className="font-title-md text-on-surface font-bold">No vendors found</p>
                 <p className="text-body-sm text-on-surface-variant">Try searching for other categories or names</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-md">
+                {vendors.map((vendor) => (
+                  <div 
+                    key={vendor._id}
+                    onClick={() => handleVendorClick(vendor)}
+                    className="bg-white rounded-[20px] overflow-hidden shadow-sm hover:shadow-md cursor-pointer transition-all border border-outline-variant/20 flex flex-col group"
+                  >
+                    {/* Hero Image */}
+                    <div className="relative h-[160px] w-full overflow-hidden bg-surface-container-high flex items-center justify-center">
+                      {vendor.storeLogo || vendor.profilePic ? (
+                        <img 
+                          alt={vendor.storeName} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                          src={(vendor.storeLogo || vendor.profilePic).startsWith('http') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
+                        />
+                      ) : (
+                        <span className="material-symbols-outlined text-4xl text-on-surface-variant">store</span>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                      
+                      {/* Floating Badges */}
+                      <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                        <span className="material-symbols-outlined text-[12px] text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                        <span className="text-[11px] font-bold text-on-surface">4.8 (100+)</span>
+                      </div>
+                      <button 
+                        onClick={(e) => handleToggleFavorite(e, vendor._id)}
+                        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/40 transition-colors z-10 cursor-pointer"
+                      >
+                        <span 
+                          className={`material-symbols-outlined text-[18px] transition-colors ${favoriteIds.has(vendor._id) ? 'text-red-500' : ''}`}
+                          style={favoriteIds.has(vendor._id) ? { fontVariationSettings: "'FILL' 1" } : {}}
+                        >
+                          favorite
+                        </span>
+                      </button>
+                      
+                      {/* Bottom Info inside image */}
+                      <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
+                        <div className="bg-primary text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm uppercase tracking-wide">
+                          FLAT {vendor.cashbackRate}% CASHBACK
+                        </div>
+                        <div className="bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">directions_walk</span>
+                          1.2 mi
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="p-4 flex flex-col gap-1">
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-display font-black text-[18px] text-on-surface leading-tight group-hover:text-primary transition-colors">{vendor.storeName}</h3>
+                      </div>
+                      <p className="text-on-surface-variant text-[13px] font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-outline-variant"></span>
+                        {vendor.category}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -9,6 +9,7 @@ import {
   suspendUser,
   unsuspendUser
 } from '../controllers/admin.controller.js';
+import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -30,5 +31,8 @@ router.patch('/vendors/:id/reject', rejectVendor);
 router.get('/users', getAllUsers);
 router.patch('/users/:id/suspend', suspendUser);
 router.patch('/users/:id/unsuspend', unsuspendUser);
+
+// ─── Referrals (Phase 8) ───
+router.get('/referrals/stats', getReferralStats);
 
 export default router;

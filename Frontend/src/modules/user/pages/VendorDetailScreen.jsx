@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { UserAPI, API_BASE_URL } from '../../../services/api';
 import OverviewTab from '../components/vendor-detail/OverviewTab';
 import ShopTab from '../components/vendor-detail/ShopTab';
 import PhotosTab from '../components/vendor-detail/PhotosTab';
@@ -12,18 +13,58 @@ export default function VendorDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   const defaultVendor = {
-    id: 1,
-    name: "Noir Concept Store",
-    cashback: "UP TO 15% CASHBACK",
-    rating: "4.9 (1.2k)",
-    distance: "0.8 miles away",
-    tag: "Premium Fashion",
+    _id: 1,
+    storeName: "Noir Concept Store",
+    cashbackRate: 15,
+    category: "Fashion",
     address: "42nd Luxury Blvd, Metro City",
-    shopType: "Chain & Brand",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAB0zwhnN-NjCJ7KBgLqBPBtZYKaQG19lm2DTBcnju7jVqU0FDx8tif4eFXUN-wuULWNus63OxRjxkqdPrtimsYDbHvQ5USEJzCDtUS1e-7mkikEbTzR_U9kb2s2o6UOr9etrYYr2-N5lnGk_T1BePpvGKXr8OZrc_xGZz-_JukPTCrwDPb5ZKLeyy6PjE2nwXVTBH5l-wBC6_ZMf0f9MgDNgEYpBYKN39M0d-u-oyilHFf-xEgjHRisFUN3iTUlUiNZulEamwbsU8"
+    storeLogo: "https://lh3.googleusercontent.com/aida-public/AB6AXuAB0zwhnN-NjCJ7KBgLqBPBtZYKaQG19lm2DTBcnju7jVqU0FDx8tif4eFXUN-wuULWNus63OxRjxkqdPrtimsYDbHvQ5USEJzCDtUS1e-7mkikEbTzR_U9kb2s2o6UOr9etrYYr2-N5lnGk_T1BePpvGKXr8OZrc_xGZz-_JukPTCrwDPb5ZKLeyy6PjE2nwXVTBH5l-wBC6_ZMf0f9MgDNgEYpBYKN39M0d-u-oyilHFf-xEgjHRisFUN3iTUlUiNZulEamwbsU8",
+    zeebacId: "ZBV-0000"
   };
 
-  const vendor = location.state?.vendor || defaultVendor;
+  const [vendor, setVendor] = useState(location.state?.vendor || defaultVendor);
+
+  useEffect(() => {
+    const fetchFullVendor = async () => {
+      const zeebacId = location.state?.vendor?.zeebacId || defaultVendor.zeebacId;
+      if (!zeebacId) return;
+      try {
+        const res = await UserAPI.getVendorDetails(zeebacId);
+        if (res.success) {
+          setVendor(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load full vendor details');
+      }
+    };
+    fetchFullVendor();
+  }, [location.state]);
+  // Check if it's already a favorite
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      try {
+        const res = await UserAPI.getFavorites();
+        if (res.success && vendor._id) {
+          const favIds = res.data.map(v => v._id.toString());
+          setIsFavorite(favIds.includes(vendor._id.toString()));
+        }
+      } catch (err) {
+        console.error('Failed to load favorites');
+      }
+    };
+    checkFavoriteStatus();
+  }, [vendor._id]);
+
+  const handleFavoriteToggle = async () => {
+    try {
+      const res = await UserAPI.toggleFavorite(vendor._id);
+      setIsFavorite(res.isFavorite);
+    } catch (err) {
+      console.error('Failed to toggle favorite');
+      // Optimistic fallback
+      setIsFavorite(!isFavorite);
+    }
+  };
 
   const handlePay = () => {
     navigate('/create-transaction', { state: { vendor } });
@@ -33,12 +74,16 @@ export default function VendorDetailScreen() {
     <div className="bg-[#f9f9ff] text-on-surface font-body-lg min-h-screen pb-12">
       
       {/* Hero Banner Section */}
-      <header className="relative h-[280px] w-full overflow-hidden">
-        <img 
-          alt={vendor.name} 
-          className="w-full h-full object-cover" 
-          src={vendor.img}
-        />
+      <header className="relative h-[280px] w-full overflow-hidden bg-surface-container-high flex items-center justify-center">
+        {vendor.storeLogo || vendor.profilePic ? (
+          <img 
+            alt={vendor.storeName} 
+            className="w-full h-full object-cover" 
+            src={(vendor.storeLogo || vendor.profilePic).startsWith('http') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
+          />
+        ) : (
+          <span className="material-symbols-outlined text-6xl text-on-surface-variant">store</span>
+        )}
         {/* Overlay gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
         
@@ -52,7 +97,7 @@ export default function VendorDetailScreen() {
           </button>
           
           <button 
-            onClick={() => setIsFavorite(!isFavorite)}
+            onClick={handleFavoriteToggle}
             className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer"
           >
             <span 
@@ -66,27 +111,14 @@ export default function VendorDetailScreen() {
 
         {/* Vendor Name Text */}
         <div className="absolute bottom-6 left-6 right-6 text-left text-white space-y-xs">
-          <span className="bg-primary text-white font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">{vendor.cashback}</span>
-          <h1 className="font-display text-headline-lg font-black tracking-tight">{vendor.name}</h1>
+          <span className="bg-primary text-white font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">FLAT {vendor.cashbackRate}% CASHBACK</span>
+          <h1 className="font-display text-headline-lg font-black tracking-tight">{vendor.storeName}</h1>
           <div className="flex items-center gap-xs text-[13px] text-white/80">
             <span className="material-symbols-outlined text-[14px]">distance</span>
-            {vendor.distance}
+            0.8 miles away
             <span>•</span>
-            {vendor.tag}
+            {vendor.category}
           </div>
-          {/* Shop Type Badge */}
-          {vendor.shopType && (
-            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${
-              vendor.shopType === 'Chain & Brand'
-                ? 'bg-blue-500/30 text-blue-100 border border-blue-300/40'
-                : 'bg-green-500/30 text-green-100 border border-green-300/40'
-            }`}>
-              <span className="material-symbols-outlined text-[11px]">
-                {vendor.shopType === 'Chain & Brand' ? 'apartment' : 'storefront'}
-              </span>
-              {vendor.shopType === 'Chain & Brand' ? '🏢 Chain & Brand' : '🏪 Independent Store'}
-            </span>
-          )}
         </div>
       </header>
 
@@ -110,9 +142,9 @@ export default function VendorDetailScreen() {
       {/* Tab Pages content */}
       <main className="max-w-[440px] mx-auto w-full px-container-margin py-lg text-left">
         {activeTab === 'overview' && <OverviewTab vendor={vendor} />}
-        {activeTab === 'shop' && <ShopTab />}
+        {activeTab === 'shop' && <ShopTab vendor={vendor} />}
         {activeTab === 'photos' && <PhotosTab />}
-        {activeTab === 'reviews' && <ReviewsTab />}
+        {activeTab === 'reviews' && <ReviewsTab vendorId={vendor._id} vendor={vendor} />}
       </main>
 
     </div>

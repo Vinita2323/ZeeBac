@@ -3,20 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import Lottie from 'lottie-react';
 import locationAnimation from '../../../assets/Lotties/Location.json';
 import { UserAPI } from '../../../services/api';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function LocationPermissionScreen() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('idle'); // 'idle', 'requesting', 'authorized'
+  const updateProfile = useAuthStore(state => state.updateProfile);
 
   const handleEnableLocation = () => {
     setStatus('requesting');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          await UserAPI.updateLocation({
+          const res = await UserAPI.updateLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           });
+          if (res.success && res.data) {
+            updateProfile(res.data);
+          }
         } catch (err) {
           console.error('Location update failed:', err);
           // Non-blocking — continue even if API fails

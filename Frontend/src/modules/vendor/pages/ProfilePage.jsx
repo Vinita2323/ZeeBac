@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
-import { VendorAPI } from '../../../services/api';
+import { VendorAPI, API_BASE_URL } from '../../../services/api';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -61,6 +61,7 @@ export default function ProfilePage() {
     email,
     address,
     description: '',
+    operatingHours: '',
     upiId: ''
   });
 
@@ -76,6 +77,7 @@ export default function ProfilePage() {
           email: res.data.ownerName || email,
           address: typeof res.data.address === 'object' ? (res.data.address?.city || res.data.address?.fullAddress) : (res.data.address || address),
           description: res.data.description || '',
+          operatingHours: res.data.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM',
           upiId: res.data.bankDetails?.upiId || ''
         });
       } catch (error) {
@@ -104,8 +106,12 @@ export default function ProfilePage() {
     if (isEditing) {
       try {
         await VendorAPI.updateProfile({
+          address: { fullAddress: formData.address },
           description: formData.description,
-          bankDetails: { upiId: formData.upiId }
+          operatingHours: formData.operatingHours,
+          bankDetails: {
+            upiId: formData.upiId
+          }
         });
         setToastMessage('Profile updated successfully!');
         setTimeout(() => setToastMessage(null), 2500);
@@ -159,7 +165,7 @@ export default function ProfilePage() {
                 className={`w-20 h-20 bg-white rounded-[20px] shadow-md flex items-center justify-center text-primary text-3xl font-black relative overflow-hidden ${isEditing ? 'cursor-pointer' : ''}`}
               >
                 {profilePic ? (
-                  <img src={profilePic} alt="Store" className="w-full h-full object-cover" />
+                  <img src={profilePic.startsWith('http') || profilePic.startsWith('data:') ? profilePic : `${API_BASE_URL}${profilePic}`} alt="Store" className="w-full h-full object-cover" />
                 ) : (
                   <span>{firstLetter}</span>
                 )}
@@ -274,6 +280,26 @@ export default function ProfilePage() {
                 />
               ) : (
                 <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.description || 'No description'}</span>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">schedule</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Store Hours</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.operatingHours} 
+                  onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="e.g. 09:00 AM - 10:00 PM"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM'}</span>
               )}
             </div>
 

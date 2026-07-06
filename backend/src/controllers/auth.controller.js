@@ -85,7 +85,8 @@ export const customerLogin = async (req, res) => {
         name: user.name,
         phone: user.phone,
         zeebacId: user.zeebacId,
-        role: user.role
+        role: user.role,
+        referralCode: user.referralCode
       }
     });
   } catch (error) {

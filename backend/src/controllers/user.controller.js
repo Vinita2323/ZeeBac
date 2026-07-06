@@ -3,6 +3,9 @@ import Vendor from '../models/Vendor.js';
 import Transaction from '../models/Transaction.js';
 import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import CashbackRequest from '../models/CashbackRequest.js';
+import Product from '../models/Product.js';
+import Referral from '../models/Referral.js';
 import logger from '../utils/logger.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
@@ -55,7 +58,7 @@ export const lookupVendorById = async (req, res) => {
         { zeebacId: cleanQuery },
         { phone: query.trim() }
       ]
-    }).select('zeebacId storeName category cashbackRate phone address storeLogo');
+    }).select('zeebacId storeName category cashbackRate phone address storeLogo profilePic description operatingHours stats');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -160,12 +163,65 @@ export const createCustomerTransaction = async (req, res) => {
       });
     }
 
-    // 9. Update vendor stats
+    // 9. Referral Logic: Check if this is customer's first transaction
+    if (customer.referredBy) {
+      const txnCount = await Transaction.countDocuments({ customerId: customer._id });
+      if (txnCount === 1) {
+        // This is their first transaction! Award the referrer.
+        const referral = await Referral.findOne({ referredUserId: customer._id, status: 'Signed Up' });
+        if (referral) {
+          const rewardAmount = referral.rewardAmount || 150;
+
+          // Find referrer's wallet
+          let referrerWallet = await Wallet.findOne({ ownerId: referral.referrerId, ownerType: 'User' });
+          if (!referrerWallet) {
+            referrerWallet = await Wallet.create({ ownerId: referral.referrerId, ownerType: 'User' });
+          }
+
+          // Credit referrer
+          const refPrevBalance = referrerWallet.balance || 0;
+          const refNewBalance = refPrevBalance + rewardAmount;
+          await Wallet.findByIdAndUpdate(referrerWallet._id, { balance: refNewBalance });
+
+          // Create ledger entry
+          await WalletTransaction.create({
+            walletId: referrerWallet._id,
+            ownerId: referral.referrerId,
+            ownerType: 'User',
+            type: 'credit',
+            category: 'referral_bonus',
+            amount: rewardAmount,
+            balanceAfter: refNewBalance,
+            referenceId: referral._id,
+            referenceType: 'Referral',
+            description: `Referral bonus for inviting ${customer.name}`,
+          });
+
+          // Update Referral doc
+          referral.status = 'Converted';
+          referral.rewardStatus = 'Credited';
+          referral.rewardCreditedAt = new Date();
+          await referral.save();
+
+          logger.info(`[Referral] Awarded ₹${rewardAmount} to user ${referral.referrerId} for referring ${customer._id}`);
+        }
+      }
+    }
+
+    // 10. Update vendor stats
     await Vendor.findByIdAndUpdate(vendor._id, {
       $inc: { 'stats.totalRevenue': parseFloat(amount) }
     });
 
-    // 10. Return success response
+    // 11. Update User's Recent Vendors (max 10)
+    await User.findByIdAndUpdate(req.user.id, {
+      $pull: { recentVendors: vendor._id } // Remove if exists
+    });
+    await User.findByIdAndUpdate(req.user.id, {
+      $push: { recentVendors: { $each: [vendor._id], $position: 0, $slice: 10 } } // Push to start, max 10
+    });
+
+    // 11. Return success response
     res.status(201).json({
       success: true,
       data: {
@@ -294,6 +350,14 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
 
     await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } });
 
+    // Update User's Recent Vendors (max 10)
+    await User.findByIdAndUpdate(req.user.id, {
+      $pull: { recentVendors: vendor._id }
+    });
+    await User.findByIdAndUpdate(req.user.id, {
+      $push: { recentVendors: { $each: [vendor._id], $position: 0, $slice: 10 } }
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -312,6 +376,231 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
     });
   } catch (error) {
     logger.error(`verifyRazorpayAndCreateTransaction error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// ─── Phase 4C: Vendor Discovery ───
+
+// 1. Search vendors by name, category, or zeebacId
+export const searchVendors = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.status(400).json({ success: false, message: 'Search query is required' });
+    }
+    const vendors = await Vendor.find({
+      status: 'Verified',
+      $or: [
+        { storeName: { $regex: q, $options: 'i' } },
+        { category: { $regex: q, $options: 'i' } },
+        { zeebacId: { $regex: q, $options: 'i' } }
+      ]
+    }).select('storeName category cashbackRate address stats storeLogo profilePic zeebacId');
+    res.status(200).json({ success: true, data: vendors });
+  } catch (error) {
+    logger.error(`searchVendors error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 2. Get vendors by category (or all)
+export const getVendorsByCategory = async (req, res) => {
+  try {
+    const { name } = req.params;
+    const query = name === 'All' ? {} : { category: name };
+    const vendors = await Vendor.find({ ...query, status: 'Verified' })
+      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId');
+    res.status(200).json({ success: true, data: vendors });
+  } catch (error) {
+    logger.error(`getVendorsByCategory error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 3. Toggle favorite vendor
+export const toggleFavoriteVendor = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const { vendorId } = req.params;
+    
+    // Check if the vendor is already a favorite
+    const isFav = user.favoriteVendors && user.favoriteVendors.some(id => id.toString() === vendorId);
+    
+    if (isFav) {
+      // Remove from favorites
+      user.favoriteVendors = user.favoriteVendors.filter(id => id.toString() !== vendorId);
+    } else {
+      // Add to favorites
+      user.favoriteVendors = [...(user.favoriteVendors || []), vendorId];
+    }
+    
+    await user.save();
+    res.status(200).json({ success: true, isFavorite: !isFav });
+  } catch (error) {
+    logger.error(`toggleFavoriteVendor error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 4. Get user's favorite vendors
+export const getFavoriteVendors = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate('favoriteVendors', 'storeName category cashbackRate address storeLogo zeebacId');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.status(200).json({ success: true, data: user.favoriteVendors || [] });
+  } catch (error) {
+    logger.error(`getFavoriteVendors error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// ─── Phase 4D: Wallet & Passbook ───
+
+// 1. Get Wallet and Recent Ledger
+export const getMyWallet = async (req, res) => {
+  try {
+    const wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
+    const ledger = await WalletTransaction.find({ ownerId: req.user.id, ownerType: 'User' })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.status(200).json({ success: true, data: { wallet, ledger } });
+  } catch (error) {
+    logger.error(`getMyWallet error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 2. Get Transaction History
+export const getMyTransactions = async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ customerId: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.status(200).json({ success: true, data: transactions });
+  } catch (error) {
+    logger.error(`getMyTransactions error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// ─── Phase 4E: Profile, Cashback Requests & Storefront ───
+
+export const updateUserProfile = async (req, res) => {
+  try {
+    const { name, email, phone } = req.body; // allowing phone update might require OTP in real scenario, keeping it simple here
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { name, email, phone },
+      { new: true, select: '-password -refreshToken -otp -otpExpiry' }
+    );
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    logger.error(`updateUserProfile error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const createCashbackRequest = async (req, res) => {
+  try {
+    const { vendorId, amount, billImageUrl, description } = req.body;
+    const request = await CashbackRequest.create({
+      customerId: req.user.id,
+      vendorId, 
+      amount, 
+      billImageUrl, 
+      description,
+      status: 'Pending'
+    });
+    res.status(201).json({ success: true, data: request });
+  } catch (error) {
+    logger.error(`createCashbackRequest error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getMyCashbackRequests = async (req, res) => {
+  try {
+    const requests = await CashbackRequest.find({ customerId: req.user.id })
+      .sort({ createdAt: -1 })
+      .populate('vendorId', 'storeName zeebacId');
+    res.status(200).json({ success: true, data: requests });
+  } catch (error) {
+    logger.error(`getMyCashbackRequests error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getCashbackRequestById = async (req, res) => {
+  try {
+    const request = await CashbackRequest.findOne({
+      _id: req.params.id, 
+      customerId: req.user.id
+    }).populate('vendorId', 'storeName zeebacId');
+    if (!request) return res.status(404).json({ success: false, message: 'Not found' });
+    res.status(200).json({ success: true, data: request });
+  } catch (error) {
+    logger.error(`getCashbackRequestById error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getVendorProducts = async (req, res) => {
+  try {
+    const products = await Product.find({ vendorId: req.params.vendorId, isActive: true });
+    res.status(200).json({ success: true, data: products });
+  } catch (error) {
+    logger.error(`getVendorProducts error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getNearbyVendors = async (req, res) => {
+  try {
+    const { lat, lng, radius = 10000 } = req.query; // Default 10km radius
+
+    if (!lat || !lng) {
+      return res.status(400).json({ success: false, message: 'Latitude and Longitude are required' });
+    }
+
+    const vendors = await Vendor.find({
+      status: 'Verified',
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: parseInt(radius)
+        }
+      }
+    }).select('storeName zeebacId category storeLogo profilePic address cashbackRate stats');
+
+    res.status(200).json({ success: true, data: vendors });
+  } catch (error) {
+    logger.error(`getNearbyVendors error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getRecentVendors = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate({
+      path: 'recentVendors',
+      select: 'storeName zeebacId category storeLogo profilePic address cashbackRate stats',
+      match: { status: 'Verified' }
+    });
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    // Filter out nulls in case some vendors were deleted or suspended
+    const validVendors = user.recentVendors.filter(v => v != null);
+    
+    res.status(200).json({ success: true, data: validVendors });
+  } catch (error) {
+    logger.error(`getRecentVendors error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

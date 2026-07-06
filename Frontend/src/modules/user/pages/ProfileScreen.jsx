@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 
@@ -11,9 +12,9 @@ export default function ProfileScreen() {
   
   // Profile state
   const [profile, setProfile] = useState({
-    name: 'Guest User',
-    phone: '+91 9999999999',
-    email: 'guest@zeebac.com',
+    name: currentUser.name || 'Guest User',
+    phone: currentUser.phone || '+91 9999999999',
+    email: currentUser.email || 'guest@zeebac.com',
     profileImage: null
   });
 
@@ -29,7 +30,7 @@ export default function ProfileScreen() {
         const base64String = reader.result;
         const updatedProfile = { ...profile, profileImage: base64String };
         setProfile(updatedProfile);
-        localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
+        UserAPI.updateProfile({ name: updatedProfile.name, email: updatedProfile.email }); // Note: Profile image upload not implemented in API yet
         setShowImageOptions(false);
       };
       reader.readAsDataURL(file);
@@ -45,15 +46,19 @@ export default function ProfileScreen() {
 
   // Local Storage integration for persistence
   useEffect(() => {
-    const storedProfile = localStorage.getItem('user_profile');
-    if (storedProfile) {
-      setProfile(JSON.parse(storedProfile));
+    if (currentUser) {
+      setProfile({
+        name: currentUser.name || 'Guest User',
+        phone: currentUser.phone || '+91 9999999999',
+        email: currentUser.email || 'guest@zeebac.com',
+        profileImage: null
+      });
     }
     const storedPayments = localStorage.getItem('payment_details');
     if (storedPayments) {
       setPaymentDetails(JSON.parse(storedPayments));
     }
-  }, []);
+  }, [currentUser]);
 
   // Settings Toggles
   const [notifications, setNotifications] = useState(true);
@@ -66,18 +71,42 @@ export default function ProfileScreen() {
   });
 
   useEffect(() => {
-    const storedRequests = JSON.parse(localStorage.getItem('cashback_requests')) || [];
-    const pendingCount = storedRequests.filter(r => r.status === 'Pending').length;
-    setStats({
-      totalEarned: '1,284.50',
-      pendingRequests: pendingCount
-    });
+    const fetchStats = async () => {
+      try {
+        const [walletRes, requestsRes] = await Promise.all([
+          UserAPI.getMyWallet(),
+          UserAPI.getMyCashbackRequests()
+        ]);
+        
+        let pendingCount = 0;
+        let totalEarned = 0;
+
+        if (requestsRes.success) {
+          pendingCount = requestsRes.data.filter(r => r.status === 'Pending').length;
+        }
+        if (walletRes.success) {
+          totalEarned = walletRes.data.wallet?.totalEarned || 0;
+        }
+
+        setStats({
+          totalEarned: totalEarned.toFixed(2),
+          pendingRequests: pendingCount
+        });
+      } catch (err) {
+        console.error('Failed to fetch stats', err);
+      }
+    };
+    fetchStats();
   }, [subView]);
 
-  const handleProfileSave = (updatedProfile) => {
-    localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
-    setProfile(updatedProfile);
-    setSubView(null);
+  const handleProfileSave = async (updatedProfile) => {
+    try {
+      await UserAPI.updateProfile({ name: updatedProfile.name, email: updatedProfile.email });
+      setProfile(updatedProfile);
+      setSubView(null);
+    } catch (err) {
+      console.error('Failed to update profile', err);
+    }
   };
 
   const handlePaymentsSave = (updatedPayments) => {
@@ -435,10 +464,10 @@ export default function ProfileScreen() {
             </div>
             {profile.profileImage && (
               <button 
-                onClick={() => {
+                onClick={async () => {
                   const updatedProfile = { ...profile, profileImage: null };
                   setProfile(updatedProfile);
-                  localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
+                  await onSave(updatedProfile);
                   setShowImageOptions(false);
                 }}
                 className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold bg-red-50 hover:bg-red-100 transition-colors active:scale-95"
@@ -718,7 +747,7 @@ function SupportSubView({ onBack }) {
 // SUBPAGE 4: MY QR CODE COMPONENT
 function QRCodeSubView({ profile, onBack }) {
   const [copied, setCopied] = useState(false);
-  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
+  const currentUser = useAuthStore(state => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBC-0000';
   const qrData = `zeebac://customer/${zeebacId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=66-0-147&data=${encodeURIComponent(qrData)}`;
@@ -831,17 +860,34 @@ function QRCodeSubView({ profile, onBack }) {
 // SUBPAGE 5: REFER & EARN COMPONENT
 function ReferEarnSubView({ profile, onBack }) {
   const [copied, setCopied] = useState(false);
-  const firstName = profile.name.split(' ')[0].toUpperCase() || 'USER';
-  const referralCode = `ZEEBAC${firstName}150`;
+  const [stats, setStats] = useState({ invited: 0, earned: 0, code: 'ZEEBAC150' });
+  
+  useEffect(() => {
+    const fetchReferralStats = async () => {
+      try {
+        const res = await UserAPI.getMyReferrals();
+        if (res.success && res.data) {
+          setStats({
+            invited: res.data.stats?.totalInvited || 0,
+            earned: res.data.stats?.totalEarned || 0,
+            code: res.data.referralCode || profile?.referralCode || 'ZEEBAC150'
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch referral stats:", err);
+      }
+    };
+    fetchReferralStats();
+  }, [profile?.referralCode]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(referralCode);
+    navigator.clipboard.writeText(stats.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = async () => {
-    const text = `Join Zeebac and earn cashback on all your shopping! Use my code: ${referralCode} to sign up and get rewards.`;
+    const text = `Join Zeebac and earn cashback on all your shopping! Use my code: ${stats.code} to sign up and get rewards.`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -886,11 +932,11 @@ function ReferEarnSubView({ profile, onBack }) {
           <div className="grid grid-cols-2 gap-md">
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-md flex flex-col text-left shadow-sm">
               <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Friends Invited</span>
-              <h3 className="font-display text-title-md font-black text-[#420093] mt-1">3</h3>
+              <h3 className="font-display text-title-md font-black text-[#420093] mt-1">{stats.invited}</h3>
             </div>
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-md flex flex-col text-left shadow-sm">
               <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Total Earned</span>
-              <h3 className="font-display text-title-md font-black text-green-600 mt-1">₹450</h3>
+              <h3 className="font-display text-title-md font-black text-green-600 mt-1">₹{stats.earned}</h3>
             </div>
           </div>
 
@@ -899,7 +945,7 @@ function ReferEarnSubView({ profile, onBack }) {
             <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold pl-1">Your Referral Code</span>
             <div className="bg-white border-2 border-dashed border-[#420093]/30 rounded-2xl p-md flex items-center justify-between shadow-sm">
               <div className="flex-grow">
-                <span className="font-display text-title-sm font-black tracking-widest text-[#420093] uppercase select-all">{referralCode}</span>
+                <span className="font-display text-title-sm font-black tracking-widest text-[#420093] uppercase select-all">{stats.code}</span>
               </div>
               <button 
                 onClick={handleCopy}

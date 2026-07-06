@@ -14,8 +14,11 @@ import {
   createRazorpayOrder,
   verifyRazorpayPayment,
   getVendorCustomers,
-  requestWithdrawal
+  requestWithdrawal,
+  getPendingRequests,
+  respondToCashbackRequest
 } from '../controllers/vendor.controller.js';
+import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
@@ -62,5 +65,13 @@ router.get('/wallet', getVendorWallet);
 router.post('/wallet/create-order', createRazorpayOrder);
 router.post('/wallet/verify-payment', verifyRazorpayPayment);
 router.post('/wallet/withdraw', requestWithdrawal);
+
+// Cashback Requests (Phase 4 Approvals)
+router.get('/requests/pending', getPendingRequests);
+router.post('/requests/:id/respond', respondToCashbackRequest);
+
+// Reviews (Phase 7)
+router.get('/reviews', getVendorReviews);
+router.post('/reviews/:id/reply', replyToReview);
 
 export default router;

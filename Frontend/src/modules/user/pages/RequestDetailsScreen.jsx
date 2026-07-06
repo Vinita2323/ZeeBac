@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
 
 const TIMELINE_STEPS = [
   "Draft",
@@ -13,15 +14,31 @@ const TIMELINE_STEPS = [
 export default function RequestDetailsScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [request, setRequest] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('cashback_requests')) || [];
-    const found = stored.find(r => r.id === id);
-    if (found) {
-      setRequest(found);
-    }
+    const fetchRequest = async () => {
+      try {
+        const res = await UserAPI.getCashbackRequestById(id);
+        if (res.success) {
+          setRequest(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch request', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRequest();
   }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="bg-[#f9f9ff] min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!request) {
     return (
@@ -73,47 +90,38 @@ export default function RequestDetailsScreen() {
           <div className="flex justify-between items-start border-b border-outline-variant/10 pb-sm">
             <div>
               <span className="text-[9px] uppercase font-bold text-primary tracking-widest leading-none">PARTNER SHOP</span>
-              <h3 className="font-display text-body-lg font-black text-on-surface pt-1">{request.vendorName}</h3>
+              <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-wider">ID: {request._id}</p>
             </div>
-            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-              request.status === 'Approved' 
-                ? 'bg-green-100 text-green-800' 
-                : request.status === 'Rejected' 
-                  ? 'bg-red-100 text-red-800' 
-                  : 'bg-amber-100 text-amber-800'
-            }`}>
-              {request.status}
-            </span>
+            {request.vendorId?.zeebacId && <span className="bg-primary/10 text-primary font-label-mono text-[10px] px-2 py-0.5 rounded-full font-bold">{request.vendorId.zeebacId}</span>}
           </div>
 
-          <div className="grid grid-cols-2 gap-y-md gap-x-sm text-body-sm text-on-surface-variant">
-            <div>
-              <p className="font-caption text-[10px] uppercase">Request ID</p>
-              <p className="font-bold text-on-surface font-label-mono">{request.id}</p>
+          <div className="pt-sm space-y-2 text-body-md text-on-surface-variant">
+            <div className="flex justify-between items-center">
+              <span className="font-caption text-xs">Merchant Name</span>
+              <span className="font-title-md font-bold text-on-surface">{request.vendorId?.storeName || request.vendorName}</span>
             </div>
-            <div>
-              <p className="font-caption text-[10px] uppercase">Payment Method</p>
-              <p className="font-bold text-on-surface">{request.paymentMethod}</p>
+            <div className="flex justify-between items-center">
+              <span className="font-caption text-xs">Date of Purchase</span>
+              <span className="font-bold text-on-surface">{new Date(request.createdAt).toLocaleDateString()}</span>
             </div>
-            <div>
-              <p className="font-caption text-[10px] uppercase">Bill Amount</p>
-              <p className="font-bold text-on-surface">₹{request.amount}</p>
+            <div className="flex justify-between items-center">
+              <span className="font-caption text-xs">Payment Method</span>
+              <span className="font-bold text-on-surface">Digital Payment</span>
             </div>
-            <div>
-              <p className="font-caption text-[10px] uppercase text-secondary font-bold">Cashback Earned</p>
-              <p className="font-bold text-secondary font-display text-body-lg">
-                +₹{request.cashbackAmount}
-              </p>
+            <div className="flex justify-between items-center">
+              <span className="font-caption text-xs">Receipt Total</span>
+              <span className="font-bold text-on-surface">₹{request.amount}</span>
             </div>
           </div>
+        </div>
 
-          {request.description && (
-            <div className="border-t border-outline-variant/10 pt-sm">
-              <p className="font-caption text-[10px] uppercase text-on-surface-variant">Purchase Note</p>
-              <p className="text-body-sm text-on-surface font-medium leading-relaxed">{request.description}</p>
-            </div>
-          )}
-
+        {/* Est Cashback Amount */}
+        <div className="glass-card rounded-2xl p-md border border-outline-variant/30 flex items-center justify-between animate-slide-up animation-delay-200">
+          <div>
+            <p className="font-caption text-xs uppercase text-primary font-bold">Requested Amount</p>
+            <p className="font-display text-title-lg font-black text-on-surface">₹{request.amount}</p>
+          </div>
+          
           {request.billImg && (
             <div className="border-t border-outline-variant/10 pt-sm flex flex-col gap-sm">
               <p className="font-caption text-[10px] uppercase text-on-surface-variant">Bill Attachment Preview</p>
@@ -127,53 +135,45 @@ export default function RequestDetailsScreen() {
           <h4 className="font-display text-title-md text-on-surface font-extrabold pb-sm border-b border-outline-variant/10">Verification Timeline</h4>
           
           <div className="relative pl-6 space-y-lg border-l-2 border-outline-variant/30 ml-2 pt-2">
-            {TIMELINE_STEPS.map((stepName, stepIndex) => {
-              // Custom handling for step 4 status labeling
-              let displayStepName = stepName;
-              if (stepName === "Approved / Rejected") {
-                displayStepName = request.status === "Rejected" ? "Rejected" : "Approved";
-              }
+            <div className="absolute top-0 bottom-0 left-[9px] w-[2px] bg-outline-variant/20"></div>
 
-              // Determine visual step status state
-              const isStepCompleted = stepIndex <= activeIndex;
-              const isCurrentStep = stepIndex === activeIndex;
+              {TIMELINE_STEPS.map((stepName, idx) => {
+                const isActive = idx === activeIndex;
+                const isCompleted = idx <= activeIndex;
+                const dateText = isCompleted ? new Date(request.updatedAt || request.createdAt).toLocaleDateString() : '';
 
-              return (
-                <div key={stepName} className="relative">
-                  {/* Timeline dot */}
-                  <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 transition-all ${
-                    isStepCompleted 
-                      ? 'bg-primary border-primary shadow-sm scale-110' 
-                      : 'bg-white border-outline-variant/60'
-                  }`}>
-                    {isStepCompleted && (
-                      <div className="absolute inset-[3px] rounded-full bg-white animate-scaleUp" />
-                    )}
-                  </div>
-
-                  <div className="text-left space-y-0.5">
-                    <p className={`font-title-md font-bold text-body-sm transition-colors ${
-                      isCurrentStep 
-                        ? 'text-primary font-black' 
-                        : isStepCompleted 
-                          ? 'text-on-surface' 
-                          : 'text-outline'
+                return (
+                  <div key={idx} className="relative flex items-start gap-4">
+                    {/* Timeline dot */}
+                    <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 transition-all ${
+                      isCompleted 
+                        ? 'bg-primary border-primary shadow-sm scale-110' 
+                        : 'bg-white border-outline-variant/60'
                     }`}>
-                      {displayStepName}
-                    </p>
-                    <p className="font-caption text-[10px] text-on-surface-variant">
-                      {isStepCompleted && stepIndex === 1 && (request.submittedAt || "Jun 10, 2026 • 06:00 PM")}
-                      {isStepCompleted && stepIndex === 0 && (request.submittedAt || "Jun 10, 2026 • 05:58 PM")}
-                      {isStepCompleted && stepIndex === 2 && (request.submittedAt || "Jun 10, 2026 • 06:00 PM")}
-                      {isStepCompleted && stepIndex === 3 && "Verified by Validator"}
-                      {isStepCompleted && stepIndex === 4 && (request.status === 'Approved' ? 'Approved by Merchant' : request.status === 'Rejected' ? 'Declined by Merchant' : '')}
-                      {isStepCompleted && stepIndex === 5 && "Credited to wallet balance"}
-                      {!isStepCompleted && "Pending progression..."}
-                    </p>
+                      {isCompleted && (
+                        <div className="absolute inset-[3px] rounded-full bg-white animate-scaleUp" />
+                      )}
+                    </div>
+                    <div className="flex-1 pb-4 text-left">
+                      <p className={`font-title-md font-bold text-body-sm transition-colors ${
+                        isActive 
+                          ? 'text-primary font-black' 
+                          : isCompleted 
+                            ? 'text-on-surface' 
+                            : 'text-outline'
+                      }`}>
+                        {stepName === "Approved / Rejected" ? (request.status === "Rejected" ? "Rejected" : "Approved") : stepName}
+                      </p>
+                      <p className="font-caption text-[10px] text-on-surface-variant">
+                        {isCompleted && idx === 4 && (request.status === 'Approved' ? 'Approved by Merchant' : request.status === 'Rejected' ? 'Declined by Merchant' : '')}
+                        {isCompleted && idx === 5 && "Credited to wallet balance"}
+                        {isCompleted && dateText && idx < 4 ? `Status updated on ${dateText}` : ''}
+                        {!isCompleted && "Pending progression..."}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
 

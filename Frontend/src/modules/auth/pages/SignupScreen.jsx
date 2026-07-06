@@ -35,6 +35,7 @@ export default function SignupScreen({ role: roleProp }) {
     // Customer specifics
     name: '',
     email: '',
+    referralCode: '',
     // Vendor specifics
     shopType: '',        // 'Independent Store' | 'Chain & Brand' — vendor selects their type
     storeLogo: null,
@@ -102,7 +103,8 @@ export default function SignupScreen({ role: roleProp }) {
           phone: formData.phone,
           otp: otp.join(''),
           name: formData.name,
-          email: formData.email
+          email: formData.email,
+          referralCode: formData.referralCode
         });
         
         useAuthStore.getState().login(response.user, response.accessToken, response.refreshToken);
@@ -263,6 +265,10 @@ export default function SignupScreen({ role: roleProp }) {
             <div className="flex-1 space-y-3">
               <FloatingInput label="Full Name" icon="person" value={formData.name} onChange={e => updateForm('name', e.target.value)} />
               <FloatingInput label="Email Address (Optional)" type="email" icon="mail" value={formData.email} onChange={e => updateForm('email', e.target.value)} />
+              <div className="pt-2">
+                <FloatingInput label="Referral Code (Optional)" icon="card_giftcard" value={formData.referralCode} onChange={e => updateForm('referralCode', e.target.value)} />
+                <p className="text-[11px] text-[#5B21B6] mt-1 ml-1 font-medium">Got a referral code? Enter it to get a signup bonus!</p>
+              </div>
             </div>
             <button onClick={handleCreateAccount} disabled={!formData.name.trim() || isLoading}
               className={`w-full h-12 rounded-lg font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${formData.name.trim() && !isLoading ? 'bg-[#5B21B6] text-white hover:bg-[#4C1D95]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'

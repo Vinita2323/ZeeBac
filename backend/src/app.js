@@ -7,7 +7,8 @@ import logger from './utils/logger.js';
 const app = express();
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // HTTP request logging (only in development)
 if (process.env.NODE_ENV !== 'production') {
@@ -30,11 +31,13 @@ import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import vendorRoutes from './routes/vendor.routes.js';
 import userRoutes from './routes/user.routes.js';
+import chatRoutes from './routes/chat.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

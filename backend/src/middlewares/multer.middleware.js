@@ -15,6 +15,7 @@ const storage = multer.diskStorage({
       storeImage:        'uploads/storefront',
       productImage:      'uploads/storefront',
       billImg:           'uploads/receipts',
+      chatImage:         'uploads/chat',
     };
     cb(null, map[file.fieldname] || 'uploads/storefront');
   },

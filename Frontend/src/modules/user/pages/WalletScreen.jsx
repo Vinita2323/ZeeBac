@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 
@@ -8,63 +9,70 @@ export default function WalletScreen() {
   const authBalance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   
-  const [balance, setBalance] = useState(() => authBalance);
-
-  // Available rewards count up animation
-  useEffect(() => {
-    const end = authBalance;
-    let start = Math.max(0, end - 100);
-    const duration = 1200;
-    const stepTime = 30;
-    const steps = duration / stepTime;
-    const increment = (end - start) / steps;
-    
-    let currentStep = 0;
-    const timer = setInterval(() => {
-      currentStep++;
-      start += increment;
-      if (currentStep >= steps) {
-        clearInterval(timer);
-        setBalance(end);
-      } else {
-        setBalance(start);
-      }
-    }, stepTime);
-
-    return () => clearInterval(timer);
-  }, []);
-
+  const [balance, setBalance] = useState(0);
   const [activities, setActivities] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch real wallet and activities
   useEffect(() => {
-    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-    
-    
-    // Filter transactions for this customer
-    const myTxns = txns.filter(t => t.customerId === currentUser.zeebacId || t.customerPhone === currentUser.phone);
-    
-    const formatted = myTxns.slice(0, 5).map(t => ({
-      id: t.id,
-      name: t.vendorName,
-      time: new Date(t.timestamp).toLocaleString(),
-      amount: `+₹${t.cashbackAmount.toFixed(2)}`,
-      status: "Credited",
-      icon: "storefront"
-    }));
+    const fetchWallet = async () => {
+      try {
+        const res = await UserAPI.getMyWallet();
+        if (res.success) {
+          const realBalance = res.data.wallet?.balance || 0;
+          useAuthStore.getState().updateBalance(realBalance);
+          setBalance(realBalance);
 
-    if (formatted.length === 0) {
-      formatted.push({
-        id: 'dummy',
-        name: "Welcome Bonus",
-        time: "Just now",
-        amount: "+₹50.00",
-        status: "Credited",
-        icon: "card_giftcard"
-      });
-    }
-    
-    setActivities(formatted);
+          // Animate balance
+          let start = Math.max(0, realBalance - 100);
+          const duration = 1200;
+          const stepTime = 30;
+          const steps = duration / stepTime;
+          const increment = (realBalance - start) / steps;
+          
+          let currentStep = 0;
+          const timer = setInterval(() => {
+            currentStep++;
+            start += increment;
+            if (currentStep >= steps) {
+              clearInterval(timer);
+              setBalance(realBalance);
+            } else {
+              setBalance(start);
+            }
+          }, stepTime);
+
+          const formatted = (res.data.ledger || []).slice(0, 5).map(entry => ({
+            id: entry._id,
+            name: entry.description,
+            time: new Date(entry.createdAt).toLocaleString(),
+            amount: entry.type === 'credit' ? `+₹${entry.amount.toFixed(2)}` : `-₹${entry.amount.toFixed(2)}`,
+            status: entry.type === 'credit' ? 'Credited' : 'Debited',
+            icon: entry.type === 'credit' ? 'redeem' : 'payments'
+          }));
+          
+          if (formatted.length === 0) {
+            formatted.push({
+              id: 'dummy',
+              name: "Welcome Bonus",
+              time: "Just now",
+              amount: "+₹50.00",
+              status: "Credited",
+              icon: "card_giftcard"
+            });
+          }
+          
+          setActivities(formatted);
+        }
+      } catch (err) {
+        console.error('Failed to load wallet', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWallet();
   }, []);
+
 
   return (
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">

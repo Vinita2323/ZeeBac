@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 
@@ -12,57 +13,78 @@ export default function WalletPassbookScreen() {
   
   const [transactions, setTransactions] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Load Transactions
-    const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-    const myTxns = txns.filter(t => t.customerId === currentUser.zeebacId || t.customerPhone === currentUser.phone);
-    
-    const formattedTx = myTxns.map(t => {
-      const isCredit = !!t.cashbackAmount;
-      const displayAmount = isCredit ? `+₹${t.cashbackAmount.toFixed(2)}` : `-₹${t.amount.toFixed(2)}`;
-      const tagText = isCredit ? 'Cashback' : 'Payment';
-      const tagIcon = isCredit ? 'redeem' : 'payments';
-      
-      return {
-        id: t.id,
-        name: t.vendorName || "ZeeBac Partner",
-        time: new Date(t.timestamp).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, month: 'short', day: 'numeric' }),
-        amount: displayAmount,
-        type: isCredit ? "Credited" : "Debited",
-        tag: tagText,
-        tagIcon: tagIcon,
-        icon: "storefront",
-        from: "ZeeBac Wallet"
-      };
-    });
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [walletRes, txnRes] = await Promise.all([
+          UserAPI.getMyWallet(),
+          UserAPI.getMyTransactions()
+        ]);
 
-    if (formattedTx.length === 0) {
-      formattedTx.push({
-        id: 'dummy',
-        name: "Welcome Bonus",
-        time: "Just now",
-        amount: "+₹50.00",
-        type: "Credited",
-        tag: "Reward",
-        tagIcon: "featured_seasonal_and_gifts",
-        icon: "card_giftcard",
-        from: "ZeeBac"
-      });
-    }
-    setTransactions(formattedTx);
+        // Format for "Transactions" tab
+        if (txnRes.success) {
+          const formatted = txnRes.data.map(t => {
+            const isCredit = !!t.cashbackAmount;
+            const displayAmount = isCredit ? `+₹${t.cashbackAmount.toFixed(2)}` : `-₹${t.amount.toFixed(2)}`;
+            const tagText = isCredit ? 'Cashback' : 'Payment';
+            const tagIcon = isCredit ? 'redeem' : 'payments';
 
-    // Load Cashback Requests
-    const storedReq = JSON.parse(localStorage.getItem('cashback_requests') || '[]');
-    setRequests(storedReq);
+            return {
+              id: t._id,
+              name: t.vendorName || "ZeeBac Partner",
+              time: new Date(t.createdAt).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, month: 'short', day: 'numeric' }),
+              amount: displayAmount,
+              type: isCredit ? "Credited" : "Debited",
+              tag: tagText,
+              tagIcon: tagIcon,
+              icon: "storefront",
+              from: "ZeeBac Wallet"
+            };
+          });
+
+          if (formatted.length === 0) {
+            formatted.push({
+              id: 'dummy',
+              name: "Welcome Bonus",
+              time: "Just now",
+              amount: "+₹50.00",
+              type: "Credited",
+              tag: "Reward",
+              tagIcon: "featured_seasonal_and_gifts",
+              icon: "card_giftcard",
+              from: "ZeeBac"
+            });
+          }
+          setTransactions(formatted);
+        }
+
+        // Format for "Cashback Audits" tab (wallet ledger)
+        if (walletRes.success) {
+          // The wallet ledger represents wallet specific events like crediting/debiting
+          // which directly affect the wallet balance.
+          setRequests(walletRes.data.ledger || []);
+        }
+      } catch (err) {
+        console.error('Failed to load passbook', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, [currentUser]);
 
   const getStatusBadge = (status) => {
     switch (status) {
       case 'Approved':
-        return <span className="bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Approved</span>;
+      case 'Completed':
+      case 'Success':
+        return <span className="bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Completed</span>;
       case 'Rejected':
-        return <span className="bg-red-100 text-red-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Rejected</span>;
+      case 'Failed':
+        return <span className="bg-red-100 text-red-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Failed</span>;
       default:
         return <span className="bg-amber-100 text-amber-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Pending</span>;
     }
@@ -158,7 +180,11 @@ export default function WalletPassbookScreen() {
           </button>
         </div>
 
-        {activeTab === 'Transactions' ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          </div>
+        ) : activeTab === 'Transactions' ? (
           <div className="mt-2">
             {/* Month Header */}
             <div className="bg-primary/5 flex justify-between items-center py-1.5 px-2.5 rounded-lg mx-1 mb-1.5">
@@ -216,38 +242,33 @@ export default function WalletPassbookScreen() {
         ) : (
           <div className="space-y-3 mt-4 mx-1">
             {requests.length > 0 ? (
-                requests.map((req) => (
-                  <div 
-                    key={req.id}
-                    onClick={() => navigate(`/request/${req.id}`)}
-                    className="bg-white rounded-2xl p-4 border border-outline-variant/30 flex flex-col gap-sm shadow-sm hover:shadow-md cursor-pointer transition-all active:scale-[0.99]"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="text-left space-y-0.5">
-                        <h4 className="font-title-md text-[#1A202C] font-extrabold text-body-lg leading-tight">{req.vendorName}</h4>
-                        <p className="font-label-mono text-[11px] text-outline">ID: {req.id}</p>
-                      </div>
-                      {getStatusBadge(req.status)}
+              requests.map((req) => (
+                <div key={req._id || req.id} className="bg-white border border-outline-variant/30 rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-title-md font-bold text-on-surface">{req.description || req.vendorName || 'Wallet Entry'}</p>
+                      <p className="text-caption text-on-surface-variant flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">schedule</span>
+                        {new Date(req.createdAt || req.timestamp).toLocaleString()}
+                      </p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-sm pt-xs border-t border-outline-variant/10 text-body-sm text-on-surface-variant">
-                      <div>
-                        <p className="font-caption text-[10px] uppercase">Bill Amount</p>
-                        <p className="font-bold text-[#1A202C]">₹{req.amount}</p>
-                      </div>
-                      <div>
-                        <p className="font-caption text-[10px] uppercase text-secondary font-bold">Est. Cashback</p>
-                        <p className="font-bold text-secondary">₹{req.cashbackAmount}</p>
-                      </div>
-                    </div>
+                    {getStatusBadge(req.status || 'Completed')}
                   </div>
-                ))
-              ) : (
-                <div className="py-10 text-center space-y-2 opacity-60">
-                  <span className="material-symbols-outlined text-[32px]">receipt_long</span>
-                  <p className="text-sm font-bold">No audits found</p>
+                  
+                  <div className="flex justify-between items-center pt-2 border-t border-outline-variant/10 mt-1">
+                    <p className="text-caption text-on-surface-variant">Amount: <span className="font-bold text-on-surface">₹{req.amount}</span></p>
+                    <p className="text-caption text-on-surface-variant flex items-center gap-1">
+                      Ref: <span className="font-mono text-[10px] bg-surface-container px-1 py-0.5 rounded">{req.transactionId?.slice(-6) || req.id?.slice(0,6) || 'XXXXXX'}</span>
+                    </p>
+                  </div>
                 </div>
-              )}
+              ))
+            ) : (
+              <div className="py-10 text-center space-y-2 opacity-60">
+                <span className="material-symbols-outlined text-[32px]">receipt_long</span>
+                <p className="text-sm font-bold">No audits found</p>
+              </div>
+            )}
           </div>
         )}
       </main>

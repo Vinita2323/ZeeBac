@@ -1,10 +1,26 @@
-export default function ShopTab() {
-  const products = [
-    { id: 1, name: "Signature Dress", price: "₹2,499", category: "Bestsellers", img: "https://images.unsplash.com/photo-1539008835657-9e8e9680c956?auto=format&fit=crop&w=300&q=80" },
-    { id: 2, name: "Leather Tote", price: "₹3,999", category: "Bestsellers", img: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&w=300&q=80" },
-    { id: 3, name: "Classic Blazer", price: "₹4,500", category: "New Arrivals", img: "https://images.unsplash.com/photo-1591369822096-bbcdd8dc4500?auto=format&fit=crop&w=300&q=80" },
-    { id: 4, name: "Silk Scarf", price: "₹999", category: "Accessories", img: "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=300&q=80" },
-  ];
+import { useState, useEffect } from 'react';
+import { UserAPI, API_BASE_URL } from '../../../../services/api';
+
+export default function ShopTab({ vendor }) {
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!vendor?._id) return;
+      try {
+        const res = await UserAPI.getVendorProducts(vendor._id);
+        if (res.success) {
+          setProducts(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load products', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProducts();
+  }, [vendor?._id]);
 
   return (
     <div className="space-y-lg animate-reveal">
@@ -36,19 +52,44 @@ export default function ShopTab() {
 
       {/* Product List */}
       <div>
-        <h3 className="font-display text-title-md font-extrabold text-on-surface mb-4">All Products</h3>
-        <div className="space-y-4">
-          {products.map(product => (
-            <div key={product.id} className="flex gap-4 p-3 bg-white rounded-2xl border border-outline-variant/10 shadow-sm relative">
-              <img src={product.img} alt={product.name} className="w-24 h-24 object-cover rounded-xl bg-surface-container" />
-              <div className="flex-1 py-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{product.category}</span>
-                <p className="text-[15px] font-bold text-on-surface leading-tight mt-0.5">{product.name}</p>
-                <p className="text-[14px] text-primary font-black mt-2">{product.price}</p>
+        <h3 className="font-display font-black text-title-md text-on-surface">Store Items</h3>
+        
+        {isLoading ? (
+          <div className="flex justify-center items-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          </div>
+        ) : products.length > 0 ? (
+          <div className="grid grid-cols-2 gap-md">
+            {products.map((product) => (
+              <div key={product._id} className="group">
+                <div className="aspect-[4/5] rounded-2xl overflow-hidden mb-2 relative">
+                  {product.image ? (
+                    <img src={product.image.startsWith('http') ? product.image : `${API_BASE_URL}${product.image}`} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ) : (
+                    <div className="w-full h-full bg-surface-variant flex items-center justify-center">
+                      <span className="material-symbols-outlined text-outline text-[40px]">inventory_2</span>
+                    </div>
+                  )}
+                  {product.stock <= 5 && product.stock > 0 && (
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      Only {product.stock} left
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="font-caption text-[11px] uppercase text-on-surface-variant">{product.category || 'General'}</p>
+                  <p className="font-title-md font-bold text-on-surface text-body-md truncate">{product.name}</p>
+                  <p className="font-bold text-primary">₹{product.price}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 text-center opacity-60">
+            <span className="material-symbols-outlined text-[48px]">inventory_2</span>
+            <p className="font-bold mt-2">No products added yet.</p>
+          </div>
+        )}
       </div>
 
     </div>

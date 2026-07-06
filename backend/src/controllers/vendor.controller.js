@@ -5,6 +5,8 @@ import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import Transaction from '../models/Transaction.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
+import CashbackRequest from '../models/CashbackRequest.js';
+import Referral from '../models/Referral.js';
 import logger from '../utils/logger.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
@@ -39,7 +41,8 @@ export const updateProfile = async (req, res) => {
       description, 
       socialLinks, 
       bankDetails,
-      address
+      address,
+      operatingHours
     } = req.body;
 
     const vendor = await Vendor.findById(req.user.id);
@@ -47,7 +50,8 @@ export const updateProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
-    if (description) vendor.description = description;
+    if (description !== undefined) vendor.description = description;
+    if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
     
     if (socialLinks) {
       vendor.socialLinks = { ...vendor.socialLinks, ...socialLinks };
@@ -59,9 +63,11 @@ export const updateProfile = async (req, res) => {
       if (bankDetails.upiId !== undefined) vendor.bankDetails.upiId = bankDetails.upiId;
     }
 
-    if (address) {
-      // Assuming they might want to update location
-      vendor.address = { ...vendor.address, ...address };
+    if (address && typeof address === 'object') {
+      if (!vendor.address) vendor.address = {};
+      for (const key in address) {
+        vendor.address[key] = address[key];
+      }
     }
 
     await vendor.save();
@@ -464,6 +470,51 @@ export const logPurchase = async (req, res) => {
       vendorName: vendor.storeName
     });
 
+    // 5. Referral Logic: Check if this is customer's first transaction
+    if (customer.referredBy) {
+      const txnCount = await Transaction.countDocuments({ customerId: customer._id });
+      if (txnCount === 1) {
+        // First transaction, reward the referrer
+        const referral = await Referral.findOne({ referredUserId: customer._id, status: 'Signed Up' });
+        if (referral) {
+          const rewardAmount = referral.rewardAmount || 150;
+
+          // Find referrer's wallet
+          let referrerWallet = await Wallet.findOne({ ownerId: referral.referrerId, ownerType: 'User' });
+          if (!referrerWallet) {
+            referrerWallet = await Wallet.create({ ownerId: referral.referrerId, ownerType: 'User' });
+          }
+
+          // Credit referrer
+          const refPrevBalance = referrerWallet.balance || 0;
+          const refNewBalance = refPrevBalance + rewardAmount;
+          await Wallet.findByIdAndUpdate(referrerWallet._id, { balance: refNewBalance });
+
+          // Create ledger entry
+          await WalletTransaction.create({
+            walletId: referrerWallet._id,
+            ownerId: referral.referrerId,
+            ownerType: 'User',
+            type: 'credit',
+            category: 'referral_bonus',
+            amount: rewardAmount,
+            balanceAfter: refNewBalance,
+            referenceId: referral._id,
+            referenceType: 'Referral',
+            description: `Referral bonus for inviting ${customer.name}`,
+          });
+
+          // Update Referral doc
+          referral.status = 'Converted';
+          referral.rewardStatus = 'Credited';
+          referral.rewardCreditedAt = new Date();
+          await referral.save();
+
+          logger.info(`[Referral] Awarded ₹${rewardAmount} to user ${referral.referrerId} for referring ${customer._id} (Vendor Initiated)`);
+        }
+      }
+    }
+
     logger.info(`[vendor.controller] Purchase logged: ${tx.transactionId} by Vendor: ${vendor.storeName} for Customer: ${customer.name}`);
     res.status(201).json({ success: true, message: 'Purchase logged and cashback sent successfully', data: tx });
 
@@ -580,6 +631,102 @@ export const verifyRazorpayPayment = async (req, res) => {
   } catch (error) {
     logger.error(`Error in verifyRazorpayPayment: ${error.message}`);
     res.status(500).json({ success: false, message: 'Verification Failed', error: error.message });
+  }
+};
+
+// ─── Phase 4E: Cashback Requests Approvals ───
+
+export const getPendingRequests = async (req, res) => {
+  try {
+    const requests = await CashbackRequest.find({
+      vendorId: req.user.id,
+      status: 'Pending'
+    }).populate('customerId', 'name phone').sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: requests });
+  } catch (error) {
+    logger.error(`getPendingRequests error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const respondToCashbackRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'Approve' or 'Reject'
+
+    const request = await CashbackRequest.findOne({ _id: id, vendorId: req.user.id }).populate('customerId');
+    if (!request) return res.status(404).json({ success: false, message: 'Request not found' });
+    if (request.status !== 'Pending') return res.status(400).json({ success: false, message: 'Already processed' });
+
+    if (action === 'Reject') {
+      request.status = 'Rejected';
+      await request.save();
+      return res.status(200).json({ success: true, message: 'Request rejected' });
+    }
+
+    if (action === 'Approve') {
+      const vendor = await Vendor.findById(req.user.id);
+      const customer = request.customerId;
+
+      // Calculate cashback
+      const amount = request.amount;
+      const cashbackAmount = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
+
+      // Ensure vendor has enough balance
+      let vendorWallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
+      if ((vendorWallet.balance || 0) < cashbackAmount) {
+        return res.status(400).json({ success: false, message: 'Insufficient wallet balance for cashback' });
+      }
+
+      // 1. Create Transaction
+      const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const txn = await Transaction.create({
+        transactionId, customerId: customer._id, customerZeebacId: customer.zeebacId,
+        customerPhone: customer.phone, customerName: customer.name,
+        vendorId: vendor._id, vendorZeebacId: vendor.zeebacId,
+        vendorName: vendor.storeName, vendorPhone: vendor.phone,
+        vendorCategory: vendor.category, type: 'receipt_claim',
+        initiatedBy: 'customer', source: 'customer_request',
+        amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
+        cashbackAmount, paymentMethod: 'Other', status: 'Approved',
+        hasReceipt: true, receiptUrl: request.billImageUrl
+      });
+
+      // 2. Debit Vendor Wallet
+      const vPrevBalance = vendorWallet.balance || 0;
+      const vNewBalance = vPrevBalance - cashbackAmount;
+      await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vNewBalance });
+      await WalletTransaction.create({
+        walletId: vendorWallet._id, ownerId: vendor._id, ownerType: 'Vendor',
+        type: 'debit', category: 'cashback', amount: cashbackAmount, balanceAfter: vNewBalance,
+        referenceId: txn._id, referenceType: 'Transaction',
+        description: `Approved Cashback for ${customer.name}`
+      });
+
+      // 3. Credit Customer Wallet
+      let customerWallet = await getOrCreateWallet(customer._id, 'User', customer.zeebacId);
+      const cNewBalance = (customerWallet.balance || 0) + cashbackAmount;
+      await Wallet.findByIdAndUpdate(customerWallet._id, { balance: cNewBalance });
+      await WalletTransaction.create({
+        walletId: customerWallet._id, ownerId: customer._id, ownerType: 'User',
+        type: 'credit', category: 'cashback', amount: cashbackAmount, balanceAfter: cNewBalance,
+        referenceId: txn._id, referenceType: 'Transaction',
+        description: `Cashback approved from ${vendor.storeName}`
+      });
+
+      // 4. Update stats and request status
+      await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } });
+      request.status = 'Approved';
+      await request.save();
+
+      return res.status(200).json({ success: true, message: 'Request approved successfully' });
+    }
+
+    res.status(400).json({ success: false, message: 'Invalid action' });
+  } catch (error) {
+    logger.error(`respondToCashbackRequest error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 

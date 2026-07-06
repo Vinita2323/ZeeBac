@@ -1,11 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const VENDORS_LIST = [
-  { id: "ZB-VND-001", name: "Noir Concept Store", cashbackRate: 0.15 },
-  { id: "ZB-VND-002", name: "Fresh Foods Organic", cashbackRate: 0.08 },
-  { id: "ZB-VND-003", name: "L'Artusi Restaurant", cashbackRate: 0.10 }
-];
+import { UserAPI } from '../../../services/api';
 
 export default function RequestCashbackScreen() {
   const navigate = useNavigate();
@@ -13,6 +8,8 @@ export default function RequestCashbackScreen() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [vendorsList, setVendorsList] = useState([]);
+  const [isLoadingSubmit, setIsLoadingSubmit] = useState(false);
 
   // Form State
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -31,9 +28,33 @@ export default function RequestCashbackScreen() {
 
   const fileInputRef = useRef(null);
 
+  // Fetch vendors for dropdown
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        const res = await UserAPI.searchVendors(searchQuery);
+        if (res.success) {
+          setVendorsList(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to search vendors', err);
+      }
+    };
+    if (searchQuery.length > 0 && showDropdown) {
+      const timer = setTimeout(() => fetchVendors(), 300);
+      return () => clearTimeout(timer);
+    } else if (searchQuery === '' && showDropdown) {
+      fetchVendors();
+    }
+  }, [searchQuery, showDropdown]);
+
   const handleVendorSelect = (vendor) => {
-    setSelectedVendor(vendor);
-    setSearchQuery(vendor.name);
+    setSelectedVendor({
+      id: vendor._id,
+      name: vendor.storeName,
+      cashbackRate: vendor.cashbackRate / 100 // assuming backend returns percentage like 15
+    });
+    setSearchQuery(vendor.storeName);
     setShowDropdown(false);
     setErrorMsg('');
   };
@@ -104,47 +125,35 @@ export default function RequestCashbackScreen() {
     setStep(step - 1);
   };
 
-  const handleSubmit = () => {
-    const reqId = `CR-${Math.floor(100000 + Math.random() * 900000)}`;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const dateTimeStr = `${formattedDate} • ${formattedTime}`;
+  const handleSubmit = async () => {
+    setIsLoadingSubmit(true);
+    try {
+      const res = await UserAPI.createCashbackRequest({
+        vendorId: selectedVendor.id,
+        amount: parseFloat(billAmount),
+        billImageUrl: uploadedFilePreview === 'pdf-placeholder' ? null : uploadedFilePreview,
+        description: description || 'Manual Cashback Request'
+      });
 
-    const newRequest = {
-      id: reqId,
-      vendorName: selectedVendor.name,
-      vendorId: selectedVendor.id,
-      amount: parseFloat(billAmount).toFixed(2),
-      cashbackAmount: (parseFloat(billAmount) * selectedVendor.cashbackRate).toFixed(2),
-      date: purchaseDate,
-      paymentMethod,
-      description,
-      status: 'Pending',
-      submittedAt: dateTimeStr,
-      billImg: uploadedFilePreview === 'pdf-placeholder' ? null : uploadedFilePreview,
-      timeline: [
-        { name: "Draft", completed: true, date: dateTimeStr },
-        { name: "Submitted", completed: true, date: dateTimeStr },
-        { name: "Pending Vendor Approval", completed: true, date: dateTimeStr },
-        { name: "Under Verification", completed: false },
-        { name: "Approved / Rejected", completed: false },
-        { name: "Wallet Credited", completed: false }
-      ]
-    };
-
-    // Save to LocalStorage
-    const existing = JSON.parse(localStorage.getItem('cashback_requests')) || [];
-    localStorage.setItem('cashback_requests', JSON.stringify([newRequest, ...existing]));
-
-    setSubmittedRequestId(reqId);
-    setSubmittedDateTime(dateTimeStr);
-    setIsSuccess(true);
+      if (res.success) {
+        const reqId = res.data._id;
+        const now = new Date(res.data.createdAt);
+        const dateTimeStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        setSubmittedRequestId(reqId);
+        setSubmittedDateTime(dateTimeStr);
+        setIsSuccess(true);
+      } else {
+        setErrorMsg('Failed to submit request.');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Error submitting request. Please try again.');
+    } finally {
+      setIsLoadingSubmit(false);
+    }
   };
 
-  const filteredVendors = VENDORS_LIST.filter(v => 
-    v.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredVendors = vendorsList;
 
   if (isSuccess) {
     return (
@@ -288,13 +297,13 @@ export default function RequestCashbackScreen() {
                   <div className="absolute left-0 right-0 mt-xs bg-white border border-outline-variant/30 rounded-xl shadow-xl z-50 overflow-hidden">
                     {filteredVendors.map(vendor => (
                       <div 
-                        key={vendor.id}
+                        key={vendor._id}
                         onClick={() => handleVendorSelect(vendor)}
                         className="px-md py-sm hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b border-outline-variant/10 last:border-none"
                       >
                         <div>
-                          <p className="font-title-md text-on-surface text-body-lg font-bold">{vendor.name}</p>
-                          <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-wider">ID: {vendor.id}</p>
+                          <p className="font-title-md text-on-surface text-body-lg font-bold">{vendor.storeName}</p>
+                          <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-wider">ID: {vendor._id}</p>
                         </div>
                         <span className="bg-primary/10 text-primary font-label-mono text-[10px] px-2 py-0.5 rounded-full font-bold">
                           {vendor.cashbackRate * 100}% BACK

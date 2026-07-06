@@ -155,6 +155,11 @@ export const AdminAPI = {
     const res = await apiClient.patch(`/admin/users/${id}/unsuspend`);
     return res.data;
   },
+  // Phase 8
+  getReferralStats: async () => {
+    const res = await apiClient.get('/admin/referrals/stats');
+    return res.data;
+  },
 };
 
 // ── Vendor Service ──
@@ -220,6 +225,14 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/wallet');
     return res.data;
   },
+  getPendingRequests: async () => {
+    const res = await apiClient.get('/vendor/requests/pending');
+    return res.data;
+  },
+  respondToRequest: async (requestId, action) => {
+    const res = await apiClient.post(`/vendor/requests/${requestId}/respond`, { action });
+    return res.data;
+  },
   createRazorpayOrder: async (amount) => {
     const res = await apiClient.post('/vendor/wallet/create-order', { amount });
     return res.data;
@@ -237,10 +250,11 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/customers/list');
     return res.data;
   },
-  requestWithdrawal: async (amount) => {
-    const res = await apiClient.post('/vendor/wallet/withdraw', { amount });
-    return res.data;
-  }
+  requestWithdrawal: (amount) => handleRequest(api.post('/vendor/wallet/withdraw', { amount })),
+  
+  // Reviews
+  getMyReviews: () => handleRequest(api.get('/vendor/reviews')),
+  replyToReview: (reviewId, text) => handleRequest(api.post(`/vendor/reviews/${reviewId}/reply`, { text })),
 };
 
 // ─── Customer API ───
@@ -270,6 +284,109 @@ export const UserAPI = {
   },
   verifyRazorpayAndCreateTransaction: async (data) => {
     const res = await apiClient.post('/user/transactions/razorpay/verify', data);
+    return res.data;
+  },
+  // Phase 4C: Vendor Discovery
+  getNearbyVendors: async (lat, lng, radius = 10000) => {
+    const res = await apiClient.get(`/user/vendors/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
+    return res.data;
+  },
+  getRecentVendors: async () => {
+    const res = await apiClient.get('/user/recent-vendors');
+    return res.data;
+  },
+  searchVendors: async (q) => {
+    const res = await apiClient.get(`/user/vendors/search?q=${encodeURIComponent(q)}`);
+    return res.data;
+  },
+  getVendorsByCategory: async (name) => {
+    const res = await apiClient.get(`/user/vendors/category/${encodeURIComponent(name)}`);
+    return res.data;
+  },
+  getVendorDetails: async (query) => {
+    const res = await apiClient.get(`/user/vendors/${encodeURIComponent(query)}`);
+    return res.data;
+  },
+  toggleFavorite: async (vendorId) => {
+    const res = await apiClient.post(`/user/favorites/${vendorId}`);
+    return res.data;
+  },
+  getFavorites: async () => {
+    const res = await apiClient.get('/user/favorites');
+    return res.data;
+  },
+  // Phase 4D: Wallet & Passbook
+  getMyWallet: async () => {
+    const res = await apiClient.get('/user/wallet');
+    return res.data;
+  },
+  getMyTransactions: async () => {
+    const res = await apiClient.get('/user/transactions');
+    return res.data;
+  },
+  // Phase 4E
+  updateProfile: async (data) => {
+    const res = await apiClient.put('/user/me', data);
+    return res.data;
+  },
+  createCashbackRequest: async (data) => {
+    const res = await apiClient.post('/user/cashback-requests', data);
+    return res.data;
+  },
+  getMyCashbackRequests: async () => {
+    const res = await apiClient.get('/user/cashback-requests');
+    return res.data;
+  },
+  getCashbackRequestById: async (id) => {
+    const res = await apiClient.get(`/user/cashback-requests/${id}`);
+    return res.data;
+  },
+  getVendorProducts: async (vendorId) => {
+    const res = await apiClient.get(`/user/vendors/${vendorId}/products`);
+    return res.data;
+  },
+  // Reviews
+  getVendorReviews: async (vendorId) => {
+    const res = await apiClient.get(`/user/vendors/${vendorId}/reviews`);
+    return res.data;
+  },
+  createReview: async (vendorId, data) => {
+    const res = await apiClient.post(`/user/vendors/${vendorId}/reviews`, data);
+    return res.data;
+  },
+  deleteReview: async (vendorId) => {
+    const res = await apiClient.delete(`/user/vendors/${vendorId}/reviews`);
+    return res.data;
+  },
+  // Referrals
+  getMyReferrals: async () => {
+    const res = await apiClient.get('/user/referrals');
+    return res.data;
+  }
+};
+
+export const ChatAPI = {
+  getConversations: async () => {
+    const res = await apiClient.get('/chat/conversations');
+    return res.data;
+  },
+  getOrCreateConversation: async (data) => {
+    // data: { vendorId } for customer, { customerId } for vendor
+    const res = await apiClient.post('/chat/conversations', data);
+    return res.data;
+  },
+  getMessages: async (conversationId, page = 1) => {
+    const res = await apiClient.get(`/chat/conversations/${conversationId}/messages?page=${page}&limit=50`);
+    return res.data;
+  },
+  uploadChatImage: async (file) => {
+    const formData = new FormData();
+    formData.append('chatImage', file);
+    const res = await apiClient.post('/chat/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return res.data;
   }
 };

@@ -42,9 +42,15 @@ const vendorSchema = new mongoose.Schema(
       city: { type: String, required: true },
       state: { type: String, required: true },
       pincode: { type: String, required: true },
+    },
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
       coordinates: {
-        latitude: Number,
-        longitude: Number,
+        type: [Number], // [longitude, latitude]
       }
     },
     bankDetails: {
@@ -101,6 +107,13 @@ const vendorSchema = new mongoose.Schema(
     profilePic: {
       type: String, // Store logo URL
     },
+    operatingHours: {
+      type: String,
+      default: "Open Daily: 09:00 AM - 10:00 PM",
+    },
+    storeLogo: {
+      type: String, // S3 URL or file ref
+    },
     status: {
       type: String,
       enum: ['Pending', 'Verified', 'Rejected', 'Suspended'],
@@ -132,6 +145,8 @@ const vendorSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+vendorSchema.index({ location: "2dsphere" });
 
 const Vendor = mongoose.model('Vendor', vendorSchema);
 export default Vendor;
