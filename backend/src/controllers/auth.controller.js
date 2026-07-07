@@ -14,8 +14,9 @@ export const sendOtp = async (req, res) => {
     if (!phone) return res.status(400).json({ message: 'Phone is required' });
 
     // Generate random 4-digit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    logger.info(`[DEV OTP] for ${phone} (${role}): ${otp}`);
+    /*const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    logger.info(`[DEV OTP] for ${phone} (${role}): ${otp}`);*/
+    const otp = "1234";
 
     const salt = await bcrypt.genSalt(10);
     const otpHash = await bcrypt.hash(otp, salt);
@@ -70,7 +71,7 @@ export const customerLogin = async (req, res) => {
     }
 
     const tokens = sendTokens(res, user);
-    
+
     // Save refresh token to DB
     user.refreshToken = tokens.refreshToken;
     await user.save();
@@ -113,7 +114,7 @@ export const vendorLogin = async (req, res) => {
     }
 
     const tokens = sendTokens(res, vendor);
-    
+
     vendor.refreshToken = tokens.refreshToken;
     await vendor.save();
 
@@ -140,7 +141,7 @@ export const vendorLogin = async (req, res) => {
 export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
@@ -159,7 +160,7 @@ export const adminLogin = async (req, res) => {
     }
 
     const tokens = sendTokens(res, admin);
-    
+
     admin.refreshToken = tokens.refreshToken;
     admin.lastLoginAt = new Date();
     await admin.save();
@@ -190,7 +191,7 @@ export const refreshAccessToken = async (req, res) => {
 
     // Verify token
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    
+
     // Check if user still exists and token matches
     let account = await User.findById(decoded.id);
     if (!account) account = await Vendor.findById(decoded.id);
@@ -240,7 +241,7 @@ export const getMe = async (req, res) => {
   try {
     const { id, role } = req.user;
     let data;
-    
+
     if (role === 'customer') {
       data = await User.findById(id).select('-refreshToken');
     } else if (role === 'vendor') {
