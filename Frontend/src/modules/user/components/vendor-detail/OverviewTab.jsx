@@ -5,6 +5,7 @@ import { UserAPI, API_BASE_URL, ChatAPI } from '../../../../services/api';
 export default function OverviewTab({ vendor }) {
   const navigate = useNavigate();
   const [highlights, setHighlights] = useState([]);
+  const [promotions, setPromotions] = useState([]);
 
   useEffect(() => {
     const fetchHighlights = async () => {
@@ -19,7 +20,21 @@ export default function OverviewTab({ vendor }) {
         console.error('Failed to load highlights', err);
       }
     };
+    
+    const fetchPromotions = async () => {
+      if (!vendor?._id) return;
+      try {
+        const res = await UserAPI.getVendorPromotions(vendor._id);
+        if (res.success) {
+          setPromotions(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load promotions', err);
+      }
+    };
+
     fetchHighlights();
+    fetchPromotions();
   }, [vendor?._id]);
 
   const handleMessageVendor = async () => {
@@ -55,6 +70,31 @@ export default function OverviewTab({ vendor }) {
           <span>{vendor.operatingHours || "Open Daily: 09:00 AM - 10:00 PM"}</span>
         </div>
       </div>
+
+      {/* Active Offers */}
+      {promotions.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <h3 className="font-display text-title-md font-extrabold text-on-surface">Active Offers</h3>
+          <div className="space-y-2">
+            {promotions.map(promo => {
+              const isPercent = promo.type === 'percent';
+              return (
+                <div key={promo._id} className="p-3 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary`}>
+                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {isPercent ? 'percent' : 'redeem'}
+                    </span>
+                  </div>
+                  <div className="text-left space-y-0.5 flex-1 pr-2">
+                    <p className="font-title-md font-extrabold text-[13px] leading-snug text-primary">{promo.title}</p>
+                    <p className="font-caption text-[11px] text-on-surface-variant leading-tight">{promo.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Highlights Carousel */}
       <div className="space-y-3 pt-2">

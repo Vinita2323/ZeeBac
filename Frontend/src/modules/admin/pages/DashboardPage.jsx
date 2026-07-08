@@ -3,15 +3,23 @@ import { AdminAPI } from '../../../services/api';
 
 export default function DashboardPage() {
   const [data, setData] = useState(null);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [revenueChart, setRevenueChart] = useState({ labels: [], amounts: [] });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await AdminAPI.getDashboardStats();
-        setData(res.data);
+        const [statsRes, txRes, revenueRes] = await Promise.all([
+          AdminAPI.getDashboardStats(),
+          AdminAPI.getAllTransactions(1, '', ''),
+          AdminAPI.getRevenueAnalytics()
+        ]);
+        setData(statsRes.data);
+        setRecentTransactions(txRes.data?.slice(0, 5) || []);
+        if (revenueRes.success) setRevenueChart(revenueRes.data);
       } catch (error) {
-        console.error("Failed to fetch stats", error);
+        console.error("Failed to fetch dashboard data", error);
       } finally {
         setIsLoading(false);
       }
@@ -28,16 +36,6 @@ export default function DashboardPage() {
 
   const pendingVendors = []; // We can fetch recent pending vendors if needed later
 
-
-  const recentTransactions = [
-    { id: 'TX-9204', customer: 'Amit K.', vendor: 'Noir Concept', amount: '₹4,500', status: 'Approved' },
-    { id: 'TX-9205', customer: 'Priya S.', vendor: 'Fresh Mart', amount: '₹12,400', status: 'Flagged' },
-    { id: 'TX-9206', customer: 'Rahul M.', vendor: 'Tech Zone', amount: '₹850', status: 'Approved' },
-    { id: 'TX-9207', customer: 'Sneha P.', vendor: 'Daily Needs', amount: '₹150', status: 'Rejected' },
-    { id: 'TX-9208', customer: 'Vikram G.', vendor: 'Style Icon', amount: '₹2,100', status: 'Approved' },
-  ];
-
-  const chartData = [40, 65, 45, 80, 55, 90, 75]; // Mock volume data
 
 
 
@@ -74,17 +72,22 @@ export default function DashboardPage() {
           </div>
           
           <div className="h-44 flex items-end justify-between gap-4 pb-2 px-2">
-            {chartData.map((val, idx) => (
-              <div key={idx} className="w-full max-w-[40px] relative group flex flex-col items-center justify-end h-full">
-                <div 
-                  className="w-full bg-primary/80 rounded-t-md transition-all duration-300 group-hover:bg-primary group-hover:shadow-[0_0_12px_rgba(98,0,234,0.3)]"
-                  style={{ height: `${val}%` }}
-                ></div>
-                <div className="absolute bottom-[-22px] text-[10px] text-on-surface-variant font-medium">
-                  {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][idx]}
+            {revenueChart.amounts.map((val, idx) => {
+              const maxVal = Math.max(...revenueChart.amounts, 1);
+              const heightPercent = (val / maxVal) * 100;
+              return (
+                <div key={idx} className="w-full max-w-[40px] relative group flex flex-col items-center justify-end h-full">
+                  <div 
+                    className="w-full bg-primary/80 rounded-t-md transition-all duration-300 group-hover:bg-primary group-hover:shadow-[0_0_12px_rgba(98,0,234,0.3)]"
+                    style={{ height: `${heightPercent}%` }}
+                    title={`₹${val.toLocaleString()}`}
+                  ></div>
+                  <div className="absolute bottom-[-22px] text-[10px] text-on-surface-variant font-medium">
+                    {revenueChart.labels[idx]}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -130,22 +133,28 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentTransactions.map((tx, idx) => (
-                  <tr key={idx} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[12px]">
-                    <td className="px-4 py-3 font-bold text-on-surface">{tx.customer}</td>
-                    <td className="px-4 py-3 text-on-surface-variant">{tx.vendor}</td>
-                    <td className="px-4 py-3 font-bold text-on-surface text-right">{tx.amount}</td>
+                {recentTransactions.map((tx) => (
+                  <tr key={tx._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[12px]">
+                    <td className="px-4 py-3 font-bold text-on-surface">{tx.customerName}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{tx.vendorName}</td>
+                    <td className="px-4 py-3 font-bold text-on-surface text-right">₹{tx.amount.toLocaleString()}</td>
                     <td className="px-4 py-3 flex justify-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide
                         ${tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' : ''}
                         ${tx.status === 'Flagged' ? 'bg-red-500/10 text-red-600 animate-pulse' : ''}
                         ${tx.status === 'Rejected' ? 'bg-outline-variant/20 text-on-surface-variant' : ''}
+                        ${tx.status === 'Pending' ? 'bg-orange-500/10 text-orange-600' : ''}
                       `}>
                         {tx.status}
                       </span>
                     </td>
                   </tr>
                 ))}
+                {recentTransactions.length === 0 && (
+                  <tr>
+                    <td colSpan="4" className="text-center py-4 text-on-surface-variant text-xs">No recent transactions</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

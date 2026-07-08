@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import { AdminAPI } from '../../../services/api';
 
 export default function UsersPage() {
-  const [search, setSearch] = useState('');
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialSearch = queryParams.get('search') || '';
+
+  const [search, setSearch] = useState(initialSearch);
   const [sortBy, setSortBy] = useState('name_asc');
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -32,7 +40,10 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    const timer = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+    return () => clearTimeout(timer);
   }, [page, search]);
 
   const handleToggleStatus = async (user) => {
@@ -48,10 +59,7 @@ export default function UsersPage() {
     }
   };
 
-  let displayedUsers = [...users].filter(u => 
-    u.name.toLowerCase().includes(search.toLowerCase()) || 
-    u.phone.includes(search)
-  );
+  let displayedUsers = [...users];
 
   displayedUsers.sort((a, b) => {
     if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
@@ -135,7 +143,10 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="p-4 flex justify-center gap-2">
-                    <button className="px-3 py-1 bg-primary/10 text-primary font-bold text-[12px] rounded-lg hover:bg-primary hover:text-white transition-colors cursor-pointer">
+                    <button 
+                      onClick={() => { setSelectedUser(user); setIsDetailsModalOpen(true); }}
+                      className="px-3 py-1 bg-primary/10 text-primary font-bold text-[12px] rounded-lg hover:bg-primary hover:text-white transition-colors cursor-pointer"
+                    >
                       View
                     </button>
                     <button 
@@ -173,6 +184,61 @@ export default function UsersPage() {
           </div>
         </div>
       </div>
+      {isDetailsModalOpen && selectedUser && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsDetailsModalOpen(false)}>
+          <div style={{ width: '100%', maxWidth: '440px' }} className="bg-white rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+              <h2 className="text-[20px] font-black text-on-surface">User Details</h2>
+              <button onClick={() => setIsDetailsModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4 border-b border-outline-variant/10 pb-4">
+                <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[24px] font-bold">
+                  {selectedUser.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-[17px] font-bold text-on-surface">{selectedUser.name}</h3>
+                  <p className="text-[13px] text-on-surface-variant font-mono mt-1">{selectedUser.id}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-on-surface-variant">Phone Number</p>
+                  <p className="text-[14px] font-medium text-on-surface mt-1">{selectedUser.phone}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-on-surface-variant">Status</p>
+                  <span className={`inline-block mt-1 px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide
+                    ${selectedUser.status === 'Active' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}
+                  `}>
+                    {selectedUser.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-on-surface-variant">Aadhaar (KYC)</p>
+                  <p className="text-[14px] font-medium text-on-surface mt-1">{selectedUser.aadhaar}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-on-surface-variant">Joined Date</p>
+                  <p className="text-[14px] font-medium text-on-surface mt-1">{selectedUser.joined}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-outline-variant/10 flex justify-end">
+              <button 
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="px-6 py-2 rounded-xl font-bold text-[14px] text-on-surface-variant hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

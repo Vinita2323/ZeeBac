@@ -1,46 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
 
 export default function WalletMonitorPage() {
   const [activeTab, setActiveTab] = useState('All');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [walletStats, setWalletStats] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ totalPages: 1 });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await AdminAPI.getWalletStats();
+        if (res.success) setWalletStats(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        setIsLoading(true);
+        const res = await AdminAPI.getAllWalletTransactions(page, activeTab, search, sortBy);
+        if (res.success) {
+          setTransactions(res.data);
+          setMeta(res.meta);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      fetchTransactions();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [page, activeTab, search, sortBy]);
 
   const stats = [
-    { label: 'Total Platform Float', value: '₹14.2M', icon: 'account_balance', color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Pending Payouts', value: '₹342K', icon: 'schedule', color: 'text-orange-500', bg: 'bg-orange-500/10' },
-    { label: 'Today\'s Credits', value: '₹125K', icon: 'arrow_downward', color: 'text-green-600', bg: 'bg-green-500/10' },
-    { label: 'Today\'s Debits', value: '₹45K', icon: 'arrow_upward', color: 'text-red-600', bg: 'bg-red-500/10' },
+    { label: 'Total Platform Float', value: `₹${(walletStats?.totalFloat || 0).toLocaleString()}`, icon: 'account_balance', color: 'text-primary', bg: 'bg-primary/10' },
+    { label: 'Pending Payouts', value: `₹${(walletStats?.pendingPayouts || 0).toLocaleString()}`, icon: 'schedule', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { label: 'Today\'s Credits', value: `₹${(walletStats?.todaysCredits || 0).toLocaleString()}`, icon: 'arrow_downward', color: 'text-green-600', bg: 'bg-green-500/10' },
+    { label: 'Today\'s Debits', value: `₹${(walletStats?.todaysDebits || 0).toLocaleString()}`, icon: 'arrow_upward', color: 'text-red-600', bg: 'bg-red-500/10' },
   ];
-
-
-  const movements = [
-    { id: 'W-001', type: 'Credit', amount: '₹12,400', user: 'Fresh Mart', description: 'Vendor Wallet Top-up', time: '10 mins ago' },
-    { id: 'W-002', type: 'Debit', amount: '₹4,500', user: 'Amit Kumar', description: 'Bank Withdrawal', time: '1 hour ago' },
-    { id: 'W-003', type: 'Credit', amount: '₹450', user: 'Noir Concept', description: 'Cashback Credit (From TX-9204)', time: '2 hours ago' },
-    { id: 'W-004', type: 'Debit', amount: '₹1,200', user: 'Priya Singh', description: 'Bank Withdrawal', time: '5 hours ago' },
-    { id: 'W-005', type: 'Credit', amount: '₹50,000', user: 'Tech Zone', description: 'Vendor Wallet Top-up', time: 'Yesterday' },
-  ];
-
-  let filteredMovements = movements.filter(m => 
-    (activeTab === 'All' || m.type === activeTab) &&
-    (m.user.toLowerCase().includes(search.toLowerCase()) || 
-     m.description.toLowerCase().includes(search.toLowerCase()) ||
-     m.id.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  filteredMovements.sort((a, b) => {
-    if (sortBy === 'amount_high') {
-      const valA = parseFloat(a.amount.replace(/[^0-9.-]+/g,""));
-      const valB = parseFloat(b.amount.replace(/[^0-9.-]+/g,""));
-      return valB - valA;
-    }
-    if (sortBy === 'amount_low') {
-      const valA = parseFloat(a.amount.replace(/[^0-9.-]+/g,""));
-      const valB = parseFloat(b.amount.replace(/[^0-9.-]+/g,""));
-      return valA - valB;
-    }
-    return 0; // default 'newest'
-  });
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -123,32 +134,66 @@ export default function WalletMonitorPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredMovements.map((move) => (
-                <tr key={move.id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">
+              {transactions.map((move) => (
+                <tr key={move._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${move.type === 'Credit' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${move.type === 'credit' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
                         <span className="material-symbols-outlined text-[16px]">
-                          {move.type === 'Credit' ? 'arrow_downward' : 'arrow_upward'}
+                          {move.type === 'credit' ? 'arrow_downward' : 'arrow_upward'}
                         </span>
                       </div>
                       <div>
-                        <p className="font-bold text-on-surface">{move.type}</p>
-                        <p className="font-mono text-[11px] text-on-surface-variant">{move.id}</p>
+                        <p className="font-bold text-on-surface capitalize">{move.type}</p>
+                        <p className="font-mono text-[11px] text-on-surface-variant">#{move._id.substring(18)}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="p-4 font-medium text-on-surface">{move.user}</td>
+                  <td className="p-4 font-medium text-on-surface">
+                    {move.ownerId ? (move.ownerId.storeName || move.ownerId.name) : 'Unknown'}
+                  </td>
                   <td className="p-4 text-on-surface-variant text-[13px]">{move.description}</td>
-                  <td className="p-4 text-on-surface-variant text-[12px]">{move.time}</td>
-                  <td className={`p-4 font-bold text-right ${move.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
-                    {move.type === 'Credit' ? '+' : '-'}{move.amount}
+                  <td className="p-4 text-on-surface-variant text-[12px]">{new Date(move.timestamp).toLocaleString()}</td>
+                  <td className={`p-4 font-bold text-right ${move.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                    {move.type === 'credit' ? '+' : '-'}₹{move.amount.toLocaleString()}
                   </td>
                 </tr>
               ))}
+              {transactions.length === 0 && !isLoading && (
+                <tr>
+                  <td colSpan="5" className="p-8 text-center text-on-surface-variant">
+                    No wallet movements found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {meta.totalPages > 1 && (
+          <div className="p-4 border-t border-outline-variant/10 flex justify-between items-center bg-white">
+            <span className="text-[13px] font-bold text-on-surface-variant">
+              Page {page} of {meta.totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border border-outline-variant/20 rounded-lg text-[13px] font-bold disabled:opacity-50 hover:bg-surface-container-low transition-colors"
+              >
+                Previous
+              </button>
+              <button 
+                onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                disabled={page === meta.totalPages}
+                className="px-4 py-2 border border-outline-variant/20 rounded-lg text-[13px] font-bold disabled:opacity-50 hover:bg-surface-container-low transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

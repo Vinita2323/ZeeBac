@@ -44,6 +44,27 @@ export const updateUserLocation = async (req, res) => {
   }
 };
 
+// ─── Update Linked Account ───
+export const updateLinkedAccount = async (req, res) => {
+  try {
+    const { upiId, bankName, accNo } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.bankDetails = {
+      upiId: upiId || '',
+      bankName: bankName || '',
+      accountNumber: accNo || '',
+    };
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'Linked account updated successfully', data: user.bankDetails });
+  } catch (error) {
+    logger.error(`updateLinkedAccount error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 // ─── Phase 4B: Core Payment Engine ───
 
 export const lookupVendorById = async (req, res) => {
@@ -385,18 +406,36 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
 // 1. Search vendors by name, category, or zeebacId
 export const searchVendors = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, lat, lng } = req.query;
     if (!q || !q.trim()) {
       return res.status(400).json({ success: false, message: 'Search query is required' });
     }
-    const vendors = await Vendor.find({
+    
+    const query = {
       status: 'Verified',
       $or: [
         { storeName: { $regex: q, $options: 'i' } },
         { category: { $regex: q, $options: 'i' } },
         { zeebacId: { $regex: q, $options: 'i' } }
       ]
-    }).select('storeName category cashbackRate address stats storeLogo profilePic zeebacId');
+    };
+
+    if (lat && lng) {
+      // Global search, but nearest first
+      query.location = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          }
+        }
+      };
+    }
+
+    const vendors = await Vendor.find(query)
+      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location')
+      .limit(50);
+      
     res.status(200).json({ success: true, data: vendors });
   } catch (error) {
     logger.error(`searchVendors error: ${error.message}`);
@@ -408,9 +447,28 @@ export const searchVendors = async (req, res) => {
 export const getVendorsByCategory = async (req, res) => {
   try {
     const { name } = req.params;
+    const { lat, lng } = req.query;
+    
     const query = name === 'All' ? {} : { category: name };
-    const vendors = await Vendor.find({ ...query, status: 'Verified' })
-      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId');
+    query.status = 'Verified';
+    
+    if (lat && lng) {
+      // 70km max radius for Explore (Nearby)
+      query.location = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: 50000 // 50 kilometers
+        }
+      };
+    }
+    
+    const vendors = await Vendor.find(query)
+      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location')
+      .limit(50);
+      
     res.status(200).json({ success: true, data: vendors });
   } catch (error) {
     logger.error(`getVendorsByCategory error: ${error.message}`);
@@ -601,6 +659,65 @@ export const getRecentVendors = async (req, res) => {
     res.status(200).json({ success: true, data: validVendors });
   } catch (error) {
     logger.error(`getRecentVendors error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const requestWithdrawal = async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || amount < 50) return res.status(400).json({ success: false, message: 'Minimum withdrawal is ₹50' });
+
+    let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
+    if (!wallet || wallet.balance < amount) {
+      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+    }
+
+    // Deduct balance
+    wallet.balance -= amount;
+    await wallet.save();
+
+    // Auto-Approve Logic
+    const AUTO_APPROVE_LIMIT = 5000;
+    const isAutoApprove = amount <= AUTO_APPROVE_LIMIT;
+
+    // Create wallet transaction
+    const withdrawalTx = await WalletTransaction.create({
+      walletId: wallet._id,
+      ownerId: wallet.ownerId,
+      ownerType: 'User',
+      type: 'debit',
+      amount,
+      balanceAfter: wallet.balance,
+      category: 'cashout',
+      description: isAutoApprove ? 'Bank Withdrawal (Auto-Approved)' : 'Bank Withdrawal Request',
+      status: isAutoApprove ? 'Success' : 'Pending'
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      data: withdrawalTx, 
+      message: isAutoApprove ? 'Withdrawal processed instantly!' : 'Withdrawal requested successfully (Pending Admin Approval)' 
+    });
+  } catch (error) {
+    logger.error(`requestWithdrawal error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getUserWithdrawals = async (req, res) => {
+  try {
+    let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
+    if (!wallet) return res.status(200).json({ success: true, data: [] });
+
+    const withdrawals = await WalletTransaction.find({
+      walletId: wallet._id,
+      category: 'cashout'
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: withdrawals });
+  } catch (error) {
+    logger.error(`getUserWithdrawals error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

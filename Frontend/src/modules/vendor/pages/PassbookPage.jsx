@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
@@ -20,6 +20,7 @@ export default function PassbookPage() {
             id: entry._id,
             date: new Date(entry.timestamp).toLocaleDateString(),
             time: new Date(entry.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            rawDate: new Date(entry.timestamp),
             desc: entry.description || entry.category,
             ref: entry.referenceId || entry._id.substring(0,8),
             type: entry.type === 'credit' ? 'Credit' : 'Debit',
@@ -36,6 +37,30 @@ export default function PassbookPage() {
     };
     fetchWallet();
   }, []);
+
+  const filteredLedger = useMemo(() => {
+    if (!ledgerEntries) return [];
+    
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    return ledgerEntries.filter(entry => {
+      const d = entry.rawDate;
+      if (dateFilter === 'Today') return d >= startOfToday;
+      if (dateFilter === 'This Week') return d >= startOfWeek;
+      if (dateFilter === 'This Month') return d >= startOfMonth;
+      if (dateFilter === 'Last Month') return d >= startOfLastMonth && d <= endOfLastMonth;
+      return true; // All Time fallback
+    });
+  }, [ledgerEntries, dateFilter]);
 
   return (
     <div className="animate-reveal text-left">
@@ -86,10 +111,10 @@ export default function PassbookPage() {
       <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-on-surface-variant font-bold">Loading ledger...</div>
-        ) : ledgerEntries.length > 0 ? (
-          ledgerEntries.map((entry, index) => (
+        ) : filteredLedger.length > 0 ? (
+          filteredLedger.map((entry, index) => (
             <div key={entry.id} className={`p-4 active:bg-surface-container-low/50 transition-colors ${
-              index !== ledgerEntries.length - 1 ? 'border-b border-outline-variant/5' : ''
+              index !== filteredLedger.length - 1 ? 'border-b border-outline-variant/5' : ''
             }`}>
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1 min-w-0 mr-3">

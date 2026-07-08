@@ -39,9 +39,9 @@ export default function ProfileScreen() {
 
   // Linked Accounts State
   const [paymentDetails, setPaymentDetails] = useState({
-    upiId: 'user@okaxis',
-    bankName: 'State Bank of India',
-    accNo: '•••• •••• 5493'
+    upiId: currentUser?.bankDetails?.upiId || '',
+    bankName: currentUser?.bankDetails?.bankName || '',
+    accNo: currentUser?.bankDetails?.accountNumber || ''
   });
 
   // Local Storage integration for persistence
@@ -53,10 +53,13 @@ export default function ProfileScreen() {
         email: currentUser.email || 'guest@zeebac.com',
         profileImage: null
       });
-    }
-    const storedPayments = localStorage.getItem('payment_details');
-    if (storedPayments) {
-      setPaymentDetails(JSON.parse(storedPayments));
+      if (currentUser.bankDetails) {
+        setPaymentDetails({
+          upiId: currentUser.bankDetails.upiId || '',
+          bankName: currentUser.bankDetails.bankName || '',
+          accNo: currentUser.bankDetails.accountNumber || ''
+        });
+      }
     }
   }, [currentUser]);
 
@@ -109,10 +112,17 @@ export default function ProfileScreen() {
     }
   };
 
-  const handlePaymentsSave = (updatedPayments) => {
-    localStorage.setItem('payment_details', JSON.stringify(updatedPayments));
-    setPaymentDetails(updatedPayments);
-    setSubView(null);
+  const handleSavePaymentDetails = async (newDetails) => {
+    try {
+      const res = await UserAPI.updateLinkedAccount(newDetails);
+      if (res.success) {
+        setPaymentDetails(newDetails);
+        setSubView(null);
+      }
+    } catch (error) {
+      console.error("Failed to update linked account", error);
+      alert("Failed to update account. Please try again.");
+    }
   };
 
   // SUBVIEW 1: EDIT PROFILE
@@ -131,7 +141,7 @@ export default function ProfileScreen() {
     return (
       <LinkedAccountsSubView 
         initialPayments={paymentDetails} 
-        onSave={handlePaymentsSave} 
+        onSave={handleSavePaymentDetails} 
         onBack={() => setSubView(null)} 
       />
     );

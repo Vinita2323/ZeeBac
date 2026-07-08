@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { AdminAPI, API_BASE_URL } from '../../../services/api';
 
 export default function VendorsPage() {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialSearch = queryParams.get('search') || '';
+
   const [activeTab, setActiveTab] = useState('All');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   const [sortBy, setSortBy] = useState('name_asc');
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedVendorDetails, setSelectedVendorDetails] = useState(null);
@@ -19,7 +24,7 @@ export default function VendorsPage() {
       // In a real app we'd pass page and search to the API.
       // For now, getting all or filtering by status.
       const statusFilter = activeTab === 'All' ? '' : activeTab;
-      const res = await AdminAPI.getVendors(statusFilter, 1);
+      const res = await AdminAPI.getVendors(statusFilter, 1, search);
       
       // Transform backend data to match frontend structure if needed
       const formattedVendors = res.data.map(v => ({
@@ -47,8 +52,11 @@ export default function VendorsPage() {
   };
 
   useEffect(() => {
-    fetchVendors();
-  }, [activeTab]);
+    const timer = setTimeout(() => {
+      fetchVendors();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [activeTab, search]);
 
   useEffect(() => {
     const mainContent = document.querySelector('main');

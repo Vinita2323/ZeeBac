@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
+import { calculateDistance } from '../../../utils/distance';
 
 export default function ExploreScreen() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function ExploreScreen() {
   const [vendors, setVendors] = useState([]);
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [location, setLocation] = useState(null);
 
   const categories = ['All', 'Fashion', 'Groceries', 'Dining', 'Tech', 'Travel', 'Independent Store', 'Chain & Brand'];
 
@@ -34,7 +36,33 @@ export default function ExploreScreen() {
     const fetchByCategory = async () => {
       setIsLoading(true);
       try {
-        const res = await UserAPI.getVendorsByCategory(activeCategory);
+        let lat = null, lng = null;
+        
+        // Try getting latest live location
+        if (navigator.geolocation) {
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            });
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+            // Update local storage
+            localStorage.setItem('zeebac_location', JSON.stringify({ lat, lng }));
+            setLocation({ lat, lng });
+          } catch (geoErr) {
+            console.warn("Could not get live location, using fallback:", geoErr.message);
+            // Fallback to local storage
+            const stored = localStorage.getItem('zeebac_location');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              lat = parsed.lat;
+              lng = parsed.lng;
+              setLocation({ lat, lng });
+            }
+          }
+        }
+
+        const res = await UserAPI.getVendorsByCategory(activeCategory, lat, lng);
         if (res.success) setVendors(res.data);
       } catch (err) {
         console.error('Failed to fetch vendors by category', err);
@@ -51,16 +79,27 @@ export default function ExploreScreen() {
     const timeout = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const res = await UserAPI.searchVendors(searchQuery);
+        let lat = location?.lat;
+        let lng = location?.lng;
+        if (!lat || !lng) {
+          const stored = localStorage.getItem('zeebac_location');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            lat = parsed.lat;
+            lng = parsed.lng;
+          }
+        }
+        
+        const res = await UserAPI.searchVendors(searchQuery, lat, lng);
         if (res.success) setVendors(res.data);
       } catch (err) {
         console.error('Failed to search vendors', err);
       } finally {
         setIsLoading(false);
       }
-    }, 300);
+    }, 500);
     return () => clearTimeout(timeout);
-  }, [searchQuery]);
+  }, [searchQuery, location]);
 
   const handleVendorClick = (vendor) => {
     navigate('/vendor-detail', { state: { vendor } });
@@ -206,7 +245,9 @@ export default function ExploreScreen() {
                         </div>
                         <div className="bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
                           <span className="material-symbols-outlined text-[12px]">directions_walk</span>
-                          1.2 mi
+                          {location && vendor.location?.coordinates ? 
+                            `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km` 
+                            : 'Nearby'}
                         </div>
                       </div>
                     </div>

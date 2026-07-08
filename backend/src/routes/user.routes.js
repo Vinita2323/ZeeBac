@@ -2,6 +2,7 @@ import express from 'express';
 import { 
   getUserProfile, 
   updateUserLocation, 
+  updateLinkedAccount,
   lookupVendorById, 
   createCustomerTransaction,
   createRazorpayOrder,
@@ -18,8 +19,11 @@ import {
   getCashbackRequestById,
   getVendorProducts,
   getNearbyVendors,
-  getRecentVendors
+  getRecentVendors,
+  requestWithdrawal,
+  getUserWithdrawals
 } from '../controllers/user.controller.js';
+import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
 import { getVendorReviews, createReview, deleteReview } from '../controllers/review.controller.js';
 import { getMyReferrals } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
@@ -32,6 +36,7 @@ router.use(requireRole('customer'));
 
 // Profile
 router.get('/me', getUserProfile);
+router.put('/me/linked-account', updateLinkedAccount);
 
 // Location
 router.put('/location', updateUserLocation);
@@ -55,6 +60,8 @@ router.put('/me', updateUserProfile);
 
 // Vendor Lookup (for QR Scan / Manual Search)
 router.get('/vendors/:query', lookupVendorById);
+router.get('/vendors/:vendorId/media', getVendorMedia);
+router.get('/vendors/:vendorId/promotions', getVendorPromotions);
 
 // Customer Transaction (Core Payment Engine - For Cash)
 router.post('/transactions', createCustomerTransaction);
@@ -62,6 +69,8 @@ router.post('/transactions', createCustomerTransaction);
 // Wallet & Passbook (Phase 4D)
 router.get('/wallet', getMyWallet);
 router.get('/transactions', getMyTransactions);
+router.post('/wallet/withdraw', requestWithdrawal);
+router.get('/wallet/withdrawals', getUserWithdrawals);
 
 // Razorpay Flow (For UPI/Cards)
 router.post('/transactions/razorpay/order', createRazorpayOrder);

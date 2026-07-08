@@ -1,18 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
 
 export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState('This Month');
 
-  const userGrowth = [30, 45, 60, 55, 75, 100];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+  const [isLoading, setIsLoading] = useState(true);
+  const [userGrowth, setUserGrowth] = useState({ labels: [], counts: [] });
+  const [categories, setCategories] = useState([]);
+  const [topVendors, setTopVendors] = useState([]);
 
-  const categories = [
-    { name: 'Food & Beverage', percentage: 45, color: 'bg-primary' },
-    { name: 'Fashion & Apparel', percentage: 25, color: 'bg-purple-500' },
-    { name: 'Electronics', percentage: 15, color: 'bg-blue-500' },
-    { name: 'Services', percentage: 10, color: 'bg-teal-500' },
-    { name: 'Other', percentage: 5, color: 'bg-outline-variant' },
-  ];
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const [usersRes, catsRes, vendorsRes] = await Promise.all([
+          AdminAPI.getUserAnalytics(),
+          AdminAPI.getVendorCategoryBreakdown(),
+          AdminAPI.getTopVendors()
+        ]);
+        
+        if (usersRes.success) setUserGrowth(usersRes.data);
+        if (catsRes.success) {
+          const colors = ['bg-primary', 'bg-purple-500', 'bg-blue-500', 'bg-teal-500', 'bg-outline-variant'];
+          setCategories(catsRes.data.map((cat, idx) => ({ ...cat, color: colors[idx % colors.length] })));
+        }
+        if (vendorsRes.success) setTopVendors(vendorsRes.data);
+      } catch (error) {
+        console.error("Failed to fetch analytics", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, []);
 
 
   return (
@@ -38,17 +57,22 @@ export default function AnalyticsPage() {
               <div className="border-t border-on-surface w-full"></div>
             </div>
 
-            {userGrowth.map((val, idx) => (
-              <div key={idx} className="w-full relative group flex flex-col items-center justify-end h-full z-10">
-                <div 
-                  className="w-full bg-primary/20 rounded-t-lg transition-all duration-500 group-hover:bg-primary"
-                  style={{ height: `${val}%` }}
-                ></div>
-                <div className="absolute bottom-[-24px] text-[12px] text-on-surface-variant font-bold">
-                  {months[idx]}
+            {userGrowth.counts.map((val, idx) => {
+              const maxVal = Math.max(...userGrowth.counts, 1);
+              const heightPercent = (val / maxVal) * 100;
+              return (
+                <div key={idx} className="w-full relative group flex flex-col items-center justify-end h-full z-10">
+                  <div 
+                    className="w-full bg-primary/20 rounded-t-lg transition-all duration-500 group-hover:bg-primary"
+                    style={{ height: `${heightPercent}%` }}
+                    title={`${val} users`}
+                  ></div>
+                  <div className="absolute bottom-[-24px] text-[12px] text-on-surface-variant font-bold">
+                    {userGrowth.labels[idx]}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -80,21 +104,20 @@ export default function AnalyticsPage() {
           <h3 className="font-title-lg font-bold text-on-surface mb-6">Top Vendors by Volume</h3>
           
           <div className="space-y-4">
-            {[
-              { name: 'Noir Concept Store', amount: '₹1.2M', transactions: 450 },
-              { name: 'Fresh Mart', amount: '₹840K', transactions: 1200 },
-              { name: 'Elite Electronics', amount: '₹650K', transactions: 45 },
-            ].map((vendor, idx) => (
+            {topVendors.length === 0 && !isLoading && (
+              <div className="text-sm text-on-surface-variant text-center py-4">No vendor data available.</div>
+            )}
+            {topVendors.map((vendor, idx) => (
               <div key={idx} className="flex items-center gap-4 p-3 rounded-xl border border-outline-variant/10">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[14px]">
                   {idx + 1}
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-[14px] font-bold text-on-surface">{vendor.name}</h4>
-                  <p className="text-[11px] text-on-surface-variant">{vendor.transactions} transactions</p>
+                  <h4 className="text-[14px] font-bold text-on-surface">{vendor.vendorName}</h4>
+                  <p className="text-[11px] text-on-surface-variant">{vendor.txnCount} transactions</p>
                 </div>
                 <div className="font-display font-black text-primary text-[16px]">
-                  {vendor.amount}
+                  ₹{vendor.totalAmount.toLocaleString()}
                 </div>
               </div>
             ))}

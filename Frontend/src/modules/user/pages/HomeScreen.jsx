@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import BottomNavBar from '../components/common/BottomNavBar';
+import { calculateDistance } from '../../../utils/distance';
 
 export default function HomeScreen() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function HomeScreen() {
   const [vendors, setVendors] = useState([]);
   const [recentVendors, setRecentVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [location, setLocation] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -23,12 +25,31 @@ export default function HomeScreen() {
         const recentRes = await UserAPI.getRecentVendors();
         if (recentRes.success) setRecentVendors(recentRes.data || []);
 
-        // Fetch Nearby Vendors or Fallback
-        let vendorRes;
-        const lat = currentUser?.location?.coordinates?.latitude;
-        const lng = currentUser?.location?.coordinates?.longitude;
+        let lat = null, lng = null;
         
+        // Try getting live location
+        if (navigator.geolocation) {
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+            });
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+            localStorage.setItem('zeebac_location', JSON.stringify({ lat, lng }));
+          } catch (geoErr) {
+            console.warn("Could not get live location on home, using fallback.");
+            const stored = localStorage.getItem('zeebac_location');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              lat = parsed.lat;
+              lng = parsed.lng;
+            }
+          }
+        }
+
+        let vendorRes;
         if (lat && lng) {
+          setLocation({ lat, lng });
           vendorRes = await UserAPI.getNearbyVendors(lat, lng);
         } else {
           vendorRes = await UserAPI.getVendorsByCategory('All');
@@ -184,7 +205,9 @@ export default function HomeScreen() {
                     <h4 className="font-title-md text-on-surface font-bold text-[14px] pt-0.5 leading-tight">{vendor.storeName}</h4>
                     <div className="flex items-center gap-xs text-caption text-on-surface-variant text-[11px]">
                       <span className="material-symbols-outlined text-[12px]">distance</span>
-                      0.8 miles away
+                      {location && vendor.location?.coordinates ? 
+                        `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km away` 
+                        : 'Nearby'}
                       <span>•</span>
                       {vendor.category}
                     </div>

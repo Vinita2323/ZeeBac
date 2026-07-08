@@ -14,6 +14,7 @@ const TIMELINE_STEPS = [
 export default function RequestDetailsScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [request, setRequest] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

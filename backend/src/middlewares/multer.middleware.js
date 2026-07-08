@@ -14,6 +14,7 @@ const storage = multer.diskStorage({
       cancelledCheque:   'uploads/documents',
       storeImage:        'uploads/storefront',
       productImage:      'uploads/storefront',
+      mediaFile:         'uploads/media',
       billImg:           'uploads/receipts',
       chatImage:         'uploads/chat',
     };

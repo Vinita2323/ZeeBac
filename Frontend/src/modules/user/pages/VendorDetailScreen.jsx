@@ -143,7 +143,7 @@ export default function VendorDetailScreen() {
       <main className="max-w-[440px] mx-auto w-full px-container-margin py-lg text-left">
         {activeTab === 'overview' && <OverviewTab vendor={vendor} />}
         {activeTab === 'shop' && <ShopTab vendor={vendor} />}
-        {activeTab === 'photos' && <PhotosTab />}
+        {activeTab === 'photos' && <PhotosTab vendorId={vendor._id} />}
         {activeTab === 'reviews' && <ReviewsTab vendorId={vendor._id} vendor={vendor} />}
       </main>
 

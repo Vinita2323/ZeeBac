@@ -19,6 +19,7 @@ import {
   respondToCashbackRequest
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
+import { getMyMedia, uploadMedia, deleteMedia, getMyPromotions, createPromotion, togglePromotion, deletePromotion } from '../controllers/storefront.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
@@ -73,5 +74,19 @@ router.post('/requests/:id/respond', respondToCashbackRequest);
 // Reviews (Phase 7)
 router.get('/reviews', getVendorReviews);
 router.post('/reviews/:id/reply', replyToReview);
+
+// Storefront Media (Phase 9B)
+router.route('/media')
+  .get(getMyMedia)
+  .post(upload.single('mediaFile'), uploadMedia);
+router.delete('/media/:id', deleteMedia);
+
+// Storefront Promotions (Phase 9B)
+router.route('/promotions')
+  .get(getMyPromotions)
+  .post(createPromotion);
+router.route('/promotions/:id')
+  .put(togglePromotion)
+  .delete(deletePromotion);
 
 export default router;

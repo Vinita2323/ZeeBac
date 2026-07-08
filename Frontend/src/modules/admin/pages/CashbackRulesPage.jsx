@@ -1,27 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
 
 export default function CashbackRulesPage() {
 
 
-  const [shopRules, setShopRules] = useState([
-    { id: 1, shopType: 'Local Shops', minCashback: 5 },
-    { id: 2, shopType: 'Big Shops and Brands', minCashback: 2 }
-  ]);
+  const [shopRules, setShopRules] = useState([]);
   const [editingRuleId, setEditingRuleId] = useState(null);
-  const [editFormData, setEditFormData] = useState({ shopType: '', minCashback: 0 });
+  const [editFormData, setEditFormData] = useState({ shopType: 'Independent Store', minCashback: 0 });
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRules = async () => {
+    try {
+      const res = await AdminAPI.getCashbackRules();
+      if (res.success) setShopRules(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRules();
+  }, []);
 
   const handleEditClick = (rule) => {
-    setEditingRuleId(rule.id);
+    setEditingRuleId(rule._id);
     setEditFormData({ shopType: rule.shopType, minCashback: rule.minCashback });
     setIsAddingNew(false);
   };
 
-  const handleSaveEdit = () => {
-    setShopRules(shopRules.map(rule => 
-      rule.id === editingRuleId ? { ...rule, ...editFormData } : rule
-    ));
-    setEditingRuleId(null);
+  const handleSaveEdit = async () => {
+    try {
+      await AdminAPI.updateCashbackRule(editingRuleId, editFormData);
+      await fetchRules();
+      setEditingRuleId(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -29,20 +46,31 @@ export default function CashbackRulesPage() {
     setIsAddingNew(false);
   };
 
-  const handleDelete = (id) => {
-    setShopRules(shopRules.filter(rule => rule.id !== id));
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this rule?')) return;
+    try {
+      await AdminAPI.deleteCashbackRule(id);
+      await fetchRules();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleAddNew = () => {
     setIsAddingNew(true);
     setEditingRuleId(null);
-    setEditFormData({ shopType: '', minCashback: 0 });
+    setEditFormData({ shopType: 'Independent Store', minCashback: 0 });
   };
 
-  const handleSaveNew = () => {
-    const newId = shopRules.length > 0 ? Math.max(...shopRules.map(r => r.id)) + 1 : 1;
-    setShopRules([...shopRules, { id: newId, ...editFormData }]);
-    setIsAddingNew(false);
+  const handleSaveNew = async () => {
+    try {
+      await AdminAPI.createCashbackRule(editFormData);
+      await fetchRules();
+      setIsAddingNew(false);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add rule. Check shopType and minCashback values.');
+    }
   };
 
   return (
@@ -71,26 +99,27 @@ export default function CashbackRulesPage() {
             
             <div className="space-y-4">
               {shopRules.map((rule) => (
-                <div key={rule.id} className="p-4 rounded-xl border border-outline-variant/20 bg-surface-container-low/30">
-                  {editingRuleId === rule.id ? (
+                <div key={rule._id} className="p-4 rounded-xl border border-outline-variant/10 bg-white">
+                  {editingRuleId === rule._id ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-on-surface-variant mb-1">Shop Type</label>
-                          <input 
-                            type="text"
+                          <select 
                             value={editFormData.shopType}
                             onChange={(e) => setEditFormData({...editFormData, shopType: e.target.value})}
                             className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                            placeholder="e.g. Local Shops"
-                          />
+                          >
+                            <option value="Independent Store">Independent Store</option>
+                            <option value="Chain & Brand">Chain & Brand</option>
+                          </select>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-on-surface-variant mb-1">Min Cashback (%)</label>
                           <input 
                             type="number"
                             value={editFormData.minCashback}
-                            onChange={(e) => setEditFormData({...editFormData, minCashback: Number(e.target.value)})}
+                            onChange={(e) => setEditFormData({...editFormData, minCashback: e.target.value === '' ? '' : Number(e.target.value)})}
                             className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                             min="0"
                             max="100"
@@ -133,20 +162,21 @@ export default function CashbackRulesPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-on-surface-variant mb-1">Shop Type</label>
-                        <input 
-                          type="text"
+                        <select 
                           value={editFormData.shopType}
                           onChange={(e) => setEditFormData({...editFormData, shopType: e.target.value})}
                           className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                          placeholder="e.g. Local Shops"
-                        />
+                        >
+                          <option value="Independent Store">Independent Store</option>
+                          <option value="Chain & Brand">Chain & Brand</option>
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-on-surface-variant mb-1">Min Cashback (%)</label>
                         <input 
                           type="number"
                           value={editFormData.minCashback}
-                          onChange={(e) => setEditFormData({...editFormData, minCashback: Number(e.target.value)})}
+                          onChange={(e) => setEditFormData({...editFormData, minCashback: e.target.value === '' ? '' : Number(e.target.value)})}
                           className="w-full px-3 py-2 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                           min="0"
                           max="100"
@@ -168,14 +198,7 @@ export default function CashbackRulesPage() {
               )}
             </div>
           </div>
-
-          <div className="flex justify-end">
-            <button className="h-12 px-8 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-md active:scale-[0.98]">
-              Save Configuration
-            </button>
-          </div>
         </div>
-
         {/* Right Sidebar Info */}
         <div className="space-y-6">
           <div className="bg-primary text-white p-6 rounded-2xl shadow-lg bg-gradient-to-br from-primary to-[#2c006b]">

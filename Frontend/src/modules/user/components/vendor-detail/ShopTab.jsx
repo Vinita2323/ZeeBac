@@ -2,53 +2,59 @@ import { useState, useEffect } from 'react';
 import { UserAPI, API_BASE_URL } from '../../../../services/api';
 
 export default function ShopTab({ vendor }) {
+  const [promotions, setPromotions] = useState([]);
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchShopData = async () => {
       if (!vendor?._id) return;
       try {
-        const res = await UserAPI.getVendorProducts(vendor._id);
-        if (res.success) {
-          setProducts(res.data);
-        }
+        const [prodRes, promoRes] = await Promise.all([
+          UserAPI.getVendorProducts(vendor._id),
+          UserAPI.getVendorPromotions(vendor._id)
+        ]);
+        if (prodRes.success) setProducts(prodRes.data);
+        if (promoRes.success) setPromotions(promoRes.data);
       } catch (err) {
-        console.error('Failed to load products', err);
+        console.error('Failed to load shop data', err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchProducts();
+    fetchShopData();
   }, [vendor?._id]);
 
   return (
     <div className="space-y-lg animate-reveal">
       
       {/* Offers Banners */}
-      <div className="space-y-3">
-        <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none"></div>
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>percent</span>
-          </div>
-          <div className="text-left space-y-0.5 relative z-10">
-            <p className="font-title-md font-extrabold text-primary text-body-sm">Welcome Reward Boost</p>
-            <p className="font-caption text-[11px] text-on-surface-variant">Extra 5% cashback on your first payment this week.</p>
-          </div>
+      {promotions.length > 0 && (
+        <div className="space-y-3">
+          {promotions.map((promo, index) => {
+            const isPercent = promo.type === 'percent';
+            // Alternate styles for visual interest based on index
+            const themeClass = index % 2 === 0 
+              ? { bg: 'bg-primary', text: 'text-primary' } 
+              : { bg: 'bg-secondary', text: 'text-secondary' };
+              
+            return (
+              <div key={promo._id} className={`p-4 ${themeClass.bg}/5 border border-${themeClass.text.replace('text-', '')}/20 rounded-2xl flex items-center gap-md relative overflow-hidden`}>
+                <div className={`absolute top-0 right-0 w-24 h-24 ${themeClass.bg}/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none`}></div>
+                <div className={`w-10 h-10 rounded-full ${themeClass.bg}/10 flex items-center justify-center ${themeClass.text} flex-shrink-0`}>
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {isPercent ? 'percent' : 'redeem'}
+                  </span>
+                </div>
+                <div className="text-left space-y-0.5 relative z-10">
+                  <p className={`font-title-md font-extrabold ${themeClass.text} text-body-sm`}>{promo.title}</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">{promo.description}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-        <div className="p-4 bg-secondary/5 border border-secondary/20 rounded-2xl flex items-center gap-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-secondary/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none"></div>
-          <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>redeem</span>
-          </div>
-          <div className="text-left space-y-0.5 relative z-10">
-            <p className="font-title-md font-extrabold text-secondary text-body-sm">Spend Bonus</p>
-            <p className="font-caption text-[11px] text-on-surface-variant">Get flat ₹10 reward when spending over ₹100.</p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Product List */}
       <div>

@@ -1,47 +1,51 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { VendorAPI } from '../../../services/api';
+import { VendorAPI, API_BASE_URL } from '../../../services/api';
 
 export default function StorefrontPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('catalog');
 
-  const initialProducts = [
-    { id: 1, name: "Signature Dress", price: "₹2,499", category: "Bestsellers", isHighlight: true, img: "https://images.unsplash.com/photo-1539008835657-9e8e9680c956?auto=format&fit=crop&w=300&q=80" },
-    { id: 2, name: "Leather Tote", price: "₹3,999", category: "Bestsellers", isHighlight: true, img: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&w=300&q=80" },
-    { id: 3, name: "Classic Blazer", price: "₹4,500", category: "New Arrivals", isHighlight: false, img: "https://images.unsplash.com/photo-1591369822096-bbcdd8dc4500?auto=format&fit=crop&w=300&q=80" },
-  ];
-
-  const initialMedia = [
-    { id: 1, type: "image", url: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=400&q=80" },
-    { id: 2, type: "image", url: "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?auto=format&fit=crop&w=400&q=80" },
-    { id: 3, type: "video", url: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=400&q=80" },
-  ];
-
-  const initialPromotions = [
-    { id: 1, title: "Welcome Reward Boost", description: "Extra 5% cashback on your first payment this week.", type: "percent" },
-    { id: 2, title: "Spend Bonus", description: "Get flat ₹10 reward when spending over ₹100.", type: "redeem" }
-  ];
-
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mediaList, setMediaList] = useState(initialMedia);
-  const [promotions, setPromotions] = useState(initialPromotions);
-  
+  const [mediaList, setMediaList] = useState([]);
+  const [promotions, setPromotions] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   useEffect(() => {
     fetchProducts();
+    fetchMedia();
+    fetchPromotions();
   }, []);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       const res = await VendorAPI.getProducts();
-      setProducts(res.data);
+      if (res.success) setProducts(res.data);
     } catch (error) {
       console.error("Error fetching products:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMedia = async () => {
+    try {
+      const res = await VendorAPI.getMedia();
+      if (res.success) setMediaList(res.data);
+    } catch (error) {
+      console.error("Error fetching media:", error);
+    }
+  };
+
+  const fetchPromotions = async () => {
+    try {
+      const res = await VendorAPI.getPromotions();
+      if (res.success) setPromotions(res.data);
+    } catch (error) {
+      console.error("Error fetching promotions:", error);
     }
   };
   
@@ -202,46 +206,72 @@ export default function StorefrontPage() {
     }
   };
 
-  const handleMediaUpload = (e) => {
+  const handleMediaUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newMediaItem = {
-          id: Date.now(),
-          type: file.type.startsWith('video/') ? 'video' : 'image',
-          url: reader.result
-        };
-        setMediaList([...mediaList, newMediaItem]);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size must be under 5MB");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('mediaFile', file);
+      const res = await VendorAPI.uploadMedia(formData);
+      if (res.success) {
+        setMediaList([res.data, ...mediaList]);
+      }
+    } catch (err) {
+      console.error("Upload error", err);
+      alert("Failed to upload media");
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleDeleteMedia = (id) => {
-    setMediaList(mediaList.filter(m => m.id !== id));
+  const handleDeleteMedia = async (id) => {
+    try {
+      await VendorAPI.deleteMedia(id);
+      setMediaList(mediaList.filter(m => m._id !== id));
+    } catch (err) {
+      console.error("Delete media error", err);
+      alert("Failed to delete media");
+    }
   };
 
-  const handleAddOffer = (e) => {
+  const handleAddOffer = async (e) => {
     e.preventDefault();
     if (!newOfferTitle.trim() || !newOfferDescription.trim()) return;
 
-    const newOffer = {
-      id: Date.now(),
-      title: newOfferTitle,
-      description: newOfferDescription,
-      type: newOfferType
-    };
-
-    setPromotions([newOffer, ...promotions]);
-    setNewOfferTitle('');
-    setNewOfferDescription('');
-    setNewOfferType('percent');
-    setShowOfferModal(false);
+    try {
+      const res = await VendorAPI.createPromotion({
+        title: newOfferTitle,
+        description: newOfferDescription,
+        type: newOfferType
+      });
+      if (res.success) {
+        setPromotions([res.data, ...promotions]);
+        setNewOfferTitle('');
+        setNewOfferDescription('');
+        setNewOfferType('percent');
+        setShowOfferModal(false);
+      }
+    } catch (err) {
+      console.error("Create offer error", err);
+      alert("Failed to create offer");
+    }
   };
 
-  const handleDeleteOffer = (id) => {
-    setPromotions(promotions.filter(p => p.id !== id));
+  const handleDeleteOffer = async (id) => {
+    try {
+      await VendorAPI.deletePromotion(id);
+      setPromotions(promotions.filter(p => p._id !== id));
+    } catch (err) {
+      console.error("Delete offer error", err);
+      alert("Failed to delete offer");
+    }
   };
 
   return (
@@ -302,7 +332,7 @@ export default function StorefrontPage() {
               ) : products.length > 0 ? products.map(product => (
                 <div key={product._id} className="flex flex-col sm:flex-row gap-4 p-4 bg-white rounded-2xl border border-outline-variant/10 shadow-sm animate-reveal">
                   <div className="flex gap-4 flex-1">
-                    <img src={product.image ? `http://localhost:5000${product.image}` : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'} alt={product.name} className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-xl bg-surface-container flex-shrink-0" />
+                    <img src={product.image ? `${API_BASE_URL}${product.image}` : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'} alt={product.name} className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-xl bg-surface-container flex-shrink-0" />
                     <div className="flex-1 flex flex-col justify-between py-0.5">
                       <div>
                         <div className="flex justify-between items-start gap-2">
@@ -383,12 +413,18 @@ export default function StorefrontPage() {
                 />
               </label>
               
+              {isUploading && (
+                <div className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center">
+                  <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mb-2"></div>
+                  <span className="text-[11px] font-bold text-gray-500">Uploading...</span>
+                </div>
+              )}
               {mediaList.map(item => (
-                <div key={item.id} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container group animate-reveal">
+                <div key={item._id} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container group animate-reveal">
                   {item.type === 'video' ? (
-                    <video src={item.url} className="w-full h-full object-cover" controls={false} muted loop playsInline />
+                    <video src={`${API_BASE_URL}${item.url}`} className="w-full h-full object-cover" controls={false} muted loop playsInline />
                   ) : (
-                    <img src={item.url} alt="Gallery" className="w-full h-full object-cover" />
+                    <img src={`${API_BASE_URL}${item.url}`} alt="Gallery" className="w-full h-full object-cover" />
                   )}
                   {item.type === 'video' && (
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
@@ -396,7 +432,7 @@ export default function StorefrontPage() {
                     </div>
                   )}
                   <button 
-                    onClick={() => handleDeleteMedia(item.id)}
+                    onClick={() => handleDeleteMedia(item._id)}
                     className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[14px]">close</span>
@@ -423,7 +459,7 @@ export default function StorefrontPage() {
               {promotions.map(promo => {
                 const isPercent = promo.type === 'percent';
                 return (
-                  <div key={promo.id} className="p-4 bg-white border border-outline-variant/10 rounded-2xl flex items-center gap-4 relative animate-reveal">
+                  <div key={promo._id} className={`p-4 bg-white border border-outline-variant/10 rounded-2xl flex items-center gap-4 relative animate-reveal ${!promo.isActive ? 'opacity-50 grayscale' : ''}`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                       isPercent ? 'bg-primary/10 text-primary' : 'bg-surface-container text-on-surface'
                     }`}>
@@ -431,16 +467,27 @@ export default function StorefrontPage() {
                         {isPercent ? 'percent' : 'redeem'}
                       </span>
                     </div>
-                    <div className="text-left space-y-0.5 flex-1 pr-6">
+                    <div className="text-left space-y-0.5 flex-1 pr-14">
                       <p className="font-title-md font-extrabold text-[14px] leading-snug">{promo.title}</p>
                       <p className="font-caption text-[11px] text-on-surface-variant leading-tight">{promo.description}</p>
                     </div>
-                    <button 
-                      onClick={() => handleDeleteOffer(promo.id)}
-                      className="absolute top-3 right-3 w-6 h-6 rounded-full hover:bg-red-50 hover:text-red-600 flex items-center justify-center text-on-surface-variant cursor-pointer transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
-                    </button>
+                    <div className="absolute top-3 right-3 flex items-center gap-1">
+                      <button 
+                        onClick={async () => {
+                          const res = await VendorAPI.togglePromotion(promo._id);
+                          if(res.success) setPromotions(promotions.map(p => p._id === promo._id ? res.data : p));
+                        }}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${promo.isActive ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-gray-400 bg-gray-100 hover:bg-gray-200'}`}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">{promo.isActive ? 'visibility' : 'visibility_off'}</span>
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteOffer(promo._id)}
+                        className="w-6 h-6 rounded-full hover:bg-red-50 hover:text-red-600 flex items-center justify-center text-on-surface-variant cursor-pointer transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">delete</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })}

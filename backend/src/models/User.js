@@ -31,6 +31,11 @@ const userSchema = new mongoose.Schema(
       google: String,
       facebook: String,
     },
+    bankDetails: {
+      upiId: String,
+      bankName: String,
+      accountNumber: String,
+    },
     preferences: {
       pushNotifications: { type: Boolean, default: true },
       smsNotifications: { type: Boolean, default: true },

@@ -1,41 +1,38 @@
 import { useState, useEffect } from 'react';
+import { AdminAPI } from '../../../services/api';
 
 export default function TransactionsPage() {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
 
-  const transactions = [
-    { id: 'TX-9204', customer: 'Amit Kumar', vendor: 'Noir Concept Store', amount: '₹4,500', cashback: '₹450', status: 'Approved', time: '10 mins ago', type: 'Credit Card' },
-    { id: 'TX-9205', customer: 'Priya Singh', vendor: 'Fresh Mart', amount: '₹12,400', cashback: '₹0', status: 'Flagged', time: '25 mins ago', type: 'Cash' },
-    { id: 'TX-9206', customer: 'Rahul Sharma', vendor: 'Tech Zone', amount: '₹850', cashback: '₹42', status: 'Approved', time: '1 hour ago', type: 'UPI' },
-    { id: 'TX-9207', customer: 'Sneha Patel', vendor: 'Daily Needs', amount: '₹150', cashback: '₹5', status: 'Rejected', time: '2 hours ago', type: 'UPI' },
-    { id: 'TX-9208', customer: 'Vikram Gupta', vendor: 'Style Icon', amount: '₹2,100', cashback: '₹210', status: 'Approved', time: '5 hours ago', type: 'Credit Card' },
-    { id: 'TX-9209', customer: 'Karan Verma', vendor: 'Elite Electronics', amount: '₹45,000', cashback: '₹0', status: 'Flagged', time: 'Yesterday', type: 'Cash' },
-  ];
+  const [transactions, setTransactions] = useState([]);
+  const [meta, setMeta] = useState(null);
+  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Use debouncing for search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchTransactions();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, filter, page, sortBy]);
 
-
-  let filteredTransactions = transactions.filter(t => 
-    (filter === 'All' || t.status === filter) &&
-    (t.customer.toLowerCase().includes(search.toLowerCase()) || 
-     t.vendor.toLowerCase().includes(search.toLowerCase()) ||
-     t.id.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  filteredTransactions.sort((a, b) => {
-    if (sortBy === 'amount_high') {
-      const valA = parseFloat(a.amount.replace(/[^0-9.-]+/g,""));
-      const valB = parseFloat(b.amount.replace(/[^0-9.-]+/g,""));
-      return valB - valA;
+  const fetchTransactions = async () => {
+    setIsLoading(true);
+    try {
+      const res = await AdminAPI.getAllTransactions(page, filter, search, sortBy);
+      if (res.success) {
+        setTransactions(res.data);
+        setMeta(res.meta);
+      }
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setIsLoading(false);
     }
-    if (sortBy === 'amount_low') {
-      const valA = parseFloat(a.amount.replace(/[^0-9.-]+/g,""));
-      const valB = parseFloat(b.amount.replace(/[^0-9.-]+/g,""));
-      return valA - valB;
-    }
-    return 0; // default 'newest' keeps array order
-  });
+  };
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -103,17 +100,25 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((tx) => (
-                <tr key={tx.id} className={`border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px] ${tx.status === 'Flagged' ? 'bg-red-500/5' : ''}`}>
+              {isLoading ? (
+                <tr>
+                  <td colSpan="7" className="p-8 text-center text-on-surface-variant">Loading transactions...</td>
+                </tr>
+              ) : transactions.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="p-8 text-center text-on-surface-variant">No transactions found.</td>
+                </tr>
+              ) : transactions.map((tx) => (
+                <tr key={tx._id} className={`border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px] ${tx.status === 'Flagged' ? 'bg-red-500/5' : ''}`}>
                   <td className="p-4 font-mono text-on-surface-variant">
-                    {tx.id}
-                    <div className="text-[11px] mt-0.5">{tx.type}</div>
+                    {tx.transactionId}
+                    <div className="text-[11px] mt-0.5">{tx.paymentMethod}</div>
                   </td>
-                  <td className="p-4 text-on-surface-variant text-[12px]">{tx.time}</td>
-                  <td className="p-4 font-medium text-on-surface">{tx.customer}</td>
-                  <td className="p-4 text-on-surface-variant">{tx.vendor}</td>
-                  <td className="p-4 font-bold text-on-surface text-right">{tx.amount}</td>
-                  <td className="p-4 font-bold text-primary text-right">{tx.cashback}</td>
+                  <td className="p-4 text-on-surface-variant text-[12px]">{new Date(tx.createdAt).toLocaleString()}</td>
+                  <td className="p-4 font-medium text-on-surface">{tx.customerName}</td>
+                  <td className="p-4 text-on-surface-variant">{tx.vendorName}</td>
+                  <td className="p-4 font-bold text-on-surface text-right">₹{tx.amount.toLocaleString()}</td>
+                  <td className="p-4 font-bold text-primary text-right">₹{tx.cashbackAmount.toLocaleString()}</td>
                   <td className="p-4 flex justify-center">
                     <span className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide flex items-center gap-1
                       ${tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' : ''}
@@ -130,6 +135,31 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+      
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <div className="flex justify-between items-center mt-6">
+          <p className="text-sm text-on-surface-variant">
+            Showing page {meta.page} of {meta.totalPages} (Total {meta.total} transactions)
+          </p>
+          <div className="flex gap-2">
+            <button 
+              disabled={meta.page === 1}
+              onClick={() => setPage(meta.page - 1)}
+              className="px-4 py-2 border border-outline-variant/30 rounded-lg text-sm font-bold text-on-surface-variant hover:bg-surface-container disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <button 
+              disabled={meta.page === meta.totalPages}
+              onClick={() => setPage(meta.page + 1)}
+              className="px-4 py-2 border border-outline-variant/30 rounded-lg text-sm font-bold text-on-surface-variant hover:bg-surface-container disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
