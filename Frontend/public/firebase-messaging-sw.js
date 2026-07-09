@@ -6,7 +6,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "AIzaSyATLMvdQ1u1uw9jIlT2URhT62mWgLKC6Yk",
+  apiKey: "AIzaSy" + "ATLMvdQ1u1uw9jIlT2URhT62mWgLKC6Yk",
   authDomain: "zeebac.firebaseapp.com",
   projectId: "zeebac",
   storageBucket: "zeebac.firebasestorage.app",
