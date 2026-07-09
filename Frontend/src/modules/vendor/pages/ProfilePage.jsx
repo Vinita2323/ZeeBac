@@ -107,10 +107,19 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64String = reader.result;
         setProfilePic(base64String);
         updateProfileStore({ profilePic: base64String });
+        
+        // Save to backend
+        try {
+          await VendorAPI.updateProfile({ profilePic: base64String });
+          setToastMessage('Profile photo updated!');
+          setTimeout(() => setToastMessage(null), 2500);
+        } catch (error) {
+          console.error("Failed to update profile photo on backend", error);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -582,7 +591,7 @@ export default function ProfilePage() {
             <span className="text-[9px] font-bold text-on-surface-variant mt-1">Share Store</span>
           </button>
           <button 
-            onClick={() => setSupportModalOpen(true)} 
+            onClick={() => navigate('/vendor/support')} 
             className="flex flex-col items-center justify-center py-2.5 bg-white rounded-xl border border-outline-variant/10 shadow-sm hover:bg-surface-container-low active:scale-95 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-primary">support_agent</span>

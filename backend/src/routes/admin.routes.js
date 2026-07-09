@@ -19,10 +19,19 @@ import {
   getVendorCategoryBreakdown,
   getWalletStats,
   getAllWalletTransactions,
-  getFraudAlerts
+  getFraudAlerts,
+  getPeakActivityHours,
+  getRewardConfig,
+  updateRewardConfig,
+  getPartnerOffers,
+  createPartnerOffer,
+  updatePartnerOffer,
+  deletePartnerOffer
 } from '../controllers/admin.controller.js';
 import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
+
+import { getAllTickets, replyToTicket, closeTicket } from '../controllers/support.controller.js';
 
 const router = express.Router();
 
@@ -32,6 +41,11 @@ router.use(requireRole('admin', 'super_admin'));
 
 // ─── Dashboard ───
 router.get('/dashboard/stats', getDashboardStats);
+
+// ─── Support Tickets ───
+router.get('/support/tickets', getAllTickets);
+router.put('/support/tickets/:id/reply', replyToTicket);
+router.put('/support/tickets/:id/close', closeTicket);
 
 // ─── Vendor Management ───
 router.get('/vendors', getAllVendors);
@@ -71,5 +85,21 @@ router.get('/wallet/transactions',     getAllWalletTransactions);
 
 // ─── Fraud Detection (Phase F) ───
 router.get('/fraud/alerts',            getFraudAlerts);
+
+// ─── Peak Activity Heatmap ───
+router.get('/analytics/peak-hours', getPeakActivityHours);
+
+// ─── Rewards Config & Offers ───
+router.route('/rewards/config')
+  .get(getRewardConfig)
+  .put(updateRewardConfig);
+
+router.route('/rewards/offers')
+  .get(getPartnerOffers)
+  .post(createPartnerOffer);
+
+router.route('/rewards/offers/:id')
+  .put(updatePartnerOffer)
+  .delete(deletePartnerOffer);
 
 export default router;

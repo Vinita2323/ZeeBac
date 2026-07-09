@@ -14,6 +14,8 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Wallet Monitor', icon: 'account_balance_wallet', path: '/admin/wallet' },
     { label: 'Fraud Detection', icon: 'security', path: '/admin/fraud' },
     { label: 'Referrals', icon: 'hub', path: '/admin/referrals' },
+    { label: 'Rewards', icon: 'featured_play_list', path: '/admin/rewards' },
+    { label: 'Support', icon: 'support_agent', path: '/admin/support' },
     { label: 'Analytics', icon: 'insights', path: '/admin/analytics' },
   ];
 

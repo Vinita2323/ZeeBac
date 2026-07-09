@@ -14,8 +14,8 @@ export default function CustomersPage() {
         const res = await VendorAPI.getVendorCustomers();
         if (res.success) {
           const formatted = res.data.map(c => ({
-            id: c.customerZeebacId,
-            name: c.customerName || c.customerPhone,
+            id: c.customerZeebacId || c._id,
+            name: c.customerName || c.customerPhone || 'Unknown Customer',
             visits: c.totalTransactions,
             totalSpent: `₹${c.totalSpent.toLocaleString()}`,
             lastVisit: new Date(c.lastTransactionDate).toLocaleDateString(),

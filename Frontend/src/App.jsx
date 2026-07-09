@@ -19,6 +19,7 @@ import useAuthStore from './store/useAuthStore';
 import GlobalAlertDialog from './components/GlobalAlertDialog';
 import GlobalSnackbar from './components/GlobalSnackbar';
 import { AuthAPI } from './services/api';
+import { requestNotificationPermission, onForegroundMessage } from './utils/notificationUtils';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -51,6 +52,25 @@ function App() {
     };
     fetchUser();
   }, [accessToken, logout]);
+
+  // Request notification permission when user logs in
+  useEffect(() => {
+    if (accessToken) {
+      const user = useAuthStore.getState().currentUser;
+      const role = user?.role || 'customer';
+      requestNotificationPermission(role).catch(console.error);
+
+      // Listen for foreground notifications (when app is open)
+      const unsubscribe = onForegroundMessage((payload) => {
+        const { title, body } = payload.notification || {};
+        if (title && body) {
+          // Show as a toast/snackbar (non-intrusive)
+          console.log('Notification:', title, body);
+        }
+      });
+      return () => unsubscribe && unsubscribe();
+    }
+  }, [accessToken]);
   return (
     <BrowserRouter>
       <ScrollToTop />

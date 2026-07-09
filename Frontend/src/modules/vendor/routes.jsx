@@ -15,6 +15,7 @@ import VendorScanCustomerScreen from './pages/VendorScanCustomerScreen';
 import VendorLogTransactionScreen from './pages/VendorLogTransactionScreen';
 import StorefrontPage from './pages/StorefrontPage';
 import RequestsPage from './pages/RequestsPage';
+import SupportPage from './pages/SupportPage';
 
 export default function VendorRoutes() {
   return (
@@ -38,6 +39,7 @@ export default function VendorRoutes() {
             <Route path="log-transaction" element={<VendorLogTransactionScreen />} />
             <Route path="requests" element={<RequestsPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
+            <Route path="support" element={<SupportPage />} />
           </Routes>
         </VendorLayout>
       } />

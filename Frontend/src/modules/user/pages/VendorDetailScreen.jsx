@@ -79,7 +79,7 @@ export default function VendorDetailScreen() {
           <img 
             alt={vendor.storeName} 
             className="w-full h-full object-cover" 
-            src={(vendor.storeLogo || vendor.profilePic).startsWith('http') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
+            src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
           />
         ) : (
           <span className="material-symbols-outlined text-6xl text-on-surface-variant">store</span>

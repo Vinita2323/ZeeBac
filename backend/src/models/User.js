@@ -69,6 +69,18 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    walletId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Wallet',
+    },
+    scratchCardsClaimed: {
+      type: Number,
+      default: 0
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
     referredBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -80,7 +92,8 @@ const userSchema = new mongoose.Schema(
     },
     refreshToken: {
       type: String,
-    }
+    },
+    fcmTokens: [{ type: String }],  // FCM push notification tokens (multiple devices)
   },
   {
     timestamps: true,

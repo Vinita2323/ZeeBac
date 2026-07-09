@@ -20,6 +20,8 @@ import {
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
 import { getMyMedia, uploadMedia, deleteMedia, getMyPromotions, createPromotion, togglePromotion, deletePromotion } from '../controllers/storefront.controller.js';
+import { saveVendorFcmToken } from '../controllers/notification.controller.js';
+import { createTicket, getUserTickets } from '../controllers/support.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
@@ -88,5 +90,12 @@ router.route('/promotions')
 router.route('/promotions/:id')
   .put(togglePromotion)
   .delete(deletePromotion);
+
+// Support (Phase H)
+router.post('/support', createTicket);
+router.get('/support', getUserTickets);
+
+// FCM Token (Push Notifications)
+router.post('/fcm-token', saveVendorFcmToken);
 
 export default router;

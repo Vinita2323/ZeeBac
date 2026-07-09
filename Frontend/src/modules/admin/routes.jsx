@@ -10,6 +10,8 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import WalletMonitorPage from './pages/WalletMonitorPage';
 import FraudDetectionPage from './pages/FraudDetectionPage';
 import ReferralAnalyticsPage from './pages/ReferralAnalyticsPage';
+import SupportPage from './pages/SupportPage';
+import RewardsManagerPage from './pages/RewardsManagerPage';
 
 export default function AdminRoutes() {
   return (
@@ -24,6 +26,8 @@ export default function AdminRoutes() {
         <Route path="/wallet" element={<WalletMonitorPage />} />
         <Route path="/fraud" element={<FraudDetectionPage />} />
         <Route path="/referrals" element={<ReferralAnalyticsPage />} />
+        <Route path="/support" element={<SupportPage />} />
+        <Route path="/rewards" element={<RewardsManagerPage />} />
       </Routes>
     </AdminLayout>
   );

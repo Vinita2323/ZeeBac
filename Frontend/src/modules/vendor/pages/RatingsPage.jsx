@@ -208,12 +208,6 @@ export default function RatingsPage() {
                     <span className="material-symbols-outlined text-[16px]">reply</span>
                     Reply
                   </button>
-                  <button 
-                    className="text-on-surface-variant text-[12px] font-bold flex items-center gap-1 active:scale-[0.97] transition-transform hover:text-red-500 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">flag</span>
-                    Report
-                  </button>
                 </div>
               )}
             </div>

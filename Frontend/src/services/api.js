@@ -217,6 +217,50 @@ export const AdminAPI = {
     const res = await apiClient.get('/admin/fraud/alerts');
     return res.data;
   },
+  // Phase G: Support Tickets
+  getAllTickets: async (status = 'All') => {
+    const res = await apiClient.get(`/admin/support/tickets?status=${status}`);
+    return res.data;
+  },
+  replyToTicket: async (id, replyMessage) => {
+    const res = await apiClient.put(`/admin/support/tickets/${id}/reply`, { replyMessage });
+    return res.data;
+  },
+  closeTicket: async (id) => {
+    const res = await apiClient.put(`/admin/support/tickets/${id}/close`);
+    return res.data;
+  },
+  // Phase H: Peak Activity Heatmap
+  // Phase H: Peak Activity Heatmap
+  getPeakActivityHours: async () => {
+    const res = await apiClient.get('/admin/analytics/peak-hours');
+    return res.data;
+  },
+  // Rewards & Offers
+  getRewardConfig: async () => {
+    const res = await apiClient.get('/admin/rewards/config');
+    return res.data;
+  },
+  updateRewardConfig: async (data) => {
+    const res = await apiClient.put('/admin/rewards/config', data);
+    return res.data;
+  },
+  getPartnerOffers: async () => {
+    const res = await apiClient.get('/admin/rewards/offers');
+    return res.data;
+  },
+  createPartnerOffer: async (data) => {
+    const res = await apiClient.post('/admin/rewards/offers', data);
+    return res.data;
+  },
+  updatePartnerOffer: async (id, data) => {
+    const res = await apiClient.put(`/admin/rewards/offers/${id}`, data);
+    return res.data;
+  },
+  deletePartnerOffer: async (id) => {
+    const res = await apiClient.delete(`/admin/rewards/offers/${id}`);
+    return res.data;
+  }
 };
 
 // ── Vendor Service ──
@@ -344,12 +388,26 @@ export const VendorAPI = {
   // Reviews
   getMyReviews: async () => { const res = await apiClient.get('/vendor/reviews'); return res.data; },
   replyToReview: async (reviewId, text) => { const res = await apiClient.post(`/vendor/reviews/${reviewId}/reply`, { text }); return res.data; },
+  
+  // Support
+  createSupportTicket: async (subject, message) => {
+    const res = await apiClient.post('/vendor/support', { subject, message });
+    return res.data;
+  },
+  getMySupportTickets: async () => {
+    const res = await apiClient.get('/vendor/support');
+    return res.data;
+  },
 };
 
 // ─── Customer API ───
 export const UserAPI = {
   getProfile: async () => {
     const res = await apiClient.get('/user/me');
+    return res.data;
+  },
+  updateProfile: async (data) => {
+    const res = await apiClient.put('/user/me', data);
     return res.data;
   },
   updateLocation: async (data) => {
@@ -449,6 +507,15 @@ export const UserAPI = {
     const res = await apiClient.get('/user/cashback-requests');
     return res.data;
   },
+  // Phase H: Support
+  createSupportTicket: async (subject, message) => {
+    const res = await apiClient.post('/support', { subject, message });
+    return res.data;
+  },
+  getMySupportTickets: async () => {
+    const res = await apiClient.get('/support');
+    return res.data;
+  },
   getCashbackRequestById: async (id) => {
     const res = await apiClient.get(`/user/cashback-requests/${id}`);
     return res.data;
@@ -473,6 +540,15 @@ export const UserAPI = {
   // Referrals
   getMyReferrals: async () => {
     const res = await apiClient.get('/user/referrals');
+    return res.data;
+  },
+  // Rewards & Offers
+  getRewardsData: async () => {
+    const res = await apiClient.get('/user/rewards-data');
+    return res.data;
+  },
+  claimScratchCard: async () => {
+    const res = await apiClient.post('/user/rewards/scratch');
     return res.data;
   }
 };
@@ -501,4 +577,24 @@ export const ChatAPI = {
     });
     return res.data;
   }
+};
+
+// ── Notification API ──
+export const NotificationAPI = {
+  getAll: async (page = 1) => {
+    const res = await apiClient.get(`/notifications?page=${page}`);
+    return res.data;
+  },
+  getUnreadCount: async () => {
+    const res = await apiClient.get('/notifications/unread-count');
+    return res.data;
+  },
+  markRead: async (id) => {
+    const res = await apiClient.patch(`/notifications/${id}/read`);
+    return res.data;
+  },
+  markAllRead: async () => {
+    const res = await apiClient.patch('/notifications/read-all');
+    return res.data;
+  },
 };

@@ -214,7 +214,7 @@ export default function ExploreScreen() {
                         <img 
                           alt={vendor.storeName} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                          src={(vendor.storeLogo || vendor.profilePic).startsWith('http') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
+                          src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
                         />
                       ) : (
                         <span className="material-symbols-outlined text-4xl text-on-surface-variant">store</span>

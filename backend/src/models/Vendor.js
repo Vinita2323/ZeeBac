@@ -139,7 +139,8 @@ const vendorSchema = new mongoose.Schema(
     },
     refreshToken: {
       type: String,
-    }
+    },
+    fcmTokens: [{ type: String }],  // FCM push notification tokens (multiple devices)
   },
   {
     timestamps: true,

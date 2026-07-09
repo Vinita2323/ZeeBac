@@ -42,7 +42,8 @@ export const updateProfile = async (req, res) => {
       socialLinks, 
       bankDetails,
       address,
-      operatingHours
+      operatingHours,
+      profilePic
     } = req.body;
 
     const vendor = await Vendor.findById(req.user.id);
@@ -52,6 +53,7 @@ export const updateProfile = async (req, res) => {
 
     if (description !== undefined) vendor.description = description;
     if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
+    if (profilePic !== undefined) vendor.profilePic = profilePic;
     
     if (socialLinks) {
       vendor.socialLinks = { ...vendor.socialLinks, ...socialLinks };
@@ -127,10 +129,11 @@ export const getDashboardStats = async (req, res) => {
 export const getVendorCustomers = async (req, res) => {
   try {
     const vendorId = req.user.id;
+    const mongoose = (await import('mongoose')).default;
     
     // Find all customers who have transacted with this vendor
     const customersAggr = await Transaction.aggregate([
-      { $match: { vendorId: vendorId } },
+      { $match: { vendorId: new mongoose.Types.ObjectId(vendorId) } },
       {
         $group: {
           _id: "$customerId",
@@ -729,4 +732,5 @@ export const respondToCashbackRequest = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
 

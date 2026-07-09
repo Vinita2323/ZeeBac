@@ -4,7 +4,10 @@ import CashbackRule from '../models/CashbackRule.js';
 import Transaction from '../models/Transaction.js';
 import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import RewardConfig from '../models/RewardConfig.js';
+import PartnerOffer from '../models/PartnerOffer.js';
 import logger from '../utils/logger.js';
+import { sendNotification } from '../services/notification.service.js';
 
 // ─── Dashboard Stats ───
 export const getDashboardStats = async (req, res) => {
@@ -109,6 +112,19 @@ export const approveVendor = async (req, res) => {
 
     await vendor.save();
 
+    // Send notification to vendor
+    sendNotification({
+      recipientId: vendor._id,
+      recipientType: 'vendor',
+      fcmTokens: vendor.fcmTokens || [],
+      type: 'approval',
+      title: '✅ Store Verified!',
+      message: `Badhai ho! Aapka store "${vendor.storeName}" ab live hai. Cashback rate: ${cashbackRate}%`,
+      icon: 'store',
+      referenceId: vendor._id,
+      referenceType: 'vendor',
+    });
+
     res.status(200).json({
       success: true,
       message: 'Vendor approved successfully',
@@ -138,6 +154,19 @@ export const rejectVendor = async (req, res) => {
     vendor.rejectionReason = reason;
 
     await vendor.save();
+
+    // Send notification to vendor
+    sendNotification({
+      recipientId: vendor._id,
+      recipientType: 'vendor',
+      fcmTokens: vendor.fcmTokens || [],
+      type: 'approval',
+      title: '❌ Application Rejected',
+      message: `Aapki application reject hui. Reason: ${reason}`,
+      icon: 'cancel',
+      referenceId: vendor._id,
+      referenceType: 'vendor',
+    });
 
     res.status(200).json({
       success: true,
@@ -419,12 +448,31 @@ export const getTopVendors = async (req, res) => {
     const topVendors = await Transaction.aggregate([
       { $group: {
         _id: "$vendorId",
-        vendorName: { $first: "$vendorName" },
         totalAmount: { $sum: "$amount" },
         txnCount: { $sum: 1 }
       }},
       { $sort: { totalAmount: -1 } },
-      { $limit: 5 }
+      { $limit: 5 },
+      // Join with Vendor collection to get the real, current storeName
+      {
+        $lookup: {
+          from: 'vendors',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'vendorInfo'
+        }
+      },
+      {
+        $addFields: {
+          vendorName: {
+            $ifNull: [
+              { $arrayElemAt: ['$vendorInfo.storeName', 0] },
+              'Unknown Vendor'
+            ]
+          }
+        }
+      },
+      { $project: { vendorInfo: 0 } } // remove the raw lookup array
     ]);
 
     res.status(200).json({ success: true, data: topVendors });
@@ -614,3 +662,126 @@ export const getFraudAlerts = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// ─── Peak Activity Hours Heatmap ───
+export const getPeakActivityHours = async (req, res) => {
+  try {
+    // Aggregate transactions by day of week (1=Sun..7=Sat) and hour
+    const results = await Transaction.aggregate([
+      {
+        $group: {
+          _id: {
+            dayOfWeek: { $dayOfWeek: '$createdAt' }, // 1=Sun, 2=Mon...7=Sat
+            hour: { $hour: '$createdAt' }
+          },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Build a 4 (slots) x 7 (days) matrix with 0s
+    // Slots: Morning(6-12), Afternoon(12-18), Evening(18-24), Night(0-6)
+    // Days: Mon(2), Tue(3), Wed(4), Thu(5), Fri(6), Sat(7), Sun(1)
+    const dayOrder = [2, 3, 4, 5, 6, 7, 1]; // Mon to Sun
+    const matrix = Array.from({ length: 4 }, () => Array(7).fill(0));
+
+    results.forEach(({ _id, count }) => {
+      const { dayOfWeek, hour } = _id;
+      const dayIndex = dayOrder.indexOf(dayOfWeek);
+      if (dayIndex === -1) return;
+
+      let slotIndex;
+      if (hour >= 6 && hour < 12) slotIndex = 0;       // Morning
+      else if (hour >= 12 && hour < 18) slotIndex = 1; // Afternoon
+      else if (hour >= 18 && hour < 24) slotIndex = 2; // Evening
+      else slotIndex = 3;                               // Night (0-6)
+
+      matrix[slotIndex][dayIndex] += count;
+    });
+
+    // Normalize values from 0-4 for heatmap intensity
+    const allValues = matrix.flat();
+    const maxVal = Math.max(...allValues, 1); // avoid divide by zero
+
+    const normalizedMatrix = matrix.map(row =>
+      row.map(val => Math.round((val / maxVal) * 4))
+    );
+
+    res.status(200).json({ success: true, data: normalizedMatrix });
+  } catch (error) {
+    logger.error(`Error in getPeakActivityHours: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// ─── Rewards & Offers Management ───
+export const getRewardConfig = async (req, res) => {
+  try {
+    let config = await RewardConfig.findOne();
+    if (!config) {
+      config = await RewardConfig.create({});
+    }
+    res.status(200).json({ success: true, data: config });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const updateRewardConfig = async (req, res) => {
+  try {
+    let config = await RewardConfig.findOne();
+    if (!config) {
+      config = new RewardConfig();
+    }
+    const { milestoneInterval, minScratchReward, maxScratchReward, isActive } = req.body;
+    if (milestoneInterval) config.milestoneInterval = milestoneInterval;
+    if (minScratchReward !== undefined) config.minScratchReward = minScratchReward;
+    if (maxScratchReward !== undefined) config.maxScratchReward = maxScratchReward;
+    if (isActive !== undefined) config.isActive = isActive;
+    
+    await config.save();
+    res.status(200).json({ success: true, data: config });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getPartnerOffers = async (req, res) => {
+  try {
+    const offers = await PartnerOffer.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: offers });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const createPartnerOffer = async (req, res) => {
+  try {
+    const offer = await PartnerOffer.create(req.body);
+    res.status(201).json({ success: true, data: offer });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const updatePartnerOffer = async (req, res) => {
+  try {
+    const offer = await PartnerOffer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    res.status(200).json({ success: true, data: offer });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const deletePartnerOffer = async (req, res) => {
+  try {
+    const offer = await PartnerOffer.findByIdAndDelete(req.params.id);
+    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    res.status(200).json({ success: true, message: 'Offer deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+

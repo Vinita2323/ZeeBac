@@ -7,6 +7,7 @@ import useAuthStore from '../../../store/useAuthStore';
 export default function ProfileScreen() {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
+  const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const [subView, setSubView] = useState(null); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
   
@@ -15,7 +16,7 @@ export default function ProfileScreen() {
     name: currentUser.name || 'Guest User',
     phone: currentUser.phone || '+91 9999999999',
     email: currentUser.email || 'guest@zeebac.com',
-    profileImage: null
+    profileImage: currentUser.profileImage || null
   });
 
   const fileInputRef = useRef(null);
@@ -26,11 +27,18 @@ export default function ProfileScreen() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64String = reader.result;
         const updatedProfile = { ...profile, profileImage: base64String };
         setProfile(updatedProfile);
-        UserAPI.updateProfile({ name: updatedProfile.name, email: updatedProfile.email }); // Note: Profile image upload not implemented in API yet
+        
+        // Update globally and in backend
+        updateProfileStore({ profileImage: base64String });
+        try {
+          await UserAPI.updateProfile({ profileImage: base64String });
+        } catch (error) {
+          console.error("Failed to update profile image on backend", error);
+        }
         setShowImageOptions(false);
       };
       reader.readAsDataURL(file);
@@ -51,7 +59,7 @@ export default function ProfileScreen() {
         name: currentUser.name || 'Guest User',
         phone: currentUser.phone || '+91 9999999999',
         email: currentUser.email || 'guest@zeebac.com',
-        profileImage: null
+        profileImage: currentUser.profileImage || null
       });
       if (currentUser.bankDetails) {
         setPaymentDetails({
@@ -106,6 +114,7 @@ export default function ProfileScreen() {
     try {
       await UserAPI.updateProfile({ name: updatedProfile.name, email: updatedProfile.email });
       setProfile(updatedProfile);
+      updateProfileStore({ name: updatedProfile.name, email: updatedProfile.email });
       setSubView(null);
     } catch (err) {
       console.error('Failed to update profile', err);
@@ -212,7 +221,7 @@ export default function ProfileScreen() {
               {profile.profileImage ? (
                 <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
-                <span className="material-symbols-outlined text-[36px]">person</span>
+                <span className="font-display font-black text-[32px]">{profile.name.charAt(0).toUpperCase()}</span>
               )}
               {/* Overlay on hover/click */}
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -664,6 +673,50 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
 
 // SUBPAGE 3: HELP & SUPPORT COMPONENT
 function SupportSubView({ onBack }) {
+  const [tickets, setTickets] = useState([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const fetchTickets = async () => {
+    try {
+      setIsLoadingTickets(true);
+      const res = await UserAPI.getMySupportTickets();
+      if (res.success) {
+        setTickets(res.data);
+      }
+    } catch (error) {
+      console.error("Failed to load tickets", error);
+    } finally {
+      setIsLoadingTickets(false);
+    }
+  };
+
+  const handleSubmitTicket = async (e) => {
+    e.preventDefault();
+    if (!subject || !message) return;
+    try {
+      setIsSubmitting(true);
+      const res = await UserAPI.createSupportTicket(subject, message);
+      if (res.success) {
+        setSubject('');
+        setMessage('');
+        setShowForm(false);
+        fetchTickets(); // Refresh list
+      }
+    } catch (error) {
+      alert("Failed to submit ticket");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const faqs = [
     {
       q: "How does Zeebac Cashback audit work?",
@@ -731,16 +784,89 @@ function SupportSubView({ onBack }) {
               );
             })}
           </div>
+
+          <div className="pt-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-title-md font-bold text-on-surface">My Support Tickets</h3>
+              <button 
+                onClick={() => setShowForm(!showForm)}
+                className="text-primary font-bold text-body-sm bg-primary/10 px-3 py-1 rounded-full cursor-pointer hover:bg-primary/20"
+              >
+                {showForm ? 'Cancel' : '+ New Ticket'}
+              </button>
+            </div>
+
+            {showForm && (
+              <form onSubmit={handleSubmitTicket} className="bg-white p-4 rounded-2xl border border-outline-variant/30 mb-6 space-y-4 animate-reveal">
+                <div>
+                  <label className="block text-[12px] font-bold text-on-surface-variant mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    required
+                    className="w-full bg-[#f9f9ff] border border-outline-variant/30 rounded-xl px-4 py-3 text-body-sm focus:border-primary focus:outline-none"
+                    placeholder="E.g., Cashback not received"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-on-surface-variant mb-1">Message</label>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    required
+                    rows="3"
+                    className="w-full bg-[#f9f9ff] border border-outline-variant/30 rounded-xl px-4 py-3 text-body-sm focus:border-primary focus:outline-none resize-none"
+                    placeholder="Describe your issue..."
+                  ></textarea>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !subject || !message}
+                  className={`w-full h-12 rounded-xl font-bold flex items-center justify-center transition-all ${
+                    isSubmitting || !subject || !message ? 'bg-outline-variant/40 text-on-surface/40' : 'btn-primary-gradient text-white cursor-pointer'
+                  }`}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
+                </button>
+              </form>
+            )}
+
+            {isLoadingTickets ? (
+              <div className="text-center py-4 text-outline">Loading tickets...</div>
+            ) : tickets.length === 0 ? (
+              <div className="text-center py-6 text-outline bg-white rounded-2xl border border-outline-variant/30">
+                No tickets yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tickets.map(ticket => (
+                  <div key={ticket._id} className="bg-white p-4 rounded-2xl border border-outline-variant/30 text-[13px]">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-on-surface">{ticket.subject}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        ticket.status === 'Resolved' ? 'bg-green-100 text-green-700' :
+                        ticket.status === 'Open' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {ticket.status}
+                      </span>
+                    </div>
+                    <p className="text-on-surface-variant mb-2">{ticket.message}</p>
+                    {ticket.adminReply && (
+                      <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 mt-3">
+                        <span className="text-[11px] font-bold text-primary block mb-1">Zeebac Support Reply:</span>
+                        <p className="text-on-surface-variant italic">{ticket.adminReply}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="pt-xl space-y-sm">
-          <button 
-            onClick={() => alert('Support Representative chat placeholder')}
-            className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg active:scale-95 transition-transform cursor-pointer"
-          >
-            <span className="material-symbols-outlined">chat</span>
-            Chat with Customer Care
-          </button>
+        <div className="pt-8 space-y-sm">
           <a 
             href="mailto:support@zeebac.com"
             className="w-full h-12 border border-outline-variant/40 bg-white text-secondary rounded-xl font-title-md flex items-center justify-center gap-sm active:scale-95 transition-transform cursor-pointer"

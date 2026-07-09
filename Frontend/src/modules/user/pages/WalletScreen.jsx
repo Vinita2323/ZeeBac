@@ -331,17 +331,68 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
 
 // ─── Phase B: Perks SubView ───
 function PerksSubView({ balance, activities, onBack }) {
-  const txCount = activities.length;
-  const nextMilestone = 5;
-  const progress = Math.min((txCount / nextMilestone) * 100, 100);
+  const [txCount, setTxCount] = useState(0);
+  const [config, setConfig] = useState({ milestoneInterval: 5, minScratchReward: 5, maxScratchReward: 50 });
+  const [scratchCardsClaimed, setScratchCardsClaimed] = useState(0);
+  const [isScratching, setIsScratching] = useState(false);
 
-  // Generate some dummy scratch cards based on activity count
-  const scratchCards = Array.from({ length: 4 }).map((_, i) => ({
-    id: i,
-    isUnlocked: i < txCount,
-    isScratched: false,
-    reward: i === 0 ? '₹15' : i === 1 ? '₹5' : '₹50'
-  }));
+  useEffect(() => {
+    // Fetch transactions for count
+    UserAPI.getMyTransactions().then(res => {
+      if (res.success) {
+        setTxCount(res.data.length);
+      }
+    }).catch(console.error);
+    
+    // Fetch dynamic rewards config
+    UserAPI.getRewardsData().then(res => {
+      if (res.success && res.data) {
+        setConfig(res.data.config);
+        setScratchCardsClaimed(res.data.scratchCardsClaimed || 0);
+      }
+    }).catch(console.error);
+  }, []);
+
+  const interval = config.milestoneInterval || 5;
+  const currentCycleProgress = txCount % interval;
+  const progress = (currentCycleProgress / interval) * 100;
+  const remainingForNext = interval - currentCycleProgress;
+
+  // Earned scratch cards is how many times they hit the interval
+  const unlockedCardsCount = Math.floor(txCount / interval);
+
+  const unclaimedCount = Math.max(0, unlockedCardsCount - scratchCardsClaimed);
+  
+  // Always show at least 4 cards visually, filling the grid row
+  const totalCardsToShow = Math.max(4, unclaimedCount + (4 - (unclaimedCount % 4 || 4))); 
+  const scratchCards = Array.from({ length: totalCardsToShow }).map((_, i) => {
+    const logicalIndex = scratchCardsClaimed + i;
+    return {
+      id: logicalIndex,
+      isUnlocked: logicalIndex < unlockedCardsCount,
+      isScratched: false,
+      reward: null
+    };
+  });
+
+  const handleScratch = async (card) => {
+    if (!card.isUnlocked || card.isScratched || isScratching) return;
+    setIsScratching(true);
+    try {
+      const res = await UserAPI.claimScratchCard();
+      if (res.success) {
+        setScratchCardsClaimed(res.data.scratchCardsClaimed);
+        alert(`🎉 You won ₹${res.data.rewardAmount}! Added to your wallet.`);
+      } else {
+        alert(res.message || 'Failed to scratch card');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error scratching card');
+    } finally {
+      setIsScratching(false);
+    }
+  };
 
   return (
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
@@ -367,82 +418,76 @@ function PerksSubView({ balance, activities, onBack }) {
 
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg space-y-8 -mt-4 relative z-20">
         
-        {/* Milestone Card */}
-        <div className="bg-white rounded-3xl p-5 border border-outline-variant/20 shadow-md">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <h3 className="font-bold text-body-lg text-on-surface">Weekly Milestone</h3>
-              <p className="text-[12px] text-on-surface-variant">Shop at {nextMilestone - txCount > 0 ? nextMilestone - txCount : 0} more stores to unlock a Mystery Box!</p>
-            </div>
-            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-500">
-              <span className="material-symbols-outlined">redeem</span>
-            </div>
+        {config.isActive === false ? (
+          <div className="bg-white rounded-3xl p-8 border border-outline-variant/20 shadow-md text-center">
+            <span className="material-symbols-outlined text-[48px] text-on-surface-variant/50 mb-4">stars</span>
+            <h3 className="font-bold text-lg text-on-surface mb-2">Rewards Unavailable</h3>
+            <p className="text-sm text-on-surface-variant">The rewards program is currently paused. Please check back later!</p>
           </div>
-          <div className="h-2.5 bg-surface-container-low rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-orange-400 to-red-500 transition-all duration-1000"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="mt-2 flex justify-between text-[10px] font-bold text-on-surface-variant">
-            <span>{txCount} payments</span>
-            <span>{nextMilestone} payments</span>
-          </div>
-        </div>
-
-        {/* Scratch Cards */}
-        <div className="space-y-4">
-          <h3 className="font-display text-title-md font-extrabold text-on-surface px-1">Scratch Cards</h3>
-          <div className="grid grid-cols-2 gap-4">
-            {scratchCards.map(card => (
-              <div 
-                key={card.id}
-                className={`aspect-square rounded-3xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden transition-transform active:scale-95 ${
-                  card.isUnlocked 
-                    ? 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-lg shadow-green-500/20 cursor-pointer' 
-                    : 'bg-surface-container-low border-2 border-dashed border-outline-variant/30 text-on-surface-variant opacity-60'
-                }`}
-                onClick={() => {
-                  if (card.isUnlocked) alert(`You won ${card.reward}! (Scratch animation placeholder)`);
-                }}
-              >
-                {card.isUnlocked ? (
-                  <>
-                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')] opacity-50 mix-blend-overlay" />
-                    <span className="material-symbols-outlined text-[32px] mb-2 relative z-10">star</span>
-                    <span className="font-bold text-body-sm relative z-10">Tap to Scratch</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[32px] mb-2 opacity-50">lock</span>
-                    <span className="font-bold text-[11px] px-2">Locked</span>
-                  </>
-                )}
+        ) : (
+          <>
+            {/* Milestone Card */}
+            <div className="bg-white rounded-3xl p-5 border border-outline-variant/20 shadow-md">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h3 className="font-bold text-body-lg text-on-surface">Scratch Card Milestone</h3>
+                  <p className="text-[12px] text-on-surface-variant">Shop at {remainingForNext} more stores to unlock a Scratch Card!</p>
+                </div>
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-500">
+                  <span className="material-symbols-outlined">redeem</span>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="h-2.5 bg-surface-container-low rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-orange-400 to-red-500 transition-all duration-1000"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="mt-2 flex justify-between text-[10px] font-bold text-on-surface-variant">
+                <span>0 payments</span>
+                <span>{interval} payments</span>
+              </div>
+            </div>
 
-        {/* Partner Offers */}
-        <div className="space-y-4">
-          <h3 className="font-display text-title-md font-extrabold text-on-surface px-1">Partner Offers</h3>
-          <div className="flex gap-4 overflow-x-auto pb-4 px-1 snap-x no-scrollbar">
-            {/* Offer 1 */}
-            <div className="min-w-[240px] bg-white border border-outline-variant/20 rounded-3xl p-4 shadow-sm snap-start flex-shrink-0">
-              <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center text-white font-bold mb-3">Z</div>
-              <h4 className="font-bold text-body-md">Zomato Pro</h4>
-              <p className="text-[12px] text-on-surface-variant mt-1 mb-3">Get 3 months free with 500 ZeeBac points</p>
-              <button className="text-[12px] font-bold text-primary bg-primary/10 px-4 py-1.5 rounded-lg w-full">Claim Now</button>
+            {/* Scratch Cards */}
+            <div className="space-y-4">
+              <h3 className="font-display text-title-md font-extrabold text-on-surface px-1">Scratch Cards</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {scratchCards.map(card => (
+                  <div 
+                    key={card.id}
+                    className={`aspect-square rounded-3xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden transition-transform active:scale-95 ${
+                      card.isScratched
+                        ? 'bg-surface-container border border-outline-variant/30 text-primary'
+                        : card.isUnlocked 
+                          ? 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-lg shadow-green-500/20 cursor-pointer' 
+                          : 'bg-surface-container-low border-2 border-dashed border-outline-variant/30 text-on-surface-variant opacity-60'
+                    }`}
+                    onClick={() => handleScratch(card)}
+                  >
+                    {card.isScratched ? (
+                      <>
+                        <span className="material-symbols-outlined text-[32px] mb-2 text-primary">check_circle</span>
+                        <span className="font-bold text-body-sm text-primary">Claimed</span>
+                      </>
+                    ) : card.isUnlocked ? (
+                      <>
+                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')] opacity-50 mix-blend-overlay" />
+                        <span className="material-symbols-outlined text-[32px] mb-2 relative z-10">star</span>
+                        <span className="font-bold text-body-sm relative z-10">Tap to Scratch</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[32px] mb-2 opacity-50">lock</span>
+                        <span className="font-bold text-[11px] px-2">Locked</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            {/* Offer 2 */}
-            <div className="min-w-[240px] bg-white border border-outline-variant/20 rounded-3xl p-4 shadow-sm snap-start flex-shrink-0">
-              <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center text-white font-bold mb-3">S</div>
-              <h4 className="font-bold text-body-md">Swiggy Instamart</h4>
-              <p className="text-[12px] text-on-surface-variant mt-1 mb-3">Flat ₹100 off on your next grocery order</p>
-              <button className="text-[12px] font-bold text-primary bg-primary/10 px-4 py-1.5 rounded-lg w-full">Claim Now</button>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
 
       </main>
     </div>

@@ -6,9 +6,12 @@ import WalletTransaction from '../models/WalletTransaction.js';
 import CashbackRequest from '../models/CashbackRequest.js';
 import Product from '../models/Product.js';
 import Referral from '../models/Referral.js';
+import RewardConfig from '../models/RewardConfig.js';
+import PartnerOffer from '../models/PartnerOffer.js';
 import logger from '../utils/logger.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import { sendNotification } from '../services/notification.service.js';
 
 // ─── Get Customer Profile ───
 export const getUserProfile = async (req, res) => {
@@ -242,7 +245,20 @@ export const createCustomerTransaction = async (req, res) => {
       $push: { recentVendors: { $each: [vendor._id], $position: 0, $slice: 10 } } // Push to start, max 10
     });
 
-    // 11. Return success response
+    // 11. Send Notification to customer
+    sendNotification({
+      recipientId: customer._id,
+      recipientType: 'customer',
+      fcmTokens: customer.fcmTokens || [],
+      type: 'credit',
+      title: '🎉 Cashback Mila!',
+      message: `₹${cashbackAmount} cashback ${vendor.storeName} se mila. Wallet balance: ₹${newBalance}`,
+      icon: 'payments',
+      referenceId: txn._id,
+      referenceType: 'transaction',
+    });
+
+    // 12. Return success response
     res.status(201).json({
       success: true,
       data: {
@@ -548,10 +564,10 @@ export const getMyTransactions = async (req, res) => {
 
 export const updateUserProfile = async (req, res) => {
   try {
-    const { name, email, phone } = req.body; // allowing phone update might require OTP in real scenario, keeping it simple here
+    const { name, email, phone, profileImage } = req.body; // allowing phone update might require OTP in real scenario, keeping it simple here
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, email, phone },
+      { name, email, phone, profileImage },
       { new: true, select: '-password -refreshToken -otp -otpExpiry' }
     );
     res.status(200).json({ success: true, data: user });
@@ -721,3 +737,91 @@ export const getUserWithdrawals = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// ─── Phase C: Dynamic Rewards & Offers ───
+export const getRewardData = async (req, res) => {
+  try {
+    let config = await RewardConfig.findOne();
+    if (!config) {
+      config = { milestoneInterval: 5, minScratchReward: 5, maxScratchReward: 50, isActive: true };
+    }
+    const offers = await PartnerOffer.find({ isActive: true }).sort({ createdAt: -1 });
+    const user = await User.findById(req.user.id);
+    
+    res.status(200).json({ success: true, data: { config, offers, scratchCardsClaimed: user?.scratchCardsClaimed || 0 } });
+  } catch (error) {
+    logger.error(`getRewardData error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const claimScratchCard = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // Get config for reward range and interval
+    let config = await RewardConfig.findOne();
+    const min = config?.minScratchReward || 5;
+    const max = config?.maxScratchReward || 50;
+    const interval = config?.milestoneInterval || 5;
+    
+    // Count user transactions
+    const txCount = await Transaction.countDocuments({ customerId: user._id });
+    const unlockedCardsCount = Math.floor(txCount / interval);
+    
+    // Check if they have available scratch cards
+    if (user.scratchCardsClaimed >= unlockedCardsCount) {
+      return res.status(400).json({ success: false, message: 'No unlocked scratch cards available' });
+    }
+    
+    // Calculate random reward
+    const rewardAmount = Math.floor(Math.random() * (max - min + 1)) + min;
+
+    // Credit wallet
+    let wallet = await Wallet.findOne({ ownerId: user.id, ownerType: 'User' });
+    if (!wallet) {
+      wallet = await Wallet.create({ ownerId: user.id, ownerType: 'User', balance: 0 });
+      user.walletId = wallet._id;
+    }
+
+    wallet.balance += rewardAmount;
+    await wallet.save();
+
+    // Log wallet transaction
+    await WalletTransaction.create({
+      walletId: wallet._id,
+      ownerId: user.id,
+      ownerType: 'User',
+      type: 'credit',
+      amount: rewardAmount,
+      balanceAfter: wallet.balance,
+      category: 'scratch_card_reward',
+      description: 'Scratch Card Reward'
+    });
+
+    // Update user claimed count
+    user.scratchCardsClaimed += 1;
+    await user.save();
+
+    // Send notification
+    sendNotification({
+      recipientId: user._id,
+      recipientType: 'customer',
+      fcmTokens: user.fcmTokens || [],
+      type: 'credit',
+      title: '🎁 Scratch Card Reward!',
+      message: `Badhai ho! ₹${rewardAmount} aapke wallet me add ho gaya.`,
+      icon: 'stars',
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      data: { rewardAmount, scratchCardsClaimed: user.scratchCardsClaimed, newBalance: wallet.balance } 
+    });
+  } catch (error) {
+    logger.error(`claimScratchCard error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+

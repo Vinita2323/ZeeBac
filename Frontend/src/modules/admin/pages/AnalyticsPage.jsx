@@ -8,14 +8,19 @@ export default function AnalyticsPage() {
   const [userGrowth, setUserGrowth] = useState({ labels: [], counts: [] });
   const [categories, setCategories] = useState([]);
   const [topVendors, setTopVendors] = useState([]);
+  // Real heatmap data: 4 rows (time slots) x 7 cols (days), default all 0
+  const [heatmapMatrix, setHeatmapMatrix] = useState(
+    Array.from({ length: 4 }, () => Array(7).fill(0))
+  );
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const [usersRes, catsRes, vendorsRes] = await Promise.all([
+        const [usersRes, catsRes, vendorsRes, peakRes] = await Promise.all([
           AdminAPI.getUserAnalytics(),
           AdminAPI.getVendorCategoryBreakdown(),
-          AdminAPI.getTopVendors()
+          AdminAPI.getTopVendors(),
+          AdminAPI.getPeakActivityHours()
         ]);
         
         if (usersRes.success) setUserGrowth(usersRes.data);
@@ -24,6 +29,7 @@ export default function AnalyticsPage() {
           setCategories(catsRes.data.map((cat, idx) => ({ ...cat, color: colors[idx % colors.length] })));
         }
         if (vendorsRes.success) setTopVendors(vendorsRes.data);
+        if (peakRes.success) setHeatmapMatrix(peakRes.data);
       } catch (error) {
         console.error("Failed to fetch analytics", error);
       } finally {
@@ -153,14 +159,17 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="flex-1 grid grid-cols-7 gap-2">
                     {[...Array(7)].map((_, cIndex) => {
-                      // Deterministic mock data based on index so it doesn't flash on re-renders
-                      const intensity = [1, 3, 2, 4, 1, 0, 2, 2, 4, 3, 4, 2, 1, 3, 3, 4, 4, 3, 2, 2, 4, 0, 1, 1, 2, 1, 0, 1][rIndex * 7 + cIndex];
+                      // Use REAL data from backend heatmap matrix
+                      const intensity = heatmapMatrix[rIndex]?.[cIndex] ?? 0;
                       const colors = ['bg-primary/10', 'bg-primary/30', 'bg-primary/50', 'bg-primary/70', 'bg-primary'];
+                      const txCount = heatmapMatrix[rIndex]?.[cIndex] !== undefined
+                        ? `Intensity: ${intensity}/4`
+                        : 'No data';
                       return (
                         <div 
                           key={cIndex} 
                           className={`aspect-square rounded-md ${colors[intensity]} hover:ring-2 hover:ring-primary/50 hover:scale-105 transition-all cursor-pointer`}
-                          title={`${row.label} (${row.time}) on ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][cIndex]}`}
+                          title={`${row.label} on ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][cIndex]} — ${txCount}`}
                         />
                       );
                     })}

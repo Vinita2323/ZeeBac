@@ -21,8 +21,11 @@ import {
   getNearbyVendors,
   getRecentVendors,
   requestWithdrawal,
-  getUserWithdrawals
+  getUserWithdrawals,
+  getRewardData,
+  claimScratchCard
 } from '../controllers/user.controller.js';
+import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
 import { getVendorReviews, createReview, deleteReview } from '../controllers/review.controller.js';
 import { getMyReferrals } from '../controllers/referral.controller.js';
@@ -83,5 +86,12 @@ router.get('/cashback-requests/:id', getCashbackRequestById);
 
 // Referrals (Phase 8)
 router.get('/referrals', getMyReferrals);
+
+// Rewards & Offers
+router.get('/rewards-data', getRewardData);
+router.post('/rewards/scratch', claimScratchCard);
+
+// FCM Token (Push Notifications)
+router.post('/fcm-token', saveUserFcmToken);
 
 export default router;
