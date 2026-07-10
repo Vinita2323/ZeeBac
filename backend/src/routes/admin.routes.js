@@ -26,12 +26,15 @@ import {
   getPartnerOffers,
   createPartnerOffer,
   updatePartnerOffer,
-  deletePartnerOffer
+  deletePartnerOffer,
+  getPendingPayouts,
+  processPayout
 } from '../controllers/admin.controller.js';
 import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
 import { getAllTickets, replyToTicket, closeTicket } from '../controllers/support.controller.js';
+import { saveAdminFcmToken } from '../controllers/notification.controller.js';
 
 const router = express.Router();
 
@@ -41,6 +44,9 @@ router.use(requireRole('admin', 'super_admin'));
 
 // ─── Dashboard ───
 router.get('/dashboard/stats', getDashboardStats);
+
+// ─── FCM Token ───
+router.post('/fcm-token', saveAdminFcmToken);
 
 // ─── Support Tickets ───
 router.get('/support/tickets', getAllTickets);
@@ -57,6 +63,10 @@ router.patch('/vendors/:id/reject', rejectVendor);
 router.get('/users', getAllUsers);
 router.patch('/users/:id/suspend', suspendUser);
 router.patch('/users/:id/unsuspend', unsuspendUser);
+
+// ─── Payouts & Withdrawals ───
+router.get('/payouts/pending', getPendingPayouts);
+router.post('/payouts/:id/process', processPayout);
 
 // ─── Referrals (Phase 8) ───
 router.get('/referrals/stats', getReferralStats);

@@ -1,5 +1,6 @@
 import SupportTicket from '../models/SupportTicket.js';
 import logger from '../utils/logger.js';
+import { notifyAdmins } from '../utils/adminNotification.js';
 
 // --- User Actions ---
 export const createTicket = async (req, res) => {
@@ -15,6 +16,8 @@ export const createTicket = async (req, res) => {
       subject,
       message
     });
+
+    await notifyAdmins('SUPPORT_TICKET', 'New Support Ticket', `${req.user.role === 'vendor' ? 'Vendor' : 'User'} opened a ticket: ${subject}`);
 
     res.status(201).json({ success: true, data: ticket, message: 'Support ticket submitted successfully' });
   } catch (error) {

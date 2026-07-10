@@ -8,6 +8,7 @@ import {
   createRazorpayOrder,
   verifyRazorpayAndCreateTransaction,
   searchVendors,
+  getCategories,
   getVendorsByCategory,
   toggleFavoriteVendor,
   getFavoriteVendors,
@@ -48,6 +49,7 @@ router.put('/location', updateUserLocation);
 router.get('/vendors/nearby', getNearbyVendors);
 router.get('/recent-vendors', getRecentVendors);
 router.get('/vendors/search', searchVendors);
+router.get('/vendors/categories', getCategories);
 router.get('/vendors/category/:name', getVendorsByCategory);
 router.post('/favorites/:vendorId', toggleFavoriteVendor);
 router.get('/favorites', getFavoriteVendors);

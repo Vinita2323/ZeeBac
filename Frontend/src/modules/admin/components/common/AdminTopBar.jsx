@@ -1,4 +1,47 @@
+import { useState, useEffect } from 'react';
+import { requestNotificationPermission, onForegroundMessage } from '../../../../utils/notificationUtils';
+import { AdminAPI, NotificationAPI } from '../../../../services/api';
+import AdminNotificationDropdown from './AdminNotificationDropdown';
+
 export default function AdminTopBar({ onMenuClick }) {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    // 1. Fetch initial unread count
+    const fetchUnread = async () => {
+      try {
+        const res = await NotificationAPI.getUnreadCount();
+        if (res.success) setUnreadCount(res.count);
+      } catch (e) {
+        console.error('Failed to fetch unread count', e);
+      }
+    };
+    fetchUnread();
+
+    // 2. Register for Push Notifications (FCM)
+    const initPush = async () => {
+      try {
+        const token = await requestNotificationPermission();
+        if (token) {
+          await AdminAPI.saveAdminFcmToken(token);
+        }
+      } catch (err) {
+        console.error('Push notification setup failed', err);
+      }
+    };
+    initPush();
+
+    // 3. Listen for foreground messages
+    const unsubscribe = onForegroundMessage((payload) => {
+      // Refresh count when a new notification comes in while app is open
+      fetchUnread();
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
   return (
     <div className="h-[64px] bg-white border-b border-outline-variant/20 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
       
@@ -24,10 +67,38 @@ export default function AdminTopBar({ onMenuClick }) {
 
       {/* Right side: Actions & Profile */}
       <div className="flex items-center gap-4 ml-auto">
-        <button className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors relative cursor-pointer">
-          <span className="material-symbols-outlined text-[24px]">notifications</span>
-          <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors relative cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[24px]">notifications</span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+          
+          {showDropdown && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-transparent" 
+                onClick={() => {
+                  setShowDropdown(false);
+                  // Refresh count when closing dropdown as they might have read some
+                  NotificationAPI.getUnreadCount().then(res => setUnreadCount(res.count || 0)).catch(() => {});
+                }}
+              ></div>
+              <div className="relative z-50">
+                <AdminNotificationDropdown onClose={() => {
+                  setShowDropdown(false);
+                  NotificationAPI.getUnreadCount().then(res => setUnreadCount(res.count || 0)).catch(() => {});
+                }} />
+              </div>
+            </>
+          )}
+        </div>
         
         <div className="hidden sm:flex items-center gap-3 border-l border-outline-variant/20 pl-4 ml-2">
           <div className="text-right">

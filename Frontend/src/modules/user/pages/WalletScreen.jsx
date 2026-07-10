@@ -193,31 +193,114 @@ export default function WalletScreen() {
 function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance }) {
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [result, setResult] = useState(null); // { success, isAuto, amount, message }
+  const [errorMsg, setErrorMsg] = useState('');
   
   const bankDetails = currentUser?.bankDetails || {};
   const hasBank = !!bankDetails.accountNumber || !!bankDetails.upiId;
+  const AUTO_LIMIT = 5000;
 
   const handleWithdraw = async () => {
-    if (!amount || isNaN(amount) || amount < 50) return alert("Minimum withdrawal is ₹50");
-    if (amount > balance) return alert("Insufficient balance");
-    if (!hasBank) return alert("Please link a bank account first");
+    setErrorMsg('');
+    const numAmount = parseFloat(amount);
+    if (!amount || isNaN(numAmount) || numAmount < 50) {
+      setErrorMsg('Minimum withdrawal amount ₹50 hai');
+      return;
+    }
+    if (numAmount > balance) {
+      setErrorMsg('Balance insufficient hai');
+      return;
+    }
+    if (!hasBank) {
+      setErrorMsg('Pehle Profile me bank account link karo');
+      return;
+    }
 
     setIsProcessing(true);
     try {
-      const res = await UserAPI.requestWithdrawal(amount);
+      const res = await UserAPI.requestWithdrawal(numAmount);
       if (res.success) {
-        alert("Withdrawal request submitted successfully!");
-        setBalance(prev => prev - amount);
-        onBack();
+        const isAuto = numAmount <= AUTO_LIMIT;
+        setBalance(prev => prev - numAmount);
+        setResult({ success: true, isAuto, amount: numAmount });
       } else {
-        alert(res.message || "Failed to submit request");
+        setErrorMsg(res.message || 'Kuch galat hua, dobara try karo');
       }
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to submit request");
+      setErrorMsg(err.response?.data?.message || 'Server error, dobara try karo');
     } finally {
       setIsProcessing(false);
     }
   };
+
+  // ─── Success State ───
+  if (result?.success) {
+    return (
+      <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+        <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
+          <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer">
+            <span className="material-symbols-outlined text-primary">arrow_back</span>
+          </button>
+          <span className="font-display text-title-md text-primary font-bold ml-1">Cashout to Bank</span>
+        </header>
+
+        <main className="flex-grow flex items-center justify-center px-container-margin py-xl">
+          <div className="w-full max-w-[360px] text-center space-y-6">
+            {/* Success Icon */}
+            <div className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center shadow-lg ${result.isAuto ? 'bg-green-500' : 'bg-orange-400'}`}>
+              <span className="material-symbols-outlined text-white text-[52px]">
+                {result.isAuto ? 'check_circle' : 'schedule'}
+              </span>
+            </div>
+
+            {/* Title */}
+            <div>
+              <h2 className="font-display text-[22px] font-black text-on-surface">
+                {result.isAuto ? '✅ Withdrawal Successful!' : '⏳ Request Submitted!'}
+              </h2>
+              <p className="text-on-surface-variant text-[14px] mt-2 leading-relaxed">
+                {result.isAuto
+                  ? `₹${result.amount.toFixed(2)} aapke bank account me 1-2 ghante me transfer ho jayega.`
+                  : `₹${result.amount.toFixed(2)} ka withdrawal request receive ho gaya. ₹5,000 se zyada ke withdrawals Admin review karte hain — 24-48 ghante me process hoga.`
+                }
+              </p>
+            </div>
+
+            {/* Amount Badge */}
+            <div className={`inline-flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-[18px] ${result.isAuto ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+              <span className="material-symbols-outlined text-[20px]">
+                {result.isAuto ? 'account_balance' : 'pending'}
+              </span>
+              ₹{result.amount.toFixed(2)} — {result.isAuto ? 'Auto Approved' : 'Pending Review'}
+            </div>
+
+            {/* Info Box */}
+            <div className={`rounded-2xl p-4 text-left text-[12px] leading-relaxed ${result.isAuto ? 'bg-green-50 border border-green-100 text-green-800' : 'bg-orange-50 border border-orange-100 text-orange-800'}`}>
+              {result.isAuto ? (
+                <>
+                  <p className="font-bold mb-1">ℹ️ Auto-Approved kyun hua?</p>
+                  <p>₹5,000 tak ke withdrawals turant process hote hain bina Admin review ke. Paisa aapke registered bank/UPI me bheja jayega.</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold mb-1">⚠️ Admin Review kyun?</p>
+                  <p>₹5,000 se zyada ke withdrawals security ke liye manually review kiye jaate hain. Aapko notification milegi jab approve ho.</p>
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={onBack}
+              className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95"
+            >
+              <span className="material-symbols-outlined">arrow_back</span>
+              Wallet Par Wapas Jao
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
@@ -237,6 +320,15 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
           <h2 className="text-[40px] font-display font-black text-primary mt-2">₹{balance.toFixed(2)}</h2>
         </div>
 
+        {/* Auto-Approve Info Banner */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-3 flex items-start gap-2.5">
+          <span className="material-symbols-outlined text-green-600 text-[18px] mt-0.5 flex-shrink-0">bolt</span>
+          <div>
+            <p className="text-[12px] font-bold text-green-800">≤ ₹5,000 → Instant Auto-Approved</p>
+            <p className="text-[11px] text-green-700 mt-0.5">> ₹5,000 → Admin review (24-48 hrs)</p>
+          </div>
+        </div>
+
         {/* Amount Input */}
         <div className="space-y-sm">
           <label className="font-label-mono text-body-sm tracking-wider text-on-surface-variant">CASHOUT AMOUNT</label>
@@ -245,7 +337,7 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
             <input 
               type="number"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => { setAmount(e.target.value); setErrorMsg(''); }}
               placeholder="0.00"
               className="w-full h-16 pl-10 pr-24 bg-white border border-outline-variant/30 rounded-2xl text-title-lg font-bold text-on-surface focus:outline-none focus:border-primary/50 shadow-inner"
             />
@@ -256,7 +348,26 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
               MAX
             </button>
           </div>
-          <p className="text-[11px] text-on-surface-variant/80 ml-2">Min ₹50 · Usually takes 1-2 hours</p>
+
+          {/* Live Status Pill */}
+          {amount && parseFloat(amount) >= 50 && (
+            <div className={`flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-full w-fit ${parseFloat(amount) <= AUTO_LIMIT ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+              <span className="material-symbols-outlined text-[14px]">
+                {parseFloat(amount) <= AUTO_LIMIT ? 'bolt' : 'pending'}
+              </span>
+              {parseFloat(amount) <= AUTO_LIMIT ? 'Instant Auto-Approved' : 'Admin Review Required'}
+            </div>
+          )}
+
+          {/* Error Message */}
+          {errorMsg && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+              <span className="material-symbols-outlined text-red-500 text-[16px]">error</span>
+              <p className="text-[12px] font-bold text-red-600">{errorMsg}</p>
+            </div>
+          )}
+
+          <p className="text-[11px] text-on-surface-variant/80 ml-2">Min ₹50 · Auto-approve up to ₹5,000</p>
         </div>
 
         {/* Destination Account */}
@@ -288,11 +399,20 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
         {/* Submit Button */}
         <button 
           onClick={handleWithdraw}
-          disabled={!hasBank || isProcessing || !amount || amount < 50 || amount > balance}
+          disabled={!hasBank || isProcessing || !amount || parseFloat(amount) < 50 || parseFloat(amount) > balance}
           className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:active:scale-100"
         >
-          {isProcessing ? 'Processing...' : 'Confirm Cashout'}
-          {!isProcessing && <span className="material-symbols-outlined">arrow_forward</span>}
+          {isProcessing ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              Confirm Cashout
+              <span className="material-symbols-outlined">arrow_forward</span>
+            </>
+          )}
         </button>
 
         {/* History */}
@@ -316,7 +436,7 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
                   <div className="text-right">
                     <p className="font-bold text-body-sm">₹{tx.amount.toFixed(2)}</p>
                     <p className={`text-[10px] font-bold ${tx.status === 'Success' ? 'text-green-600' : tx.status === 'Pending' ? 'text-orange-600' : 'text-red-600'}`}>
-                      {tx.status}
+                      {tx.status === 'Success' ? '✅ Processed' : tx.status === 'Pending' ? '⏳ Pending' : '❌ Failed'}
                     </p>
                   </div>
                 </div>

@@ -123,6 +123,10 @@ export const transactionService = {
 
 // ── Admin Service ──
 export const AdminAPI = {
+  saveAdminFcmToken: async (token) => {
+    const res = await apiClient.post('/admin/fcm-token', { token });
+    return res.data;
+  },
   getDashboardStats: async () => {
     const res = await apiClient.get('/admin/dashboard/stats');
     return res.data;
@@ -153,6 +157,15 @@ export const AdminAPI = {
   },
   unsuspendUser: async (id) => {
     const res = await apiClient.patch(`/admin/users/${id}/unsuspend`);
+    return res.data;
+  },
+  // Payouts & Withdrawals
+  getPendingPayouts: async () => {
+    const res = await apiClient.get('/admin/payouts/pending');
+    return res.data;
+  },
+  processPayout: async (id, data) => {
+    const res = await apiClient.post(`/admin/payouts/${id}/process`, data);
     return res.data;
   },
   // Phase 8
@@ -457,6 +470,10 @@ export const UserAPI = {
   },
   getVendorPromotions: async (vendorId) => {
     const res = await apiClient.get(`/user/vendors/${vendorId}/promotions`);
+    return res.data;
+  },
+  getCategories: async () => {
+    const res = await apiClient.get('/user/vendors/categories');
     return res.data;
   },
   getVendorsByCategory: async (category, lat, lng) => {

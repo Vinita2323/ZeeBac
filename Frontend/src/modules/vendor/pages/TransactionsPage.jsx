@@ -6,6 +6,7 @@ export default function TransactionsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
 
   const tabs = ['All', 'Pending', 'Approved', 'Rejected'];
 
@@ -24,7 +25,8 @@ export default function TransactionsPage() {
             amount: `₹${t.amount.toLocaleString()}`,
             time: new Date(t.timestamp).toLocaleString(),
             status: t.status,
-            hasReceipt: t.hasReceipt
+            hasReceipt: t.hasReceipt,
+            receiptUrl: t.receiptUrl
           }));
           setTransactions(formatted);
         }
@@ -123,9 +125,12 @@ export default function TransactionsPage() {
                 </span>
               </div>
 
-              {trx.status === 'Pending' && trx.hasReceipt && (
+              {trx.status === 'Pending' && (trx.hasReceipt || trx.receiptUrl) && (
                 <div
-                  onClick={() => alert('Viewing attached receipt...')}
+                  onClick={() => {
+                    if (trx.receiptUrl) setViewReceiptUrl(trx.receiptUrl);
+                    else alert('Receipt URL not found');
+                  }}
                   className="mt-3 flex items-center justify-between bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-1.5 cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-center gap-1.5 text-on-surface-variant">
@@ -139,13 +144,13 @@ export default function TransactionsPage() {
               {trx.status === 'Pending' && (
                 <div className="flex gap-3 mt-3">
                   <button
-                    onClick={() => alert(`Rejected ${trx.id}`)}
+                    onClick={() => alert(`Please use the 'Requests' page to approve or reject pending cashback claims.`)}
                     className="flex-1 py-2.5 rounded-xl text-red-600 bg-red-50 hover:bg-red-100 text-[13px] font-bold transition-colors active:scale-[0.97]"
                   >
                     Reject
                   </button>
                   <button
-                    onClick={() => alert(`Approved ${trx.id}`)}
+                    onClick={() => alert(`Please use the 'Requests' page to approve or reject pending cashback claims.`)}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-white hover:bg-primary-fixed-variant text-[13px] font-bold shadow-sm transition-colors shadow-primary/20 active:scale-[0.97]"
                   >
                     Approve
@@ -162,6 +167,20 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      {viewReceiptUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setViewReceiptUrl(null)}>
+          <div className="relative max-w-full max-h-full">
+            <button 
+              onClick={() => setViewReceiptUrl(null)}
+              className="absolute -top-10 right-0 text-white p-2"
+            >
+              <span className="material-symbols-outlined text-3xl">close</span>
+            </button>
+            <img src={viewReceiptUrl} alt="Receipt" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
+          </div>
+        </div>
+      )}
 
     </div>
   );

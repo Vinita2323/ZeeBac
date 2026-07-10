@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, API_BASE_URL } from '../../../services/api';
+import { downloadImage, shareContent } from '../../../utils/exportUtils';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -368,14 +369,14 @@ export default function ProfilePage() {
                 
                 <div className="flex gap-1.5">
                   <button 
-                    onClick={() => alert('Downloading QR...')}
+                    onClick={() => downloadImage(qrUrl, `Zeebac_QR_${zeebacId}.png`)}
                     className="flex-1 py-1.5 px-1 bg-primary text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 shadow-sm active:scale-95 transition-transform cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[13px]">download</span>
                     Download
                   </button>
                   <button 
-                    onClick={() => alert('Sharing QR...')}
+                    onClick={() => shareContent(qrUrl, 'Scan & Pay via ZeeBac', 'Scan this QR at my store to pay and earn instant cashback!')}
                     className="flex-1 py-1.5 px-1 bg-white text-primary border border-primary rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 active:scale-95 transition-transform cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[13px]">share</span>

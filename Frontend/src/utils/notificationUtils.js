@@ -24,6 +24,9 @@ export const requestNotificationPermission = async (role = 'customer') => {
       return;
     }
 
+    console.log('Firebase VAPID Key available:', !!VAPID_KEY, VAPID_KEY ? VAPID_KEY.substring(0, 10) + '...' : 'MISSING');
+    console.log('Firebase API Key available:', !!import.meta.env.VITE_FIREBASE_API_KEY);
+
     // 3. Get FCM token
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (!token) {

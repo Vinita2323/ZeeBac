@@ -12,12 +12,15 @@ import FraudDetectionPage from './pages/FraudDetectionPage';
 import ReferralAnalyticsPage from './pages/ReferralAnalyticsPage';
 import SupportPage from './pages/SupportPage';
 import RewardsManagerPage from './pages/RewardsManagerPage';
+import PayoutsPage from './pages/PayoutsPage';
+import AdminNotificationsPage from './pages/AdminNotificationsPage';
 
 export default function AdminRoutes() {
   return (
     <AdminLayout>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/payouts" element={<PayoutsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
@@ -28,6 +31,7 @@ export default function AdminRoutes() {
         <Route path="/referrals" element={<ReferralAnalyticsPage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/rewards" element={<RewardsManagerPage />} />
+        <Route path="/notifications" element={<AdminNotificationsPage />} />
       </Routes>
     </AdminLayout>
   );

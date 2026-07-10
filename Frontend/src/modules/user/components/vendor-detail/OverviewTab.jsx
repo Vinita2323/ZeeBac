@@ -103,7 +103,7 @@ export default function OverviewTab({ vendor }) {
         </div>
         <div className="flex overflow-x-auto hide-scrollbar gap-3 pb-2 -mx-container-margin px-container-margin">
           {highlights.length > 0 ? highlights.map(item => (
-            <div key={item._id} className="min-w-[140px] bg-white rounded-2xl overflow-hidden border border-outline-variant/10 shadow-sm flex-shrink-0">
+            <div key={item._id} className="min-w-[140px] bg-white rounded-2xl overflow-hidden border border-outline-variant/10 shadow-sm flex-shrink-0 flex flex-col">
               {item.image ? (
                 <img src={item.image.startsWith('http') ? item.image : `${API_BASE_URL}${item.image}`} alt={item.name} className="w-full h-[140px] object-cover" />
               ) : (
@@ -111,9 +111,23 @@ export default function OverviewTab({ vendor }) {
                   <span className="material-symbols-outlined text-outline text-[40px]">inventory_2</span>
                 </div>
               )}
-              <div className="p-3">
-                <p className="text-[13px] font-bold text-on-surface truncate">{item.name}</p>
-                <p className="text-[12px] text-primary font-black mt-1">₹{item.price}</p>
+              <div className="p-3 flex flex-col flex-1">
+                <div>
+                  {item.branding?.isBranded && (
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <span className="bg-[#420093]/10 text-[#420093] px-2 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-[#420093]/10 w-max">
+                        {item.branding.brandLogo ? (
+                          <img src={item.branding.brandLogo.startsWith('http') || item.branding.brandLogo.startsWith('data:') ? item.branding.brandLogo : `${API_BASE_URL}${item.branding.brandLogo}`} alt="logo" className="w-5 h-5 rounded-sm object-contain bg-white border border-[#420093]/20 p-[1px]" />
+                        ) : (
+                          <span className="material-symbols-outlined text-[12px]">verified</span>
+                        )}
+                        <span className="truncate max-w-[90px]">{item.branding?.brandName || 'Brand'}</span>
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-[13px] font-bold text-on-surface line-clamp-2 leading-tight">{item.name}</p>
+                </div>
+                <p className="text-[12px] text-primary font-black mt-1.5">₹{item.price}</p>
               </div>
             </div>
           )) : (

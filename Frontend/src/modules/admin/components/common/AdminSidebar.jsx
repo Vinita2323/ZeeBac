@@ -10,6 +10,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Users', icon: 'person', path: '/admin/users' },
     { label: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
     { label: 'Transactions', icon: 'receipt_long', path: '/admin/transactions' },
+    { label: 'Pending Payouts', icon: 'account_balance', path: '/admin/payouts' },
     { label: 'Cashback Rules', icon: 'tune', path: '/admin/rules' },
     { label: 'Wallet Monitor', icon: 'account_balance_wallet', path: '/admin/wallet' },
     { label: 'Fraud Detection', icon: 'security', path: '/admin/fraud' },

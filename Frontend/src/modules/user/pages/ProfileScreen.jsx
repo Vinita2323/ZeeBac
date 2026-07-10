@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
+import { shareContent, downloadImage } from '../../../utils/exportUtils';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -896,16 +897,11 @@ function QRCodeSubView({ profile, onBack }) {
 
   const handleShare = async () => {
     const text = `My Zeebac ID: ${zeebacId} — Scan my QR or enter this ID in the Zeebac app to transact with me!`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'My Zeebac QR', text, url: window.location.href });
-      } catch (err) {
-        console.log('Error sharing:', err);
-      }
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Zeebac ID copied to clipboard!');
-    }
+    await shareContent(qrUrl, 'My Zeebac QR', text);
+  };
+
+  const handleDownload = () => {
+    downloadImage(qrUrl, `Zeebac_QR_${zeebacId}.png`);
   };
 
   return (
@@ -977,13 +973,20 @@ function QRCodeSubView({ profile, onBack }) {
           </p>
         </div>
 
-        <div className="w-full pt-3">
+        <div className="w-full pt-3 flex gap-2">
+          <button 
+            onClick={handleDownload}
+            className="flex-1 h-11 bg-white text-primary border border-primary/30 rounded-xl font-title-md flex items-center justify-center gap-xs shadow-sm active:scale-95 transition-transform cursor-pointer text-sm"
+          >
+            <span className="material-symbols-outlined text-base">download</span>
+            Download
+          </button>
           <button 
             onClick={handleShare}
-            className="w-full h-11 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-xs shadow-md active:scale-95 transition-transform cursor-pointer text-sm"
+            className="flex-1 h-11 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-xs shadow-md active:scale-95 transition-transform cursor-pointer text-sm"
           >
             <span className="material-symbols-outlined text-base">share</span>
-            Share My Zeebac ID
+            Share
           </button>
         </div>
       </main>

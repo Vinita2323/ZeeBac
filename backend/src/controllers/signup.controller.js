@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
 import Referral from '../models/Referral.js';
 import { verifyOtpOnly } from './auth.controller.js';
+import { notifyAdmins } from '../utils/adminNotification.js';
 import { sendTokens } from '../utils/token.utils.js';
 import logger from '../utils/logger.js';
 
@@ -144,6 +145,10 @@ export const vendorSignup = async (req, res) => {
     const documents = {};
     let profilePic = null;
 
+    if (!req.files || !req.files.aadhaarPan || !req.files.gstCertificate || !req.files.shopLicense) {
+      return res.status(400).json({ success: false, message: 'KYC documents (Aadhaar/PAN, GST, Shop License) are required.' });
+    }
+
     if (req.files) {
       if (req.files.storeLogo) profilePic = `/uploads/profiles/${req.files.storeLogo[0].filename}`;
       
@@ -196,6 +201,9 @@ export const vendorSignup = async (req, res) => {
     });
 
     logger.info(`[vendorSignup] Success: Vendor submitted application with ID ${vendor._id}`);
+
+    // Notify Admins
+    await notifyAdmins('VENDOR_KYC', 'New Vendor Registration', `The store "${storeName}" has submitted KYC documents for approval.`);
 
     // Vendor application is pending KYC. No token is returned yet.
     res.status(201).json({

@@ -305,9 +305,9 @@ export default function WalletPage() {
 
       {/* Add Funds Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center animate-reveal">
+        <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowAddModal(false)} />
-          <div className="relative bg-white w-full md:w-[400px] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp">
+          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-display text-[22px] font-black text-on-surface">Add Funds</h3>
@@ -325,7 +325,7 @@ export default function WalletPage() {
                   <input
                     type="number"
                     value={addAmount}
-                    onChange={(e) => setAddAmount(e.target.value)}
+                    onChange={(e) => setAmount(e.target.value)}
                     placeholder="0"
                     disabled={isProcessing}
                     className="w-full pl-11 pr-4 py-4 bg-surface-container-low border-2 border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[24px] font-black text-primary placeholder-primary/30 disabled:opacity-50"
@@ -337,8 +337,8 @@ export default function WalletPage() {
               <div className="space-y-3">
                 <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Pay Via UPI</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setAddAmount('1000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors">+ ₹1,000</button>
-                  <button onClick={() => setAddAmount('5000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors">+ ₹5,000</button>
+                  <button onClick={() => setAmount('1000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors">+ ₹1,000</button>
+                  <button onClick={() => setAmount('5000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors">+ ₹5,000</button>
                 </div>
               </div>
 
@@ -371,9 +371,9 @@ export default function WalletPage() {
 
       {/* Withdraw Modal */}
       {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center animate-reveal">
+        <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowWithdrawModal(false)} />
-          <div className="relative bg-white w-full md:w-[400px] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp">
+          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-display text-[22px] font-black text-on-surface">Withdraw Funds</h3>

@@ -6,13 +6,13 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "AIzaSy" + "ATLMvdQ1u1uw9jIlT2URhT62mWgLKC6Yk",
-  authDomain: "zeebac.firebaseapp.com",
-  projectId: "zeebac",
-  storageBucket: "zeebac.firebasestorage.app",
-  messagingSenderId: "268413542283",
-  appId: "1:268413542283:web:920b3b5e458e0137e6d98e",
-  measurementId: "G-8Z3V0D2LYW"
+  apiKey: "AIzaSy" + "C0tumV6UfQx5tfGPIZ1lOL6ej61wsQios",
+  authDomain: "zeebac-f13c8.firebaseapp.com",
+  projectId: "zeebac-f13c8",
+  storageBucket: "zeebac-f13c8.firebasestorage.app",
+  messagingSenderId: "796440324577",
+  appId: "1:796440324577:web:94fb0f76b3dc85a537caa0",
+  measurementId: "G-W7NZ2J00WY"
 });
 
 const messaging = firebase.messaging();

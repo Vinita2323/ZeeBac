@@ -12,6 +12,7 @@ import logger from '../utils/logger.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { sendNotification } from '../services/notification.service.js';
+import { checkAndNotifyFraud } from '../utils/adminNotification.js';
 
 // ─── Get Customer Profile ───
 export const getUserProfile = async (req, res) => {
@@ -141,6 +142,9 @@ export const createCustomerTransaction = async (req, res) => {
       status: 'Approved',  // Customer transactions auto-approved
     });
 
+    // Fire & forget fraud check
+    checkAndNotifyFraud(txn).catch(e => logger.error('Fraud check failed', e));
+
     // 6. Get or create customer Wallet
     let wallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
     if (!wallet) {
@@ -227,6 +231,20 @@ export const createCustomerTransaction = async (req, res) => {
           referral.rewardCreditedAt = new Date();
           await referral.save();
 
+          // 🔔 Notify referrer about bonus
+          const referrerUser = await User.findById(referral.referrerId).select('fcmTokens');
+          sendNotification({
+            recipientId: referral.referrerId,
+            recipientType: 'customer',
+            fcmTokens: referrerUser?.fcmTokens || [],
+            type: 'referral',
+            title: '🎊 Referral Bonus Credited!',
+            message: `₹${rewardAmount} has been added to your wallet because ${customer.name} made their first purchase using your referral!`,
+            icon: 'group_add',
+            referenceId: referral._id,
+            referenceType: 'Referral',
+          });
+
           logger.info(`[Referral] Awarded ₹${rewardAmount} to user ${referral.referrerId} for referring ${customer._id}`);
         }
       }
@@ -251,8 +269,8 @@ export const createCustomerTransaction = async (req, res) => {
       recipientType: 'customer',
       fcmTokens: customer.fcmTokens || [],
       type: 'credit',
-      title: '🎉 Cashback Mila!',
-      message: `₹${cashbackAmount} cashback ${vendor.storeName} se mila. Wallet balance: ₹${newBalance}`,
+      title: '🎉 Cashback Credited!',
+      message: `You received ₹${cashbackAmount} cashback from ${vendor.storeName}. Wallet balance: ₹${newBalance}`,
       icon: 'payments',
       referenceId: txn._id,
       referenceType: 'transaction',
@@ -349,6 +367,8 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
       amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
       cashbackAmount, paymentMethod, status: 'Approved'
     });
+
+    checkAndNotifyFraud(txn).catch(e => logger.error('Fraud check failed', e));
 
     let wallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
     if (!wallet) wallet = await Wallet.create({ ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId });
@@ -459,13 +479,38 @@ export const searchVendors = async (req, res) => {
   }
 };
 
+// 1.5 Get dynamic categories
+export const getCategories = async (req, res) => {
+  try {
+    const categories = await Vendor.distinct('category', { status: 'Verified' });
+    const shopTypes = await Vendor.distinct('shopType', { status: 'Verified' });
+    
+    // Combine them and ensure 'All' is first
+    const dynamicList = ['All', ...shopTypes, ...categories].filter(Boolean);
+    
+    res.status(200).json({ success: true, data: dynamicList });
+  } catch (error) {
+    logger.error(`getCategories error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 // 2. Get vendors by category (or all)
 export const getVendorsByCategory = async (req, res) => {
   try {
     const { name } = req.params;
     const { lat, lng } = req.query;
     
-    const query = name === 'All' ? {} : { category: name };
+    
+    let query = {};
+    if (name !== 'All') {
+      if (name === 'Independent Store' || name === 'Chain & Brand') {
+        query.shopType = name;
+      } else {
+        query.category = name;
+      }
+    }
+    
     query.status = 'Verified';
     
     if (lat && lng) {
@@ -710,6 +755,19 @@ export const requestWithdrawal = async (req, res) => {
       status: isAutoApprove ? 'Success' : 'Pending'
     });
 
+    // 🔔 Notify user about withdrawal status
+    sendNotification({
+      recipientId: req.user.id,
+      recipientType: 'customer',
+      fcmTokens: (await User.findById(req.user.id).select('fcmTokens'))?.fcmTokens || [],
+      type: 'system',
+      title: isAutoApprove ? '💸 Withdrawal Processed!' : '⏳ Withdrawal Request Received',
+      message: isAutoApprove
+        ? `₹${amount} will be transferred to your bank account in 1-2 hours.`
+        : `Your withdrawal request for ₹${amount} is pending Admin review. It will be processed in 24-48 hrs.`,
+      icon: isAutoApprove ? 'account_balance' : 'schedule',
+    });
+
     res.status(200).json({ 
       success: true, 
       data: withdrawalTx, 
@@ -811,7 +869,7 @@ export const claimScratchCard = async (req, res) => {
       fcmTokens: user.fcmTokens || [],
       type: 'credit',
       title: '🎁 Scratch Card Reward!',
-      message: `Badhai ho! ₹${rewardAmount} aapke wallet me add ho gaya.`,
+      message: `Congratulations! ₹${rewardAmount} has been added to your wallet.`,
       icon: 'stars',
     });
 

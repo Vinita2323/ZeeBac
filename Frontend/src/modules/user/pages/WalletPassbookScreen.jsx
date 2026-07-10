@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
+import { generatePassbookPDF } from '../../../utils/exportUtils';
 
 export default function WalletPassbookScreen() {
   const navigate = useNavigate();
@@ -75,6 +76,30 @@ export default function WalletPassbookScreen() {
     };
     fetchData();
   }, [currentUser]);
+
+  const handleExport = () => {
+    if (activeTab === 'Transactions') {
+      const exportData = transactions.filter(t => t.id !== 'dummy').map(t => ({
+        date: t.time,
+        title: t.name,
+        type: t.type === 'Credited' ? 'credit' : 'debit',
+        amount: t.amount,
+        status: 'Completed'
+      }));
+      if (exportData.length === 0) return alert('No transactions to export');
+      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'Transactions');
+    } else {
+      const exportData = requests.map(req => ({
+        date: new Date(req.createdAt || req.timestamp).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, month: 'short', day: 'numeric' }),
+        title: req.description || req.vendorName || 'Wallet Entry',
+        type: req.type || 'credit',
+        amount: `₹${req.amount.toFixed ? req.amount.toFixed(2) : req.amount}`,
+        status: req.status || 'Completed'
+      }));
+      if (exportData.length === 0) return alert('No cashback history to export');
+      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'Cashback History');
+    }
+  };
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -160,7 +185,7 @@ export default function WalletPassbookScreen() {
           <div className="flex items-center gap-3.5 text-[#4A5568]">
             <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">search</span></button>
             <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">tune</span></button>
-            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">download</span></button>
+            <button onClick={handleExport} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">download</span></button>
           </div>
         </div>
 

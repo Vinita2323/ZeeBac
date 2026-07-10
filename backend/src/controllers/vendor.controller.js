@@ -8,6 +8,8 @@ import WithdrawalRequest from '../models/WithdrawalRequest.js';
 import CashbackRequest from '../models/CashbackRequest.js';
 import Referral from '../models/Referral.js';
 import logger from '../utils/logger.js';
+import { sendNotification } from '../services/notification.service.js';
+import { notifyAdmins } from '../utils/adminNotification.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
@@ -70,6 +72,11 @@ export const updateProfile = async (req, res) => {
       for (const key in address) {
         vendor.address[key] = address[key];
       }
+    }
+
+    // Fix GeoJSON 2dsphere index error for existing bad data
+    if (vendor.location && (!vendor.location.coordinates || vendor.location.coordinates.length === 0)) {
+      vendor.location = undefined;
     }
 
     await vendor.save();
@@ -204,6 +211,8 @@ export const requestWithdrawal = async (req, res) => {
     });
 
     await wallet.save();
+
+    await notifyAdmins('PAYOUT_REQUEST', 'New Payout Request', `Vendor "${vendor.storeName}" requested a withdrawal of ₹${amount}.`);
 
     res.status(201).json({ success: true, message: 'Withdrawal request submitted successfully', data: withdrawalReq });
   } catch (error) {
@@ -513,6 +522,20 @@ export const logPurchase = async (req, res) => {
           referral.rewardCreditedAt = new Date();
           await referral.save();
 
+          // 🔔 Notify referrer about bonus
+          const referrerUser = await User.findById(referral.referrerId).select('fcmTokens');
+          sendNotification({
+            recipientId: referral.referrerId,
+            recipientType: 'customer',
+            fcmTokens: referrerUser?.fcmTokens || [],
+            type: 'referral',
+            title: '🎊 Referral Bonus Credited!',
+            message: `₹${rewardAmount} has been added to your wallet because ${customer.name} made their first purchase using your referral!`,
+            icon: 'group_add',
+            referenceId: referral._id,
+            referenceType: 'Referral',
+          });
+
           logger.info(`[Referral] Awarded ₹${rewardAmount} to user ${referral.referrerId} for referring ${customer._id} (Vendor Initiated)`);
         }
       }
@@ -722,6 +745,19 @@ export const respondToCashbackRequest = async (req, res) => {
       await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } });
       request.status = 'Approved';
       await request.save();
+
+      // 🔔 Notify customer that cashback request approved
+      sendNotification({
+        recipientId: customer._id,
+        recipientType: 'customer',
+        fcmTokens: customer.fcmTokens || [],
+        type: 'credit',
+        title: '✅ Cashback Request Approved!',
+        message: `₹${cashbackAmount} cashback from ${vendor.storeName} has been approved. Wallet balance updated!`,
+        icon: 'check_circle',
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+      });
 
       return res.status(200).json({ success: true, message: 'Request approved successfully' });
     }

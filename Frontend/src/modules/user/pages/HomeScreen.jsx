@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
+import NotificationPanel from '../components/common/NotificationPanel';
+import useNotifications from '../../../hooks/useNotifications';
 
 export default function HomeScreen() {
   const navigate = useNavigate();
+  const bellRef = useRef(null);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const { unreadCount } = useNotifications();
 
   const handleVendorClick = (vendor) => {
     navigate('/vendor-detail', { state: { vendor } });
@@ -66,6 +71,13 @@ export default function HomeScreen() {
   }, [currentUser]);
   return (
     <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
+
+      {/* Notification Panel (slide-in from right) */}
+      <NotificationPanel
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
+        triggerRef={bellRef}
+      />
       
       <header className="sticky top-0 z-50 bg-white px-5 py-2 flex items-center justify-between border-b border-outline-variant/10 shadow-sm">
         <img 
@@ -78,9 +90,18 @@ export default function HomeScreen() {
           <button onClick={() => navigate('/chat')} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
             <span className="material-symbols-outlined text-[24px]">chat_bubble</span>
           </button>
-          <button className="relative text-[#420093] hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low">
+          {/* 🔔 Notification Bell */}
+          <button
+            ref={bellRef}
+            onClick={() => setIsNotifOpen((prev) => !prev)}
+            className="relative text-[#420093] hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-surface-container-low"
+          >
             <span className="material-symbols-outlined text-[24px]">notifications</span>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-[9px] font-black px-0.5">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
         </div>
       </header>

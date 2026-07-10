@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
+import { generatePassbookPDF } from '../../../utils/exportUtils';
 
 export default function PassbookPage() {
   const navigate = useNavigate();
   const [dateFilter, setDateFilter] = useState('This Month');
   const balance = useAuthStore((state) => state.walletBalance);
+  const currentUser = useAuthStore((state) => state.currentUser);
   
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,8 +76,8 @@ export default function PassbookPage() {
           <span className="font-display text-title-md text-primary font-bold ml-1">Passbook</span>
         </div>
         <button 
-          onClick={() => alert('Downloading statement...')}
-          className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-outline-variant/20 text-primary rounded-lg font-bold text-[12px] active:scale-[0.97] transition-all shadow-sm"
+          onClick={() => generatePassbookPDF(filteredLedger, currentUser?.storeName || currentUser?.name, dateFilter)}
+          className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-outline-variant/20 text-primary rounded-lg font-bold text-[12px] active:scale-[0.97] transition-all shadow-sm cursor-pointer"
         >
           <span className="material-symbols-outlined text-[16px]">download</span>
           Export

@@ -14,7 +14,22 @@ export default function ExploreScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [location, setLocation] = useState(null);
 
-  const categories = ['All', 'Fashion', 'Groceries', 'Dining', 'Tech', 'Travel', 'Independent Store', 'Chain & Brand'];
+  const [categories, setCategories] = useState(['All']);
+
+  // Fetch dynamic categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await UserAPI.getCategories();
+        if (res.success && res.data) {
+          setCategories(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch categories', err);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Fetch favorites on mount
   useEffect(() => {

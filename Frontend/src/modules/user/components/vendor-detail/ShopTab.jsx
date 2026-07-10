@@ -83,9 +83,21 @@ export default function ShopTab({ vendor }) {
                   )}
                 </div>
                 <div>
-                  <p className="font-caption text-[11px] uppercase text-on-surface-variant">{product.category || 'General'}</p>
-                  <p className="font-title-md font-bold text-on-surface text-body-md truncate">{product.name}</p>
-                  <p className="font-bold text-primary">₹{product.price}</p>
+                  {product.branding?.isBranded && (
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="bg-[#420093]/10 text-[#420093] px-2 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-[#420093]/10 w-max">
+                        {product.branding.brandLogo ? (
+                          <img src={product.branding.brandLogo.startsWith('http') || product.branding.brandLogo.startsWith('data:') ? product.branding.brandLogo : `${API_BASE_URL}${product.branding.brandLogo}`} alt="logo" className="w-5 h-5 rounded-sm object-contain bg-white border border-[#420093]/20 p-[1px]" />
+                        ) : (
+                          <span className="material-symbols-outlined text-[12px]">verified</span>
+                        )}
+                        <span className="truncate max-w-[90px]">{product.branding?.brandName || 'Verified Brand'}</span>
+                      </span>
+                    </div>
+                  )}
+                  <p className="font-caption text-[11px] uppercase text-on-surface-variant line-clamp-1">{product.category || 'General'}</p>
+                  <p className="font-title-md font-bold text-on-surface text-body-md line-clamp-2 leading-tight mt-1">{product.name}</p>
+                  <p className="font-bold text-primary mt-1.5">₹{product.price}</p>
                 </div>
               </div>
             ))}

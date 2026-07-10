@@ -61,6 +61,11 @@ const walletTransactionSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    status: {
+      type: String,
+      enum: ['Pending', 'Success', 'Failed'],
+      default: 'Success',
+    },
     vendorName: {
       type: String,
     },

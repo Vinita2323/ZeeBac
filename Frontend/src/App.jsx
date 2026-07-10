@@ -16,6 +16,7 @@ import VendorLandingScreen from './modules/vendor/pages/VendorLandingScreen';
 
 // Global State & UI
 import useAuthStore from './store/useAuthStore';
+import useUIStore from './store/useUIStore';
 import GlobalAlertDialog from './components/GlobalAlertDialog';
 import GlobalSnackbar from './components/GlobalSnackbar';
 import { AuthAPI } from './services/api';
@@ -60,12 +61,11 @@ function App() {
       const role = user?.role || 'customer';
       requestNotificationPermission(role).catch(console.error);
 
-      // Listen for foreground notifications (when app is open)
+      // Listen for foreground notifications (when app is open) → show as toast
       const unsubscribe = onForegroundMessage((payload) => {
         const { title, body } = payload.notification || {};
         if (title && body) {
-          // Show as a toast/snackbar (non-intrusive)
-          console.log('Notification:', title, body);
+          useUIStore.getState().showSnackbar(`🔔 ${title}: ${body}`, 'info');
         }
       });
       return () => unsubscribe && unsubscribe();

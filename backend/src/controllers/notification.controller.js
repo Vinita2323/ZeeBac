@@ -98,3 +98,22 @@ export const saveVendorFcmToken = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// ─── Save FCM Token (Admin) ───
+export const saveAdminFcmToken = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ success: false, message: 'Token required' });
+    
+    // In our system, Admin token might be saved in User collection if admin is a User role, 
+    // or maybe we don't strictly bind it to a DB model if there's only 1 superadmin.
+    // Let's assume Admin is just a User document with role 'admin'
+    await User.findByIdAndUpdate(req.user.id, {
+      $addToSet: { fcmTokens: token }
+    });
+    res.status(200).json({ success: true, message: 'Admin FCM token saved' });
+  } catch (error) {
+    logger.error(`saveAdminFcmToken error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};

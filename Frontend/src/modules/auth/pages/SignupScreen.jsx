@@ -168,6 +168,9 @@ export default function SignupScreen({ role: roleProp }) {
     if (!d.shopType) return false;
     // Chain & Brand must provide GST number
     if (d.shopType === 'Chain & Brand' && !d.gstNumber?.trim()) return false;
+    // Documents are now REQUIRED
+    if (!d.aadhaarPan || !d.gstCertificate || !d.shopLicense) return false;
+
     return d.name && d.storeName && d.category && d.description && d.address && d.city && d.state && d.pincode &&
       d.accountHolderName && d.bankName && d.accountNumber && d.ifscCode;
   };
@@ -483,9 +486,9 @@ export default function SignupScreen({ role: roleProp }) {
                 </h2>
 
                 <div className="grid gap-4">
-                  <UploadCard label="Aadhaar / PAN Card (Optional)" file={formData.aadhaarPan} onUpload={e => handleFileChange(e, 'aadhaarPan')} onRemove={() => updateForm('aadhaarPan', null)} />
-                  <UploadCard label="GST Certificate (Optional)" file={formData.gstCertificate} onUpload={e => handleFileChange(e, 'gstCertificate')} onRemove={() => updateForm('gstCertificate', null)} />
-                  <UploadCard label="Shop License (Optional)" file={formData.shopLicense} onUpload={e => handleFileChange(e, 'shopLicense')} onRemove={() => updateForm('shopLicense', null)} />
+                  <UploadCard label="Aadhaar / PAN Card" file={formData.aadhaarPan} onUpload={e => handleFileChange(e, 'aadhaarPan')} onRemove={() => updateForm('aadhaarPan', null)} />
+                  <UploadCard label="GST Certificate" file={formData.gstCertificate} onUpload={e => handleFileChange(e, 'gstCertificate')} onRemove={() => updateForm('gstCertificate', null)} />
+                  <UploadCard label="Shop License" file={formData.shopLicense} onUpload={e => handleFileChange(e, 'shopLicense')} onRemove={() => updateForm('shopLicense', null)} />
                   <UploadCard label="Cancelled Cheque (Optional)" file={formData.cancelledCheque} onUpload={e => handleFileChange(e, 'cancelledCheque')} onRemove={() => updateForm('cancelledCheque', null)} />
                 </div>
               </div>

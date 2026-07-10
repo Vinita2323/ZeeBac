@@ -119,7 +119,7 @@ export const approveVendor = async (req, res) => {
       fcmTokens: vendor.fcmTokens || [],
       type: 'approval',
       title: '✅ Store Verified!',
-      message: `Badhai ho! Aapka store "${vendor.storeName}" ab live hai. Cashback rate: ${cashbackRate}%`,
+      message: `Congratulations! Your store "${vendor.storeName}" is now live. Cashback rate: ${cashbackRate}%`,
       icon: 'store',
       referenceId: vendor._id,
       referenceType: 'vendor',
@@ -162,7 +162,7 @@ export const rejectVendor = async (req, res) => {
       fcmTokens: vendor.fcmTokens || [],
       type: 'approval',
       title: '❌ Application Rejected',
-      message: `Aapki application reject hui. Reason: ${reason}`,
+      message: `Your application was rejected. Reason: ${reason}`,
       icon: 'cancel',
       referenceId: vendor._id,
       referenceType: 'vendor',
@@ -784,4 +784,139 @@ export const deletePartnerOffer = async (req, res) => {
   }
 };
 
+// ─── Payouts & Withdrawals Management ───
+export const getPendingPayouts = async (req, res) => {
+  try {
+    // 1. Get User Withdrawals (from WalletTransaction where category='cashout' and status='Pending')
+    const userWithdrawals = await WalletTransaction.find({
+      category: 'cashout',
+      status: 'Pending',
+      ownerType: 'User'
+    }).populate('ownerId', 'name phone email').sort({ createdAt: -1 });
 
+    // 2. Get Vendor Withdrawals (from WithdrawalRequest where status='Pending')
+    // and populate the vendor details
+    const vendorWithdrawals = await mongoose.model('WithdrawalRequest').find({
+      status: 'Pending'
+    }).populate('vendorId', 'storeName ownerName phone bankDetails zeebacId').sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        users: userWithdrawals,
+        vendors: vendorWithdrawals
+      }
+    });
+  } catch (error) {
+    logger.error(`Error in getPendingPayouts: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const processPayout = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, action, remarks } = req.body; // type: 'User' or 'Vendor', action: 'Approve' or 'Reject'
+
+    if (type === 'User') {
+      const tx = await WalletTransaction.findById(id).populate('ownerId');
+      if (!tx || tx.status !== 'Pending') {
+        return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
+      }
+
+      if (action === 'Approve') {
+        tx.status = 'Success';
+        tx.description = remarks ? `Withdrawal Approved: ${remarks}` : 'Bank Withdrawal Approved';
+        await tx.save();
+
+        // Notify user
+        sendNotification({
+          recipientId: tx.ownerId._id,
+          recipientType: 'customer',
+          fcmTokens: tx.ownerId.fcmTokens || [],
+          type: 'system',
+          title: '💸 Withdrawal Approved!',
+          message: `₹${tx.amount} has been transferred to your bank account.`,
+          icon: 'account_balance',
+        });
+      } else if (action === 'Reject') {
+        tx.status = 'Failed';
+        tx.description = remarks ? `Withdrawal Rejected: ${remarks}` : 'Bank Withdrawal Rejected';
+        
+        // Refund wallet
+        const wallet = await Wallet.findById(tx.walletId);
+        if (wallet) {
+          wallet.balance += tx.amount;
+          await wallet.save();
+        }
+        await tx.save();
+
+        // Notify user
+        sendNotification({
+          recipientId: tx.ownerId._id,
+          recipientType: 'customer',
+          fcmTokens: tx.ownerId.fcmTokens || [],
+          type: 'system',
+          title: '❌ Withdrawal Rejected',
+          message: remarks ? `Reason: ${remarks}` : `Your withdrawal for ₹${tx.amount} was rejected, the amount has been refunded to your wallet.`,
+          icon: 'error',
+        });
+      }
+      return res.status(200).json({ success: true, message: `User withdrawal ${action}ed` });
+    }
+
+    if (type === 'Vendor') {
+      const WithdrawalRequest = mongoose.model('WithdrawalRequest');
+      const reqDoc = await WithdrawalRequest.findById(id).populate('vendorId');
+      if (!reqDoc || reqDoc.status !== 'Pending') {
+        return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
+      }
+
+      if (action === 'Approve') {
+        reqDoc.status = 'Approved';
+        reqDoc.adminRemarks = remarks || '';
+        await reqDoc.save();
+
+        // Notify vendor
+        sendNotification({
+          recipientId: reqDoc.vendorId._id,
+          recipientType: 'vendor',
+          fcmTokens: reqDoc.vendorId.fcmTokens || [],
+          type: 'system',
+          title: '💸 Withdrawal Approved!',
+          message: `₹${reqDoc.amount} has been transferred to your bank account.`,
+          icon: 'account_balance',
+        });
+      } else if (action === 'Reject') {
+        reqDoc.status = 'Rejected';
+        reqDoc.adminRemarks = remarks || '';
+        
+        // Refund vendor wallet
+        const wallet = await Wallet.findOne({ ownerId: reqDoc.vendorId._id, ownerType: 'Vendor' });
+        if (wallet) {
+          wallet.balance += reqDoc.amount;
+          await wallet.save();
+          // We could also create a credit WalletTransaction for the refund but let's keep it simple
+        }
+        await reqDoc.save();
+
+        // Notify vendor
+        sendNotification({
+          recipientId: reqDoc.vendorId._id,
+          recipientType: 'vendor',
+          fcmTokens: reqDoc.vendorId.fcmTokens || [],
+          type: 'system',
+          title: '❌ Withdrawal Rejected',
+          message: remarks ? `Reason: ${remarks}` : `Your withdrawal for ₹${reqDoc.amount} was rejected, the amount has been refunded to your wallet.`,
+          icon: 'error',
+        });
+      }
+      return res.status(200).json({ success: true, message: `Vendor withdrawal ${action}ed` });
+    }
+
+    return res.status(400).json({ success: false, message: 'Invalid type' });
+  } catch (error) {
+    logger.error(`Error in processPayout: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
