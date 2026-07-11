@@ -71,6 +71,35 @@ export default function OverviewTab({ vendor }) {
         </div>
       </div>
 
+      {/* Social Links */}
+      {vendor.socialLinks && (vendor.socialLinks.website || vendor.socialLinks.instagram || vendor.socialLinks.facebook || vendor.socialLinks.whatsapp) && (
+        <div className="space-y-3 pt-2">
+          <h3 className="font-display text-title-md font-extrabold text-on-surface">Connect with Us</h3>
+          <div className="flex items-center gap-3">
+            {vendor.socialLinks.website && (
+              <a href={vendor.socialLinks.website.startsWith('http') ? vendor.socialLinks.website : `https://${vendor.socialLinks.website}`} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">language</span>
+              </a>
+            )}
+            {vendor.socialLinks.instagram && (
+              <a href={`https://instagram.com/${vendor.socialLinks.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center hover:bg-pink-500/20 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">photo_camera</span>
+              </a>
+            )}
+            {vendor.socialLinks.facebook && (
+              <a href={vendor.socialLinks.facebook.startsWith('http') ? vendor.socialLinks.facebook : `https://facebook.com/${vendor.socialLinks.facebook}`} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-blue-600/10 text-blue-600 flex items-center justify-center hover:bg-blue-600/20 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">thumb_up</span>
+              </a>
+            )}
+            {vendor.socialLinks.whatsapp && (
+              <a href={`https://wa.me/${vendor.socialLinks.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center hover:bg-green-500/20 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">chat</span>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Active Offers */}
       {promotions.length > 0 && (
         <div className="space-y-3 pt-2">

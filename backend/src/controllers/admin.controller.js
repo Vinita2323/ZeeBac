@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
 import CashbackRule from '../models/CashbackRule.js';
@@ -16,9 +17,12 @@ export const getDashboardStats = async (req, res) => {
     const totalVendors = await Vendor.countDocuments();
     const pendingVendors = await Vendor.countDocuments({ status: 'Pending' });
 
-    // Mocking total revenue and transactions for now until Phase 3 is implemented
-    const totalTransactions = 0;
-    const totalRevenue = 0;
+    const totalTransactions = await Transaction.countDocuments({ status: { $in: ['Approved', 'Success'] } });
+    const revenueAggregation = await Transaction.aggregate([
+      { $match: { status: { $in: ['Approved', 'Success'] } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalRevenue = revenueAggregation.length > 0 ? revenueAggregation[0].total : 0;
 
     res.status(200).json({
       success: true,

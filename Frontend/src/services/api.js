@@ -442,8 +442,8 @@ export const UserAPI = {
     return res.data;
   },
   // Razorpay Flow
-  createRazorpayOrder: async (amount) => {
-    const res = await apiClient.post('/user/transactions/razorpay/order', { amount });
+  createRazorpayOrder: async (amount, vendorZeebacId) => {
+    const res = await apiClient.post('/user/transactions/razorpay/order', { amount, vendorZeebacId });
     return res.data;
   },
   verifyRazorpayAndCreateTransaction: async (data) => {

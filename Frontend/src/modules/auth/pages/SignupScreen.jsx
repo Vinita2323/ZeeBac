@@ -49,6 +49,8 @@ export default function SignupScreen({ role: roleProp }) {
     city: '',
     state: '',
     pincode: '',
+    lat: null,
+    lng: null,
     accountHolderName: '',
     bankName: '',
     accountNumber: '',
@@ -127,6 +129,8 @@ export default function SignupScreen({ role: roleProp }) {
         data.append('city', formData.city);
         data.append('state', formData.state);
         data.append('pincode', formData.pincode);
+        if (formData.lat) data.append('lat', formData.lat);
+        if (formData.lng) data.append('lng', formData.lng);
 
         data.append('accountHolderName', formData.accountHolderName);
         data.append('bankName', formData.bankName);
@@ -456,8 +460,25 @@ export default function SignupScreen({ role: roleProp }) {
                   </div>
                   <FloatingInput label="PIN Code" icon="local_post_office" type="tel" value={formData.pincode} onChange={e => updateForm('pincode', e.target.value.replace(/[^0-9]/g, ''))} />
 
-                  <button className="w-full h-[60px] rounded-lg border-2 border-[#5B21B6]/20 bg-[#5B21B6]/5 text-[#5B21B6] font-bold flex items-center justify-center gap-2 hover:bg-[#5B21B6]/10 transition-colors">
-                    <span className="material-symbols-outlined">map</span> Pick Location on Map
+                  <button 
+                    onClick={() => {
+                      if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            updateForm('lat', pos.coords.latitude);
+                            updateForm('lng', pos.coords.longitude);
+                            alert('Location coordinates saved successfully!');
+                          },
+                          (err) => alert('Could not get location. Please allow location permissions.')
+                        );
+                      } else {
+                        alert('Geolocation is not supported by your browser.');
+                      }
+                    }}
+                    className="w-full h-[60px] rounded-lg border-2 border-[#5B21B6]/20 bg-[#5B21B6]/5 text-[#5B21B6] font-bold flex items-center justify-center gap-2 hover:bg-[#5B21B6]/10 transition-colors"
+                  >
+                    <span className="material-symbols-outlined">{formData.lat ? 'check_circle' : 'map'}</span> 
+                    {formData.lat ? 'Location Picked!' : 'Pick Location automatically'}
                   </button>
                 </div>
               </div>

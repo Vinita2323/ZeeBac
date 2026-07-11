@@ -16,6 +16,36 @@ export default function WalletPassbookScreen() {
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Search & Filter State
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const [filterType, setFilterType] = useState('All'); // 'All', 'Credited', 'Debited'
+
+  // Computed Filtered Data
+  const getFilteredTransactions = () => {
+    return transactions.filter(t => {
+      if (t.id === 'dummy') return true;
+      const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            t.tag.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter = filterType === 'All' || t.type === filterType;
+      return matchesSearch && matchesFilter;
+    });
+  };
+
+  const getFilteredRequests = () => {
+    return requests.filter(req => {
+      const name = req.description || req.vendorName || 'Wallet Entry';
+      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
+      const typeStr = req.type === 'credit' ? 'Credited' : 'Debited';
+      const matchesFilter = filterType === 'All' || typeStr === filterType;
+      return matchesSearch && matchesFilter;
+    });
+  };
+
+  const filteredTransactions = getFilteredTransactions();
+  const filteredRequests = getFilteredRequests();
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -183,11 +213,44 @@ export default function WalletPassbookScreen() {
         <div className="flex items-center justify-between px-1">
           <h2 className="font-display text-[15px] text-[#1A202C] font-black tracking-tight">Payment History</h2>
           <div className="flex items-center gap-3.5 text-[#4A5568]">
-            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">search</span></button>
-            <button className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">tune</span></button>
+            <button onClick={() => setShowSearch(!showSearch)} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">search</span></button>
+            <button onClick={() => setShowFilter(!showFilter)} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">tune</span></button>
             <button onClick={handleExport} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">download</span></button>
           </div>
         </div>
+
+        {/* Search Bar */}
+        {showSearch && (
+          <div className="mx-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-2">
+            <span className="material-symbols-outlined text-gray-400 text-[18px]">search</span>
+            <input 
+              type="text" 
+              placeholder="Search by name or category..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none outline-none flex-1 text-[13px] text-gray-800 placeholder-gray-400"
+              autoFocus
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')}><span className="material-symbols-outlined text-gray-400 text-[16px]">close</span></button>
+            )}
+          </div>
+        )}
+
+        {/* Filter Chips */}
+        {showFilter && (
+          <div className="mx-1 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {['All', 'Credited', 'Debited'].map(type => (
+              <button 
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`px-3 py-1 text-[11px] font-bold rounded-full border whitespace-nowrap transition-colors ${filterType === type ? 'bg-[#1A202C] text-white border-[#1A202C]' : 'bg-white text-gray-600 border-gray-200'}`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Tab Toggle for ZeeBac logic */}
         <div className="bg-surface-variant/30 p-0.5 rounded-lg flex mx-1 mt-1">
@@ -226,9 +289,9 @@ export default function WalletPassbookScreen() {
             </div>
 
             <div className="space-y-0">
-              {transactions.length > 0 ? (
-                transactions.map((tx, idx) => (
-                  <div key={tx.id} className={`py-2 px-1 flex items-center gap-2.5 ${idx !== transactions.length - 1 ? 'border-b border-gray-100' : ''}`}>
+              {filteredTransactions.length > 0 ? (
+                filteredTransactions.map((tx, idx) => (
+                  <div key={tx.id} className={`py-2 px-1 flex items-center gap-2.5 ${idx !== filteredTransactions.length - 1 ? 'border-b border-gray-100' : ''}`}>
                     {/* Circular Avatar */}
                     <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'Credited' ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
                       <span className="material-symbols-outlined text-[16px]">{tx.icon}</span>
@@ -266,8 +329,8 @@ export default function WalletPassbookScreen() {
           </div>
         ) : (
           <div className="space-y-3 mt-4 mx-1">
-            {requests.length > 0 ? (
-              requests.map((req) => (
+            {filteredRequests.length > 0 ? (
+              filteredRequests.map((req) => (
                 <div key={req._id || req.id} className="bg-white border border-outline-variant/30 rounded-xl p-3 flex flex-col gap-2">
                   <div className="flex justify-between items-start">
                     <div>

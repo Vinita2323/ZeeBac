@@ -8,6 +8,7 @@ export default function WalletPage() {
   // We'll sync the fetched balance to the store, but also keep local state
   const globalBalance = useAuthStore((state) => state.walletBalance);
   const updateBalance = useAuthStore((state) => state.updateBalance);
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
 
   const [wallet, setWallet] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -162,8 +163,8 @@ export default function WalletPage() {
   const totalWithdrawn = wallet ? wallet.totalWithdrawn : 0;
 
   return (
-    <div className="animate-reveal text-left">
-      
+    <>
+      <div className="animate-reveal text-left pb-20">
       {/* Mobile Header */}
       <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-2">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
@@ -201,7 +202,7 @@ export default function WalletPage() {
           {/* Card Footer */}
           <div className="relative z-10 flex justify-between items-end opacity-70">
             <div className="text-[9px] tracking-widest font-mono">**** **** 9921</div>
-            <div className="text-[9px] font-bold uppercase tracking-wider">Noir Concept</div>
+            <div className="text-[9px] font-bold uppercase tracking-wider">{currentUser?.storeName || 'Vendor Store'}</div>
           </div>
         </div>
 
@@ -300,6 +301,7 @@ export default function WalletPage() {
             </div>
           ))}
         </div>
+      </div>
       </div>
       </div>
 
@@ -433,6 +435,6 @@ export default function WalletPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -173,7 +173,7 @@ export default function ChatScreen() {
           
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[16px] uppercase overflow-hidden">
             {activeChatData.vendorId?.profilePic ? (
-              <img src={activeChatData.vendorId.profilePic} alt="avatar" className="w-full h-full object-cover" />
+              <img src={activeChatData.vendorId.profilePic.startsWith('http') || activeChatData.vendorId.profilePic.startsWith('data:') ? activeChatData.vendorId.profilePic : `${import.meta.env.VITE_API_URL}${activeChatData.vendorId.profilePic}`} alt="avatar" className="w-full h-full object-cover" />
             ) : (
               activeChatData.vendorId?.storeName?.charAt(0) || 'V'
             )}
@@ -298,7 +298,7 @@ export default function ChatScreen() {
               {/* Avatar */}
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[18px] flex-shrink-0 uppercase overflow-hidden">
                 {chat.vendorId?.profilePic ? (
-                  <img src={chat.vendorId.profilePic} alt="avatar" className="w-full h-full object-cover" />
+                  <img src={chat.vendorId.profilePic.startsWith('http') || chat.vendorId.profilePic.startsWith('data:') ? chat.vendorId.profilePic : `${import.meta.env.VITE_API_URL}${chat.vendorId.profilePic}`} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                   chat.vendorId?.storeName?.charAt(0) || 'V'
                 )}

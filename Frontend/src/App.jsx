@@ -21,6 +21,18 @@ import GlobalAlertDialog from './components/GlobalAlertDialog';
 import GlobalSnackbar from './components/GlobalSnackbar';
 import { AuthAPI } from './services/api';
 import { requestNotificationPermission, onForegroundMessage } from './utils/notificationUtils';
+import { Toaster, toast } from 'react-hot-toast';
+
+// Globally override browser alert to use toast for a better UI experience
+window.alert = (message) => {
+  if (typeof message !== 'string') return;
+  const msgLower = message.toLowerCase();
+  if (msgLower.includes('success') || msgLower.includes('copied') || msgLower.includes('added') || msgLower.includes('won')) {
+    toast.success(message, { duration: 4000 });
+  } else {
+    toast.error(message, { duration: 4000 });
+  }
+};
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -76,6 +88,7 @@ function App() {
       <ScrollToTop />
 
       {/* Global UI Overlays */}
+      <Toaster position="top-center" reverseOrder={false} />
       <GlobalAlertDialog />
       <GlobalSnackbar />
 

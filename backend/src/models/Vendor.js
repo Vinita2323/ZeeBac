@@ -22,6 +22,11 @@ const vendorSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
     shopType: {
       type: String,
       enum: ['Independent Store', 'Chain & Brand'],

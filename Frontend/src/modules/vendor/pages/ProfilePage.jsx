@@ -24,13 +24,22 @@ export default function ProfilePage() {
   const storeName = vendorData?.storeName || currentUser.storeName || 'Vini Business';
   const category = vendorData?.category || currentUser.category || 'Fashion & Apparel';
   const phone = vendorData?.phone || currentUser.phone || '+91 9111966732';
-  const email = vendorData?.ownerName || currentUser.email || 'Vendor'; // Just mock fallback for email since we don't save email in vendor schema
+  const email = vendorData?.email || currentUser.email || 'No email provided';
   const zeebacId = vendorData?.zeebacId || currentUser.zeebacId || 'ZBV-XXXX';
   
+  const getCleanAddress = (rawObj) => {
+    if (!rawObj || typeof rawObj !== 'object') return rawObj || 'Indore, India';
+    const p = [rawObj.fullAddress];
+    const full = (rawObj.fullAddress || '').toLowerCase();
+    if (rawObj.landmark && !full.includes(rawObj.landmark.toLowerCase())) p.push(rawObj.landmark);
+    if (rawObj.city && !full.includes(rawObj.city.toLowerCase())) p.push(rawObj.city);
+    if (rawObj.state && !full.includes(rawObj.state.toLowerCase())) p.push(rawObj.state);
+    if (rawObj.pincode && String(rawObj.pincode) && !full.includes(String(rawObj.pincode).toLowerCase())) p.push(rawObj.pincode);
+    return p.filter(Boolean).join(', ');
+  };
+
   const rawAddress = vendorData?.address || currentUser.address;
-  const address = typeof rawAddress === 'object' 
-    ? (rawAddress?.city || rawAddress?.fullAddress || 'Indore, India')
-    : (rawAddress || 'Indore, India');
+  let address = getCleanAddress(rawAddress);
   const firstLetter = storeName.charAt(0).toUpperCase();
 
   const [profilePic, setProfilePic] = useState(currentUser.profilePic || null);
@@ -65,10 +74,23 @@ export default function ProfilePage() {
     category,
     phone,
     email,
-    address,
+    email,
     description: '',
     operatingHours: '',
-    upiId: ''
+    fullAddress: '',
+    landmark: '',
+    city: '',
+    state: '',
+    pincode: '',
+    upiId: '',
+    accountHolderName: '',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    website: '',
+    instagram: '',
+    facebook: '',
+    whatsapp: ''
   });
 
   useEffect(() => {
@@ -76,16 +98,50 @@ export default function ProfilePage() {
       try {
         const res = await VendorAPI.getProfile();
         setVendorData(res.data);
+        
+        let cleanedFullAddress = res.data.address?.fullAddress || '';
+        if (cleanedFullAddress) {
+          const r = res.data.address;
+          if (r.landmark) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.landmark, 'ig'), '');
+          if (r.city) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.city, 'ig'), '');
+          if (r.state) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.state, 'ig'), '');
+          if (r.pincode) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.pincode, 'ig'), '');
+          cleanedFullAddress = cleanedFullAddress.replace(/,\s*,/g, ',').replace(/,\s*$/, '').replace(/^,\s*/, '').trim();
+        }
+
+        const cleanedAddressObj = {
+          ...(res.data.address || {}),
+          fullAddress: cleanedFullAddress
+        };
+
         setFormData({
           storeName: res.data.storeName || storeName,
           category: res.data.category || category,
           phone: res.data.phone || phone,
-          email: res.data.ownerName || email,
-          address: typeof res.data.address === 'object' ? (res.data.address?.city || res.data.address?.fullAddress) : (res.data.address || address),
-          description: res.data.description || '',
+          email: res.data.email || email,
+          address: getCleanAddress(cleanedAddressObj) || address,
+          fullAddress: cleanedFullAddress,
+          landmark: res.data.address?.landmark || '',
+          city: res.data.address?.city || '',
+          state: res.data.address?.state || '',
+          pincode: res.data.address?.pincode || '',
           operatingHours: res.data.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM',
-          upiId: res.data.bankDetails?.upiId || ''
+          upiId: res.data.bankDetails?.upiId || '',
+          accountHolderName: res.data.bankDetails?.accountHolderName || '',
+          bankName: res.data.bankDetails?.bankName || '',
+          accountNumber: res.data.bankDetails?.accountNumber || '',
+          ifscCode: res.data.bankDetails?.ifscCode || '',
+          website: res.data.socialLinks?.website || '',
+          instagram: res.data.socialLinks?.instagram || '',
+          facebook: res.data.socialLinks?.facebook || '',
+          whatsapp: res.data.socialLinks?.whatsapp || ''
         });
+
+        if (res.data.profilePic) {
+          // If it's a relative path, prepend API_BASE_URL. If it's base64 or absolute, use as is.
+          const picUrl = res.data.profilePic.startsWith('/') ? `${API_BASE_URL}${res.data.profilePic}` : res.data.profilePic;
+          setProfilePic(picUrl);
+        }
 
         try {
           const statsRes = await VendorAPI.getDashboardStats();
@@ -130,11 +186,28 @@ export default function ProfilePage() {
     if (isEditing) {
       try {
         await VendorAPI.updateProfile({
-          address: { fullAddress: formData.address },
+          email: formData.email,
+          address: { 
+            fullAddress: formData.fullAddress,
+            landmark: formData.landmark,
+            city: formData.city,
+            state: formData.state,
+            pincode: formData.pincode
+          },
           description: formData.description,
           operatingHours: formData.operatingHours,
           bankDetails: {
-            upiId: formData.upiId
+            upiId: formData.upiId,
+            accountHolderName: formData.accountHolderName,
+            bankName: formData.bankName,
+            accountNumber: formData.accountNumber,
+            ifscCode: formData.ifscCode
+          },
+          socialLinks: {
+            website: formData.website,
+            instagram: formData.instagram,
+            facebook: formData.facebook,
+            whatsapp: formData.whatsapp
           }
         });
         setToastMessage('Profile updated successfully!');
@@ -274,36 +347,105 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Business Email</span>
               </div>
-              <span className="text-[12.5px] font-extrabold text-on-surface truncate max-w-[180px]">{email}</span>
+              {isEditing ? (
+                <input 
+                  type="email" 
+                  value={formData.email} 
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="name@business.com"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface truncate max-w-[180px]">{formData.email}</span>
+              )}
             </div>
 
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
+            <div className={`flex justify-between items-start py-2.5 gap-2 ${isEditing ? 'flex-col' : ''}`}>
+              <div className="flex items-center gap-2.5 shrink-0 mt-0.5">
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">pin_drop</span>
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Store Address</span>
               </div>
-              <span className="text-[12.5px] font-extrabold text-on-surface">{address}</span>
+              {isEditing ? (
+                <div className="w-full space-y-3 mt-2 bg-surface-variant/20 p-3 rounded-xl border border-outline-variant/20">
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Street Address / Area</label>
+                    <textarea 
+                      value={formData.fullAddress} 
+                      onChange={(e) => setFormData({ ...formData, fullAddress: e.target.value })}
+                      className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 min-h-[40px] resize-none"
+                      placeholder="Street, Sector, Block..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Landmark</label>
+                    <input 
+                      type="text" 
+                      value={formData.landmark} 
+                      onChange={(e) => setFormData({ ...formData, landmark: e.target.value })}
+                      className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
+                      placeholder="Near Apollo Hospital"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">City</label>
+                      <input 
+                        type="text" 
+                        value={formData.city} 
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
+                        placeholder="Indore"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">State</label>
+                      <input 
+                        type="text" 
+                        value={formData.state} 
+                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                        className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
+                        placeholder="MP"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">PIN Code</label>
+                    <input 
+                      type="text" 
+                      value={formData.pincode} 
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/[^0-9]/g, '') })}
+                      className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
+                      placeholder="452010"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface text-right break-words flex-1 pt-1">{formData.address || address}</span>
+              )}
             </div>
 
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
+            <div className="flex justify-between items-start py-2.5 gap-2">
+              <div className="flex items-center gap-2.5 shrink-0 mt-0.5">
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">description</span>
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">Description</span>
               </div>
               {isEditing ? (
-                <input 
-                  type="text" 
+                <textarea 
                   value={formData.description} 
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 flex-1 pt-1 min-h-[40px] resize-none"
                   placeholder="Short description"
                 />
               ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.description || 'No description'}</span>
+                <span className="text-[12.5px] font-extrabold text-on-surface text-right break-words flex-1 pt-1">{formData.description || 'No description'}</span>
               )}
             </div>
 
@@ -326,11 +468,107 @@ export default function ProfilePage() {
                 <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM'}</span>
               )}
             </div>
+          </div>
+        </div>
 
+        <hr className="border-t-2 border-blue-100/60 my-1.5" />
+
+        {/* Bank Details Section */}
+        <div className="space-y-4 px-1 mt-6">
+          <h3 className="font-display text-[15px] font-black text-on-surface">Bank Details</h3>
+          
+          <div className="divide-y divide-outline-variant/10">
+            {/* Account Holder Name */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">badge</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Account Name</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.accountHolderName} 
+                  onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="John Doe"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.accountHolderName || '-'}</span>
+              )}
+            </div>
+
+            {/* Bank Name */}
             <div className="flex justify-between items-center py-2.5">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">account_balance</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Bank Name</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.bankName} 
+                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="HDFC Bank"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.bankName || '-'}</span>
+              )}
+            </div>
+
+            {/* Account Number */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">money</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Account Number</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.accountNumber} 
+                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value.replace(/[^0-9]/g, '') })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="000000000000"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">
+                  {formData.accountNumber ? `••••${formData.accountNumber.slice(-4)}` : '-'}
+                </span>
+              )}
+            </div>
+
+            {/* IFSC Code */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">tag</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">IFSC Code</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.ifscCode} 
+                  onChange={(e) => setFormData({ ...formData, ifscCode: e.target.value.toUpperCase() })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="HDFC0001234"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.ifscCode || '-'}</span>
+              )}
+            </div>
+
+            {/* UPI ID */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">qr_code</span>
                 </div>
                 <span className="text-[12.5px] font-bold text-on-surface-variant">UPI ID</span>
               </div>
@@ -344,6 +582,97 @@ export default function ProfilePage() {
                 />
               ) : (
                 <span className="text-[12.5px] font-extrabold text-on-surface">{formData.upiId || 'Not provided'}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Social Links Section */}
+        <div className="space-y-4 px-1 mt-6">
+          <h3 className="font-display text-[15px] font-black text-on-surface">Social Links</h3>
+          
+          <div className="divide-y divide-outline-variant/10">
+            {/* Website */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">language</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Website</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="url" 
+                  value={formData.website} 
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="https://yourwebsite.com"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.website || '-'}</span>
+              )}
+            </div>
+
+            {/* Instagram */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-pink-500/10 text-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Instagram</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.instagram} 
+                  onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-pink-500/40 focus:border-pink-500 focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="@username"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.instagram || '-'}</span>
+              )}
+            </div>
+
+            {/* Facebook */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-blue-600/10 text-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">thumb_up</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">Facebook</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.facebook} 
+                  onChange={(e) => setFormData({ ...formData, facebook: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-blue-600/40 focus:border-blue-600 focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="Page Link or ID"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.facebook || '-'}</span>
+              )}
+            </div>
+
+            {/* WhatsApp */}
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-green-500/10 text-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">chat</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">WhatsApp</span>
+              </div>
+              {isEditing ? (
+                <input 
+                  type="tel" 
+                  value={formData.whatsapp} 
+                  onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-green-500/40 focus:border-green-500 focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
+                  placeholder="Number"
+                />
+              ) : (
+                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.whatsapp || '-'}</span>
               )}
             </div>
           </div>

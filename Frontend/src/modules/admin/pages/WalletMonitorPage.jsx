@@ -46,6 +46,28 @@ export default function WalletMonitorPage() {
     return () => clearTimeout(timer);
   }, [page, activeTab, search, sortBy]);
 
+  const handleExport = () => {
+    if (transactions.length === 0) return alert('No wallet transactions to export.');
+    
+    const headers = ["Txn ID", "Date", "Owner ID", "Type", "Amount", "Description", "Status"];
+    const rows = transactions.map(t => [
+      t.txnId || t._id,
+      new Date(t.createdAt).toLocaleString(),
+      t.ownerZeebacId || t.ownerId,
+      t.type,
+      t.amount,
+      t.description,
+      t.status
+    ]);
+    
+    const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c || ''}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `WalletTransactions_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   const stats = [
     { label: 'Total Platform Float', value: `₹${(walletStats?.totalFloat || 0).toLocaleString()}`, icon: 'account_balance', color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Pending Payouts', value: `₹${(walletStats?.pendingPayouts || 0).toLocaleString()}`, icon: 'schedule', color: 'text-orange-500', bg: 'bg-orange-500/10' },
@@ -84,7 +106,7 @@ export default function WalletMonitorPage() {
               <option value="amount_high">Amount (High-Low)</option>
               <option value="amount_low">Amount (Low-High)</option>
             </select>
-            <button className="h-10 px-4 bg-white border border-outline-variant/30 rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors w-full sm:w-auto">
+            <button onClick={handleExport} className="h-10 px-4 bg-white border border-outline-variant/30 rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors w-full sm:w-auto">
               <span className="material-symbols-outlined text-[18px]">download</span>
               <span className="sm:inline">Export</span>
             </button>

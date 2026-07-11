@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import AdminUser from '../models/AdminUser.js';
 import Notification from '../models/Notification.js';
 import logger from './logger.js';
-// import { getMessaging } from 'firebase-admin/messaging';
+import { sendNotification } from '../services/notification.service.js';
 
 /**
  * Triggers a notification to all active admins.
@@ -21,23 +21,20 @@ export const notifyAdmins = async (type, title, message) => {
       return;
     }
 
-    // 2. Create database notifications for all admins
-    const notifs = admins.map(admin => ({
-      recipientId: admin._id,
-      recipientType: 'admin',
-      type,
-      title,
-      message,
-      isRead: false
-    }));
+    // 2. Use sendNotification to handle both DB save and FCM push for all admins
+    for (const admin of admins) {
+      await sendNotification({
+        recipientId: admin._id,
+        recipientType: 'admin',
+        fcmTokens: admin.fcmTokens || [],
+        type,
+        title,
+        message,
+        icon: 'admin_panel_settings'
+      });
+    }
 
-    await Notification.insertMany(notifs);
-    logger.info(`notifyAdmins: Successfully generated ${type} notification for ${admins.length} admin(s).`);
-
-    // 3. TODO: Firebase Cloud Messaging Push
-    // The frontend currently polls/fetches the unread count when they click, 
-    // but if we want push notifications even when the tab is closed, 
-    // we would iterate over admin.fcmTokens and use getMessaging().sendMulticast(...) here.
+    logger.info(`notifyAdmins: Successfully sent ${type} push notification to ${admins.length} admin(s).`);
     
   } catch (error) {
     logger.error(`notifyAdmins error: ${error.message}`);

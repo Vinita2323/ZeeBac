@@ -34,6 +34,30 @@ export default function TransactionsPage() {
     }
   };
 
+  const handleExport = () => {
+    if (transactions.length === 0) return alert('No transactions to export.');
+    
+    const headers = ["Transaction ID", "Time", "Customer Name", "Customer ID", "Vendor Name", "Vendor ID", "Amount", "Cashback", "Status"];
+    const rows = transactions.map(t => [
+      t.transactionId,
+      new Date(t.createdAt).toLocaleString(),
+      t.customerName,
+      t.customerZeebacId,
+      t.vendorName,
+      t.vendorZeebacId,
+      t.amount,
+      t.cashbackAmount,
+      t.status
+    ]);
+    
+    const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c || ''}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Transactions_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   return (
     <div className="space-y-6 animate-reveal text-left">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
@@ -77,7 +101,7 @@ export default function TransactionsPage() {
               <option value="amount_low">Amount (Low-High)</option>
             </select>
 
-            <button className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
+            <button onClick={handleExport} className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
               <span className="material-symbols-outlined text-[18px]">download</span>
               <span className="sm:inline">Export</span>
             </button>

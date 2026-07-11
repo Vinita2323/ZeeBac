@@ -71,8 +71,8 @@ export default function PayVendorScreen() {
         return;
       }
 
-      const orderRes = await UserAPI.createRazorpayOrder(parseFloat(amount));
-      if (!orderRes.success) throw new Error("Could not create Razorpay order");
+      const orderRes = await UserAPI.createRazorpayOrder(parseFloat(amount), vendor.zeebacId);
+      if (!orderRes.success) throw new Error(orderRes.message || "Could not create Razorpay order");
       
       const options = {
         key: orderRes.data.key,
@@ -110,7 +110,8 @@ export default function PayVendorScreen() {
       rzp.open();
     } catch (err) {
       console.error(err);
-      alert("Error initializing payment gateway");
+      const serverMsg = err.response?.data?.message || err.message || "Error initializing payment gateway";
+      alert(serverMsg);
       setProcessing(false);
     }
   };
@@ -144,8 +145,18 @@ export default function PayVendorScreen() {
         {/* Vendor Info Card */}
         <div className="bg-white rounded-2xl border border-outline-variant/15 p-5 shadow-sm mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-              <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>storefront</span>
+            <div className="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0 overflow-hidden relative">
+              {vendor.storeLogo || vendor.profilePic ? (
+                <img 
+                  src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') 
+                    ? (vendor.storeLogo || vendor.profilePic) 
+                    : `${import.meta.env.VITE_API_URL}${vendor.storeLogo || vendor.profilePic}`}
+                  alt={vendor.storeName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>storefront</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-[16px] font-black text-on-surface truncate">{vendor.storeName || vendor.name}</h2>

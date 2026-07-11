@@ -59,6 +59,22 @@ export default function UsersPage() {
     }
   };
 
+  const handleExport = () => {
+    if (users.length === 0) return alert('No users to export.');
+    
+    const headers = ["User ID", "Name", "Phone Number", "Aadhaar", "Wallet Balance", "Total Transactions", "Status", "Joined"];
+    const rows = users.map(u => [
+      u.zeebacId, u.name, u.phone, u.aadhaar, u.walletBalance, u.totalTransactions, u.status, u.joined
+    ]);
+    
+    const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c || ''}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Users_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   let displayedUsers = [...users];
 
   displayedUsers.sort((a, b) => {
@@ -106,7 +122,7 @@ export default function UsersPage() {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-[18px] pointer-events-none">expand_more</span>
           </div>
 
-          <button className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
+          <button onClick={handleExport} className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span className="sm:inline">Export</span>
           </button>

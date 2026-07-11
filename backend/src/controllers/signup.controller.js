@@ -123,9 +123,10 @@ export const customerSignup = async (req, res) => {
 export const vendorSignup = async (req, res) => {
   try {
     const { 
-      phone, otp, storeName, ownerName, shopType, category, gstNumber,
+      phone, otp, storeName, ownerName, email, shopType, category, gstNumber,
       fullAddress, landmark, city, state, pincode, lat, lng,
-      accountHolderName, bankName, accountNumber, ifscCode, upiId
+      accountHolderName, bankName, accountNumber, ifscCode, upiId, description,
+      website, instagram, facebook, whatsapp
     } = req.body;
 
     // 1. Verify OTP
@@ -174,9 +175,11 @@ export const vendorSignup = async (req, res) => {
       zeebacId,
       storeName,
       ownerName,
+      email,
       phone,
       shopType,
       category,
+      description,
       gstNumber,
       address: {
         fullAddress,
@@ -195,6 +198,12 @@ export const vendorSignup = async (req, res) => {
         accountNumber,
         ifscCode,
         upiId
+      },
+      socialLinks: {
+        website,
+        instagram,
+        facebook,
+        whatsapp
       },
       documents,
       profilePic

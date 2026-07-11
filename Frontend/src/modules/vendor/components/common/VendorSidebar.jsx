@@ -1,9 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthAPI } from '../../../../services/api';
+import useAuthStore from '../../../../store/useAuthStore';
 
 export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
 
   const handleLogout = async (e) => {
     e.stopPropagation(); // prevent triggering the profile navigation
@@ -113,7 +115,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
           {!isCollapsed && (
             <>
               <div className="flex-1 text-left min-w-0">
-                <p className="font-title-md font-bold text-[13px] text-on-surface truncate">Noir Concept</p>
+                <p className="font-title-md font-bold text-[13px] text-on-surface truncate">{currentUser?.storeName || 'Vendor Store'}</p>
                 <p className="text-[11px] text-on-surface-variant truncate">Premium Fashion</p>
               </div>
               <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors">

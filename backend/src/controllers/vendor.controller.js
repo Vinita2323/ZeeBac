@@ -44,6 +44,7 @@ export const updateProfile = async (req, res) => {
       socialLinks, 
       bankDetails,
       address,
+      email,
       operatingHours,
       profilePic
     } = req.body;
@@ -54,6 +55,7 @@ export const updateProfile = async (req, res) => {
     }
 
     if (description !== undefined) vendor.description = description;
+    if (email !== undefined) vendor.email = email;
     if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
     if (profilePic !== undefined) vendor.profilePic = profilePic;
     
@@ -61,10 +63,13 @@ export const updateProfile = async (req, res) => {
       vendor.socialLinks = { ...vendor.socialLinks, ...socialLinks };
     }
     
-    // Only allow updating safe bank details, not everything directly
     if (bankDetails) {
       if (!vendor.bankDetails) vendor.bankDetails = {};
       if (bankDetails.upiId !== undefined) vendor.bankDetails.upiId = bankDetails.upiId;
+      if (bankDetails.accountHolderName !== undefined) vendor.bankDetails.accountHolderName = bankDetails.accountHolderName;
+      if (bankDetails.bankName !== undefined) vendor.bankDetails.bankName = bankDetails.bankName;
+      if (bankDetails.accountNumber !== undefined) vendor.bankDetails.accountNumber = bankDetails.accountNumber;
+      if (bankDetails.ifscCode !== undefined) vendor.bankDetails.ifscCode = bankDetails.ifscCode;
     }
 
     if (address && typeof address === 'object') {

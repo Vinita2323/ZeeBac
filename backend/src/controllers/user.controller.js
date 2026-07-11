@@ -83,7 +83,7 @@ export const lookupVendorById = async (req, res) => {
         { zeebacId: cleanQuery },
         { phone: query.trim() }
       ]
-    }).select('zeebacId storeName category cashbackRate phone address storeLogo profilePic description operatingHours stats');
+    }).select('zeebacId storeName category cashbackRate phone address storeLogo profilePic description operatingHours stats socialLinks');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -119,6 +119,17 @@ export const createCustomerTransaction = async (req, res) => {
     // 4. Calculate cashback
     const cashbackAmount = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
 
+    // --- Strict Vendor Balance Check ---
+    let vendorWalletCheck = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const currentVendorBalance = vendorWalletCheck ? (vendorWalletCheck.balance || 0) : 0;
+    
+    if (currentVendorBalance < cashbackAmount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Vendor cannot accept this payment. Vendor wallet balance is too low to provide ₹${cashbackAmount} cashback.` 
+      });
+    }
+    // -----------------------------------
     // 5. Create Transaction document
     const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const txn = await Transaction.create({
@@ -276,6 +287,19 @@ export const createCustomerTransaction = async (req, res) => {
       referenceType: 'transaction',
     });
 
+    // 11.5 Send Notification to vendor
+    sendNotification({
+      recipientId: vendor._id,
+      recipientType: 'vendor',
+      fcmTokens: vendor.fcmTokens || [],
+      type: 'credit',
+      title: '💸 New Payment Received!',
+      message: `You received a payment of ₹${amount} from ${customer.name || customer.phone}. Cashback of ₹${cashbackAmount} was deducted from your wallet.`,
+      icon: 'payments',
+      referenceId: txn._id,
+      referenceType: 'transaction',
+    });
+
     // 12. Return success response
     res.status(201).json({
       success: true,
@@ -302,8 +326,26 @@ export const createCustomerTransaction = async (req, res) => {
 // 1. Create Razorpay Order
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { amount } = req.body;
+    const { amount, vendorZeebacId } = req.body;
     if (!amount || amount < 1) return res.status(400).json({ success: false, message: 'Invalid amount' });
+
+    // --- Strict Vendor Balance Check ---
+    if (vendorZeebacId) {
+      const vendor = await Vendor.findOne({ zeebacId: vendorZeebacId.toUpperCase(), status: 'Verified' });
+      if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found or not verified' });
+      
+      const expectedCashback = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
+      let vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+      const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+      
+      if (vendorBalance < expectedCashback) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Vendor cannot accept this payment. Vendor wallet balance is too low to provide ₹${expectedCashback} cashback.` 
+        });
+      }
+    }
+    // -----------------------------------
 
     const instance = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID,
@@ -633,6 +675,23 @@ export const createCashbackRequest = async (req, res) => {
       description,
       status: 'Pending'
     });
+
+    // Notify vendor about new request
+    const vendor = await Vendor.findById(vendorId).select('fcmTokens');
+    if (vendor) {
+      sendNotification({
+        recipientId: vendor._id,
+        recipientType: 'vendor',
+        fcmTokens: vendor.fcmTokens || [],
+        type: 'approval',
+        title: '📝 New Cashback Request!',
+        message: `A customer has requested cashback for a bill of ₹${amount}. Please review it in your pending requests.`,
+        icon: 'receipt',
+        referenceId: request._id,
+        referenceType: 'cashback_request',
+      });
+    }
+
     res.status(201).json({ success: true, data: request });
   } catch (error) {
     logger.error(`createCashbackRequest error: ${error.message}`);

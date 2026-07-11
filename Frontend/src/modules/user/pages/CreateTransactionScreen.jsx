@@ -21,7 +21,11 @@ export default function CreateTransactionScreen() {
             id: v._id,
             name: v.storeName,
             cashback: `UP TO ${v.cashbackRate}% CASHBACK`,
-            img: v.storeLogo || v.profilePic || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=150&h=150&q=80",
+            img: (v.storeLogo || v.profilePic)
+              ? ((v.storeLogo || v.profilePic).startsWith('http') || (v.storeLogo || v.profilePic).startsWith('data:') 
+                  ? (v.storeLogo || v.profilePic) 
+                  : `${import.meta.env.VITE_API_URL}${v.storeLogo || v.profilePic}`)
+              : "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=150&h=150&q=80",
             zeebacId: v.zeebacId,
             originalVendor: v
           }));

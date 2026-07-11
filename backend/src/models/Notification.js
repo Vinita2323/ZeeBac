@@ -15,7 +15,7 @@ const notificationSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['approval', 'credit', 'referral', 'system', 'promotion'],
+      enum: ['approval', 'credit', 'referral', 'system', 'promotion', 'VENDOR_KYC', 'FRAUD_ALERT', 'SUPPORT_TICKET', 'PAYOUT_REQUEST'],
     },
     title: {
       type: String,

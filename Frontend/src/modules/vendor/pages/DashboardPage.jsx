@@ -13,7 +13,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
-  
+
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
   const qrData = `zeebac://vendor/${zeebacId}`;
@@ -84,14 +84,14 @@ export default function DashboardPage() {
         <div>
           <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Welcome back</p>
           <h1 className="font-display text-[18px] font-black text-on-surface leading-none tracking-tight">
-            {currentUser.storeName || 'Noir Concept Store'}
+            {currentUser?.storeName || 'Vendor Store'}
           </h1>
         </div>
       </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3 max-w-[350px] mx-auto w-full">
-        <button 
+        <button
           onClick={() => navigate('/vendor/scan-customer')}
           className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer"
         >
@@ -103,7 +103,7 @@ export default function DashboardPage() {
             <p className="text-[9px] text-white/70">Log a transaction</p>
           </div>
         </button>
-        <button 
+        <button
           onClick={() => setShowQRModal(true)}
           className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer"
         >
@@ -120,8 +120,8 @@ export default function DashboardPage() {
       {/* Stats Grid - 2x2 Compact */}
       <div className="grid grid-cols-2 gap-3">
         {stats.map((stat, index) => (
-          <div 
-            key={index} 
+          <div
+            key={index}
             onClick={() => navigate(stat.link)}
             className="bg-white rounded-2xl p-3.5 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer hover:shadow-md hover:border-primary/20 transition-all active:scale-[0.98]"
           >
@@ -145,8 +145,8 @@ export default function DashboardPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-[16px] font-extrabold text-on-surface">Action Required</h3>
-          <button 
-            onClick={() => navigate('/vendor/requests')} 
+          <button
+            onClick={() => navigate('/vendor/requests')}
             className="text-[12px] text-primary font-bold cursor-pointer hover:underline"
           >
             View All
@@ -167,7 +167,7 @@ export default function DashboardPage() {
                   <p className="font-black text-[14px] text-on-surface">₹{req.amount?.toLocaleString()}</p>
                 </div>
                 <div className="flex justify-between items-center mt-0.5">
-                  <p className="text-[11px] text-on-surface-variant">{new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> Request</p>
+                  <p className="text-[11px] text-on-surface-variant">{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> Request</p>
                   <p className="text-[10px] text-green-600 font-bold">Estimated CB: ₹{(req.amount * (currentUser.cashbackRate / 100)).toFixed(2)}</p>
                 </div>
 
@@ -185,14 +185,14 @@ export default function DashboardPage() {
                 )}
 
                 <div className="flex items-center gap-2 mt-3">
-                  <button 
+                  <button
                     disabled={isProcessing}
                     onClick={() => handleRequestAction(req._id, 'Reject')}
                     className="flex-1 h-8 rounded-lg bg-red-50 text-red-600 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
                   >
                     Reject
                   </button>
-                  <button 
+                  <button
                     disabled={isProcessing}
                     onClick={() => handleRequestAction(req._id, 'Approve')}
                     className="flex-1 h-8 rounded-lg bg-primary text-white font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
@@ -214,10 +214,9 @@ export default function DashboardPage() {
           {recentTransactions.map(tx => (
             <div key={tx.id} className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-outline-variant/10 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' : 
-                  tx.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : 'bg-orange-500/10 text-orange-600'
-                }`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' :
+                    tx.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : 'bg-orange-500/10 text-orange-600'
+                  }`}>
                   <span className="material-symbols-outlined text-[20px]">{tx.status === 'Approved' ? 'check_circle' : tx.status === 'Rejected' ? 'cancel' : 'pending'}</span>
                 </div>
                 <div>
@@ -243,15 +242,15 @@ export default function DashboardPage() {
       {viewReceiptUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setViewReceiptUrl(null)}>
           <div className="relative max-w-full max-h-full overflow-hidden flex flex-col items-center">
-            <button 
+            <button
               onClick={() => setViewReceiptUrl(null)}
               className="absolute top-2 right-2 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[24px]">close</span>
             </button>
-            <img 
-              src={viewReceiptUrl.startsWith('data:') || viewReceiptUrl.startsWith('http') ? viewReceiptUrl : `${API_BASE_URL.replace('/api', '')}${viewReceiptUrl}`} 
-              alt="Receipt" 
+            <img
+              src={viewReceiptUrl.startsWith('data:') || viewReceiptUrl.startsWith('http') ? viewReceiptUrl : `${API_BASE_URL.replace('/api', '')}${viewReceiptUrl}`}
+              alt="Receipt"
               className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl bg-white"
               onClick={e => e.stopPropagation()}
             />
@@ -263,13 +262,13 @@ export default function DashboardPage() {
       {showQRModal && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
           <div className="bg-white w-full max-w-[320px] rounded-3xl p-6 shadow-2xl relative mx-auto">
-            <button 
+            <button
               onClick={() => setShowQRModal(false)}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
-            
+
             <div className="flex flex-col items-center pt-2">
               <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-4">
                 <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
@@ -278,11 +277,11 @@ export default function DashboardPage() {
               <p className="text-[13px] text-on-surface-variant text-center mt-1 mb-6 px-4">
                 Show this code to customers for instant payments and cashback
               </p>
-              
+
               <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-5 w-56 h-56 flex items-center justify-center shadow-inner mb-6">
                 <img src={qrUrl} alt="Store QR" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
               </div>
-              
+
               <div className="bg-surface-container py-2 px-4 rounded-full flex items-center gap-2">
                 <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Store ID:</span>
                 <span className="text-[14px] font-black tracking-widest text-on-surface">{zeebacId}</span>

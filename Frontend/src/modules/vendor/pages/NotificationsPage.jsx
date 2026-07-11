@@ -1,13 +1,14 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../../../hooks/useNotifications';
 
 // ─── Time Ago Helper ───
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
-  if (diff < 60) return 'Abhi';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m pehle`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h pehle`;
-  return `${Math.floor(diff / 86400)}d pehle`;
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // ─── Icon Color Map by notification type ───
@@ -21,7 +22,11 @@ const typeStyle = {
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
-  const { notifications, isLoading, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, isLoading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   return (
     <div className="animate-reveal text-left">

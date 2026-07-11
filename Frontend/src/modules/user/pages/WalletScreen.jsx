@@ -260,8 +260,8 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
               </h2>
               <p className="text-on-surface-variant text-[14px] mt-2 leading-relaxed">
                 {result.isAuto
-                  ? `₹${result.amount.toFixed(2)} aapke bank account me 1-2 ghante me transfer ho jayega.`
-                  : `₹${result.amount.toFixed(2)} ka withdrawal request receive ho gaya. ₹5,000 se zyada ke withdrawals Admin review karte hain — 24-48 ghante me process hoga.`
+                  ? `₹${result.amount.toFixed(2)} will be transferred to your bank account within 1-2 hours.`
+                  : `Withdrawal request for ₹${result.amount.toFixed(2)} received. Withdrawals above ₹5,000 are subject to Admin review — it will be processed in 24-48 hours.`
                 }
               </p>
             </div>
@@ -274,27 +274,12 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
               ₹{result.amount.toFixed(2)} — {result.isAuto ? 'Auto Approved' : 'Pending Review'}
             </div>
 
-            {/* Info Box */}
-            <div className={`rounded-2xl p-4 text-left text-[12px] leading-relaxed ${result.isAuto ? 'bg-green-50 border border-green-100 text-green-800' : 'bg-orange-50 border border-orange-100 text-orange-800'}`}>
-              {result.isAuto ? (
-                <>
-                  <p className="font-bold mb-1">ℹ️ Auto-Approved kyun hua?</p>
-                  <p>₹5,000 tak ke withdrawals turant process hote hain bina Admin review ke. Paisa aapke registered bank/UPI me bheja jayega.</p>
-                </>
-              ) : (
-                <>
-                  <p className="font-bold mb-1">⚠️ Admin Review kyun?</p>
-                  <p>₹5,000 se zyada ke withdrawals security ke liye manually review kiye jaate hain. Aapko notification milegi jab approve ho.</p>
-                </>
-              )}
-            </div>
-
             <button
               onClick={onBack}
               className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95"
             >
               <span className="material-symbols-outlined">arrow_back</span>
-              Wallet Par Wapas Jao
+              Back to Wallet
             </button>
           </div>
         </main>
