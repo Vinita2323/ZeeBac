@@ -450,6 +450,10 @@ export const UserAPI = {
     const res = await apiClient.post('/user/transactions/razorpay/verify', data);
     return res.data;
   },
+  processWalletPayment: async (data) => {
+    const res = await apiClient.post('/user/pay-via-wallet', data);
+    return res.data;
+  },
   getNearbyVendors: async (lat, lng, radius = 15000) => {
     const res = await apiClient.get(`/user/vendors/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
     return res.data;

@@ -50,7 +50,8 @@ export default function WalletScreen() {
             time: new Date(entry.createdAt).toLocaleString(),
             amount: entry.type === 'credit' ? `+₹${entry.amount.toFixed(2)}` : `-₹${entry.amount.toFixed(2)}`,
             status: entry.type === 'credit' ? 'Credited' : 'Debited',
-            icon: entry.type === 'credit' ? 'redeem' : 'payments'
+            icon: entry.type === 'credit' ? 'redeem' : 'payments',
+            utr: entry.adminTransactionId || null,
           }));
           setActivities(formatted);
         }
@@ -169,6 +170,11 @@ export default function WalletScreen() {
                 <div className="flex-grow text-left space-y-0.5">
                   <h4 className="font-title-md text-on-surface font-bold text-body-lg">{act.name}</h4>
                   <p className="text-caption text-on-surface-variant text-[12px]">{act.time}</p>
+                  {act.utr && (
+                    <p className="text-[11px] font-bold text-primary/70 bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                      UTR: {act.utr}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className={`font-display font-black text-body-lg ${
@@ -267,11 +273,11 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
             </div>
 
             {/* Amount Badge */}
-            <div className={`inline-flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-[18px] ${result.isAuto ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+            <div className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-[18px] bg-orange-50 text-orange-700">
               <span className="material-symbols-outlined text-[20px]">
-                {result.isAuto ? 'account_balance' : 'pending'}
+                pending
               </span>
-              ₹{result.amount.toFixed(2)} — {result.isAuto ? 'Auto Approved' : 'Pending Review'}
+              ₹{result.amount.toFixed(2)} — Pending Review
             </div>
 
             <button
@@ -305,12 +311,12 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
           <h2 className="text-[40px] font-display font-black text-primary mt-2">₹{balance.toFixed(2)}</h2>
         </div>
 
-        {/* Auto-Approve Info Banner */}
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-3 flex items-start gap-2.5">
-          <span className="material-symbols-outlined text-green-600 text-[18px] mt-0.5 flex-shrink-0">bolt</span>
+        {/* Admin Review Info Banner */}
+        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-3 flex items-start gap-2.5">
+          <span className="material-symbols-outlined text-orange-600 text-[18px] mt-0.5 flex-shrink-0">info</span>
           <div>
-            <p className="text-[12px] font-bold text-green-800">≤ ₹5,000 → Instant Auto-Approved</p>
-            <p className="text-[11px] text-green-700 mt-0.5">> ₹5,000 → Admin review (24-48 hrs)</p>
+            <p className="text-[12px] font-bold text-orange-800">100% Secure Manual Processing</p>
+            <p className="text-[11px] text-orange-700 mt-0.5">All withdrawals are reviewed by Admin (24-48 hrs)</p>
           </div>
         </div>
 
@@ -336,11 +342,11 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
 
           {/* Live Status Pill */}
           {amount && parseFloat(amount) >= 50 && (
-            <div className={`flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-full w-fit ${parseFloat(amount) <= AUTO_LIMIT ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+            <div className="flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-full w-fit bg-orange-100 text-orange-700">
               <span className="material-symbols-outlined text-[14px]">
-                {parseFloat(amount) <= AUTO_LIMIT ? 'bolt' : 'pending'}
+                pending
               </span>
-              {parseFloat(amount) <= AUTO_LIMIT ? 'Instant Auto-Approved' : 'Admin Review Required'}
+              Admin Review Required
             </div>
           )}
 

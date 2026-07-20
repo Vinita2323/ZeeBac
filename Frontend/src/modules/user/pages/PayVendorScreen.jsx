@@ -11,6 +11,7 @@ export default function PayVendorScreen() {
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const updateBalance = useAuthStore((state) => state.updateBalance);
+  const walletBalance = useAuthStore((state) => state.walletBalance);
 
   if (!vendor) {
     return (
@@ -42,7 +43,7 @@ export default function PayVendorScreen() {
   const cashbackRate = vendor.cashbackRate || 10;
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
-  const isValid = purchaseAmount >= 1;
+  const isValid = purchaseAmount >= 1 && (paymentMethod !== 'Wallet' || purchaseAmount <= walletBalance);
 
   const handleConfirm = async () => {
     if (!isValid || processing) return;
@@ -57,6 +58,20 @@ export default function PayVendorScreen() {
         if (res.success) handleSuccess(res.data);
       } catch (err) {
         alert(err.response?.data?.message || 'Transaction failed.');
+        setProcessing(false);
+      }
+      return;
+    }
+
+    // --- WALLET FLOW (Direct API) ---
+    if (paymentMethod === 'Wallet') {
+      try {
+        const res = await UserAPI.processWalletPayment({
+          vendorZeebacId: vendor.zeebacId, amount: parseFloat(amount)
+        });
+        if (res.success) handleSuccess(res.data);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Wallet transaction failed.');
         setProcessing(false);
       }
       return;
@@ -222,23 +237,34 @@ export default function PayVendorScreen() {
 
           {/* Payment Method Selector */}
           <div className="flex gap-2 flex-wrap justify-center mt-2">
-            {['Cash', 'UPI', 'Credit Card', 'Debit Card'].map((method) => (
-              <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
-                className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
-                  paymentMethod === method
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'bg-white border border-outline-variant/20 text-on-surface-variant'
-                }`}
-              >
-                {method}
-              </button>
-            ))}
+            {['Wallet', 'Cash', 'UPI', 'Credit Card', 'Debit Card'].map((method) => {
+              const isDisabled = method === 'Wallet' && purchaseAmount > walletBalance;
+              return (
+                <button
+                  key={method}
+                  disabled={isDisabled}
+                  onClick={() => setPaymentMethod(method)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    paymentMethod === method
+                      ? 'bg-primary text-white shadow-sm'
+                      : isDisabled
+                      ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-50'
+                      : 'bg-white border border-outline-variant/20 text-on-surface-variant'
+                  }`}
+                >
+                  {method === 'Wallet' ? `Wallet (₹${walletBalance.toFixed(2)})` : method}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Confirm Button */}
+        {paymentMethod === 'Wallet' && purchaseAmount > walletBalance && (
+          <p className="text-red-500 text-center text-[12px] mt-4 mb-[-10px] font-bold">
+            Insufficient Wallet Balance
+          </p>
+        )}
         <button
           onClick={handleConfirm}
           disabled={!isValid || processing}

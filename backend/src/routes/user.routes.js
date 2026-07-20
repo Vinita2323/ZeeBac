@@ -24,7 +24,8 @@ import {
   requestWithdrawal,
   getUserWithdrawals,
   getRewardData,
-  claimScratchCard
+  claimScratchCard,
+  processWalletPayment
 } from '../controllers/user.controller.js';
 import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
@@ -80,6 +81,9 @@ router.get('/wallet/withdrawals', getUserWithdrawals);
 // Razorpay Flow (For UPI/Cards)
 router.post('/transactions/razorpay/order', createRazorpayOrder);
 router.post('/transactions/razorpay/verify', verifyRazorpayAndCreateTransaction);
+
+// Wallet Payment (Phase 9)
+router.post('/pay-via-wallet', processWalletPayment);
 
 // Cashback Requests (Phase 4E)
 router.post('/cashback-requests', createCashbackRequest);

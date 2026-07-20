@@ -35,7 +35,8 @@ export default function WalletPage() {
             type: act.type, // 'credit' or 'debit'
             amount: `${act.type === 'credit' ? '+' : '-'}₹${act.amount.toLocaleString()}`,
             status: 'Completed',
-            date: new Date(act.timestamp).toLocaleDateString()
+            date: new Date(act.timestamp).toLocaleDateString(),
+            utr: act.adminTransactionId || null,
           }));
           setActivities(formattedLedger);
         }
@@ -292,6 +293,11 @@ export default function WalletPage() {
                 <div>
                   <p className="font-bold text-[13px] text-on-surface">{act.title}</p>
                   <p className="text-[10px] text-on-surface-variant mt-0.5">{act.date}</p>
+                  {act.utr && (
+                    <p className="text-[11px] font-bold text-primary/70 bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                      UTR: {act.utr}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="text-right">

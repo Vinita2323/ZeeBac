@@ -35,6 +35,7 @@ const userSchema = new mongoose.Schema(
       upiId: String,
       bankName: String,
       accountNumber: String,
+      ifscCode: String,
     },
     preferences: {
       pushNotifications: { type: Boolean, default: true },

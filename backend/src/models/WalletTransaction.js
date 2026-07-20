@@ -25,7 +25,7 @@ const walletTransactionSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward'],
+      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal'],
     },
     amount: {
       type: Number,
@@ -43,7 +43,7 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     referenceType: {
       type: String,
-      enum: ['Transaction', 'CashbackRequest', 'Cashout', 'Referral'],
+      enum: ['Transaction', 'CashbackRequest', 'Cashout', 'Referral', 'WithdrawalRequest'],
     },
     // External Gateway info (for recharges via Razorpay etc.)
     gatewayName: {
@@ -65,6 +65,9 @@ const walletTransactionSchema = new mongoose.Schema(
       type: String,
       enum: ['Pending', 'Success', 'Failed'],
       default: 'Success',
+    },
+    adminTransactionId: {
+      type: String, // UTR or Bank Reference entered by admin during manual payout
     },
     vendorName: {
       type: String,

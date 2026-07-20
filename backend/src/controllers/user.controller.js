@@ -426,26 +426,31 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
       gatewayName: 'Razorpay', gatewayOrderId: razorpay_order_id, gatewayPaymentId: razorpay_payment_id
     });
 
-    // Deduct cashback from vendor wallet
+    // Update Vendor Wallet: Credit the bill amount, then debit the cashback
     let vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
-    if (vendorWallet) {
-      const vPrevBalance = vendorWallet.balance || 0;
-      const vNewBalance = vPrevBalance - cashbackAmount;
-      await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vNewBalance });
-
-      await WalletTransaction.create({
-        walletId: vendorWallet._id,
-        ownerId: vendor._id,
-        ownerType: 'Vendor',
-        type: 'debit',
-        category: 'cashback',
-        amount: cashbackAmount,
-        balanceAfter: vNewBalance,
-        referenceId: txn._id,
-        referenceType: 'Transaction',
-        description: `Cashback given to ${customer.name}`,
-      });
+    if (!vendorWallet) {
+      vendorWallet = await Wallet.create({ ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId });
     }
+
+    // 1. Credit the Bill Amount
+    const vBalanceAfterCredit = (vendorWallet.balance || 0) + parseFloat(amount);
+    await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vBalanceAfterCredit });
+    await WalletTransaction.create({
+      walletId: vendorWallet._id, ownerId: vendor._id, ownerType: 'Vendor',
+      type: 'credit', category: 'payment_received', amount: parseFloat(amount),
+      balanceAfter: vBalanceAfterCredit, referenceId: txn._id, referenceType: 'Transaction',
+      description: `Payment received from ${customer.name} (Razorpay)`
+    });
+
+    // 2. Debit the Cashback
+    const vBalanceAfterDebit = vBalanceAfterCredit - cashbackAmount;
+    await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vBalanceAfterDebit });
+    await WalletTransaction.create({
+      walletId: vendorWallet._id, ownerId: vendor._id, ownerType: 'Vendor',
+      type: 'debit', category: 'cashback', amount: cashbackAmount,
+      balanceAfter: vBalanceAfterDebit, referenceId: txn._id, referenceType: 'Transaction',
+      description: `Cashback given to ${customer.name}`
+    });
 
     await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } });
 
@@ -797,10 +802,6 @@ export const requestWithdrawal = async (req, res) => {
     wallet.balance -= amount;
     await wallet.save();
 
-    // Auto-Approve Logic
-    const AUTO_APPROVE_LIMIT = 5000;
-    const isAutoApprove = amount <= AUTO_APPROVE_LIMIT;
-
     // Create wallet transaction
     const withdrawalTx = await WalletTransaction.create({
       walletId: wallet._id,
@@ -810,8 +811,8 @@ export const requestWithdrawal = async (req, res) => {
       amount,
       balanceAfter: wallet.balance,
       category: 'cashout',
-      description: isAutoApprove ? 'Bank Withdrawal (Auto-Approved)' : 'Bank Withdrawal Request',
-      status: isAutoApprove ? 'Success' : 'Pending'
+      description: 'Bank Withdrawal Request',
+      status: 'Pending'
     });
 
     // 🔔 Notify user about withdrawal status
@@ -820,17 +821,15 @@ export const requestWithdrawal = async (req, res) => {
       recipientType: 'customer',
       fcmTokens: (await User.findById(req.user.id).select('fcmTokens'))?.fcmTokens || [],
       type: 'system',
-      title: isAutoApprove ? '💸 Withdrawal Processed!' : '⏳ Withdrawal Request Received',
-      message: isAutoApprove
-        ? `₹${amount} will be transferred to your bank account in 1-2 hours.`
-        : `Your withdrawal request for ₹${amount} is pending Admin review. It will be processed in 24-48 hrs.`,
-      icon: isAutoApprove ? 'account_balance' : 'schedule',
+      title: '⏳ Withdrawal Request Received',
+      message: `Your withdrawal request for ₹${amount} is pending Admin review. It will be processed in 24-48 hrs.`,
+      icon: 'schedule',
     });
 
     res.status(200).json({ 
       success: true, 
       data: withdrawalTx, 
-      message: isAutoApprove ? 'Withdrawal processed instantly!' : 'Withdrawal requested successfully (Pending Admin Approval)' 
+      message: 'Withdrawal requested successfully (Pending Admin Approval)' 
     });
   } catch (error) {
     logger.error(`requestWithdrawal error: ${error.message}`);
@@ -942,3 +941,113 @@ export const claimScratchCard = async (req, res) => {
   }
 };
 
+export const processWalletPayment = async (req, res) => {
+  try {
+    const { vendorZeebacId, amount } = req.body;
+
+    if (!amount || amount < 1) return res.status(400).json({ success: false, message: 'Invalid amount' });
+
+    const vendor = await Vendor.findOne({ zeebacId: vendorZeebacId.toUpperCase(), status: 'Verified' });
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found or not verified' });
+
+    const customer = await User.findById(req.user.id);
+    let userWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
+    if (!userWallet) {
+      userWallet = await Wallet.create({ ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId });
+    }
+
+    if (userWallet.balance < amount) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+    }
+
+    const cashbackAmount = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
+    const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const txn = await Transaction.create({
+      transactionId, customerId: customer._id, customerZeebacId: customer.zeebacId,
+      customerPhone: customer.phone, customerName: customer.name,
+      vendorId: vendor._id, vendorZeebacId: vendor.zeebacId,
+      vendorName: vendor.storeName, vendorPhone: vendor.phone,
+      vendorCategory: vendor.category, type: 'qr_cashback',
+      initiatedBy: 'customer', source: 'customer_request',
+      amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
+      cashbackAmount, paymentMethod: 'Wallet', status: 'Approved'
+    });
+
+    checkAndNotifyFraud(txn).catch(e => logger.error('Fraud check failed', e));
+
+    // --- Process User Wallet ---
+    // 1. Debit Bill Amount
+    const uBalanceAfterDebit = userWallet.balance - amount;
+    await Wallet.findByIdAndUpdate(userWallet._id, { balance: uBalanceAfterDebit });
+    await WalletTransaction.create({
+      walletId: userWallet._id, ownerId: customer._id, ownerType: 'User',
+      type: 'debit', category: 'payment_received', amount: amount, // using payment_received category temporarily for debit too, or 'cashout' maybe? Let's use 'withdrawal' or add 'payment_sent'
+      balanceAfter: uBalanceAfterDebit, referenceId: txn._id, referenceType: 'Transaction',
+      description: `Payment to ${vendor.storeName} (Wallet)`
+    });
+
+    // 2. Credit Cashback
+    const uBalanceAfterCredit = uBalanceAfterDebit + cashbackAmount;
+    await Wallet.findByIdAndUpdate(userWallet._id, { balance: uBalanceAfterCredit });
+    await WalletTransaction.create({
+      walletId: userWallet._id, ownerId: customer._id, ownerType: 'User',
+      type: 'credit', category: 'cashback', amount: cashbackAmount,
+      balanceAfter: uBalanceAfterCredit, referenceId: txn._id, referenceType: 'Transaction',
+      description: `Cashback from ${vendor.storeName}`
+    });
+
+    // --- Process Vendor Wallet ---
+    let vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    if (!vendorWallet) {
+      vendorWallet = await Wallet.create({ ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId });
+    }
+
+    // 1. Credit Bill Amount
+    const vBalanceAfterCredit = (vendorWallet.balance || 0) + parseFloat(amount);
+    await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vBalanceAfterCredit });
+    await WalletTransaction.create({
+      walletId: vendorWallet._id, ownerId: vendor._id, ownerType: 'Vendor',
+      type: 'credit', category: 'payment_received', amount: parseFloat(amount),
+      balanceAfter: vBalanceAfterCredit, referenceId: txn._id, referenceType: 'Transaction',
+      description: `Payment received from ${customer.name} (Wallet)`
+    });
+
+    // 2. Debit Cashback
+    const vBalanceAfterDebit = vBalanceAfterCredit - cashbackAmount;
+    await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vBalanceAfterDebit });
+    await WalletTransaction.create({
+      walletId: vendorWallet._id, ownerId: vendor._id, ownerType: 'Vendor',
+      type: 'debit', category: 'cashback', amount: cashbackAmount,
+      balanceAfter: vBalanceAfterDebit, referenceId: txn._id, referenceType: 'Transaction',
+      description: `Cashback given to ${customer.name}`
+    });
+
+    await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } });
+
+    // Update User's Recent Vendors (max 10)
+    await User.findByIdAndUpdate(req.user.id, { $pull: { recentVendors: vendor._id } });
+    await User.findByIdAndUpdate(req.user.id, { $push: { recentVendors: { $each: [vendor._id], $position: 0, $slice: 10 } } });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transaction: {
+          transactionId: txn.transactionId,
+          amount: txn.amount,
+          cashbackAmount: txn.cashbackAmount,
+          cashbackPercent: txn.cashbackPercent,
+          status: txn.status,
+          timestamp: txn.timestamp,
+        },
+        vendor: { name: vendor.storeName },
+        cashbackEarned: cashbackAmount,
+        newBalance: uBalanceAfterCredit
+      }
+    });
+
+  } catch (error) {
+    logger.error(`processWalletPayment error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};

@@ -23,6 +23,9 @@ const withdrawalRequestSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  adminTransactionId: {
+    type: String, // UTR or Bank Reference entered by admin during manual payout
+  },
 }, { timestamps: true });
 
 const WithdrawalRequest = mongoose.model('WithdrawalRequest', withdrawalRequestSchema);

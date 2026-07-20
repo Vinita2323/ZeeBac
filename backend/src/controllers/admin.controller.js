@@ -796,7 +796,7 @@ export const getPendingPayouts = async (req, res) => {
       category: 'cashout',
       status: 'Pending',
       ownerType: 'User'
-    }).populate('ownerId', 'name phone email').sort({ createdAt: -1 });
+    }).populate('ownerId', 'name phone email bankDetails').sort({ createdAt: -1 });
 
     // 2. Get Vendor Withdrawals (from WithdrawalRequest where status='Pending')
     // and populate the vendor details
@@ -820,7 +820,11 @@ export const getPendingPayouts = async (req, res) => {
 export const processPayout = async (req, res) => {
   try {
     const { id } = req.params;
-    const { type, action, remarks } = req.body; // type: 'User' or 'Vendor', action: 'Approve' or 'Reject'
+    const { type, action, remarks, transactionId } = req.body; // type: 'User' or 'Vendor', action: 'Approve' or 'Reject'
+
+    if (action === 'Approve' && !transactionId) {
+      return res.status(400).json({ success: false, message: 'Transaction ID (UTR) is required for approval' });
+    }
 
     if (type === 'User') {
       const tx = await WalletTransaction.findById(id).populate('ownerId');
@@ -831,6 +835,7 @@ export const processPayout = async (req, res) => {
       if (action === 'Approve') {
         tx.status = 'Success';
         tx.description = remarks ? `Withdrawal Approved: ${remarks}` : 'Bank Withdrawal Approved';
+        tx.adminTransactionId = transactionId;
         await tx.save();
 
         // Notify user
@@ -840,7 +845,7 @@ export const processPayout = async (req, res) => {
           fcmTokens: tx.ownerId.fcmTokens || [],
           type: 'system',
           title: '💸 Withdrawal Approved!',
-          message: `₹${tx.amount} has been transferred to your bank account.`,
+          message: `₹${tx.amount} has been transferred to your bank account. UTR: ${transactionId}`,
           icon: 'account_balance',
         });
       } else if (action === 'Reject') {
@@ -879,7 +884,16 @@ export const processPayout = async (req, res) => {
       if (action === 'Approve') {
         reqDoc.status = 'Approved';
         reqDoc.adminRemarks = remarks || '';
+        reqDoc.adminTransactionId = transactionId;
         await reqDoc.save();
+
+        // Update the corresponding WalletTransaction with UTR
+        const tx = await WalletTransaction.findOne({ referenceId: reqDoc._id });
+        if (tx) {
+          tx.adminTransactionId = transactionId;
+          tx.description = remarks ? `Withdrawal Approved: ${remarks}` : 'Withdrawal request approved';
+          await tx.save();
+        }
 
         // Notify vendor
         sendNotification({
@@ -888,7 +902,7 @@ export const processPayout = async (req, res) => {
           fcmTokens: reqDoc.vendorId.fcmTokens || [],
           type: 'system',
           title: '💸 Withdrawal Approved!',
-          message: `₹${reqDoc.amount} has been transferred to your bank account.`,
+          message: `₹${reqDoc.amount} has been transferred to your bank account. UTR: ${transactionId}`,
           icon: 'account_balance',
         });
       } else if (action === 'Reject') {
