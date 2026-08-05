@@ -11,13 +11,21 @@ const uri = process.env.MONGODB_URI;
 
 mongoose.connect(uri)
   .then(async () => {
-    // 1. Get the Vendor Model
+    const User = mongoose.model('User', new mongoose.Schema({}, { strict: false }));
     const Vendor = mongoose.model('Vendor', new mongoose.Schema({}, { strict: false }));
     
-    // 2. Query vendor
-    const vendor = await Vendor.findOne({ phone: "9999999991" });
+    const userCount = await User.countDocuments();
+    const vendorCount = await Vendor.countDocuments();
     
-    console.log("EXACT QUERY RESULT:", JSON.stringify(vendor, null, 2));
+    console.log(`User Count: ${userCount}`);
+    console.log(`Vendor Count: ${vendorCount}`);
+    
+    if (userCount > 0) {
+      const users = await User.find({}).limit(5).lean();
+      console.log("\nUsers:");
+      users.forEach(u => console.log(`Name: ${u.name}, Phone: ${u.phone}`));
+    }
+    
     process.exit(0);
   })
   .catch(err => {
