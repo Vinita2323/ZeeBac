@@ -7,28 +7,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const uri = process.env.MONGODB_URI;
+const baseUri = process.env.MONGODB_URI;
 
-mongoose.connect(uri)
-  .then(async () => {
-    const User = mongoose.model('User', new mongoose.Schema({}, { strict: false }));
-    const Vendor = mongoose.model('Vendor', new mongoose.Schema({}, { strict: false }));
-    
-    const userCount = await User.countDocuments();
-    const vendorCount = await Vendor.countDocuments();
-    
-    console.log(`User Count: ${userCount}`);
-    console.log(`Vendor Count: ${vendorCount}`);
-    
-    if (userCount > 0) {
-      const users = await User.find({}).limit(5).lean();
-      console.log("\nUsers:");
-      users.forEach(u => console.log(`Name: ${u.name}, Phone: ${u.phone}`));
-    }
-    
-    process.exit(0);
-  })
-  .catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+async function checkDb(dbUri, dbName) {
+  const connection = await mongoose.createConnection(dbUri).asPromise();
+  const Vendor = connection.model('Vendor', new mongoose.Schema({}, { strict: false }));
+  
+  const vendor = await Vendor.findOne({ phone: "8888888888" }).lean();
+  console.log(`\n--- DB: ${dbName} ---`);
+  if (vendor) {
+    console.log(`FOUND VENDOR: ${vendor.storeName} with phone ${vendor.phone}`);
+  } else {
+    console.log(`NO VENDOR FOUND with phone 8888888888`);
+  }
+  await connection.close();
+}
+
+async function run() {
+  await checkDb(baseUri, 'default (test)');
+  const zeebacUri = baseUri.replace('.mongodb.net/?', '.mongodb.net/zeebac?');
+  if (zeebacUri !== baseUri) {
+    await checkDb(zeebacUri, 'zeebac');
+  }
+  process.exit(0);
+}
+run();

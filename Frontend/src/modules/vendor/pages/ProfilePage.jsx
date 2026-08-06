@@ -74,7 +74,6 @@ export default function ProfilePage() {
     category,
     phone,
     email,
-    email,
     description: '',
     operatingHours: '',
     fullAddress: '',

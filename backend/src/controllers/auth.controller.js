@@ -13,6 +13,19 @@ export const sendOtp = async (req, res) => {
     const { phone, purpose = 'login', role = 'customer' } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone is required' });
 
+    if (purpose === 'login') {
+      let accountExists = false;
+      if (role === 'customer') {
+        accountExists = await User.exists({ phone });
+      } else if (role === 'vendor') {
+        accountExists = await Vendor.exists({ phone });
+      }
+      
+      if (!accountExists) {
+        return res.status(404).json({ success: false, message: `${role === 'vendor' ? 'Vendor' : 'Customer'} account not found. Please register.` });
+      }
+    }
+
     // Generate random 4-digit OTP
     /*const otp = Math.floor(1000 + Math.random() * 9000).toString();
     logger.info(`[DEV OTP] for ${phone} (${role}): ${otp}`);*/
