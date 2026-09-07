@@ -7,11 +7,13 @@
 import axios from 'axios';
 import useAuthStore from '../store/useAuthStore.js';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL;
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const SERVER_URL = rawApiUrl.replace(/\/api\/?$/, '');
+export const API_BASE_URL = `${SERVER_URL}/api`;
 
 // ─── Axios Instance & Interceptors ──────────────────────────────────────────
 export const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
+  baseURL: API_BASE_URL,
 });
 
 apiClient.interceptors.request.use((config) => {

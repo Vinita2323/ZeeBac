@@ -13,6 +13,7 @@ export default function PayVendorScreen() {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const updateBalance = useAuthStore((state) => state.updateBalance);
   const walletBalance = useAuthStore((state) => state.walletBalance);
+  const currentUser = useAuthStore((state) => state.user);
 
   if (!vendor) {
     return (
@@ -95,12 +96,15 @@ export default function PayVendorScreen() {
       const orderRes = await UserAPI.createRazorpayOrder(parseFloat(amount), vendor.zeebacId);
       if (!orderRes.success) throw new Error(orderRes.message || "Could not create Razorpay order");
       
+      const rzpKey = orderRes.data.key || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!rzpKey) throw new Error("Razorpay API Key ID is missing. Check your configuration.");
+
       const options = {
-        key: orderRes.data.key,
+        key: rzpKey,
         amount: orderRes.data.amount,
         currency: "INR",
-        name: vendor.storeName,
-        description: `Payment to ${vendor.storeName}`,
+        name: vendor.storeName || vendor.name || "Zeebac Vendor",
+        description: `Payment to ${vendor.storeName || vendor.name || "Vendor"}`,
         order_id: orderRes.data.id,
         handler: async function (response) {
           try {
@@ -115,17 +119,22 @@ export default function PayVendorScreen() {
             if (verifyRes.success) handleSuccess(verifyRes.data);
           } catch (err) {
             console.error(err);
-            alert("Payment verification failed");
+            alert(err.response?.data?.message || "Payment verification failed");
             setProcessing(false);
           }
         },
-        prefill: { name: "Customer", contact: "9999999999" }, // Ideally fetch from customer profile
-        theme: { color: "#6200ea" }
+        prefill: { 
+          name: currentUser?.name || "Customer", 
+          contact: currentUser?.phone || "9999999999",
+          email: currentUser?.email || "customer@zeebac.com"
+        },
+        theme: { color: "#7c3aed" }
       };
 
       const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function () {
-        alert("Payment failed or cancelled");
+      rzp.on('payment.failed', function (response) {
+        console.warn("Razorpay Payment Failed/Cancelled:", response.error);
+        alert(`Payment failed: ${response.error?.description || "Cancelled by user"}`);
         setProcessing(false);
       });
       rzp.open();
