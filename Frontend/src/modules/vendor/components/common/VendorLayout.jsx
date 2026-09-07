@@ -30,15 +30,8 @@ export default function VendorLayout({ children }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto scroll-smooth bg-[#f8f9fc]">
-          {/* Mobile: constrained single-column like user app */}
-          <div className="md:hidden max-w-[440px] mx-auto w-full px-container-margin pb-28 space-y-4">
+          <div className="w-full max-w-[480px] md:max-w-7xl mx-auto px-4 md:px-8 py-4 md:py-8 pb-28 md:pb-8 space-y-4 md:space-y-6">
             {children}
-          </div>
-          {/* Desktop: full-width dashboard */}
-          <div className="hidden md:block p-8">
-            <div className="max-w-7xl mx-auto space-y-6">
-              {children}
-            </div>
           </div>
         </main>
       </div>
@@ -48,3 +41,4 @@ export default function VendorLayout({ children }) {
     </div>
   );
 }
+

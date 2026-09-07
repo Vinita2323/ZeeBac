@@ -13,11 +13,11 @@ function timeAgo(dateStr) {
 
 // ─── Icon Color Map by notification type ───
 const typeStyle = {
-  credit:   { bg: 'bg-green-100', color: 'text-green-700', icon: 'payments' },
-  approval: { bg: 'bg-blue-100',  color: 'text-blue-700',  icon: 'verified' },
+  credit: { bg: 'bg-green-100', color: 'text-green-700', icon: 'payments' },
+  approval: { bg: 'bg-blue-100', color: 'text-blue-700', icon: 'verified' },
   referral: { bg: 'bg-purple-100', color: 'text-purple-700', icon: 'group_add' },
-  system:   { bg: 'bg-gray-100',  color: 'text-gray-700',  icon: 'info' },
-  promotion:{ bg: 'bg-orange-100',color: 'text-orange-700',icon: 'local_offer' },
+  system: { bg: 'bg-gray-100', color: 'text-gray-700', icon: 'info' },
+  promotion: { bg: 'bg-orange-100', color: 'text-orange-700', icon: 'local_offer' },
 };
 
 export default function NotificationsPage() {
@@ -30,7 +30,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="animate-reveal text-left">
-      
+
       {/* Mobile Header */}
       <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-lg">
         <div className="flex items-center">
@@ -40,7 +40,7 @@ export default function NotificationsPage() {
           <span className="font-display text-title-md text-primary font-bold ml-1">Notifications</span>
         </div>
         {notifications.some((n) => !n.isRead) && (
-          <button 
+          <button
             onClick={markAllAsRead}
             className="text-primary text-[12px] font-bold"
           >
@@ -65,14 +65,14 @@ export default function NotificationsPage() {
           ) : (
             notifications.map(notif => {
               const style = typeStyle[notif.type] || typeStyle.system;
-              
+
               return (
-                <div 
-                  key={notif._id} 
+                <div
+                  key={notif._id}
                   onClick={() => !notif.isRead && markAsRead(notif._id)}
                   className={`bg-white rounded-2xl border shadow-[0_2px_10px_rgba(0,0,0,0.02)] p-4 active:scale-[0.98] transition-all flex gap-3 cursor-pointer ${notif.isRead ? 'border-outline-variant/10' : 'border-l-4 border-l-primary border-t-outline-variant/10 border-r-outline-variant/10 border-b-outline-variant/10'}`}
                 >
-                  
+
                   <div className={`w-11 h-11 rounded-full flex-shrink-0 flex items-center justify-center ${style.bg}`}>
                     <span className={`material-symbols-outlined text-[22px] ${style.color}`}>
                       {notif.icon || style.icon}

@@ -171,14 +171,18 @@ export default function PayVendorScreen() {
     <div className="min-h-screen mesh-gradient text-on-surface flex flex-col font-body-lg">
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 flex items-center border-b border-outline-variant/10 shadow-sm">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-all cursor-pointer">
-          <span className="material-symbols-outlined text-primary">arrow_back</span>
-        </button>
-        <span className="font-display text-title-md text-primary font-bold ml-2">Pay Vendor</span>
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-all cursor-pointer">
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-bold ml-2">Pay Vendor</span>
+          </div>
+        </div>
       </header>
 
-      <main className="flex-1 max-w-[440px] mx-auto w-full px-5 py-6 flex flex-col text-left">
+      <main className="flex-1 app-container px-5 py-6 flex flex-col text-left">
 
         {/* Vendor Info Card */}
         <div className="bg-white rounded-2xl border border-outline-variant/15 p-5 shadow-sm mb-6">

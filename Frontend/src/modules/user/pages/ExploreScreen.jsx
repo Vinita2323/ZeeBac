@@ -142,45 +142,48 @@ export default function ExploreScreen() {
       
       {/* Top Search bar Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-4 py-2 border-b border-outline-variant/10 shadow-sm space-y-2">
-        <div className="flex items-center gap-xs">
-          <div className="flex-grow relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-            <input 
-              className="w-full h-11 pl-10 pr-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-body-lg font-body-lg placeholder:text-outline transition-all"
-              placeholder="Search local shops and brands..."
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <button 
-            onClick={() => setShowMap(!showMap)}
-            className="w-11 h-11 bg-primary text-white rounded-xl flex items-center justify-center shadow-md cursor-pointer hover:opacity-95"
-          >
-            <span className="material-symbols-outlined text-[20px]">{showMap ? 'list' : 'map'}</span>
-          </button>
-        </div>
-
-        {/* Categories Carousel */}
-        <div className="flex gap-sm overflow-x-auto pb-1 scroll-hide">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-full font-title-md text-[13px] whitespace-nowrap cursor-pointer transition-colors ${
-                activeCategory === cat 
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-variant'
-              }`}
+        <div className="app-container space-y-2">
+          <div className="flex items-center gap-xs">
+            <div className="flex-grow relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+              <input 
+                className="w-full h-11 pl-10 pr-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-body-lg font-body-lg placeholder:text-outline transition-all"
+                placeholder="Search local shops and brands..."
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => setShowMap(!showMap)}
+              className="w-11 h-11 bg-primary text-white rounded-xl flex items-center justify-center shadow-md cursor-pointer hover:opacity-95 shrink-0"
             >
-              {cat}
+              <span className="material-symbols-outlined text-[20px]">{showMap ? 'list' : 'map'}</span>
             </button>
-          ))}
+          </div>
+
+          {/* Categories Carousel */}
+          <div className="flex gap-sm overflow-x-auto pb-1 scroll-hide">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-full font-title-md text-[13px] whitespace-nowrap cursor-pointer transition-colors ${
+                  activeCategory === cat 
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-variant'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
       {/* Main Content body */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg relative text-left">
+      <main className="flex-grow app-container px-container-margin py-lg relative text-left">
+
         
         {showMap ? (
           /* Mock Map representation */

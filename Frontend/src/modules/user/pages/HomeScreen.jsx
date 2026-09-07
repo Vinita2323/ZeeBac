@@ -31,7 +31,7 @@ export default function HomeScreen() {
         if (recentRes.success) setRecentVendors(recentRes.data || []);
 
         let lat = null, lng = null;
-        
+
         // Try getting live location
         if (navigator.geolocation) {
           try {
@@ -59,7 +59,7 @@ export default function HomeScreen() {
         } else {
           vendorRes = await UserAPI.getVendorsByCategory('All');
         }
-        
+
         if (vendorRes.success) setVendors(vendorRes.data || []);
       } catch (err) {
         console.error('Failed to load home screen data', err);
@@ -78,7 +78,7 @@ export default function HomeScreen() {
         onClose={() => setIsNotifOpen(false)}
         triggerRef={bellRef}
       />
-      
+
       <header className="sticky top-0 z-50 glass-header px-4 py-2 border-b border-outline-variant/10 shadow-sm">
         <div className="app-container flex items-center justify-between">
           <img
@@ -141,15 +141,15 @@ export default function HomeScreen() {
         {/* Quick Actions Row */}
         <div className="grid grid-cols-4 gap-2.5">
           {[
-            { label: 'Scan & Pay', icon: 'qr_code_scanner', path: '/scan', bg: 'from-[#7c3aed] to-[#a855f7]', iconColor: 'text-white' },
-            { label: 'Upload Bill', icon: 'receipt_long', path: '/request-cashback', bg: 'from-[#ec4899] to-[#f472b6]', iconColor: 'text-white' },
-            { label: 'Find Vendor', icon: 'storefront', path: '/find-vendor', bg: 'from-[#3b82f6] to-[#60a5fa]', iconColor: 'text-white' },
-            { label: 'History', icon: 'history', path: '/passbook', bg: 'from-[#f59e0b] to-[#fbbf24]', iconColor: 'text-white' },
+            { label: 'Scan & Pay', icon: 'qr_code_scanner', path: '/scan', bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', iconColor: 'text-white' },
+            { label: 'Upload Bill', icon: 'receipt_long', path: '/request-cashback', bg: 'from-[#260060] to-[#7000ff]', iconColor: 'text-white' },
+            { label: 'Find Vendor', icon: 'storefront', path: '/find-vendor', bg: 'from-[#16082f] to-[#4c00b0]', iconColor: 'text-white' },
+            { label: 'History', icon: 'history', path: '/passbook', bg: 'from-[#3b0764] to-[#6000da]', iconColor: 'text-white' },
           ].map((action) => (
             <button
               key={action.label}
               onClick={() => navigate(action.path)}
-              className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-white/70 hover:bg-white border border-white/70 shadow-sm hover:shadow-md transition-all active:scale-[0.94] cursor-pointer"
+              className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-white/80 hover:bg-white border border-white/80 shadow-sm hover:shadow-md transition-all active:scale-[0.94] cursor-pointer"
             >
               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center shadow-sm`}>
                 <span className={`material-symbols-outlined text-[19px] ${action.iconColor}`}>{action.icon}</span>
@@ -162,7 +162,7 @@ export default function HomeScreen() {
         {/* Upload Bill Banner (Flow 1 Banner) */}
         <div 
           onClick={() => navigate('/request-cashback')}
-          className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 rounded-2xl p-4 text-white shadow-md cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-between"
+          className="bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] rounded-2xl p-4 text-white shadow-md cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white flex-shrink-0">
@@ -173,7 +173,7 @@ export default function HomeScreen() {
               <p className="text-[10px] text-white/80 font-medium mt-0.5">Upload receipt photo & earn instant rewards</p>
             </div>
           </div>
-          <button className="px-3.5 py-2 bg-white text-purple-700 rounded-xl font-extrabold text-[11px] shadow-sm hover:bg-purple-50 whitespace-nowrap">
+          <button className="px-3.5 py-2 bg-white text-[#6000da] rounded-xl font-extrabold text-[11px] shadow-sm hover:bg-white/90 whitespace-nowrap">
             Upload
           </button>
         </div>
@@ -184,8 +184,8 @@ export default function HomeScreen() {
             <h3 className="font-display text-headline-sm text-on-surface font-black tracking-tight">Recently Visited</h3>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
               {recentVendors.map((vendor) => (
-                <div 
-                  key={vendor._id} 
+                <div
+                  key={vendor._id}
                   onClick={() => handleVendorClick(vendor)}
                   className="snap-start flex flex-col items-center gap-1 cursor-pointer min-w-[72px]"
                 >
@@ -209,7 +209,7 @@ export default function HomeScreen() {
         <div className="space-y-md">
           <div className="flex items-center justify-between">
             <h3 className="font-display text-headline-sm text-on-surface font-black tracking-tight">Nearby Partner Vendors</h3>
-            <button 
+            <button
               onClick={() => navigate('/explore')}
               className="text-body-sm text-primary font-bold hover:underline cursor-pointer"
             >
@@ -238,7 +238,7 @@ export default function HomeScreen() {
               </div>
             ) : (
               vendors.map((vendor) => (
-                <div 
+                <div
                   key={vendor._id}
                   onClick={() => handleVendorClick(vendor)}
                   className="glass-card rounded-xl overflow-hidden shadow-sm hover:shadow-md cursor-pointer transition-shadow flex items-center p-2 border border-outline-variant/30 gap-3"
@@ -255,8 +255,8 @@ export default function HomeScreen() {
                     <h4 className="font-title-md text-on-surface font-bold text-[14px] pt-0.5 leading-tight">{vendor.storeName}</h4>
                     <div className="flex items-center gap-xs text-caption text-on-surface-variant text-[11px]">
                       <span className="material-symbols-outlined text-[12px]">distance</span>
-                      {location && vendor.location?.coordinates ? 
-                        `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km away` 
+                      {location && vendor.location?.coordinates ?
+                        `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km away`
                         : 'Nearby'}
                       <span>•</span>
                       {vendor.category}

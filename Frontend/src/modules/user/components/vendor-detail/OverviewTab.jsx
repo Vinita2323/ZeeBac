@@ -20,7 +20,7 @@ export default function OverviewTab({ vendor }) {
         console.error('Failed to load highlights', err);
       }
     };
-    
+
     const fetchPromotions = async () => {
       if (!vendor?._id) return;
       try {
@@ -58,7 +58,7 @@ export default function OverviewTab({ vendor }) {
           {vendor.description ? vendor.description : `Experience high-end design form factor and exclusive curation. Enjoy modern checkout convenience, premium customer support, and the highest rewards rates at ${vendor.storeName || vendor.name} through Zeebac.`}
         </p>
       </div>
-      
+
       <div className="space-y-xs">
         <h3 className="font-display text-title-md font-extrabold text-on-surface">Store Information</h3>
         <div className="flex items-center gap-sm text-body-sm text-on-surface-variant">
@@ -166,22 +166,22 @@ export default function OverviewTab({ vendor }) {
       </div>
 
       <div className="flex gap-2.5 pt-2">
-        <button 
-          onClick={() => navigate('/pay-vendor', { state: { vendor } })} 
-          className="flex-1 h-[52px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-[0.98] shadow-md"
+        <button
+          onClick={() => navigate('/pay-vendor', { state: { vendor } })}
+          className="flex-1 h-[52px] bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:from-[#16082f] hover:to-[#4c00b0] transition-all active:scale-[0.98] shadow-md"
         >
           <span className="material-symbols-outlined text-[20px]">payments</span>
           Pay Online
         </button>
-        <button 
-          onClick={() => navigate('/request-cashback', { state: { vendor } })} 
+        <button
+          onClick={() => navigate('/request-cashback', { state: { vendor } })}
           className="flex-1 h-[52px] bg-secondary text-white font-title-md font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/90 transition-colors active:scale-[0.98] shadow-md"
         >
           <span className="material-symbols-outlined text-[20px]">receipt_long</span>
           Upload Bill
         </button>
-        <button 
-          onClick={handleMessageVendor} 
+        <button
+          onClick={handleMessageVendor}
           className="w-[52px] h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
           title="Message Shop"
         >

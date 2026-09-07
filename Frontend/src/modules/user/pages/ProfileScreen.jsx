@@ -191,12 +191,14 @@ export default function ProfileScreen() {
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 flex items-center border-b border-outline-variant/10 shadow-sm">
-        <span className="font-display text-title-md text-primary font-black">My Profile</span>
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <span className="font-display text-title-md text-primary font-black">My Profile</span>
+        </div>
       </header>
 
       {/* Main Body */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg space-y-lg text-left">
+      <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
         
         {/* User Card */}
         <div className="glass-card rounded-[2rem] border border-outline-variant/30 p-md flex items-center gap-md shadow-sm relative bg-white">
@@ -522,17 +524,21 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
 
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
-        <button 
-          onClick={onBack}
-          className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-primary">arrow_back</span>
-        </button>
-        <span className="font-display text-title-md text-primary ml-4">Edit Profile</span>
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button 
+              onClick={onBack}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary ml-2">Edit Profile</span>
+          </div>
+        </div>
       </header>
 
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
+      <main className="flex-grow app-container px-container-margin py-xl flex flex-col justify-between text-left">
         <form onSubmit={handleSubmit} className="space-y-md flex-grow">
           <div>
             <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Full Name</label>
@@ -599,17 +605,21 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
 
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
-        <button 
-          onClick={onBack}
-          className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-primary">arrow_back</span>
-        </button>
-        <span className="font-display text-title-md text-primary ml-4">Linked Accounts</span>
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button 
+              onClick={onBack}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary ml-2">Linked Accounts</span>
+          </div>
+        </div>
       </header>
 
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
+      <main className="flex-grow app-container px-container-margin py-xl flex flex-col justify-between text-left">
         <form onSubmit={handleSubmit} className="space-y-md flex-grow">
           <div className="bg-gradient-to-br from-[#7c3aed] to-[#a855f7] text-white p-5 rounded-3xl shadow-lg shadow-primary/25 relative overflow-hidden mb-lg">
             <span className="material-symbols-outlined absolute right-6 top-6 text-white/10 text-[80px] pointer-events-none select-none">account_balance_wallet</span>

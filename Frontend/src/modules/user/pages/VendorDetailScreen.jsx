@@ -72,13 +72,13 @@ export default function VendorDetailScreen() {
 
   return (
     <div className="mesh-gradient text-on-surface font-body-lg min-h-screen pb-12">
-      
+
       {/* Hero Banner Section */}
       <header className="relative h-[280px] w-full overflow-hidden bg-surface-container-high flex items-center justify-center">
         {vendor.storeLogo || vendor.profilePic ? (
-          <img 
-            alt={vendor.storeName} 
-            className="w-full h-full object-cover" 
+          <img
+            alt={vendor.storeName}
+            className="w-full h-full object-cover"
             src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
           />
         ) : (
@@ -86,21 +86,21 @@ export default function VendorDetailScreen() {
         )}
         {/* Overlay gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
-        
+
         {/* Navigation Bar inside Header */}
         <div className="absolute top-0 left-0 right-0 p-container-margin flex justify-between items-center z-20">
-          <button 
+          <button
             onClick={() => navigate(-1)}
             className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={handleFavoriteToggle}
             className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer"
           >
-            <span 
+            <span
               className={`material-symbols-outlined ${isFavorite ? 'text-red-500' : ''}`}
               style={{ fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
             >
@@ -128,11 +128,10 @@ export default function VendorDetailScreen() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-3.5 font-title-md text-[14px] capitalize cursor-pointer border-b-2 text-center whitespace-nowrap transition-all ${
-              activeTab === tab 
-                ? 'border-primary text-primary font-bold' 
+            className={`px-5 py-3.5 font-title-md text-[14px] capitalize cursor-pointer border-b-2 text-center whitespace-nowrap transition-all ${activeTab === tab
+                ? 'border-primary text-primary font-bold'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest'
-            }`}
+              }`}
           >
             {tab === 'photos' ? 'Photos & Videos' : tab}
           </button>
@@ -140,7 +139,7 @@ export default function VendorDetailScreen() {
       </nav>
 
       {/* Tab Pages content */}
-      <main className="max-w-[440px] mx-auto w-full px-container-margin py-lg text-left">
+      <main className="app-container px-container-margin py-lg text-left">
         {activeTab === 'overview' && <OverviewTab vendor={vendor} />}
         {activeTab === 'shop' && <ShopTab vendor={vendor} />}
         {activeTab === 'photos' && <PhotosTab vendorId={vendor._id} />}
@@ -149,16 +148,16 @@ export default function VendorDetailScreen() {
 
       {/* Sticky Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-outline-variant/10 p-3 shadow-lg">
-        <div className="max-w-[440px] mx-auto flex gap-3">
-          <button 
-            onClick={() => navigate('/pay-vendor', { state: { vendor } })} 
-            className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-[0.98] shadow-md shadow-purple-500/20"
+        <div className="app-container flex gap-3">
+          <button
+            onClick={() => navigate('/pay-vendor', { state: { vendor } })}
+            className="flex-1 h-12 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:from-[#16082f] hover:to-[#4c00b0] transition-all active:scale-[0.98] shadow-md shadow-[#6000da]/25"
           >
             <span className="material-symbols-outlined text-[20px]">payments</span>
             Pay Online
           </button>
-          <button 
-            onClick={() => navigate('/request-cashback', { state: { vendor } })} 
+          <button
+            onClick={() => navigate('/request-cashback', { state: { vendor } })}
             className="flex-1 h-12 bg-secondary text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-secondary/90 transition-colors active:scale-[0.98] shadow-md"
           >
             <span className="material-symbols-outlined text-[20px]">receipt_long</span>

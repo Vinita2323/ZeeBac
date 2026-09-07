@@ -71,20 +71,22 @@ export default function RequestDetailsScreen() {
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-12">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
-        <div className="flex items-center gap-xs">
-          <button 
-            onClick={() => navigate('/passbook')}
-            className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Request Status</span>
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button 
+              onClick={() => navigate('/passbook')}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-bold ml-1">Request Status</span>
+          </div>
         </div>
       </header>
 
       {/* Main body details content */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg space-y-lg text-left">
+      <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
         
         {/* Detail overview card */}
         <div className="glass-card rounded-2xl p-md border border-outline-variant/30 text-left space-y-md shadow-sm">

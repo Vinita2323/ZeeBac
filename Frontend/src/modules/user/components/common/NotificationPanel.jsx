@@ -12,11 +12,11 @@ function timeAgo(dateStr) {
 
 // ─── Icon Color Map by notification type ───
 const typeStyle = {
-  credit:   { bg: 'bg-green-100', color: 'text-green-700', icon: 'payments' },
-  approval: { bg: 'bg-blue-100',  color: 'text-blue-700',  icon: 'verified' },
+  credit: { bg: 'bg-green-100', color: 'text-green-700', icon: 'payments' },
+  approval: { bg: 'bg-blue-100', color: 'text-blue-700', icon: 'verified' },
   referral: { bg: 'bg-purple-100', color: 'text-purple-700', icon: 'group_add' },
-  system:   { bg: 'bg-gray-100',  color: 'text-gray-700',  icon: 'info' },
-  promotion:{ bg: 'bg-orange-100',color: 'text-orange-700',icon: 'local_offer' },
+  system: { bg: 'bg-gray-100', color: 'text-gray-700', icon: 'info' },
+  promotion: { bg: 'bg-orange-100', color: 'text-orange-700', icon: 'local_offer' },
 };
 
 // ─── Notification Panel ───

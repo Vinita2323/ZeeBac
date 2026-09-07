@@ -72,10 +72,10 @@ export default function VendorScanCustomerScreen() {
             { facingMode: 'environment' },
             { fps: 10, qrbox: { width: 240, height: 240 } },
             (decodedText) => {
-              try { html5QrCode?.pause?.(true); } catch (e) {}
+              try { html5QrCode?.pause?.(true); } catch (e) { }
               resolveCustomer(decodedText);
             },
-            () => {}
+            () => { }
           )
           .then(() => { if (!cancelled) setCameraStatus('active'); })
           .catch(() => { if (!cancelled) setCameraStatus('denied'); });
@@ -91,10 +91,10 @@ export default function VendorScanCustomerScreen() {
       cancelled = true;
       if (html5QrCode) {
         try {
-          html5QrCode.stop().catch(() => {}).finally(() => {
-            try { html5QrCode.clear(); } catch (e) {}
+          html5QrCode.stop().catch(() => { }).finally(() => {
+            try { html5QrCode.clear(); } catch (e) { }
           });
-        } catch (e) {}
+        } catch (e) { }
       }
     };
   }, [resolveCustomer]);
@@ -129,7 +129,7 @@ export default function VendorScanCustomerScreen() {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black text-white overflow-hidden font-body-lg select-none">
-      
+
       {/* Hidden inputs: gallery picker + an off-screen region html5-qrcode uses to decode picked images */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
       <div id={FILE_REGION_ID} className="hidden" />
@@ -195,20 +195,19 @@ export default function VendorScanCustomerScreen() {
 
       {/* Bottom controls */}
       <div className="absolute bottom-10 md:bottom-24 left-0 right-0 px-8 flex justify-between items-center z-20 max-w-[440px] mx-auto">
-        <button 
+        <button
           onClick={handleGalleryClick}
           className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-95 transition-all cursor-pointer"
         >
           <span className="material-symbols-outlined text-[24px]">image</span>
         </button>
 
-        <button 
+        <button
           onClick={() => setShowIdInput(!showIdInput)}
-          className={`px-5 py-3 rounded-full flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer text-[13px] font-bold ${
-            showIdInput 
-              ? 'bg-secondary text-white' 
+          className={`px-5 py-3 rounded-full flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer text-[13px] font-bold ${showIdInput
+              ? 'bg-secondary text-white'
               : 'bg-white/90 text-black'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined text-[18px]">dialpad</span>
           Enter ID
@@ -225,7 +224,7 @@ export default function VendorScanCustomerScreen() {
               <span className="material-symbols-outlined text-secondary text-[20px]">badge</span>
               <span className="text-[13px] font-bold text-on-surface">Enter Customer's Zeebac ID</span>
             </div>
-            
+
             <div className="flex gap-2">
               <input
                 autoFocus
@@ -236,7 +235,7 @@ export default function VendorScanCustomerScreen() {
                 placeholder="ZBC-1234 or phone"
                 className="flex-1 h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-secondary text-[15px] font-bold text-on-surface uppercase transition-all"
               />
-              <button 
+              <button
                 onClick={handleManualSearch}
                 disabled={isLoading}
                 className="w-12 h-12 bg-secondary text-white rounded-xl flex items-center justify-center hover:bg-secondary/90 active:scale-95 transition-all shadow-[0_4px_12px_rgba(96,0,218,0.3)] disabled:opacity-50"
@@ -248,14 +247,14 @@ export default function VendorScanCustomerScreen() {
                 )}
               </button>
             </div>
-            
+
             {error && (
               <p className="text-error text-[11px] mt-2 flex items-center gap-1 font-bold animate-reveal">
                 <span className="material-symbols-outlined text-[14px]">error</span>
                 {error}
               </p>
             )}
-            
+
             {/* Recent Customers Quick Select */}
             <div className="mt-4 pt-3 border-t border-outline-variant/10">
               <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Recent</p>
@@ -269,8 +268,8 @@ export default function VendorScanCustomerScreen() {
                     {myTxns.map((txn, idx) => (
                       <button
                         key={idx}
-                        onClick={() => { 
-                          setQuery(txn.customerId); 
+                        onClick={() => {
+                          setQuery(txn.customerId);
                           resolveCustomer(txn.customerId);
                         }}
                         className="px-3 py-1.5 bg-surface-container rounded-lg border border-outline-variant/10 text-[11px] font-bold text-on-surface hover:bg-secondary/10 whitespace-nowrap"

@@ -143,7 +143,7 @@ export default function DashboardPage() {
 
         <button
           onClick={() => setShowPosModal(true)}
-          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-gradient-to-br from-[#16082f] via-[#3b0764] to-[#6000da] text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
         >
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
             <span className="material-symbols-outlined text-[16px]">receipt_long</span>
@@ -251,7 +251,7 @@ export default function DashboardPage() {
             <div key={tx.id} className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-outline-variant/10 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' :
-                    tx.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : 'bg-orange-500/10 text-orange-600'
+                  tx.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : 'bg-orange-500/10 text-orange-600'
                   }`}>
                   <span className="material-symbols-outlined text-[20px]">{tx.status === 'Approved' ? 'check_circle' : tx.status === 'Rejected' ? 'cancel' : 'pending'}</span>
                 </div>
@@ -364,43 +364,43 @@ export default function DashboardPage() {
                     value={posAmount}
                     onChange={(e) => setPosAmount(e.target.value)}
                     placeholder="1590"
-                    className="w-full h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-purple-600 text-[18px] font-black text-on-surface"
+                    className="w-full h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-[#6000da] text-[18px] font-black text-on-surface"
                   />
                 </div>
                 <button
                   onClick={handleGeneratePosBill}
                   disabled={isGeneratingPos || !posAmount}
-                  className="w-full h-12 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold text-[14px] rounded-xl shadow-md hover:from-purple-700 hover:to-indigo-700 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full h-12 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-extrabold text-[14px] rounded-xl shadow-md hover:from-[#16082f] hover:to-[#4c00b0] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   {isGeneratingPos ? 'Generating Bill Signal...' : 'Print Bill & Generate QR'}
                 </button>
               </div>
             ) : (
-              <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 text-center space-y-3">
-                <div className="bg-white border-2 border-dashed border-purple-300 rounded-xl p-4 shadow-sm flex flex-col items-center">
-                  <span className="text-[10px] text-purple-700 font-extrabold uppercase tracking-widest block mb-2">PRINTED BILL QR CODE</span>
+              <div className="bg-[#6000da]/5 border border-[#6000da]/20 rounded-2xl p-4 text-center space-y-3">
+                <div className="bg-white border-2 border-dashed border-[#6000da]/30 rounded-xl p-4 shadow-sm flex flex-col items-center">
+                  <span className="text-[10px] text-[#6000da] font-extrabold uppercase tracking-widest block mb-2">PRINTED BILL QR CODE</span>
                   
                   {/* Scannable Visual QR Code Image */}
-                  <div className="w-44 h-44 bg-white border-2 border-purple-200 rounded-2xl p-2.5 shadow-inner flex items-center justify-center mb-2">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${generatedPosBill.billCode}`} 
-                      alt="Printed Bill QR Code" 
+                  <div className="w-44 h-44 bg-white border-2 border-[#6000da]/20 rounded-2xl p-2.5 shadow-inner flex items-center justify-center mb-2">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${generatedPosBill.billCode}`}
+                      alt="Printed Bill QR Code"
                       className="w-full h-full object-contain"
                     />
                   </div>
 
-                  <div className="text-[18px] font-black tracking-widest text-purple-900 bg-purple-100 py-1.5 px-4 rounded-lg my-1 select-all w-full">
+                  <div className="text-[18px] font-black tracking-widest text-[#16082f] bg-[#6000da]/10 py-1.5 px-4 rounded-lg my-1 select-all w-full">
                     {generatedPosBill.billCode}
                   </div>
                   <p className="text-[14px] font-bold text-on-surface mt-1">Amount: ₹{generatedPosBill.amount}</p>
-                  <p className="text-[11px] text-purple-600 font-medium">Cashback Rate: {generatedPosBill.cashbackRate}%</p>
+                  <p className="text-[11px] text-[#6000da] font-medium">Cashback Rate: {generatedPosBill.cashbackRate}%</p>
                 </div>
                 <p className="text-[11px] text-on-surface-variant leading-tight">
                   Scan this QR code using camera in Customer App's <b>Scan & Pay</b> or enter the bill code!
                 </p>
                 <button
                   onClick={() => setGeneratedPosBill(null)}
-                  className="text-[12px] font-bold text-purple-700 hover:underline cursor-pointer"
+                  className="text-[12px] font-bold text-[#6000da] hover:underline cursor-pointer"
                 >
                   Generate Another Bill
                 </button>

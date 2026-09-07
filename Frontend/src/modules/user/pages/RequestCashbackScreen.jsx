@@ -175,7 +175,7 @@ export default function RequestCashbackScreen() {
   if (isSuccess) {
     return (
       <div className="mesh-gradient text-on-surface min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
-        <main className="w-full max-w-[440px] bg-white border border-outline-variant/20 shadow-2xl rounded-3xl p-lg space-y-lg text-center animate-reveal">
+        <main className="app-container bg-white border border-outline-variant/20 shadow-2xl rounded-3xl p-lg space-y-lg text-center animate-reveal">
           <div className="relative w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg text-white">
             <span className="material-symbols-outlined text-[48px]" style={{ fontVariationSettings: "'wght' 600" }}>done</span>
           </div>

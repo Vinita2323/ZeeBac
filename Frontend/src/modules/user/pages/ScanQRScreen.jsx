@@ -88,10 +88,10 @@ export default function ScanQRScreen() {
             { facingMode: 'environment' },
             { fps: 10, qrbox: { width: 240, height: 240 } },
             (decodedText) => {
-              try { html5QrCode?.pause?.(true); } catch (e) {}
+              try { html5QrCode?.pause?.(true); } catch (e) { }
               resolveVendor(decodedText);
             },
-            () => {}
+            () => { }
           )
           .then(() => { if (!cancelled) setCameraStatus('active'); })
           .catch(() => { if (!cancelled) setCameraStatus('denied'); });
@@ -107,10 +107,10 @@ export default function ScanQRScreen() {
       cancelled = true;
       if (html5QrCode) {
         try {
-          html5QrCode.stop().catch(() => {}).finally(() => {
-            try { html5QrCode.clear(); } catch (e) {}
+          html5QrCode.stop().catch(() => { }).finally(() => {
+            try { html5QrCode.clear(); } catch (e) { }
           });
-        } catch (e) {}
+        } catch (e) { }
       }
     };
   }, [resolveVendor]);
@@ -191,56 +191,60 @@ export default function ScanQRScreen() {
       </div>
 
       {/* Top Header */}
-      <div className="absolute top-6 left-0 right-0 px-5 flex items-center justify-between z-20">
-        <button
-          onClick={() => navigate('/home')}
-          className="w-11 h-11 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-white/20 transition-colors active:scale-95 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[24px]">arrow_back</span>
-        </button>
+      <div className="absolute top-6 left-0 right-0 px-5 z-20">
+        <div className="app-container flex items-center justify-between">
+          <button
+            onClick={() => navigate('/home')}
+            className="w-11 h-11 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-white/20 transition-colors active:scale-95 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+          </button>
 
-        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white text-[12px] font-bold flex items-center gap-1.5">
-          <span
-            className={`w-2 h-2 rounded-full ${cameraStatus === 'active' ? 'bg-green-400' : cameraStatus === 'denied' ? 'bg-red-400' : 'bg-amber-400 animate-pulse'}`}
-          />
-          {cameraStatus === 'active' ? 'Camera Ready' : cameraStatus === 'denied' ? 'No Camera Access' : 'Starting…'}
+          <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white text-[12px] font-bold flex items-center gap-1.5">
+            <span
+              className={`w-2 h-2 rounded-full ${cameraStatus === 'active' ? 'bg-green-400' : cameraStatus === 'denied' ? 'bg-red-400' : 'bg-amber-400 animate-pulse'}`}
+            />
+            {cameraStatus === 'active' ? 'Camera Ready' : cameraStatus === 'denied' ? 'No Camera Access' : 'Starting…'}
+          </div>
+
+          <div className="w-11 h-11" />
         </div>
-
-        <div className="w-11 h-11" />
       </div>
 
       {/* Bottom controls */}
-      <div className="absolute bottom-24 left-0 right-0 px-8 flex justify-between items-center z-20">
-        <button
-          onClick={handleGalleryClick}
-          className="w-12 h-12 rounded-full bg-white text-[#7c3aed] flex items-center justify-center shadow-lg active:scale-95 transition-all cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[24px]">image</span>
-        </button>
+      <div className="absolute bottom-24 left-0 right-0 px-5 z-20">
+        <div className="app-container flex justify-between items-center px-4">
+          <button
+            onClick={handleGalleryClick}
+            className="w-12 h-12 rounded-full bg-white text-[#7c3aed] flex items-center justify-center shadow-lg active:scale-95 transition-all cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[24px]">image</span>
+          </button>
 
-        <button
-          onClick={() => setShowIdInput(!showIdInput)}
-          className={`px-5 py-3 rounded-full flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer text-[13px] font-bold ${showIdInput
+          <button
+            onClick={() => setShowIdInput(!showIdInput)}
+            className={`px-5 py-3 rounded-full flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer text-[13px] font-bold ${showIdInput
               ? 'btn-primary-gradient text-white'
               : 'bg-white/95 text-[#7c3aed]'
-            }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">dialpad</span>
-          Type Store ID
-        </button>
+              }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">dialpad</span>
+            Type Store ID
+          </button>
 
-        <button
-          onClick={() => navigate('/find-vendor')}
-          className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/20 shadow-lg active:scale-95 transition-all cursor-pointer border border-white/15"
-        >
-          <span className="material-symbols-outlined text-[24px]">search</span>
-        </button>
+          <button
+            onClick={() => navigate('/find-vendor')}
+            className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/20 shadow-lg active:scale-95 transition-all cursor-pointer border border-white/15"
+          >
+            <span className="material-symbols-outlined text-[24px]">search</span>
+          </button>
+        </div>
       </div>
 
       {/* Manual ID Input Panel */}
       {showIdInput && (
-        <div className="absolute bottom-44 left-4 right-4 z-30 animate-reveal">
-          <div className="bg-white rounded-2xl p-4 shadow-2xl max-w-[400px] mx-auto">
+        <div className="absolute bottom-44 left-0 right-0 px-4 z-30 animate-reveal">
+          <div className="bg-white rounded-2xl p-4 shadow-2xl app-container">
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-primary text-[20px]">badge</span>
               <span className="text-[13px] font-bold text-on-surface">Enter Vendor's Zeebac ID</span>
@@ -273,10 +277,10 @@ export default function ScanQRScreen() {
         </div>
       )}
 
-      {/* Errors surfaced from a camera/gallery scan (manual-entry errors show in the panel above instead) */}
+      {/* Errors surfaced from a camera/gallery scan */}
       {error && !showIdInput && (
-        <div className="absolute bottom-44 left-4 right-4 z-30 animate-reveal">
-          <div className="bg-white rounded-2xl p-4 shadow-2xl max-w-[400px] mx-auto flex items-center gap-2">
+        <div className="absolute bottom-44 left-0 right-0 px-4 z-30 animate-reveal">
+          <div className="bg-white rounded-2xl p-4 shadow-2xl app-container flex items-center gap-2">
             <span className="material-symbols-outlined text-red-500 text-[20px]">error</span>
             <p className="text-red-600 text-[12px] font-semibold flex-1">{error}</p>
           </div>

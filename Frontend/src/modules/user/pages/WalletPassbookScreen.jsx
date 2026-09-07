@@ -150,49 +150,51 @@ export default function WalletPassbookScreen() {
       
       {/* Top Gradient Area */}
       <div className="bg-white pt-3 pb-3 px-container-margin border-b border-outline-variant/10">
-        {/* Header */}
-        <header className="flex items-center gap-2 mb-3">
-          <button 
-            onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center text-on-surface active:scale-95 transition-transform"
-          >
-            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
-          </button>
-          <h1 className="font-display text-title-md text-primary font-bold tracking-tight">Balance & History</h1>
-        </header>
+        <div className="app-container">
+          {/* Header */}
+          <header className="flex items-center gap-2 mb-3">
+            <button 
+              onClick={() => navigate(-1)}
+              className="w-8 h-8 flex items-center justify-center text-on-surface active:scale-95 transition-transform cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+            </button>
+            <h1 className="font-display text-title-md text-primary font-bold tracking-tight">Balance & History</h1>
+          </header>
 
-        {/* Your Accounts Section */}
-        <div className="space-y-2">
-          <h2 className="text-[12px] uppercase tracking-wider text-on-surface-variant font-bold px-1">Your Accounts</h2>
-          
-          {/* Horizontal scroll for cards */}
-          <div className="flex gap-3 overflow-x-auto pb-1 scroll-hide">
+          {/* Your Accounts Section */}
+          <div className="space-y-2">
+            <h2 className="text-[12px] uppercase tracking-wider text-on-surface-variant font-bold px-1">Your Accounts</h2>
             
-            {/* ZeeBac Wallet Card */}
-            <div className="min-w-[220px] bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] rounded-[14px] p-3 text-white shadow-md shadow-primary/20 relative overflow-hidden flex flex-col justify-between h-[96px]">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-xs tracking-wide">ZeeBac Wallet</h3>
-                  <p className="text-[9px] text-white/80 mt-0.5">A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}</p>
+            {/* Horizontal scroll for cards */}
+            <div className="flex gap-3 overflow-x-auto pb-1 scroll-hide">
+              
+              {/* ZeeBac Wallet Card */}
+              <div className="min-w-[220px] bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] rounded-[14px] p-3 text-white shadow-md shadow-primary/20 relative overflow-hidden flex flex-col justify-between h-[96px]">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-xs tracking-wide">ZeeBac Wallet</h3>
+                    <p className="text-[9px] text-white/80 mt-0.5">A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}</p>
+                  </div>
+                  <div className="w-5.5 h-5.5 bg-white/20 rounded-full flex items-center justify-center shadow-inner">
+                    <span className="material-symbols-outlined text-white text-[12px]">account_balance_wallet</span>
+                  </div>
                 </div>
-                <div className="w-5.5 h-5.5 bg-white/20 rounded-full flex items-center justify-center shadow-inner">
-                  <span className="material-symbols-outlined text-white text-[12px]">account_balance_wallet</span>
-                </div>
+                <button 
+                  onClick={() => navigate('/wallet')}
+                  className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98]"
+                >
+                  Check Balance
+                </button>
               </div>
-              <button 
-                onClick={() => navigate('/wallet')}
-                className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98]"
-              >
-                Check Balance
-              </button>
-            </div>
 
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin pt-3 text-left space-y-3">
+      <main className="flex-grow app-container px-container-margin pt-3 text-left space-y-3">
 
         {/* Upload Receipt CTA */}
         <button 

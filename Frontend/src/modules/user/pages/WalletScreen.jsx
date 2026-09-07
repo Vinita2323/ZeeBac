@@ -81,20 +81,22 @@ export default function WalletScreen() {
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
-        <div className="flex items-center gap-xs">
-          <button 
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Rewards Wallet</span>
+      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button 
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-bold ml-1">Rewards Wallet</span>
+          </div>
         </div>
       </header>
 
       {/* Main body content */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg space-y-lg text-left">
+      <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
         
         {/* Available rewards banner card */}
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
@@ -305,16 +307,18 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
 
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
-      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
-        <div className="flex items-center gap-xs">
-          <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer">
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Cashout to Bank</span>
+      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer">
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-bold ml-1">Cashout to Bank</span>
+          </div>
         </div>
       </header>
 
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl space-y-lg text-left">
+      <main className="flex-grow app-container px-container-margin py-xl space-y-lg text-left">
         {/* Balance Card */}
         <div className="bg-white border border-outline-variant/30 rounded-3xl p-lg shadow-sm text-center">
           <p className="font-label-mono text-[12px] text-on-surface-variant tracking-wider">AVAILABLE FOR CASHOUT</p>
@@ -519,25 +523,27 @@ function PerksSubView({ balance, activities, onBack }) {
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
       {/* Hero Banner */}
       <div className="bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] text-white pt-12 pb-6 px-6 rounded-b-[3rem] shadow-lg shadow-primary/20 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-        
-        <div className="flex items-center gap-xs relative z-10 mb-4">
-          <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </button>
-          <span className="font-display text-title-md font-bold ml-1">Your Perks</span>
-        </div>
-
-        <div className="relative z-10 text-center space-y-1 mt-4">
-          <div className="inline-block px-3 py-1 bg-white/10 rounded-full border border-white/20 mb-2">
-            <span className="text-[11px] font-bold tracking-widest uppercase">🔥 5-Day Streak</span>
+        <div className="app-container relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center gap-xs relative z-10 mb-4">
+            <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md font-bold ml-1">Your Perks</span>
           </div>
-          <h2 className="text-[32px] font-display font-black leading-tight">Reward Hub</h2>
-          <p className="text-white/80 text-body-sm">Keep shopping to unlock exclusive perks</p>
+
+          <div className="relative z-10 text-center space-y-1 mt-4">
+            <div className="inline-block px-3 py-1 bg-white/10 rounded-full border border-white/20 mb-2">
+              <span className="text-[11px] font-bold tracking-widest uppercase">🔥 5-Day Streak</span>
+            </div>
+            <h2 className="text-[32px] font-display font-black leading-tight">Reward Hub</h2>
+            <p className="text-white/80 text-body-sm">Keep shopping to unlock exclusive perks</p>
+          </div>
         </div>
       </div>
 
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg space-y-8 -mt-4 relative z-20">
+      <main className="flex-grow app-container px-container-margin py-lg space-y-8 -mt-4 relative z-20">
         
         {config.isActive === false ? (
           <div className="bg-white rounded-3xl p-8 border border-outline-variant/20 shadow-md text-center">
