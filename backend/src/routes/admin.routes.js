@@ -28,7 +28,8 @@ import {
   updatePartnerOffer,
   deletePartnerOffer,
   getPendingPayouts,
-  processPayout
+  processPayout,
+  refundTransaction
 } from '../controllers/admin.controller.js';
 import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
@@ -82,6 +83,7 @@ router.route('/cashback-rules/:id')
 
 // ─── Transactions (Phase B) ───
 router.get('/transactions', getAllTransactions);
+router.post('/transactions/:id/refund', refundTransaction);
 
 // ─── Analytics (Phase C) ───
 router.get('/analytics/revenue',       getRevenueAnalytics);

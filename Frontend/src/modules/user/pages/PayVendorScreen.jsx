@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
+import useUIStore from '../../../store/useUIStore';
 
 export default function PayVendorScreen() {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ export default function PayVendorScreen() {
 
   if (!vendor) {
     return (
-      <div className="min-h-screen bg-[#f9f9ff] flex items-center justify-center p-6">
+      <div className="min-h-screen mesh-gradient flex items-center justify-center p-6">
         <div className="text-center space-y-4">
           <span className="material-symbols-outlined text-[48px] text-on-surface-variant">error</span>
           <p className="text-on-surface-variant font-bold">No vendor selected</p>
@@ -50,14 +51,19 @@ export default function PayVendorScreen() {
     setProcessing(true);
     
     // --- CASH FLOW (Direct API) ---
+    // A cash payment can't be verified by Zeebac itself, so this now sends
+    // the vendor a request to confirm it happened instead of crediting
+    // cashback instantly — previously any logged-in customer could claim to
+    // have paid any vendor in cash and get paid out with no vendor consent
+    // at all.
     if (paymentMethod === 'Cash') {
       try {
         const res = await UserAPI.createTransaction({
           vendorZeebacId: vendor.zeebacId, amount: parseFloat(amount), paymentMethod
         });
-        if (res.success) handleSuccess(res.data);
+        if (res.success) handlePendingApproval(res.data);
       } catch (err) {
-        alert(err.response?.data?.message || 'Transaction failed.');
+        alert(err.response?.data?.message || 'Request failed.');
         setProcessing(false);
       }
       return;
@@ -136,16 +142,24 @@ export default function PayVendorScreen() {
     updateBalance(newWalletBalance);
     navigate('/transaction-success', {
       state: {
-        vendorName, 
-        amount: parseFloat(amount), 
-        cashback: cashbackEarned, 
+        vendorName,
+        amount: parseFloat(amount),
+        cashback: cashbackEarned,
         transactionId: transaction.transactionId,
       }
     });
   };
 
+  const handlePendingApproval = (data) => {
+    useUIStore.getState().showSnackbar(
+      `Sent to ${data.vendorName} for approval. You'll be notified once they confirm.`,
+      'success'
+    );
+    navigate(`/request/${data.requestId}`);
+  };
+
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-on-surface flex flex-col font-body-lg">
+    <div className="min-h-screen mesh-gradient text-on-surface flex flex-col font-body-lg">
 
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 flex items-center border-b border-outline-variant/10 shadow-sm">
@@ -227,11 +241,14 @@ export default function PayVendorScreen() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-green-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>savings</span>
-                  <span className="text-[13px] font-bold text-green-800">You'll earn</span>
+                  <span className="text-[13px] font-bold text-green-800">{paymentMethod === 'Cash' ? "You'll earn (once approved)" : "You'll earn"}</span>
                 </div>
                 <span className="text-[20px] font-black text-green-600">₹{cashbackAmount.toFixed(2)}</span>
               </div>
-              <p className="text-[10px] text-green-600/70 mt-1 text-right">{cashbackRate}% of ₹{purchaseAmount.toLocaleString()}</p>
+              <p className="text-[10px] text-green-600/70 mt-1 text-right">
+                {cashbackRate}% of ₹{purchaseAmount.toLocaleString()}
+                {paymentMethod === 'Cash' && ' — the vendor needs to confirm this payment first'}
+              </p>
             </div>
           )}
 
@@ -278,6 +295,11 @@ export default function PayVendorScreen() {
             <>
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               Processing...
+            </>
+          ) : paymentMethod === 'Cash' ? (
+            <>
+              <span className="material-symbols-outlined text-[20px]">send</span>
+              Send for Vendor Approval
             </>
           ) : (
             <>

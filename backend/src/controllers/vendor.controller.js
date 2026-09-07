@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Vendor from '../models/Vendor.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
@@ -10,8 +11,192 @@ import Referral from '../models/Referral.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
-import Razorpay from 'razorpay';
-import crypto from 'crypto';
+import { buildSnapshot, diffSnapshots, validateApplicationComplete } from '../utils/vendorApplication.util.js';
+import { calculateCashback } from '../utils/cashback.util.js';
+import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
+import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
+import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
+import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } from '../utils/qr.util.js';
+
+const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancelledCheque', 'panCard', 'additionalDoc'];
+
+// Applies whatever Step 2/3 fields & files are present in the request onto the
+// vendor doc (in-memory only — caller must .save()). Shared by draft/submit/resubmit
+// so all three accept the same payload shape.
+const applyApplicationFields = (vendor, body = {}, files = {}) => {
+  const {
+    storeName, shopType, category, subCategory, description,
+    businessContactNumber, businessEmail, gstNumber, registrationNumber,
+    address, lat, lng, businessHours,
+  } = body;
+
+  if (storeName !== undefined) vendor.storeName = storeName;
+  if (shopType !== undefined) vendor.shopType = shopType;
+  if (category !== undefined) vendor.category = category;
+  if (subCategory !== undefined) vendor.subCategory = subCategory;
+  if (description !== undefined) vendor.description = description;
+  if (businessContactNumber !== undefined) vendor.businessContactNumber = businessContactNumber;
+  if (businessEmail !== undefined) vendor.businessEmail = businessEmail;
+  if (gstNumber !== undefined) vendor.gstNumber = gstNumber;
+  if (registrationNumber !== undefined) vendor.registrationNumber = registrationNumber;
+
+  if (address !== undefined) {
+    const addressObj = typeof address === 'string' ? JSON.parse(address) : address;
+    vendor.address = { ...(vendor.address?.toObject ? vendor.address.toObject() : vendor.address), ...addressObj };
+  }
+
+  if (lat && lng) {
+    vendor.location = { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] };
+  }
+
+  if (businessHours !== undefined) {
+    const hoursObj = typeof businessHours === 'string' ? JSON.parse(businessHours) : businessHours;
+    vendor.businessHours = { ...(vendor.businessHours?.toObject ? vendor.businessHours.toObject() : vendor.businessHours), ...hoursObj };
+  }
+
+  if (files) {
+    if (files.storeLogo) vendor.storeLogo = vendor.profilePic = `/uploads/profiles/${files.storeLogo[0].filename}`;
+    if (files.storeCoverImage) vendor.storeCoverImage = `/uploads/storefront/${files.storeCoverImage[0].filename}`;
+    if (files.storeImages) vendor.storeImages = files.storeImages.map(f => `/uploads/storefront/${f.filename}`);
+
+    for (const field of DOCUMENT_FIELDS) {
+      if (files[field]) {
+        if (!vendor.documents) vendor.documents = {};
+        vendor.documents[field] = {
+          fileName: files[field][0].originalname,
+          fileUrl: `/uploads/documents/${files[field][0].filename}`,
+          fileType: files[field][0].mimetype,
+          uploadedAt: new Date(),
+        };
+      }
+    }
+  }
+};
+
+export const UPLOAD_FIELDS = [
+  { name: 'storeLogo', maxCount: 1 },
+  { name: 'storeCoverImage', maxCount: 1 },
+  { name: 'storeImages', maxCount: 6 },
+  { name: 'aadhaarPan', maxCount: 1 },
+  { name: 'gstCertificate', maxCount: 1 },
+  { name: 'shopLicense', maxCount: 1 },
+  { name: 'panCard', maxCount: 1 },
+  { name: 'cancelledCheque', maxCount: 1 },
+  { name: 'additionalDoc', maxCount: 1 },
+];
+
+// ─── Vendor Onboarding: Save Draft (Steps 2-3) ───
+export const saveApplicationDraft = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    if (vendor.applicationStatus !== 'DRAFT') {
+      return res.status(409).json({ success: false, message: 'Application has already been submitted and can no longer be saved as a draft.' });
+    }
+
+    applyApplicationFields(vendor, req.body, req.files);
+    await vendor.save();
+
+    res.status(200).json({ success: true, message: 'Draft saved', data: vendor });
+  } catch (error) {
+    logger.error(`[saveApplicationDraft] Error: ${error.message}`);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Vendor Onboarding: Submit Application (Step 4) ───
+export const submitApplication = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    if (vendor.applicationStatus !== 'DRAFT') {
+      return res.status(409).json({ success: false, message: 'Application has already been submitted.' });
+    }
+
+    applyApplicationFields(vendor, req.body, req.files);
+
+    const missing = validateApplicationComplete(vendor);
+    if (missing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Application is incomplete.', missingFields: missing });
+    }
+
+    const snapshot = buildSnapshot(vendor);
+    const now = new Date();
+    vendor.applicationStatus = 'PENDING_REVIEW';
+    vendor.submittedAt = now;
+    vendor.lastSubmittedAt = now;
+    vendor.applicationHistory.push({
+      version: 1,
+      action: 'SUBMITTED',
+      actionAt: now,
+      actionByRole: 'vendor',
+      changedFields: diffSnapshots(null, snapshot),
+      snapshot,
+    });
+
+    await vendor.save();
+
+    notifyAdmins('VENDOR_KYC', 'New Vendor Registration', `The store "${vendor.storeName}" has submitted an application for approval.`).catch(e => logger.error('notifyAdmins failed', e));
+
+    logger.info(`[submitApplication] Vendor ${vendor._id} submitted application`);
+    res.status(200).json({ success: true, message: 'Application submitted successfully.', data: vendor });
+  } catch (error) {
+    logger.error(`[submitApplication] Error: ${error.message}`);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Vendor Onboarding: Resubmit After Rejection ───
+export const resubmitApplication = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    if (vendor.applicationStatus !== 'REJECTED') {
+      return res.status(409).json({ success: false, message: 'Only a rejected application can be resubmitted.' });
+    }
+
+    // Snapshot the application as it stood before this resubmission's edits —
+    // the most recent history entry that carries a snapshot (SUBMITTED or RESUBMITTED).
+    const previousEntry = [...vendor.applicationHistory].reverse().find(h => h.snapshot);
+    const previousSnapshot = previousEntry ? previousEntry.snapshot : null;
+
+    applyApplicationFields(vendor, req.body, req.files);
+
+    const missing = validateApplicationComplete(vendor);
+    if (missing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Application is incomplete.', missingFields: missing });
+    }
+
+    const newSnapshot = buildSnapshot(vendor);
+    const changedFields = diffSnapshots(previousSnapshot, newSnapshot);
+    const now = new Date();
+
+    vendor.applicationStatus = 'RESUBMITTED';
+    vendor.resubmissionCount = (vendor.resubmissionCount || 0) + 1;
+    vendor.lastSubmittedAt = now;
+    vendor.applicationHistory.push({
+      version: vendor.resubmissionCount + 1,
+      action: 'RESUBMITTED',
+      actionAt: now,
+      actionByRole: 'vendor',
+      changedFields,
+      snapshot: newSnapshot,
+    });
+
+    await vendor.save();
+
+    notifyAdmins('VENDOR_KYC', 'Vendor Resubmitted Application', `The store "${vendor.storeName}" has resubmitted their application after rejection.`).catch(e => logger.error('notifyAdmins failed', e));
+
+    logger.info(`[resubmitApplication] Vendor ${vendor._id} resubmitted application (count: ${vendor.resubmissionCount})`);
+    res.status(200).json({ success: true, message: 'Application resubmitted successfully.', data: vendor, changedFields });
+  } catch (error) {
+    logger.error(`[resubmitApplication] Error: ${error.message}`);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
 
 // Helper to get or create wallet
 const getOrCreateWallet = async (ownerId, ownerType, zeebacId) => {
@@ -128,7 +313,8 @@ export const getDashboardStats = async (req, res) => {
         totalCustomers: totalCustomersCount,
         totalTransactions: result.totalTransactions,
         avgRating: vendor.stats.avgRating || 0,
-        totalCashbackGiven: result.totalCashbackGiven
+        totalCashbackGiven: result.totalCashbackGiven,
+        cashbackRate: vendor.cashbackRate || 5
       }
     });
   } catch (error) {
@@ -360,40 +546,64 @@ export const deleteProduct = async (req, res) => {
 // ─── Phase 3C: Transaction Engine ───
 
 // 1. Lookup Customer by Phone or ZeeBac ID
+// Accepts either a manually-typed phone/Zeebac-ID (unchanged behavior) OR a
+// signed QR token scanned from the customer's own QR code (see
+// getMyQrToken in user.controller.js for how it's issued). This is what
+// makes VendorScanCustomerScreen.jsx's camera scan resolve to a real
+// customer instead of the old hardcoded test-phone simulation.
 export const lookupCustomerByPhone = async (req, res) => {
   try {
     const { phone } = req.params;
-    console.log(`\n===========================================`);
-    console.log(`[lookupCustomerByPhone] HIT! Raw param: "${phone}"`);
-    
-    // Ensure we are working with string and trimming it just in case
-    const cleanPhone = phone ? String(phone).trim() : '';
-    console.log(`[lookupCustomerByPhone] Clean param to search: "${cleanPhone}"`);
+    const raw = phone ? String(phone).trim() : '';
 
-    const user = await User.findOne({ 
-      $or: [
-        { phone: cleanPhone },
-        { zeebacId: cleanPhone.toUpperCase() }
-      ]
-    }).select('name zeebacId phone role status');
+    let userFilter;
+    if (looksLikeQrToken(raw)) {
+      let decoded;
+      try {
+        decoded = verifyQrToken(raw);
+      } catch {
+        return res.status(400).json({ success: false, message: 'This QR code has expired or is invalid. Ask the customer to refresh it.' });
+      }
+      if (decoded.type !== 'customer') {
+        return res.status(400).json({ success: false, message: 'That QR code is not a customer QR.' });
+      }
+      userFilter = { zeebacId: decoded.zeebacId };
+    } else {
+      userFilter = { $or: [{ phone: raw }, { zeebacId: raw.toUpperCase() }] };
+    }
 
+    const user = await User.findOne(userFilter).select('name zeebacId phone role status');
     if (!user) {
-      console.log(`[lookupCustomerByPhone] ❌ Customer NOT FOUND for input: "${cleanPhone}"`);
-      console.log(`===========================================\n`);
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
-    
-    console.log(`[lookupCustomerByPhone] ✅ Customer FOUND: ${user.name} (${user.zeebacId})`);
-    console.log(`===========================================\n`);
     res.status(200).json({ success: true, data: user });
   } catch (error) {
-    console.error(`Error in lookupCustomerByPhone: ${error.message}`);
+    logger.error(`Error in lookupCustomerByPhone: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 };
 
-// 2. Log Purchase (QR/Manual)
+// A signed, short-lived replacement for the old plaintext, non-expiring
+// `zeebac://vendor/{zeebacId}` QR payload — the frontend fetches this and
+// renders it locally (never sends it to a third-party QR-image service,
+// since it's now a live, usable credential, not just a public ID).
+export const getVendorQrToken = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id).select('zeebacId');
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const token = signQrToken({ type: 'vendor', id: vendor._id, zeebacId: vendor.zeebacId }, VENDOR_QR_TTL_SECONDS);
+    res.status(200).json({ success: true, data: { token, expiresIn: VENDOR_QR_TTL_SECONDS } });
+  } catch (error) {
+    logger.error(`getVendorQrToken error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 2. Log Purchase (QR/Manual) — vendor-initiated, so no separate approval
+// step is needed (the vendor themself is confirming the sale).
 export const logPurchase = async (req, res) => {
+  const session = await mongoose.startSession();
   try {
     const vendorId = req.user.id;
     const { customerPhone, amount } = req.body;
@@ -408,150 +618,92 @@ export const logPurchase = async (req, res) => {
     const customer = await User.findOne({ phone: customerPhone });
     if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
 
-    // Calculate Cashback
-    const cashbackRate = vendor.cashbackRate || 10;
-    const cashbackAmount = (amount * cashbackRate) / 100;
+    const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
+    // Higher-entropy id than the old `TX-####` (only ~9,000 possible values,
+    // a >50% collision chance after ~100 uses of this endpoint).
+    const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-    // Get Wallets
-    const vendorWallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
-    const customerWallet = await getOrCreateWallet(customer._id, 'User', customer.zeebacId);
+    let tx;
+    let referralAward = null;
 
-    // Check Vendor Balance
-    if (vendorWallet.balance < cashbackAmount) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Insufficient wallet balance for cashback. Please recharge your wallet.' 
+    await session.withTransaction(async () => {
+      // Created (and, if anything below fails, rolled back) inside the same
+      // transaction as the wallet movements — previously the wallets were
+      // debited/credited BEFORE this record existed, so a failure here left
+      // money moved with no Transaction or ledger row to show for it.
+      const created = await Transaction.create([{
+        transactionId,
+        customerId: customer._id,
+        customerZeebacId: customer.zeebacId,
+        customerPhone: customer.phone,
+        customerName: customer.name,
+        vendorId: vendor._id,
+        vendorZeebacId: vendor.zeebacId,
+        vendorName: vendor.storeName,
+        vendorPhone: vendor.phone,
+        vendorCategory: vendor.category,
+        type: 'manual',
+        initiatedBy: 'vendor',
+        amount,
+        cashbackPercent: vendor.cashbackRate,
+        cashbackAmount,
+        status: 'Approved', // Auto-approved since vendor initiated
+        source: 'vendor_manual',
+      }], { session });
+      tx = created[0];
+
+      await debitWallet({
+        session,
+        ownerId: vendor._id,
+        ownerType: 'Vendor',
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `Cashback given to ${customer.name}`,
+        referenceId: tx._id,
+        referenceType: 'Transaction',
       });
-    }
 
-    // 1. Deduct from Vendor
-    vendorWallet.balance -= cashbackAmount;
-    vendorWallet.totalWithdrawn += cashbackAmount;
-    await vendorWallet.save();
+      await creditWallet({
+        session,
+        ownerId: customer._id,
+        ownerType: 'User',
+        ownerZeebacId: customer.zeebacId,
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `Cashback from ${vendor.storeName}`,
+        referenceId: tx._id,
+        referenceType: 'Transaction',
+      });
 
-    // 2. Credit to Customer
-    customerWallet.balance += cashbackAmount;
-    customerWallet.totalEarned += cashbackAmount;
-    await customerWallet.save();
-
-    // 3. Create Transaction Record
-    const transactionId = `TX-${Math.floor(1000 + Math.random() * 9000)}`;
-    const tx = await Transaction.create({
-      transactionId,
-      customerId: customer._id,
-      customerZeebacId: customer.zeebacId,
-      customerPhone: customer.phone,
-      customerName: customer.name,
-      vendorId: vendor._id,
-      vendorZeebacId: vendor.zeebacId,
-      vendorName: vendor.storeName,
-      vendorPhone: vendor.phone,
-      vendorCategory: vendor.category,
-      type: 'manual',
-      initiatedBy: 'vendor',
-      amount,
-      cashbackPercent: cashbackRate,
-      cashbackAmount,
-      status: 'Approved', // Auto-approved since vendor initiated
-      source: 'vendor_manual',
+      referralAward = await claimFirstPurchaseReferralBonus({ session, customer });
     });
 
-    // 4. Create Ledger Entries (WalletTransactions)
-    // Vendor Debit
-    await WalletTransaction.create({
-      walletId: vendorWallet._id,
-      ownerId: vendor._id,
-      ownerType: 'Vendor',
-      type: 'debit',
-      category: 'cashback',
-      amount: cashbackAmount,
-      balanceAfter: vendorWallet.balance,
-      referenceId: tx._id,
-      referenceType: 'Transaction',
-      description: `Cashback given to ${customer.name}`,
-      vendorName: vendor.storeName
-    });
-
-    // Customer Credit
-    await WalletTransaction.create({
-      walletId: customerWallet._id,
-      ownerId: customer._id,
-      ownerType: 'User',
-      type: 'credit',
-      category: 'cashback',
-      amount: cashbackAmount,
-      balanceAfter: customerWallet.balance,
-      referenceId: tx._id,
-      referenceType: 'Transaction',
-      description: `Cashback from ${vendor.storeName}`,
-      vendorName: vendor.storeName
-    });
-
-    // 5. Referral Logic: Check if this is customer's first transaction
-    if (customer.referredBy) {
-      const txnCount = await Transaction.countDocuments({ customerId: customer._id });
-      if (txnCount === 1) {
-        // First transaction, reward the referrer
-        const referral = await Referral.findOne({ referredUserId: customer._id, status: 'Signed Up' });
-        if (referral) {
-          const rewardAmount = referral.rewardAmount || 150;
-
-          // Find referrer's wallet
-          let referrerWallet = await Wallet.findOne({ ownerId: referral.referrerId, ownerType: 'User' });
-          if (!referrerWallet) {
-            referrerWallet = await Wallet.create({ ownerId: referral.referrerId, ownerType: 'User' });
-          }
-
-          // Credit referrer
-          const refPrevBalance = referrerWallet.balance || 0;
-          const refNewBalance = refPrevBalance + rewardAmount;
-          await Wallet.findByIdAndUpdate(referrerWallet._id, { balance: refNewBalance });
-
-          // Create ledger entry
-          await WalletTransaction.create({
-            walletId: referrerWallet._id,
-            ownerId: referral.referrerId,
-            ownerType: 'User',
-            type: 'credit',
-            category: 'referral_bonus',
-            amount: rewardAmount,
-            balanceAfter: refNewBalance,
-            referenceId: referral._id,
-            referenceType: 'Referral',
-            description: `Referral bonus for inviting ${customer.name}`,
-          });
-
-          // Update Referral doc
-          referral.status = 'Converted';
-          referral.rewardStatus = 'Credited';
-          referral.rewardCreditedAt = new Date();
-          await referral.save();
-
-          // 🔔 Notify referrer about bonus
-          const referrerUser = await User.findById(referral.referrerId).select('fcmTokens');
-          sendNotification({
-            recipientId: referral.referrerId,
-            recipientType: 'customer',
-            fcmTokens: referrerUser?.fcmTokens || [],
-            type: 'referral',
-            title: '🎊 Referral Bonus Credited!',
-            message: `₹${rewardAmount} has been added to your wallet because ${customer.name} made their first purchase using your referral!`,
-            icon: 'group_add',
-            referenceId: referral._id,
-            referenceType: 'Referral',
-          });
-
-          logger.info(`[Referral] Awarded ₹${rewardAmount} to user ${referral.referrerId} for referring ${customer._id} (Vendor Initiated)`);
-        }
-      }
+    if (referralAward) {
+      sendNotification({
+        recipientId: referralAward.referrerId,
+        recipientType: 'customer',
+        fcmTokens: referralAward.referrerFcmTokens,
+        type: 'referral',
+        title: '🎊 Referral Bonus Credited!',
+        message: `₹${referralAward.rewardAmount} has been added to your wallet because ${referralAward.customerName} made their first purchase using your referral!`,
+        icon: 'group_add',
+        referenceId: referralAward.referralId,
+        referenceType: 'Referral',
+      });
+      logger.info(`[Referral] Awarded ₹${referralAward.rewardAmount} to user ${referralAward.referrerId} for referring ${customer._id} (Vendor Initiated)`);
     }
 
     logger.info(`[vendor.controller] Purchase logged: ${tx.transactionId} by Vendor: ${vendor.storeName} for Customer: ${customer.name}`);
     res.status(201).json({ success: true, message: 'Purchase logged and cashback sent successfully', data: tx });
 
   } catch (error) {
+    if (error instanceof InsufficientBalanceError) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance for cashback. Please recharge your wallet.' });
+    }
     logger.error(`Error in logPurchase: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -596,18 +748,13 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
 
-    const instance = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
-
     const options = {
-      amount: rechargeAmount * 100, // Razorpay amount is in paise
+      amount: Math.round(rechargeAmount * 100), // Razorpay amount is in paise
       currency: "INR",
       receipt: `receipt_${Date.now()}`
     };
 
-    const order = await instance.orders.create(options);
+    const order = await getRazorpayInstance().orders.create(options);
 
     res.status(200).json({ success: true, order });
   } catch (error) {
@@ -617,51 +764,64 @@ export const createRazorpayOrder = async (req, res) => {
 };
 
 // 6. Verify Razorpay Payment and Add Funds
+//
+// Two things this used to get wrong, both critical: the credited amount came
+// straight from the client's own request body (never checked against what
+// Razorpay actually captured — a valid signature for a real ₹1 payment could
+// be submitted alongside a forged `amount: 100000` and be credited in full),
+// and nothing stopped the same valid (order_id, payment_id, signature)
+// triple from being replayed to credit the wallet again.
 export const verifyRazorpayPayment = async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment verification fields' });
+    }
 
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
-
-    const isAuthentic = expectedSignature === razorpay_signature;
-
-    if (!isAuthentic) {
+    if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
       return res.status(400).json({ success: false, message: 'Invalid payment signature' });
     }
 
-    // Payment is valid, add funds to wallet
-    const vendor = await Vendor.findById(req.user.id);
-    const wallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
-    
-    wallet.balance += Number(amount);
-    await wallet.save();
+    // Trust Razorpay's own record of what was actually captured, not the client.
+    const verifiedAmount = await fetchVerifiedPaymentAmount(razorpay_payment_id);
 
-    await WalletTransaction.create({
-      walletId: wallet._id,
-      ownerId: vendor._id,
-      ownerType: 'Vendor',
-      type: 'credit',
-      category: 'settlement',
-      amount: Number(amount),
-      balanceAfter: wallet.balance,
-      description: 'Wallet Recharge via Razorpay',
-      referenceType: 'Transaction', // Keeps reference validation happy, or you can omit if referenceId is null
-      gatewayName: 'Razorpay',
-      gatewayOrderId: razorpay_order_id,
-      gatewayPaymentId: razorpay_payment_id,
-      vendorName: vendor.storeName
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    let wallet;
+    await session.withTransaction(async () => {
+      await assertGatewayPaymentNotProcessed(session, razorpay_payment_id);
+
+      wallet = await creditWallet({
+        session,
+        ownerId: vendor._id,
+        ownerType: 'Vendor',
+        ownerZeebacId: vendor.zeebacId,
+        amount: verifiedAmount,
+        category: 'settlement',
+        description: 'Wallet Recharge via Razorpay',
+        referenceType: 'Transaction',
+        gateway: {
+          gatewayName: 'Razorpay',
+          gatewayOrderId: razorpay_order_id,
+          gatewayPaymentId: razorpay_payment_id,
+          vendorName: vendor.storeName,
+        },
+      });
     });
 
     res.status(200).json({ success: true, message: 'Payment successful, wallet recharged!', data: { balance: wallet.balance } });
 
   } catch (error) {
+    if (error instanceof DuplicatePaymentError || error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'This payment has already been processed.' });
+    }
     logger.error(`Error in verifyRazorpayPayment: ${error.message}`);
     res.status(500).json({ success: false, message: 'Verification Failed', error: error.message });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -682,95 +842,124 @@ export const getPendingRequests = async (req, res) => {
 };
 
 export const respondToCashbackRequest = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { action } = req.body; // 'Approve' or 'Reject'
+  const { id } = req.params;
+  const { action } = req.body; // 'Approve' or 'Reject'
 
-    const request = await CashbackRequest.findOne({ _id: id, vendorId: req.user.id }).populate('customerId');
-    if (!request) return res.status(404).json({ success: false, message: 'Request not found' });
-    if (request.status !== 'Pending') return res.status(400).json({ success: false, message: 'Already processed' });
+  if (action !== 'Approve' && action !== 'Reject') {
+    return res.status(400).json({ success: false, message: 'Invalid action' });
+  }
+
+  const session = await mongoose.startSession();
+  try {
+    // Atomically claim the request first — the old code checked
+    // `status !== 'Pending'` and only wrote the final status AFTER moving
+    // money, so two concurrent approve-clicks on the same request could both
+    // pass the check and both pay out. This findOneAndUpdate only succeeds
+    // for exactly one caller; a second concurrent call gets `claimed === null`
+    // and a clean "already processed" response instead of a second payout.
+    const claimed = await CashbackRequest.findOneAndUpdate(
+      { _id: id, vendorId: req.user.id, status: 'Pending' },
+      { status: action === 'Approve' ? 'Approved' : 'Rejected' },
+      { returnDocument: 'before' }
+    ).populate('customerId');
+
+    if (!claimed) {
+      const exists = await CashbackRequest.exists({ _id: id, vendorId: req.user.id });
+      return res.status(exists ? 400 : 404).json({
+        success: false,
+        message: exists ? 'Already processed' : 'Request not found',
+      });
+    }
 
     if (action === 'Reject') {
-      request.status = 'Rejected';
-      await request.save();
       return res.status(200).json({ success: true, message: 'Request rejected' });
     }
 
-    if (action === 'Approve') {
-      const vendor = await Vendor.findById(req.user.id);
-      const customer = request.customerId;
+    // action === 'Approve'
+    const vendor = await Vendor.findById(req.user.id);
+    const customer = claimed.customerId;
+    const amount = claimed.amount;
+    const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
+    const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-      // Calculate cashback
-      const amount = request.amount;
-      const cashbackAmount = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
+    let txn;
+    let referralAward = null;
 
-      // Ensure vendor has enough balance
-      let vendorWallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
-      if ((vendorWallet.balance || 0) < cashbackAmount) {
-        return res.status(400).json({ success: false, message: 'Insufficient wallet balance for cashback' });
-      }
+    try {
+      await session.withTransaction(async () => {
+        const created = await Transaction.create([{
+          transactionId, customerId: customer._id, customerZeebacId: customer.zeebacId,
+          customerPhone: customer.phone, customerName: customer.name,
+          vendorId: vendor._id, vendorZeebacId: vendor.zeebacId,
+          vendorName: vendor.storeName, vendorPhone: vendor.phone,
+          vendorCategory: vendor.category, type: 'receipt_claim',
+          initiatedBy: 'customer', source: 'customer_request',
+          amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
+          cashbackAmount, paymentMethod: claimed.paymentMethod || 'Other', status: 'Approved',
+          hasReceipt: !!claimed.billImageUrl, receiptUrl: claimed.billImageUrl,
+        }], { session });
+        txn = created[0];
 
-      // 1. Create Transaction
-      const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      const txn = await Transaction.create({
-        transactionId, customerId: customer._id, customerZeebacId: customer.zeebacId,
-        customerPhone: customer.phone, customerName: customer.name,
-        vendorId: vendor._id, vendorZeebacId: vendor.zeebacId,
-        vendorName: vendor.storeName, vendorPhone: vendor.phone,
-        vendorCategory: vendor.category, type: 'receipt_claim',
-        initiatedBy: 'customer', source: 'customer_request',
-        amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
-        cashbackAmount, paymentMethod: 'Other', status: 'Approved',
-        hasReceipt: true, receiptUrl: request.billImageUrl
+        await debitWallet({
+          session, ownerId: vendor._id, ownerType: 'Vendor',
+          amount: cashbackAmount, category: 'cashback',
+          description: `Approved cashback for ${customer.name}`,
+          referenceId: txn._id, referenceType: 'Transaction',
+        });
+
+        await creditWallet({
+          session, ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId,
+          amount: cashbackAmount, category: 'cashback',
+          description: `Cashback approved from ${vendor.storeName}`,
+          referenceId: txn._id, referenceType: 'Transaction',
+        });
+
+        await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } }, { session });
+
+        referralAward = await claimFirstPurchaseReferralBonus({ session, customer });
       });
-
-      // 2. Debit Vendor Wallet
-      const vPrevBalance = vendorWallet.balance || 0;
-      const vNewBalance = vPrevBalance - cashbackAmount;
-      await Wallet.findByIdAndUpdate(vendorWallet._id, { balance: vNewBalance });
-      await WalletTransaction.create({
-        walletId: vendorWallet._id, ownerId: vendor._id, ownerType: 'Vendor',
-        type: 'debit', category: 'cashback', amount: cashbackAmount, balanceAfter: vNewBalance,
-        referenceId: txn._id, referenceType: 'Transaction',
-        description: `Approved Cashback for ${customer.name}`
-      });
-
-      // 3. Credit Customer Wallet
-      let customerWallet = await getOrCreateWallet(customer._id, 'User', customer.zeebacId);
-      const cNewBalance = (customerWallet.balance || 0) + cashbackAmount;
-      await Wallet.findByIdAndUpdate(customerWallet._id, { balance: cNewBalance });
-      await WalletTransaction.create({
-        walletId: customerWallet._id, ownerId: customer._id, ownerType: 'User',
-        type: 'credit', category: 'cashback', amount: cashbackAmount, balanceAfter: cNewBalance,
-        referenceId: txn._id, referenceType: 'Transaction',
-        description: `Cashback approved from ${vendor.storeName}`
-      });
-
-      // 4. Update stats and request status
-      await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } });
-      request.status = 'Approved';
-      await request.save();
-
-      // 🔔 Notify customer that cashback request approved
-      sendNotification({
-        recipientId: customer._id,
-        recipientType: 'customer',
-        fcmTokens: customer.fcmTokens || [],
-        type: 'credit',
-        title: '✅ Cashback Request Approved!',
-        message: `₹${cashbackAmount} cashback from ${vendor.storeName} has been approved. Wallet balance updated!`,
-        icon: 'check_circle',
-        referenceId: txn._id,
-        referenceType: 'Transaction',
-      });
-
-      return res.status(200).json({ success: true, message: 'Request approved successfully' });
+    } catch (moneyError) {
+      // Money didn't move — undo the claim so the request goes back to
+      // Pending instead of being stuck "Approved" with no transaction behind it.
+      await CashbackRequest.updateOne({ _id: id }, { status: 'Pending' });
+      throw moneyError;
     }
 
-    res.status(400).json({ success: false, message: 'Invalid action' });
+    sendNotification({
+      recipientId: customer._id,
+      recipientType: 'customer',
+      fcmTokens: customer.fcmTokens || [],
+      type: 'credit',
+      title: '✅ Cashback Request Approved!',
+      message: `₹${cashbackAmount} cashback from ${vendor.storeName} has been approved. Wallet balance updated!`,
+      icon: 'check_circle',
+      referenceId: txn._id,
+      referenceType: 'Transaction',
+    });
+
+    if (referralAward) {
+      sendNotification({
+        recipientId: referralAward.referrerId,
+        recipientType: 'customer',
+        fcmTokens: referralAward.referrerFcmTokens,
+        type: 'referral',
+        title: '🎊 Referral Bonus Credited!',
+        message: `₹${referralAward.rewardAmount} has been added to your wallet because ${referralAward.customerName} made their first purchase using your referral!`,
+        icon: 'group_add',
+        referenceId: referralAward.referralId,
+        referenceType: 'Referral',
+      });
+    }
+
+    return res.status(200).json({ success: true, message: 'Request approved successfully' });
   } catch (error) {
+    if (error instanceof InsufficientBalanceError) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance for cashback' });
+    }
     logger.error(`respondToCashbackRequest error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
+  } finally {
+    session.endSession();
   }
 };
 

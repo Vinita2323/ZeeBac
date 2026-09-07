@@ -101,7 +101,7 @@ export default function TransactionsPage() {
               <option value="amount_low">Amount (Low-High)</option>
             </select>
 
-            <button onClick={handleExport} className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
+            <button onClick={handleExport} className="h-10 px-4 bg-primary/10 text-primary rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors shrink-0 w-full sm:w-auto cursor-pointer">
               <span className="material-symbols-outlined text-[18px]">download</span>
               <span className="sm:inline">Export</span>
             </button>

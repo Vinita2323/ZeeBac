@@ -7,7 +7,7 @@ export default function AdminLayout({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="h-[100dvh] bg-[#f4f5f7] text-on-surface font-body-lg flex overflow-hidden">
+    <div className="h-[100dvh] bg-[#f8fafc] text-on-surface font-body-lg flex overflow-hidden">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (

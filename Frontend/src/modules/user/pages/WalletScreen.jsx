@@ -78,7 +78,7 @@ export default function WalletScreen() {
     return <PerksSubView balance={balance} activities={activities} onBack={() => setSubView(null)} />;
   }
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
@@ -156,35 +156,45 @@ export default function WalletScreen() {
         <div className="space-y-md">
           <h3 className="font-display text-title-md text-on-surface font-extrabold">Recent Wallet Activity</h3>
           
-          <div className="grid grid-cols-1 gap-md">
-            {activities.map((act) => (
-              <div 
-                key={act.id}
-                className="glass-card rounded-2xl p-sm border border-outline-variant/30 flex items-center gap-md"
-              >
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                  act.status === 'Credited' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
-                }`}>
-                  <span className="material-symbols-outlined">{act.icon}</span>
-                </div>
-                <div className="flex-grow text-left space-y-0.5">
-                  <h4 className="font-title-md text-on-surface font-bold text-body-lg">{act.name}</h4>
-                  <p className="text-caption text-on-surface-variant text-[12px]">{act.time}</p>
-                  {act.utr && (
-                    <p className="text-[11px] font-bold text-primary/70 bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                      UTR: {act.utr}
-                    </p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className={`font-display font-black text-body-lg ${
-                    act.status === 'Credited' ? 'text-green-600' : 'text-red-600'
-                  }`}>{act.amount}</p>
-                  <span className="text-[10px] uppercase font-semibold text-outline tracking-wider">{act.status}</span>
-                </div>
+          {activities.length === 0 ? (
+            <div className="glass-card rounded-2xl py-8 px-4 flex flex-col items-center text-center gap-1.5">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-1">
+                <span className="material-symbols-outlined text-primary text-[24px]">receipt_long</span>
               </div>
-            ))}
-          </div>
+              <p className="font-bold text-on-surface text-[13.5px]">No activity yet</p>
+              <p className="text-on-surface-variant text-[12px] max-w-[220px]">Your cashback credits and cashouts will show up here</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-md">
+              {activities.map((act) => (
+                <div
+                  key={act.id}
+                  className="glass-card rounded-2xl p-sm border border-outline-variant/30 flex items-center gap-md"
+                >
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                    act.status === 'Credited' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
+                  }`}>
+                    <span className="material-symbols-outlined">{act.icon}</span>
+                  </div>
+                  <div className="flex-grow text-left space-y-0.5">
+                    <h4 className="font-title-md text-on-surface font-bold text-body-lg">{act.name}</h4>
+                    <p className="text-caption text-on-surface-variant text-[12px]">{act.time}</p>
+                    {act.utr && (
+                      <p className="text-[11px] font-bold text-primary/70 bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                        UTR: {act.utr}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-display font-black text-body-lg ${
+                      act.status === 'Credited' ? 'text-green-600' : 'text-red-600'
+                    }`}>{act.amount}</p>
+                    <span className="text-[10px] uppercase font-semibold text-outline tracking-wider">{act.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </main>
@@ -210,15 +220,15 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
     setErrorMsg('');
     const numAmount = parseFloat(amount);
     if (!amount || isNaN(numAmount) || numAmount < 50) {
-      setErrorMsg('Minimum withdrawal amount ₹50 hai');
+      setErrorMsg('Minimum withdrawal amount is ₹50');
       return;
     }
     if (numAmount > balance) {
-      setErrorMsg('Balance insufficient hai');
+      setErrorMsg('Insufficient wallet balance');
       return;
     }
     if (!hasBank) {
-      setErrorMsg('Pehle Profile me bank account link karo');
+      setErrorMsg('Please link a bank account in Profile first');
       return;
     }
 
@@ -230,10 +240,10 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
         setBalance(prev => prev - numAmount);
         setResult({ success: true, isAuto, amount: numAmount });
       } else {
-        setErrorMsg(res.message || 'Kuch galat hua, dobara try karo');
+        setErrorMsg(res.message || 'Something went wrong, please try again');
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Server error, dobara try karo');
+      setErrorMsg(err.response?.data?.message || 'Server error, please try again');
     } finally {
       setIsProcessing(false);
     }
@@ -242,7 +252,7 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
   // ─── Success State ───
   if (result?.success) {
     return (
-      <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+      <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
         <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
           <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer">
             <span className="material-symbols-outlined text-primary">arrow_back</span>
@@ -294,7 +304,7 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
   }
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
       <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
         <div className="flex items-center gap-xs">
           <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer">
@@ -367,7 +377,7 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
           {hasBank ? (
             <div className="bg-white border border-outline-variant/30 rounded-2xl p-4 flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093]">
+                <div className="w-10 h-10 rounded-full bg-[#7c3aed]/10 flex items-center justify-center text-[#7c3aed]">
                   <span className="material-symbols-outlined text-[20px]">account_balance</span>
                 </div>
                 <div>
@@ -506,9 +516,9 @@ function PerksSubView({ balance, activities, onBack }) {
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
       {/* Hero Banner */}
-      <div className="bg-gradient-to-br from-[#103a5c] to-[#1e5d90] text-white pt-12 pb-6 px-6 rounded-b-[3rem] shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] text-white pt-12 pb-6 px-6 rounded-b-[3rem] shadow-lg shadow-primary/20 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
         <div className="flex items-center gap-xs relative z-10 mb-4">

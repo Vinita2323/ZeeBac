@@ -7,7 +7,7 @@ import logger from './utils/logger.js';
 const app = express();
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // HTTP request logging (only in development)
@@ -34,6 +34,8 @@ import userRoutes from './routes/user.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import supportRoutes from './routes/support.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import webhookRoutes from './routes/webhook.routes.js';
+import posRoutes from './routes/pos.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -42,6 +44,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/pos', posRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

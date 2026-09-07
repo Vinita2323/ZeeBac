@@ -15,7 +15,7 @@ const walletTransactionSchema = new mongoose.Schema(
     ownerType: {
       type: String,
       required: true,
-      enum: ['User', 'Vendor'],
+      enum: ['User', 'Vendor', 'user', 'vendor', 'customer', 'Customer'],
     },
     type: {
       type: String,
@@ -25,7 +25,7 @@ const walletTransactionSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal'],
+      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase'],
     },
     amount: {
       type: Number,
@@ -54,8 +54,14 @@ const walletTransactionSchema = new mongoose.Schema(
     gatewayOrderId: {
       type: String,
     },
+    // Unique + sparse: at most one ledger row can ever exist per Razorpay
+    // payment id, so a replayed/retried verify request fails at the database
+    // level even if the application-level idempotency check is bypassed.
+    // Sparse because most ledger rows (cash/manual transactions) have no
+    // gateway payment at all.
     gatewayPaymentId: {
       type: String,
+      index: { unique: true, sparse: true },
     },
     description: {
       type: String,

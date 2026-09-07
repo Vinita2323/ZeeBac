@@ -46,9 +46,13 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden flex flex-col justify-between text-on-surface bg-[#f9f9ff] relative select-none font-body-lg">
+    <div className="h-screen w-full overflow-hidden flex flex-col justify-between text-on-surface mesh-gradient relative select-none font-body-lg">
+      {/* Decorative floating orbs (visible in the desktop gutters) */}
+      <div className="blob-orb w-72 h-72 bg-primary/15 -top-20 -left-20 animate-drift" />
+      <div className="blob-orb w-80 h-80 bg-secondary/12 -bottom-24 -right-16 animate-drift-reverse" />
+
       {/* Top Header */}
-      <header className="w-full flex justify-end items-center px-container-margin h-16 shrink-0">
+      <header className="relative z-10 w-full flex justify-end items-center px-container-margin h-16 shrink-0">
         {currentStep < 2 && (
           <button 
             onClick={handleSkip}
@@ -153,7 +157,7 @@ export default function WelcomeScreen() {
                 </div>
                 
                 {/* Data grid */}
-                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#420093 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#7c3aed 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
               </div>
 
               {/* Side Accent (Bento metal card) */}

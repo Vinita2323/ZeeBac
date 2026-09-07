@@ -35,7 +35,7 @@ export default function RequestDetailsScreen() {
 
   if (isLoading) {
     return (
-      <div className="bg-[#f9f9ff] min-h-screen flex items-center justify-center">
+      <div className="mesh-gradient min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
@@ -43,7 +43,7 @@ export default function RequestDetailsScreen() {
 
   if (!request) {
     return (
-      <div className="bg-[#f9f9ff] min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
+      <div className="mesh-gradient min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
         <div className="text-center space-y-md">
           <span className="material-symbols-outlined text-outline text-[48px]">warning</span>
           <p className="font-title-md text-on-surface font-bold">Request details not found</p>
@@ -69,7 +69,7 @@ export default function RequestDetailsScreen() {
   const activeIndex = getActiveTimelineIndex();
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-12">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-12">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
         <div className="flex items-center gap-xs">
@@ -103,11 +103,11 @@ export default function RequestDetailsScreen() {
             </div>
             <div className="flex justify-between items-center">
               <span className="font-caption text-xs">Date of Purchase</span>
-              <span className="font-bold text-on-surface">{new Date(request.createdAt).toLocaleDateString()}</span>
+              <span className="font-bold text-on-surface">{new Date(request.purchaseDate || request.createdAt).toLocaleDateString()}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="font-caption text-xs">Payment Method</span>
-              <span className="font-bold text-on-surface">Digital Payment</span>
+              <span className="font-bold text-on-surface">{request.paymentMethod || 'Cash'}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="font-caption text-xs">Receipt Total</span>
@@ -123,10 +123,14 @@ export default function RequestDetailsScreen() {
             <p className="font-display text-title-lg font-black text-on-surface">₹{request.amount}</p>
           </div>
           
-          {request.billImg && (
+          {request.billImageUrl && (
             <div className="border-t border-outline-variant/10 pt-sm flex flex-col gap-sm">
               <p className="font-caption text-[10px] uppercase text-on-surface-variant">Bill Attachment Preview</p>
-              <img className="w-full h-44 object-cover rounded-xl border shadow-sm" src={request.billImg} alt="Receipt copy" />
+              <img
+                className="w-full h-44 object-cover rounded-xl border shadow-sm"
+                src={request.billImageUrl.startsWith('http') ? request.billImageUrl : `${import.meta.env.VITE_API_URL}${request.billImageUrl}`}
+                alt="Receipt copy"
+              />
             </div>
           )}
         </div>

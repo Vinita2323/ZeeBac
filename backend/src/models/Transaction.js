@@ -28,7 +28,7 @@ const transactionSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ['qr_cashback', 'manual', 'receipt_claim'],
+      enum: ['qr_cashback', 'manual', 'receipt_claim', 'pos_bill'],
       required: true,
     },
     initiatedBy: {
@@ -53,13 +53,13 @@ const transactionSchema = new mongoose.Schema(
     
     paymentMethod: {
       type: String,
-      enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other'],
+      enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other', 'Cash (POS Bill Scan)'],
       default: 'Cash',
     },
     
     status: {
       type: String,
-      enum: ['Pending', 'Approved', 'Flagged', 'Rejected'],
+      enum: ['Pending', 'Approved', 'Flagged', 'Rejected', 'Refunded'],
       default: 'Pending',
     },
     flagReason: String,
@@ -68,6 +68,8 @@ const transactionSchema = new mongoose.Schema(
       ref: 'AdminUser',
     },
     reviewedAt: Date,
+    refundReason: String,
+    refundedAt: Date,
     
     receiptUrl: String,
     hasReceipt: {
@@ -77,8 +79,14 @@ const transactionSchema = new mongoose.Schema(
     
     source: {
       type: String,
-      enum: ['vendor_scan', 'vendor_manual', 'customer_request'],
+      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan'],
       required: true,
+    },
+    
+    gateway: {
+      gatewayName: String,
+      gatewayOrderId: String,
+      gatewayPaymentId: String,
     },
     
     timestamp: {

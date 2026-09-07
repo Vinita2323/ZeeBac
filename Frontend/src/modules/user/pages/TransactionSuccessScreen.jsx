@@ -42,7 +42,7 @@ export default function TransactionSuccessScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-on-surface overflow-hidden relative font-body-lg flex flex-col items-center justify-center p-container-margin select-none">
+    <div className="min-h-screen mesh-gradient text-on-surface overflow-hidden relative font-body-lg flex flex-col items-center justify-center p-container-margin select-none">
       
       {/* Confetti Simulator Layer */}
       <div className="absolute inset-0 pointer-events-none z-0">
@@ -89,7 +89,7 @@ export default function TransactionSuccessScreen() {
           </div>
           <div className="flex justify-between">
             <span>Cashback Earned</span>
-            <span className="font-bold text-[#420093]">+₹{details.cashback}</span>
+            <span className="font-bold text-[#7c3aed]">+₹{details.cashback}</span>
           </div>
           <div className="flex justify-between">
             <span>Transaction ID</span>

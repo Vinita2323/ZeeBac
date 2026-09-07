@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
 
 export default function VendorLogTransactionScreen() {
@@ -13,8 +14,8 @@ export default function VendorLogTransactionScreen() {
   // Store actual transaction data from backend
   const [txnData, setTxnData] = useState(null);
 
-  const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
-  const cashbackRate = currentUser.cashbackRate || 5; // Defaulting to 5% if missing for preview
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const cashbackRate = currentUser.cashbackRate ?? 5; // Defaulting to 5% if missing for preview
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
   const isValid = purchaseAmount >= 1;

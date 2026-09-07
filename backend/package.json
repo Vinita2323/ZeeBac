@@ -4,7 +4,8 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "node --watch src/index.js"
   },
   "keywords": [],
@@ -16,6 +17,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.4.1",
     "firebase-admin": "^14.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.3",
@@ -24,5 +26,10 @@
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.3",
     "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.2",
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.4"
   }
 }

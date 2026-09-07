@@ -86,13 +86,13 @@ export default function PayoutsPage() {
         <div className="border-b border-outline-variant/10 bg-[#f8f9fc] p-4 flex gap-2">
           <button
             onClick={() => setActiveTab('vendors')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'vendors' ? 'bg-primary text-white' : 'bg-white text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm border transition-colors ${activeTab === 'vendors' ? 'bg-primary/10 text-primary border-primary/20 shadow-sm' : 'bg-white text-on-surface-variant border-outline-variant/20 hover:bg-surface-container-low border-transparent'}`}
           >
             Vendor Requests ({payouts.vendors.length})
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'users' ? 'bg-primary text-white' : 'bg-white text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm border transition-colors ${activeTab === 'users' ? 'bg-primary/10 text-primary border-primary/20 shadow-sm' : 'bg-white text-on-surface-variant border-outline-variant/20 hover:bg-surface-container-low border-transparent'}`}
           >
             User Requests ({payouts.users.length})
           </button>
@@ -163,14 +163,14 @@ export default function PayoutsPage() {
                         <button
                           onClick={() => openModal(item._id, activeTab === 'vendors' ? 'Vendor' : 'User', 'Approve')}
                           disabled={isProcessing}
-                          className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
+                          className="px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => openModal(item._id, activeTab === 'vendors' ? 'Vendor' : 'User', 'Reject')}
                           disabled={isProcessing}
-                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
+                          className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           Reject
                         </button>
@@ -190,7 +190,7 @@ export default function PayoutsPage() {
           style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '1rem' }}
         >
           <div style={{ background: 'white', borderRadius: '1rem', width: '100%', maxWidth: '28rem', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
-            <div style={{ padding: '1rem', borderBottom: '1px solid #eee', color: 'white', fontWeight: 'bold', background: modal.action === 'Approve' ? '#16a34a' : '#ef4444' }}>
+            <div style={{ padding: '1rem', borderBottom: '1px solid #eee', color: modal.action === 'Approve' ? '#16a34a' : '#ef4444', fontWeight: 'bold', background: modal.action === 'Approve' ? 'rgba(22, 163, 74, 0.05)' : 'rgba(239, 68, 68, 0.05)' }}>
               {modal.action === 'Approve' ? 'Confirm Approval' : 'Confirm Rejection'}
             </div>
 
@@ -240,12 +240,12 @@ export default function PayoutsPage() {
                 style={{
                   padding: '0.5rem 1.5rem',
                   fontWeight: 'bold',
-                  color: 'white',
+                  color: modal.action === 'Approve' ? '#16a34a' : '#ef4444',
                   borderRadius: '0.75rem',
-                  border: 'none',
+                  border: modal.action === 'Approve' ? '1px solid rgba(22, 163, 74, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
                   cursor: isProcessing || (modal.action === 'Approve' && !transactionId.trim()) ? 'not-allowed' : 'pointer',
                   opacity: isProcessing || (modal.action === 'Approve' && !transactionId.trim()) ? 0.5 : 1,
-                  background: modal.action === 'Approve' ? '#16a34a' : '#ef4444',
+                  background: modal.action === 'Approve' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                 }}
               >
                 {isProcessing ? 'Processing...' : `Confirm ${modal.action}`}

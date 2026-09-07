@@ -1,5 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import VendorLayout from './components/common/VendorLayout';
+import useAuthStore from '../../store/useAuthStore';
+import VendorApplicationRoutes from './pages/onboarding/VendorApplicationRoutes';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
@@ -18,6 +20,19 @@ import RequestsPage from './pages/RequestsPage';
 import SupportPage from './pages/SupportPage';
 
 export default function VendorRoutes() {
+  const status = useAuthStore((s) => s.currentUser?.status);
+
+  // A vendor whose application isn't yet approved never reaches the real
+  // dashboard — they only see their application status/rejection/resubmit flow.
+  if (status !== 'Verified') {
+    return (
+      <Routes>
+        <Route path="application/*" element={<VendorApplicationRoutes />} />
+        <Route path="*" element={<Navigate to="application" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       {/* Full screen routes outside layout */}

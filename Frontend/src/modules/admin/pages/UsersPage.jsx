@@ -26,7 +26,7 @@ export default function UsersPage() {
         _id: u._id,
         name: u.name,
         phone: u.phone,
-        aadhaar: 'XXXX-XXXX-XXXX', // From admin view
+        aadhaar: u.aadhaar || null,
         status: u.status,
         joined: new Date(u.createdAt).toLocaleDateString()
       }));
@@ -122,7 +122,7 @@ export default function UsersPage() {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-[18px] pointer-events-none">expand_more</span>
           </div>
 
-          <button onClick={handleExport} className="h-10 px-4 bg-primary text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shrink-0 w-full sm:w-auto">
+          <button onClick={handleExport} className="h-10 px-4 bg-primary/10 text-primary rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors shrink-0 w-full sm:w-auto cursor-pointer">
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span className="sm:inline">Export</span>
           </button>
@@ -137,7 +137,6 @@ export default function UsersPage() {
                 <th className="p-4 font-bold">User ID</th>
                 <th className="p-4 font-bold">Name</th>
                 <th className="p-4 font-bold">Phone Number</th>
-                <th className="p-4 font-bold">Aadhaar (KYC)</th>
                 <th className="p-4 font-bold">Joined Date</th>
                 <th className="p-4 font-bold">Status</th>
                 <th className="p-4 font-bold text-center">Actions</th>
@@ -149,7 +148,6 @@ export default function UsersPage() {
                   <td className="p-4 font-mono text-on-surface-variant">{user.id}</td>
                   <td className="p-4 font-bold text-on-surface">{user.name}</td>
                   <td className="p-4 text-on-surface-variant">{user.phone}</td>
-                  <td className="p-4 text-on-surface-variant">{user.aadhaar}</td>
                   <td className="p-4 text-on-surface-variant">{user.joined}</td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide
@@ -161,14 +159,14 @@ export default function UsersPage() {
                   <td className="p-4 flex justify-center gap-2">
                     <button 
                       onClick={() => { setSelectedUser(user); setIsDetailsModalOpen(true); }}
-                      className="px-3 py-1 bg-primary/10 text-primary font-bold text-[12px] rounded-lg hover:bg-primary hover:text-white transition-colors cursor-pointer"
+                      className="px-3 py-1 bg-primary/10 text-primary font-bold text-[12px] rounded-lg hover:bg-primary/20 transition-colors cursor-pointer"
                     >
                       View
                     </button>
                     <button 
                       onClick={() => handleToggleStatus(user)}
                       className={`px-3 py-1 font-bold text-[12px] rounded-lg transition-colors cursor-pointer
-                      ${user.status === 'Active' ? 'bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white' : 'bg-green-500/10 text-green-600 hover:bg-green-500 hover:text-white'}
+                      ${user.status === 'Active' ? 'bg-red-500/10 text-red-600 hover:bg-red-500/20' : 'bg-green-500/10 text-green-600 hover:bg-green-500/20'}
                     `}>
                       {user.status === 'Active' ? 'Suspend' : 'Activate'}
                     </button>
@@ -233,10 +231,12 @@ export default function UsersPage() {
                     {selectedUser.status}
                   </span>
                 </div>
-                <div>
-                  <p className="text-[11px] font-bold uppercase text-on-surface-variant">Aadhaar (KYC)</p>
-                  <p className="text-[14px] font-medium text-on-surface mt-1">{selectedUser.aadhaar}</p>
-                </div>
+                {selectedUser.aadhaar && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase text-on-surface-variant">Aadhaar (KYC)</p>
+                    <p className="text-[14px] font-medium text-on-surface mt-1">{selectedUser.aadhaar}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-[11px] font-bold uppercase text-on-surface-variant">Joined Date</p>
                   <p className="text-[14px] font-medium text-on-surface mt-1">{selectedUser.joined}</p>

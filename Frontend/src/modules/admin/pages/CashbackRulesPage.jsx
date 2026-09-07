@@ -128,7 +128,7 @@ export default function CashbackRulesPage() {
                       </div>
                       <div className="flex justify-end gap-2">
                         <button onClick={handleCancelEdit} className="px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors cursor-pointer">Cancel</button>
-                        <button onClick={handleSaveEdit} className="px-4 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shadow-sm cursor-pointer">Save</button>
+                        <button onClick={handleSaveEdit} className="px-4 py-2 text-sm font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors shadow-sm cursor-pointer">Save</button>
                       </div>
                     </div>
                   ) : (
@@ -185,7 +185,7 @@ export default function CashbackRulesPage() {
                     </div>
                     <div className="flex justify-end gap-2">
                       <button onClick={handleCancelEdit} className="px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors cursor-pointer">Cancel</button>
-                      <button onClick={handleSaveNew} className="px-4 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shadow-sm cursor-pointer">Add Rule</button>
+                      <button onClick={handleSaveNew} className="px-4 py-2 text-sm font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors shadow-sm cursor-pointer">Add Rule</button>
                     </div>
                   </div>
                 </div>
@@ -201,15 +201,14 @@ export default function CashbackRulesPage() {
         </div>
         {/* Right Sidebar Info */}
         <div className="space-y-6">
-          <div className="bg-primary text-white p-6 rounded-2xl shadow-lg bg-gradient-to-br from-primary to-[#2c006b]">
-            <span className="material-symbols-outlined text-[32px] mb-2 text-white/80">info</span>
-            <h3 className="font-title-lg font-bold mb-2">Rule Processing Order</h3>
-            <p className="text-[13px] text-white/80 leading-relaxed">
+          <div className="bg-primary/5 text-primary p-6 rounded-2xl border border-primary/20 shadow-[0_4px_20px_rgba(124,58,237,0.02)]">
+            <span className="material-symbols-outlined text-[32px] mb-2 text-primary">info</span>
+            <h3 className="font-title-lg font-bold mb-2 text-slate-800">Rule Processing Order</h3>
+            <p className="text-[13px] text-slate-600 leading-relaxed">
               When multiple rules apply to a single transaction, the engine processes them in the following order:
             </p>
-            <ol className="list-decimal list-inside mt-4 space-y-2 text-[13px] font-bold text-white/90">
+            <ol className="list-decimal list-inside mt-4 space-y-2 text-[13px] font-bold text-slate-700">
               <li>Local Shop override (forces 0%)</li>
-
               <li>Minimum Category Cashback</li>
               <li>Vendor Custom Rate</li>
               <li>First Purchase Multiplier</li>

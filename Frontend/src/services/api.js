@@ -68,9 +68,14 @@ export const AuthAPI = {
     const res = await apiClient.post('/auth/customer/signup', formData);
     return res.data;
   },
-  vendorSignup: async (formData) => {
-    // formData for multi-part document uploads
-    const res = await apiClient.post('/auth/vendor/signup', formData);
+  // Vendor onboarding — Step 1 (account creation). Issues tokens immediately
+  // so Steps 2-4 can be saved via VendorApplicationAPI as an authenticated vendor.
+  vendorRegister: async (data) => {
+    const res = await apiClient.post('/auth/vendor/register', data);
+    return res.data;
+  },
+  getVendorCategories: async () => {
+    const res = await apiClient.get('/auth/vendor/categories');
     return res.data;
   },
   logout: async () => {
@@ -131,8 +136,8 @@ export const AdminAPI = {
     const res = await apiClient.get('/admin/dashboard/stats');
     return res.data;
   },
-  getVendors: async (status = '', page = 1, search = '') => {
-    const res = await apiClient.get(`/admin/vendors?status=${status}&page=${page}&search=${encodeURIComponent(search)}`);
+  getVendors: async (applicationStatus = '', page = 1, search = '') => {
+    const res = await apiClient.get(`/admin/vendors?applicationStatus=${applicationStatus}&page=${page}&search=${encodeURIComponent(search)}`);
     return res.data;
   },
   getVendorById: async (id) => {
@@ -143,8 +148,8 @@ export const AdminAPI = {
     const res = await apiClient.patch(`/admin/vendors/${id}/approve`, { cashbackRate });
     return res.data;
   },
-  rejectVendor: async (id, reason) => {
-    const res = await apiClient.patch(`/admin/vendors/${id}/reject`, { reason });
+  rejectVendor: async (id, reasonCategory, comment = '') => {
+    const res = await apiClient.patch(`/admin/vendors/${id}/reject`, { reasonCategory, comment });
     return res.data;
   },
   getUsers: async (page = 1, search = '') => {
@@ -282,8 +287,29 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/me');
     return res.data;
   },
+  // Signed, short-lived QR payload — render locally (e.g. via the `qrcode`
+  // package), never send it to a third-party QR-image service.
+  getQrToken: async () => {
+    const res = await apiClient.get('/vendor/qr-token');
+    return res.data;
+  },
   updateProfile: async (data) => {
     const res = await apiClient.put('/vendor/me', data);
+    return res.data;
+  },
+  // Onboarding application (Steps 2-4 + resubmission) — formData is a FormData
+  // instance, may contain plain fields, JSON-stringified nested objects
+  // (address, businessHours), and files.
+  saveApplicationDraft: async (formData) => {
+    const res = await apiClient.patch('/vendor/application/draft', formData);
+    return res.data;
+  },
+  submitApplication: async (formData) => {
+    const res = await apiClient.post('/vendor/application/submit', formData);
+    return res.data;
+  },
+  resubmitApplication: async (formData) => {
+    const res = await apiClient.post('/vendor/application/resubmit', formData);
     return res.data;
   },
   getDashboardStats: async () => {
@@ -419,6 +445,12 @@ export const UserAPI = {
     const res = await apiClient.get('/user/me');
     return res.data;
   },
+  // Signed, short-lived QR payload — render locally, never send it to a
+  // third-party QR-image service.
+  getQrToken: async () => {
+    const res = await apiClient.get('/user/qr-token');
+    return res.data;
+  },
   updateProfile: async (data) => {
     const res = await apiClient.put('/user/me', data);
     return res.data;
@@ -452,6 +484,11 @@ export const UserAPI = {
   },
   processWalletPayment: async (data) => {
     const res = await apiClient.post('/user/pay-via-wallet', data);
+    return res.data;
+  },
+  // POS Flow: Claim printed bill QR (ZEEBAC-89214)
+  claimPosBill: async (billCode) => {
+    const res = await apiClient.post('/pos/claim', { billCode });
     return res.data;
   },
   getNearbyVendors: async (lat, lng, radius = 15000) => {
@@ -520,8 +557,12 @@ export const UserAPI = {
     const res = await apiClient.put('/user/me', data);
     return res.data;
   },
+  // `data` must be a FormData instance (a real bill photo is now mandatory
+  // and goes through multer, not a base64 string in a JSON body).
   createCashbackRequest: async (data) => {
-    const res = await apiClient.post('/user/cashback-requests', data);
+    const res = await apiClient.post('/user/cashback-requests', data, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return res.data;
   },
   getMyCashbackRequests: async () => {
@@ -618,4 +659,15 @@ export const NotificationAPI = {
     const res = await apiClient.patch('/notifications/read-all');
     return res.data;
   },
+};
+
+export const PosAPI = {
+  createBill: async (vendorZeebacId, amount, billCode) => {
+    const res = await apiClient.post('/pos/create-bill', { vendorZeebacId, amount, billCode });
+    return res.data;
+  },
+  getBillStatus: async (billCode) => {
+    const res = await apiClient.get(`/pos/bill/${encodeURIComponent(billCode)}`);
+    return res.data;
+  }
 };

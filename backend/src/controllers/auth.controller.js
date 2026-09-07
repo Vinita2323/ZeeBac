@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
 import AdminUser from '../models/AdminUser.js';
 import { sendTokens, generateAccessToken } from '../utils/token.utils.js';
+import { sendOtpSms } from '../utils/sms.util.js';
 import logger from '../utils/logger.js';
 
 // 1. Send OTP
@@ -26,15 +27,14 @@ export const sendOtp = async (req, res) => {
       }
     }
 
-    // Generate random 4-digit OTP
-    /*const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    logger.info(`[DEV OTP] for ${phone} (${role}): ${otp}`);*/
-    const otp = "1234";
+    // Generate OTP: if USE_DEFAULT_OTP=true in dev mode, use '1234', else generate random 4-digit OTP
+    const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true' && process.env.NODE_ENV !== 'production';
+    const otp = useDefaultOtp ? '1234' : Math.floor(1000 + Math.random() * 9000).toString();
 
     const salt = await bcrypt.genSalt(10);
     const otpHash = await bcrypt.hash(otp, salt);
 
-    // Delete existing OTPs for this phone+purpose+role to avoid conflicts
+    // Delete existing OTPs for this phone+purpose+role to reset attempts and avoid conflicts
     await OtpVerification.deleteMany({ phone, purpose, role });
 
     await OtpVerification.create({
@@ -43,6 +43,8 @@ export const sendOtp = async (req, res) => {
       purpose,
       role
     });
+
+    await sendOtpSms(phone, otp);
 
     res.status(200).json({ success: true, message: 'OTP sent successfully' });
   } catch (error) {
@@ -53,8 +55,13 @@ export const sendOtp = async (req, res) => {
 
 // Internal helper to verify OTP
 export const verifyOtpOnly = async (phone, otp, purpose, role) => {
+  const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true' && process.env.NODE_ENV !== 'production';
+  if (useDefaultOtp && otp === '1234') {
+    return true;
+  }
+
   const otpRecord = await OtpVerification.findOne({ phone, purpose, role });
-  if (!otpRecord) throw new Error('OTP expired or invalid');
+  if (!otpRecord) throw new Error('OTP expired or invalid. Please request a new OTP.');
   if (otpRecord.attempts >= 3) throw new Error('Too many attempts. Request a new OTP.');
 
   const isMatch = await bcrypt.compare(otp, otpRecord.otpHash);
@@ -119,11 +126,11 @@ export const vendorLogin = async (req, res) => {
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor account not found. Please register.' });
     }
-    if (vendor.status === 'Pending') {
-      return res.status(403).json({ success: false, message: 'Your application is pending KYC approval.' });
-    }
-    if (vendor.status === 'Rejected' || vendor.status === 'Suspended') {
-      return res.status(403).json({ success: false, message: `Account ${vendor.status.toLowerCase()}` });
+    // Pending/Rejected vendors can still log in — they need to reach their
+    // application status/rejection screen. Only Suspended (an admin punitive
+    // action) blocks login outright. Verified vendors: unchanged behavior.
+    if (vendor.status === 'Suspended') {
+      return res.status(403).json({ success: false, message: 'Account suspended' });
     }
 
     const tokens = sendTokens(res, vendor);
@@ -139,9 +146,19 @@ export const vendorLogin = async (req, res) => {
       vendor: {
         _id: vendor._id,
         storeName: vendor.storeName,
+        ownerName: vendor.ownerName,
         phone: vendor.phone,
         zeebacId: vendor.zeebacId,
-        role: vendor.role
+        role: vendor.role,
+        status: vendor.status,
+        applicationStatus: vendor.applicationStatus,
+        rejectionReason: vendor.rejectionReason,
+        rejectionCategory: vendor.rejectionCategory,
+        // Was missing here — the vendor's own rate is admin-assigned and
+        // otherwise never reaches the session, so the dashboard/requests
+        // pages fell back to computing "Estimated CB" against `undefined`
+        // and rendered "₹NaN".
+        cashbackRate: vendor.cashbackRate,
       }
     });
   } catch (error) {

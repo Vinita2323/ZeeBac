@@ -169,7 +169,7 @@ export default function WalletPassbookScreen() {
           <div className="flex gap-3 overflow-x-auto pb-1 scroll-hide">
             
             {/* ZeeBac Wallet Card */}
-            <div className="min-w-[220px] bg-gradient-to-br from-[#420093] via-[#5B00C2] to-[#31006E] rounded-[14px] p-3 text-white shadow-sm relative overflow-hidden flex flex-col justify-between h-[96px]">
+            <div className="min-w-[220px] bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] rounded-[14px] p-3 text-white shadow-md shadow-primary/20 relative overflow-hidden flex flex-col justify-between h-[96px]">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-bold text-xs tracking-wide">ZeeBac Wallet</h3>

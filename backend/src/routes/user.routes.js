@@ -25,13 +25,15 @@ import {
   getUserWithdrawals,
   getRewardData,
   claimScratchCard,
-  processWalletPayment
+  processWalletPayment,
+  getMyQrToken
 } from '../controllers/user.controller.js';
 import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
 import { getVendorReviews, createReview, deleteReview } from '../controllers/review.controller.js';
 import { getMyReferrals } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
+import { upload } from '../middlewares/multer.middleware.js';
 
 const router = express.Router();
 
@@ -86,7 +88,7 @@ router.post('/transactions/razorpay/verify', verifyRazorpayAndCreateTransaction)
 router.post('/pay-via-wallet', processWalletPayment);
 
 // Cashback Requests (Phase 4E)
-router.post('/cashback-requests', createCashbackRequest);
+router.post('/cashback-requests', upload.single('billImg'), createCashbackRequest);
 router.get('/cashback-requests', getMyCashbackRequests);
 router.get('/cashback-requests/:id', getCashbackRequestById);
 
@@ -96,6 +98,9 @@ router.get('/referrals', getMyReferrals);
 // Rewards & Offers
 router.get('/rewards-data', getRewardData);
 router.post('/rewards/scratch', claimScratchCard);
+
+// QR Code (Phase 3 — signed, short-lived, scanned by a vendor at checkout)
+router.get('/qr-token', getMyQrToken);
 
 // FCM Token (Push Notifications)
 router.post('/fcm-token', saveUserFcmToken);

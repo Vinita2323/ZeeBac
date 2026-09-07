@@ -9,6 +9,7 @@ import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
+import { debitWallet, creditWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
 
 // ─── Dashboard Stats ───
 export const getDashboardStats = async (req, res) => {
@@ -43,16 +44,21 @@ export const getDashboardStats = async (req, res) => {
 // ─── Vendor Management ───
 export const getAllVendors = async (req, res) => {
   try {
-    const { status, search, page = 1, limit = 20 } = req.query;
-    
+    const { status, applicationStatus, search, page = 1, limit = 20 } = req.query;
+
     let query = {};
     if (status) {
       query.status = status;
     }
+    if (applicationStatus) {
+      query.applicationStatus = applicationStatus;
+    }
     if (search) {
       query.$or = [
         { storeName: { $regex: search, $options: 'i' } },
-        { ownerName: { $regex: search, $options: 'i' } }
+        { ownerName: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { zeebacId: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -95,6 +101,8 @@ export const getVendorById = async (req, res) => {
   }
 };
 
+const REJECTION_CATEGORIES = ['Incomplete information', 'Invalid document', 'Document unclear', 'Business details mismatch', 'Location issue', 'Verification failed', 'Other'];
+
 export const approveVendor = async (req, res) => {
   try {
     const { id } = req.params;
@@ -108,11 +116,27 @@ export const approveVendor = async (req, res) => {
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
+    if (vendor.applicationStatus === 'DRAFT') {
+      return res.status(400).json({ success: false, message: 'Vendor has not submitted an application yet.' });
+    }
 
+    const now = new Date();
     vendor.status = 'Verified';
+    vendor.applicationStatus = 'APPROVED';
     vendor.cashbackRate = cashbackRate;
-    vendor.verifiedAt = new Date();
-    vendor.verifiedBy = req.user._id; // from auth middleware
+    vendor.verifiedAt = now;
+    vendor.verifiedBy = req.user.id; // JWT payload is { id, role, zeebacId } — no _id
+
+    const lastVersion = vendor.applicationHistory.length > 0
+      ? vendor.applicationHistory[vendor.applicationHistory.length - 1].version
+      : 0;
+    vendor.applicationHistory.push({
+      version: lastVersion || 1,
+      action: 'APPROVED',
+      actionAt: now,
+      actionByRole: 'admin',
+      actionByAdmin: req.user.id,
+    });
 
     await vendor.save();
 
@@ -143,10 +167,10 @@ export const approveVendor = async (req, res) => {
 export const rejectVendor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const { reasonCategory, comment } = req.body;
 
-    if (!reason) {
-      return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+    if (!reasonCategory || !REJECTION_CATEGORIES.includes(reasonCategory)) {
+      return res.status(400).json({ success: false, message: `A valid rejection reason is required. Choose one of: ${REJECTION_CATEGORIES.join(', ')}` });
     }
 
     const vendor = await Vendor.findById(id);
@@ -154,8 +178,28 @@ export const rejectVendor = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
+    const now = new Date();
+    const combinedReason = comment ? `${reasonCategory} — ${comment}` : reasonCategory;
+
     vendor.status = 'Rejected';
-    vendor.rejectionReason = reason;
+    vendor.applicationStatus = 'REJECTED';
+    vendor.rejectionCategory = reasonCategory;
+    vendor.rejectionReason = combinedReason;
+    vendor.rejectedAt = now;
+    vendor.rejectedBy = req.user.id;
+
+    const lastVersion = vendor.applicationHistory.length > 0
+      ? vendor.applicationHistory[vendor.applicationHistory.length - 1].version
+      : 0;
+    vendor.applicationHistory.push({
+      version: lastVersion || 1,
+      action: 'REJECTED',
+      actionAt: now,
+      actionByRole: 'admin',
+      actionByAdmin: req.user.id,
+      rejectionCategory: reasonCategory,
+      rejectionComment: comment || '',
+    });
 
     await vendor.save();
 
@@ -166,7 +210,7 @@ export const rejectVendor = async (req, res) => {
       fcmTokens: vendor.fcmTokens || [],
       type: 'approval',
       title: '❌ Application Rejected',
-      message: `Your application was rejected. Reason: ${reason}`,
+      message: `Your application was rejected. Reason: ${combinedReason}`,
       icon: 'cancel',
       referenceId: vendor._id,
       referenceType: 'vendor',
@@ -906,17 +950,29 @@ export const processPayout = async (req, res) => {
           icon: 'account_balance',
         });
       } else if (action === 'Reject') {
-        reqDoc.status = 'Rejected';
-        reqDoc.adminRemarks = remarks || '';
-        
-        // Refund vendor wallet
-        const wallet = await Wallet.findOne({ ownerId: reqDoc.vendorId._id, ownerType: 'Vendor' });
-        if (wallet) {
-          wallet.balance += reqDoc.amount;
-          await wallet.save();
-          // We could also create a credit WalletTransaction for the refund but let's keep it simple
+        const session = await mongoose.startSession();
+        try {
+          await session.withTransaction(async () => {
+            reqDoc.status = 'Rejected';
+            reqDoc.adminRemarks = remarks || '';
+            await reqDoc.save({ session });
+
+            // Atomic credit back to vendor wallet + ledger entry
+            await creditWallet({
+              session,
+              ownerId: reqDoc.vendorId._id,
+              ownerType: 'Vendor',
+              ownerZeebacId: reqDoc.vendorId.zeebacId,
+              amount: reqDoc.amount,
+              category: 'settlement',
+              description: `Withdrawal request for ₹${reqDoc.amount} rejected and refunded to wallet`,
+              referenceId: reqDoc._id,
+              referenceType: 'WithdrawalRequest',
+            });
+          });
+        } finally {
+          session.endSession();
         }
-        await reqDoc.save();
 
         // Notify vendor
         sendNotification({
@@ -936,5 +992,91 @@ export const processPayout = async (req, res) => {
   } catch (error) {
     logger.error(`Error in processPayout: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// ─── Refund Transaction (Phase 4 Reversal Path) ───
+export const refundTransaction = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+
+    const tx = await Transaction.findById(id);
+    if (!tx) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+    if (tx.status !== 'Approved' && tx.status !== 'Success') {
+      return res.status(400).json({ success: false, message: `Transaction cannot be refunded (current status: ${tx.status})` });
+    }
+
+    await session.withTransaction(async () => {
+      // 1. Debit cashback earned from customer wallet
+      try {
+        await debitWallet({
+          session,
+          ownerId: tx.customerId,
+          ownerType: 'User',
+          amount: tx.cashbackAmount,
+          category: 'refund',
+          description: `Cashback reversed for refunded transaction ${tx.transactionId}`,
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+        });
+      } catch (err) {
+        if (err instanceof InsufficientBalanceError) {
+          logger.warn(`[Refund] Customer ${tx.customerId} had insufficient balance to reverse full cashback ₹${tx.cashbackAmount}; proceeding with transaction reversal.`);
+        } else {
+          throw err;
+        }
+      }
+
+      // 2. Credit cashback amount back to vendor wallet
+      await creditWallet({
+        session,
+        ownerId: tx.vendorId,
+        ownerType: 'Vendor',
+        ownerZeebacId: tx.vendorZeebacId,
+        amount: tx.cashbackAmount,
+        category: 'refund',
+        description: `Cashback refund credit for transaction ${tx.transactionId}`,
+        referenceId: tx._id,
+        referenceType: 'Transaction',
+      });
+
+      // 3. Update Transaction status to Refunded
+      tx.status = 'Refunded';
+      tx.refundedAt = new Date();
+      tx.refundReason = reason || 'Admin initiated refund';
+      await tx.save({ session });
+    });
+
+    logger.info(`[Refund] Transaction ${tx.transactionId} refunded successfully by Admin`);
+
+    // Notify Customer & Vendor
+    sendNotification({
+      recipientId: tx.customerId,
+      recipientType: 'customer',
+      type: 'system',
+      title: '🔄 Cashback Refunded',
+      message: `Transaction ${tx.transactionId} for ₹${tx.amount} was refunded by admin.`,
+      icon: 'replay',
+    });
+
+    sendNotification({
+      recipientId: tx.vendorId,
+      recipientType: 'vendor',
+      type: 'system',
+      title: '🔄 Transaction Refunded',
+      message: `Transaction ${tx.transactionId} was refunded. ₹${tx.cashbackAmount} cashback has been credited back to your wallet.`,
+      icon: 'replay',
+    });
+
+    res.status(200).json({ success: true, message: 'Transaction refunded successfully', data: tx });
+  } catch (error) {
+    logger.error(`Error in refundTransaction: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error processing refund', error: error.message });
+  } finally {
+    session.endSession();
   }
 };

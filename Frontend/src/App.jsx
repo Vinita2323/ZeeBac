@@ -13,6 +13,7 @@ import TermsScreen from './modules/auth/pages/TermsScreen';
 import PrivacyPolicyScreen from './modules/auth/pages/PrivacyPolicyScreen';
 import AdminLoginScreen from './modules/admin/pages/AdminLoginScreen';
 import VendorLandingScreen from './modules/vendor/pages/VendorLandingScreen';
+import VendorOnboardingWizard from './modules/vendor/pages/onboarding/VendorOnboardingWizard';
 
 // Global State & UI
 import useAuthStore from './store/useAuthStore';
@@ -86,6 +87,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <div className="app-backdrop" aria-hidden="true" />
 
       {/* Global UI Overlays */}
       <Toaster position="top-center" reverseOrder={false} />
@@ -103,7 +105,7 @@ function App() {
         {/* ─── Vendor App Auth (Separate App) ─── */}
         <Route path="/vendor-app" element={<VendorLandingScreen />} />
         <Route path="/vendor-app/login" element={<AuthLoginScreen role="vendor" />} />
-        <Route path="/vendor-app/signup" element={<SignupScreen role="vendor" />} />
+        <Route path="/vendor-app/signup" element={<VendorOnboardingWizard mode="register" />} />
         <Route path="/vendor-app/verify-otp" element={<AuthOTPScreen />} />
 
         {/* ─── Admin Login (Public) ─── */}

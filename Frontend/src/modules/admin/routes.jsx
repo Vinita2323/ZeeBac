@@ -4,6 +4,7 @@ import AdminLayout from './components/common/AdminLayout';
 import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import VendorsPage from './pages/VendorsPage';
+import VendorApplicationDetailPage from './pages/VendorApplicationDetailPage';
 import TransactionsPage from './pages/TransactionsPage';
 import CashbackRulesPage from './pages/CashbackRulesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -23,6 +24,7 @@ export default function AdminRoutes() {
         <Route path="/payouts" element={<PayoutsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
+        <Route path="/vendors/:id" element={<VendorApplicationDetailPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/rules" element={<CashbackRulesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />

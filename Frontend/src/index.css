@@ -2,14 +2,14 @@
 
 @theme {
   /* Colors */
-  --color-surface-tint: #643be0;
+  --color-surface-tint: #7c3aed;
   --color-on-surface: #191c1f;
-  --color-primary: #420093;
+  --color-primary: #7c3aed;
   --color-on-error: #ffffff;
   --color-on-tertiary-container: #c1b2e9;
   --color-inverse-primary: #cbbeff;
   --color-surface-container-highest: #e1e2e7;
-  --color-secondary: #420093;
+  --color-secondary: #9333ea;
   --color-secondary-fixed-dim: #d1bcff;
   --color-primary-fixed-dim: #cbbeff;
   --color-surface-container-lowest: #ffffff;
@@ -124,14 +124,110 @@
 body {
   margin: 0;
   min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 58, 237, 0.18) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.18);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.32);
+}
+
+a, button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #7a2dfe;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
 .premium-gradient {
-  background: radial-gradient(circle at top left, #7B2FFF 0%, #4F1DCC 100%);
+  background: radial-gradient(circle at top left, #9333ea 0%, #7c3aed 100%);
+}
+
+/* ─── App-wide light, airy gradient backdrop (replaces flat bg-[#f9f9ff]) ─── */
+.mesh-gradient {
+  background-color: #f7f6ff;
+  background-image:
+    radial-gradient(at 8% 8%, rgba(124, 58, 237, 0.16) 0px, transparent 42%),
+    radial-gradient(at 92% 6%, rgba(255, 105, 180, 0.12) 0px, transparent 40%),
+    radial-gradient(at 88% 92%, rgba(59, 130, 246, 0.14) 0px, transparent 45%),
+    radial-gradient(at 4% 88%, rgba(122, 45, 254, 0.14) 0px, transparent 42%);
+  background-attachment: fixed;
+}
+
+/* Fixed full-viewport ambient backdrop sitting behind every route */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #f7f6ff;
+  background-image:
+    radial-gradient(at 10% 0%, rgba(124, 58, 237, 0.18) 0px, transparent 45%),
+    radial-gradient(at 90% 10%, rgba(255, 105, 180, 0.13) 0px, transparent 42%),
+    radial-gradient(at 90% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 48%),
+    radial-gradient(at 5% 95%, rgba(122, 45, 254, 0.16) 0px, transparent 45%);
+}
+
+/* Standard content-width wrapper — keeps headers/mains/nav aligned & centered on wide screens */
+.app-container {
+  width: 100%;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Decorative floating blur orbs — reusable across onboarding/auth screens */
+.blob-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -24px) scale(1.08); }
+}
+.animate-drift {
+  animation: drift 10s ease-in-out infinite;
+}
+@keyframes drift-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-24px, 20px) scale(1.1); }
+}
+.animate-drift-reverse {
+  animation: drift-reverse 12s ease-in-out infinite;
 }
 
 @keyframes pulse-glow {
@@ -159,10 +255,20 @@ body {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Heavier frosted panel — used for auth/form cards that need to stand out over the mesh backdrop */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 20px 60px -12px rgba(124, 58, 237, 0.18), 0 8px 24px rgba(124, 58, 237, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .mesh-gradient {
@@ -182,7 +288,7 @@ body {
 }
 
 .btn-primary-gradient {
-  background: linear-gradient(135deg, #4f1dcc 0%, #7a2dfe 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
 }
 
 .interaction-scale:active {
@@ -191,13 +297,22 @@ body {
 }
 
 .glass-header {
-  background: rgba(248, 249, 254, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(248, 249, 254, 0.75);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+}
+
+/* Floating pill-shaped bottom nav frosted glass */
+.glass-nav {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 40px -8px rgba(124, 58, 237, 0.22), 0 2px 8px rgba(124, 58, 237, 0.06);
 }
 
 .cta-gradient {
-  background: linear-gradient(135deg, #3700a1 0%, #6000da 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%);
 }
 
 @keyframes subtle-float {
@@ -211,9 +326,9 @@ body {
 }
 
 .otp-input:focus {
-  box-shadow: 0 0 0 2px #3700a1, 0 4px 12px rgba(55, 0, 161, 0.2);
+  box-shadow: 0 0 0 2px #7c3aed, 0 4px 12px rgba(124, 58, 237, 0.2);
   background-color: white;
-  border-color: #3700a1;
+  border-color: #7c3aed;
 }
 
 @keyframes shake {

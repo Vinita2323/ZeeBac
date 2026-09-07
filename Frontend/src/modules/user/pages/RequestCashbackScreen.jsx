@@ -21,12 +21,16 @@ export default function RequestCashbackScreen() {
   const [uploadedFilePreview, setUploadedFilePreview] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Mock Camera State
-  const [isCameraActive, setIsCameraActive] = useState(false);
+  // GPS is captured as a fraud-review signal only — it never blocks
+  // submission. `locationStatus` just drives a small UI hint.
+  const [coords, setCoords] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('idle'); // idle | requesting | granted | denied
+
   const [submittedRequestId, setSubmittedRequestId] = useState('');
   const [submittedDateTime, setSubmittedDateTime] = useState('');
 
-  const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   // Fetch vendors for dropdown
   useEffect(() => {
@@ -83,15 +87,19 @@ export default function RequestCashbackScreen() {
     }
   };
 
-  const triggerMockCamera = () => {
-    setIsCameraActive(true);
-    setTimeout(() => {
-      // Simulate taking a photo of a receipt after 1.5 seconds
-      setUploadedFile({ name: 'receipt_camera_capture.jpg', type: 'image/jpeg' });
-      setUploadedFilePreview('https://lh3.googleusercontent.com/aida-public/AB6AXuCek6Qqfna9I0EwH5TU1y-WDUo4klPNl2WQ-d-bdDy7I-GqtHDS61K7BrgeDgRhD3ge8p_GN9dJxnxep8XKqjN-CPyGbf9DT9B9WMtJbqyGvdjPWEbQJbLRzgiHPa5y9u2aZhTPhlRoObRoOd6LiaG5Za2ayy-DsNWvSDQNREp-tlP4TfwlIMp1_2Liz0hN1AoiYMj2cCX_KF5wo3yYJmfcqVgDK0zIXptrf-Hsnck4TFfSxW__kbnf7MKIGYvcYkgiLDpMJ285KsZS');
-      setIsCameraActive(false);
-      setErrorMsg('');
-    }, 1500);
+  // Non-blocking best-effort location capture — used only as a fraud-review
+  // signal on the backend, never required to submit a request.
+  const requestLocation = () => {
+    if (coords || locationStatus === 'requesting' || !navigator.geolocation) return;
+    setLocationStatus('requesting');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+        setLocationStatus('granted');
+      },
+      () => setLocationStatus('denied'),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
   };
 
   const validateStep = () => {
@@ -116,7 +124,9 @@ export default function RequestCashbackScreen() {
 
   const handleNext = () => {
     if (validateStep()) {
-      setStep(step + 1);
+      const nextStep = step + 1;
+      if (nextStep === 2) requestLocation();
+      setStep(nextStep);
     }
   };
 
@@ -128,12 +138,19 @@ export default function RequestCashbackScreen() {
   const handleSubmit = async () => {
     setIsLoadingSubmit(true);
     try {
-      const res = await UserAPI.createCashbackRequest({
-        vendorId: selectedVendor.id,
-        amount: parseFloat(billAmount),
-        billImageUrl: uploadedFilePreview === 'pdf-placeholder' ? null : uploadedFilePreview,
-        description: description || 'Manual Cashback Request'
-      });
+      const formData = new FormData();
+      formData.append('vendorId', selectedVendor.id);
+      formData.append('amount', parseFloat(billAmount));
+      formData.append('description', description || 'Manual Cashback Request');
+      formData.append('paymentMethod', paymentMethod);
+      formData.append('purchaseDate', purchaseDate);
+      formData.append('billImg', uploadedFile);
+      if (coords) {
+        formData.append('latitude', coords.latitude);
+        formData.append('longitude', coords.longitude);
+      }
+
+      const res = await UserAPI.createCashbackRequest(formData);
 
       if (res.success) {
         const reqId = res.data._id;
@@ -147,7 +164,7 @@ export default function RequestCashbackScreen() {
       }
     } catch (err) {
       console.error(err);
-      setErrorMsg('Error submitting request. Please try again.');
+      setErrorMsg(err.response?.data?.message || 'Error submitting request. Please try again.');
     } finally {
       setIsLoadingSubmit(false);
     }
@@ -157,7 +174,7 @@ export default function RequestCashbackScreen() {
 
   if (isSuccess) {
     return (
-      <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
+      <div className="mesh-gradient text-on-surface min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
         <main className="w-full max-w-[440px] bg-white border border-outline-variant/20 shadow-2xl rounded-3xl p-lg space-y-lg text-center animate-reveal">
           <div className="relative w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg text-white">
             <span className="material-symbols-outlined text-[48px]" style={{ fontVariationSettings: "'wght' 600" }}>done</span>
@@ -208,23 +225,25 @@ export default function RequestCashbackScreen() {
   }
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-12">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-12">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm justify-between">
-        <div className="flex items-center gap-xs">
-          <button 
-            onClick={() => step > 1 ? handleBack() : navigate(-1)}
-            className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Request Cashback</span>
+      <header className="sticky top-0 z-50 glass-header px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button
+              onClick={() => step > 1 ? handleBack() : navigate(-1)}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-bold ml-1">Request Cashback</span>
+          </div>
+          <span className="text-caption text-outline font-semibold">Step {step} of 3</span>
         </div>
-        <span className="text-caption text-outline font-semibold">Step {step} of 3</span>
       </header>
 
       {/* Main Form container */}
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-lg flex flex-col justify-between text-left">
+      <main className="flex-grow app-container px-container-margin py-lg flex flex-col justify-between text-left">
         
         <div className="space-y-lg flex-1">
           {/* Indicator Timeline line */}
@@ -368,12 +387,7 @@ export default function RequestCashbackScreen() {
                 {/* Integrated Gallery / Camera Upload */}
                 <div>
                   <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Upload Bill Image / Receipt</label>
-                  {isCameraActive ? (
-                    <div className="w-full h-[100px] bg-black rounded-xl relative flex flex-col items-center justify-center overflow-hidden animate-pulse">
-                      <span className="material-symbols-outlined text-white text-[24px] animate-spin">photo_camera</span>
-                      <p className="text-white text-[10px] font-semibold mt-1 tracking-widest">CAPTURING RECEIPT...</p>
-                    </div>
-                  ) : uploadedFile ? (
+                  {uploadedFile ? (
                     <div className="relative border border-green-400 rounded-xl p-3 bg-green-50/20 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {uploadedFilePreview === 'pdf-placeholder' ? (
@@ -386,7 +400,7 @@ export default function RequestCashbackScreen() {
                           <span className="text-[10px] text-green-700 font-semibold mt-1 inline-block">Ready to submit</span>
                         </div>
                       </div>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => {
                           setUploadedFile(null);
@@ -401,7 +415,7 @@ export default function RequestCashbackScreen() {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current.click()}
+                        onClick={() => galleryInputRef.current.click()}
                         className="flex-1 h-[48px] bg-white border border-outline-variant/40 rounded-xl flex items-center justify-center gap-2 text-primary font-bold text-[13px] hover:bg-surface-container-low transition-colors cursor-pointer shadow-sm"
                       >
                         <span className="material-symbols-outlined text-[18px]">image</span>
@@ -409,7 +423,7 @@ export default function RequestCashbackScreen() {
                       </button>
                       <button
                         type="button"
-                        onClick={triggerMockCamera}
+                        onClick={() => cameraInputRef.current.click()}
                         className="h-[48px] px-4 bg-white border border-outline-variant/40 rounded-xl flex items-center justify-center text-secondary hover:bg-surface-container-low transition-colors cursor-pointer shadow-sm"
                         title="Take Camera Photo"
                       >
@@ -417,13 +431,31 @@ export default function RequestCashbackScreen() {
                       </button>
                     </div>
                   )}
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    className="hidden" 
+                  {/* Gallery: any existing image/PDF. Camera: `capture` opens the device's
+                      native camera directly on mobile instead of a file picker. */}
+                  <input
+                    type="file"
+                    ref={galleryInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
                     accept=".jpg,.jpeg,.png,.pdf"
                   />
+                  <input
+                    type="file"
+                    ref={cameraInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                  />
+                  <p className="text-[10px] text-on-surface-variant/70 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[13px]">
+                      {locationStatus === 'granted' ? 'location_on' : locationStatus === 'denied' ? 'location_off' : 'my_location'}
+                    </span>
+                    {locationStatus === 'granted' && 'Location captured — helps us verify this claim'}
+                    {locationStatus === 'denied' && "Location unavailable — you can still submit, it just won't include a location check"}
+                    {(locationStatus === 'idle' || locationStatus === 'requesting') && 'We may ask for your location to help verify this claim'}
+                  </p>
                 </div>
 
                 <div>

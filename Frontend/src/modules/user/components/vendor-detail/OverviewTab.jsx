@@ -144,9 +144,9 @@ export default function OverviewTab({ vendor }) {
                 <div>
                   {item.branding?.isBranded && (
                     <div className="flex items-center gap-1 mb-1.5">
-                      <span className="bg-[#420093]/10 text-[#420093] px-2 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-[#420093]/10 w-max">
+                      <span className="bg-[#7c3aed]/10 text-[#7c3aed] px-2 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-[#7c3aed]/10 w-max">
                         {item.branding.brandLogo ? (
-                          <img src={item.branding.brandLogo.startsWith('http') || item.branding.brandLogo.startsWith('data:') ? item.branding.brandLogo : `${API_BASE_URL}${item.branding.brandLogo}`} alt="logo" className="w-5 h-5 rounded-sm object-contain bg-white border border-[#420093]/20 p-[1px]" />
+                          <img src={item.branding.brandLogo.startsWith('http') || item.branding.brandLogo.startsWith('data:') ? item.branding.brandLogo : `${API_BASE_URL}${item.branding.brandLogo}`} alt="logo" className="w-5 h-5 rounded-sm object-contain bg-white border border-[#7c3aed]/20 p-[1px]" />
                         ) : (
                           <span className="material-symbols-outlined text-[12px]">verified</span>
                         )}
@@ -165,13 +165,29 @@ export default function OverviewTab({ vendor }) {
         </div>
       </div>
 
-      <button 
-        onClick={handleMessageVendor} 
-        className="w-full h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
-      >
-        <span className="material-symbols-outlined text-[20px]">chat</span>
-        Message Shop
-      </button>
+      <div className="flex gap-2.5 pt-2">
+        <button 
+          onClick={() => navigate('/pay-vendor', { state: { vendor } })} 
+          className="flex-1 h-[52px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-[0.98] shadow-md"
+        >
+          <span className="material-symbols-outlined text-[20px]">payments</span>
+          Pay Online
+        </button>
+        <button 
+          onClick={() => navigate('/request-cashback', { state: { vendor } })} 
+          className="flex-1 h-[52px] bg-secondary text-white font-title-md font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/90 transition-colors active:scale-[0.98] shadow-md"
+        >
+          <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+          Upload Bill
+        </button>
+        <button 
+          onClick={handleMessageVendor} 
+          className="w-[52px] h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
+          title="Message Shop"
+        >
+          <span className="material-symbols-outlined text-[22px]">chat</span>
+        </button>
+      </div>
     </div>
   );
 }

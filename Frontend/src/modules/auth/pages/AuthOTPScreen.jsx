@@ -116,13 +116,14 @@ export default function AuthOTPScreen() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f9f9ff] text-on-surface font-body-lg relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center mesh-gradient text-on-surface font-body-lg relative overflow-hidden p-4">
 
       {/* Decorative Blobs */}
-      <div className="absolute -top-32 -right-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="blob-orb w-80 h-80 bg-primary/15 -top-24 -right-24 animate-drift" />
+      <div className="blob-orb w-64 h-64 bg-secondary/12 -bottom-20 -left-20 animate-drift-reverse" />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 w-full z-50 flex items-center px-container-margin h-16 border-b border-outline-variant/10 bg-white/80 backdrop-blur-md">
+      <header className="fixed top-0 left-0 w-full z-50 flex items-center px-container-margin h-16 border-b border-outline-variant/10 glass-header">
         <button
           onClick={() => navigate(role === 'vendor' ? '/vendor-app/login' : '/login')}
           className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200 cursor-pointer"
@@ -133,7 +134,10 @@ export default function AuthOTPScreen() {
       </header>
 
       {/* Main Container */}
-      <main className="w-full max-w-[440px] flex flex-col px-container-margin py-xl space-y-lg mt-12 relative z-10">
+      <main className="w-full max-w-[440px] flex flex-col glass-panel rounded-[2rem] px-container-margin py-10 space-y-lg mt-12 relative z-10 animate-reveal">
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <span className="material-symbols-outlined text-primary text-[28px]">sms</span>
+        </div>
         <div className="text-left space-y-1">
           <h1 className="text-[26px] font-black tracking-tight text-on-surface leading-tight">Enter Code</h1>
           <p className="text-body-sm text-on-surface-variant">
@@ -148,7 +152,7 @@ export default function AuthOTPScreen() {
               <input
                 key={index}
                 ref={(el) => (inputRefs.current[index] = el)}
-                className={`w-14 h-16 bg-white border-2 rounded-xl text-center font-display text-headline-lg text-primary focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none transition-all otp-input ${
+                className={`w-14 h-16 bg-white/80 border-2 rounded-xl text-center font-display text-headline-lg text-primary focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none transition-all otp-input ${
                   verified ? 'border-green-500 bg-green-50' : 'border-outline-variant/50'
                 }`}
                 inputMode="numeric"
@@ -164,11 +168,15 @@ export default function AuthOTPScreen() {
           </div>
 
           <button
-            className={`w-full h-[56px] rounded-xl font-title-lg font-bold flex items-center justify-center transition-all duration-300 relative overflow-hidden ${otp.join('').length === 4 && !isLoading ? 'bg-[#420093] text-white shadow-lg hover:shadow-xl hover:-translate-y-1' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+            className={`w-full h-[56px] rounded-xl font-title-lg font-bold flex items-center justify-center gap-2 transition-all duration-300 relative overflow-hidden ${otp.join('').length === 4 && !isLoading ? 'btn-primary-gradient text-white shadow-lg shadow-primary/25 hover:-translate-y-0.5' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
             disabled={otp.join('').length !== 4 || isLoading}
             type="submit"
           >
-            {isLoading ? 'Verifying...' : 'Verify OTP'}
+            {isLoading ? (
+              <span className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>Verify OTP <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
+            )}
           </button>
         </form>
 

@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
-import { VendorAPI, API_BASE_URL } from '../../../services/api';
+import { VendorAPI, PosAPI, API_BASE_URL } from '../../../services/api';
+import useQrCode from '../../../hooks/useQrCode';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showPosModal, setShowPosModal] = useState(false);
+  const [posAmount, setPosAmount] = useState('1590');
+  const [generatedPosBill, setGeneratedPosBill] = useState(null);
+  const [isGeneratingPos, setIsGeneratingPos] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -16,8 +21,13 @@ export default function DashboardPage() {
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
-  const qrData = `zeebac://vendor/${zeebacId}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=96-0-218&data=${encodeURIComponent(qrData)}`;
+
+  // Signed + short-lived, rendered locally — only fetched once the modal is
+  // actually open, not on every dashboard visit.
+  const fetchQrToken = useCallback(() => VendorAPI.getQrToken(), []);
+  const { qrImageUrl, isLoading: qrLoading } = useQrCode(fetchQrToken, showQRModal);
+
+  const cashbackRate = currentUser?.cashbackRate ?? dashboardData?.data?.cashbackRate ?? 5;
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -28,6 +38,9 @@ export default function DashboardPage() {
           VendorAPI.getPendingRequests()
         ]);
         setDashboardData(statsRes);
+        if (statsRes.success && statsRes.data?.cashbackRate && !currentUser.cashbackRate) {
+          useAuthStore.getState().updateProfile({ cashbackRate: statsRes.data.cashbackRate });
+        }
         if (reqsRes.success) {
           setPendingRequests(reqsRes.data);
         }
@@ -49,7 +62,7 @@ export default function DashboardPage() {
       }
     };
     fetchStats();
-  }, []);
+  }, [currentUser.cashbackRate]);
 
   const stats = [
     { label: 'Total Revenue', value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: 'All time', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
@@ -76,6 +89,21 @@ export default function DashboardPage() {
     }
   };
 
+  const handleGeneratePosBill = async () => {
+    if (!posAmount || parseFloat(posAmount) <= 0) return;
+    setIsGeneratingPos(true);
+    try {
+      const res = await PosAPI.createBill(zeebacId, parseFloat(posAmount));
+      if (res.success) {
+        setGeneratedPosBill(res.data);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate POS Bill');
+    } finally {
+      setIsGeneratingPos(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pt-2 pb-6 text-left">
 
@@ -90,30 +118,38 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3 max-w-[350px] mx-auto w-full">
+      <div className="grid grid-cols-3 gap-2 mx-auto w-full">
         <button
           onClick={() => navigate('/vendor/scan-customer')}
-          className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer"
+          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
+            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
           </div>
-          <div className="text-left">
-            <p className="text-[12px] font-bold leading-tight">Scan Customer</p>
-            <p className="text-[9px] text-white/70">Log a transaction</p>
-          </div>
+          <p className="text-[11px] font-extrabold leading-tight">Scan Customer</p>
+          <p className="text-[8px] text-white/70">Log Cash</p>
         </button>
+
         <button
           onClick={() => setShowQRModal(true)}
-          className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer"
+          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+          <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-1">
+            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
-          <div className="text-left">
-            <p className="text-[12px] font-bold leading-tight">My Store QR</p>
-            <p className="text-[9px] text-on-surface-variant">Show to customers</p>
+          <p className="text-[11px] font-extrabold leading-tight">Store QR</p>
+          <p className="text-[8px] text-on-surface-variant">Counter QR</p>
+        </button>
+
+        <button
+          onClick={() => setShowPosModal(true)}
+          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
+        >
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
+            <span className="material-symbols-outlined text-[16px]">receipt_long</span>
           </div>
+          <p className="text-[11px] font-extrabold leading-tight">POS Bill</p>
+          <p className="text-[8px] text-white/80">Flow 2 Simulator</p>
         </button>
       </div>
 
@@ -168,7 +204,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex justify-between items-center mt-0.5">
                   <p className="text-[11px] text-on-surface-variant">{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> Request</p>
-                  <p className="text-[10px] text-green-600 font-bold">Estimated CB: ₹{(req.amount * (currentUser.cashbackRate / 100)).toFixed(2)}</p>
+                  <p className="text-[10px] text-green-600 font-bold">Estimated CB: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}</p>
                 </div>
 
                 {req.billImageUrl && (
@@ -279,7 +315,11 @@ export default function DashboardPage() {
               </p>
 
               <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-5 w-56 h-56 flex items-center justify-center shadow-inner mb-6">
-                <img src={qrUrl} alt="Store QR" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+                {qrImageUrl ? (
+                  <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
+                ) : (
+                  <div className={`w-8 h-8 border-2 border-secondary/30 border-t-secondary rounded-full ${qrLoading ? 'animate-spin' : ''}`} />
+                )}
               </div>
 
               <div className="bg-surface-container py-2 px-4 rounded-full flex items-center gap-2">
@@ -287,6 +327,85 @@ export default function DashboardPage() {
                 <span className="text-[14px] font-black tracking-widest text-on-surface">{zeebacId}</span>
               </div>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* POS Bill Simulator Modal */}
+      {showPosModal && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
+          <div className="bg-white w-full max-w-[340px] rounded-3xl p-6 shadow-2xl relative mx-auto text-left">
+            <button
+              onClick={() => { setShowPosModal(false); setGeneratedPosBill(null); }}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[24px]">receipt_long</span>
+              </div>
+              <div>
+                <h3 className="font-display font-extrabold text-[16px] text-on-surface leading-tight">POS Printed Bill Generator</h3>
+                <p className="text-[11px] text-on-surface-variant font-medium">Flow 2: Cash Payment with POS</p>
+              </div>
+            </div>
+
+            {!generatedPosBill ? (
+              <div className="space-y-4 pt-1">
+                <div>
+                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
+                    Bill Purchase Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={posAmount}
+                    onChange={(e) => setPosAmount(e.target.value)}
+                    placeholder="1590"
+                    className="w-full h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-purple-600 text-[18px] font-black text-on-surface"
+                  />
+                </div>
+                <button
+                  onClick={handleGeneratePosBill}
+                  disabled={isGeneratingPos || !posAmount}
+                  className="w-full h-12 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold text-[14px] rounded-xl shadow-md hover:from-purple-700 hover:to-indigo-700 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isGeneratingPos ? 'Generating Bill Signal...' : 'Print Bill & Generate QR'}
+                </button>
+              </div>
+            ) : (
+              <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 text-center space-y-3">
+                <div className="bg-white border-2 border-dashed border-purple-300 rounded-xl p-4 shadow-sm flex flex-col items-center">
+                  <span className="text-[10px] text-purple-700 font-extrabold uppercase tracking-widest block mb-2">PRINTED BILL QR CODE</span>
+                  
+                  {/* Scannable Visual QR Code Image */}
+                  <div className="w-44 h-44 bg-white border-2 border-purple-200 rounded-2xl p-2.5 shadow-inner flex items-center justify-center mb-2">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${generatedPosBill.billCode}`} 
+                      alt="Printed Bill QR Code" 
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  <div className="text-[18px] font-black tracking-widest text-purple-900 bg-purple-100 py-1.5 px-4 rounded-lg my-1 select-all w-full">
+                    {generatedPosBill.billCode}
+                  </div>
+                  <p className="text-[14px] font-bold text-on-surface mt-1">Amount: ₹{generatedPosBill.amount}</p>
+                  <p className="text-[11px] text-purple-600 font-medium">Cashback Rate: {generatedPosBill.cashbackRate}%</p>
+                </div>
+                <p className="text-[11px] text-on-surface-variant leading-tight">
+                  Scan this QR code using camera in Customer App's <b>Scan & Pay</b> or enter the bill code!
+                </p>
+                <button
+                  onClick={() => setGeneratedPosBill(null)}
+                  className="text-[12px] font-bold text-purple-700 hover:underline cursor-pointer"
+                >
+                  Generate Another Bill
+                </button>
+              </div>
+            )}
           </div>
         </div>,
         document.body

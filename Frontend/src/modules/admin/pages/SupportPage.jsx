@@ -64,7 +64,7 @@ export default function SupportPage() {
       <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-title-lg font-display font-extrabold text-[#31006E]">Support Tickets</h1>
+            <h1 className="text-title-lg font-display font-extrabold text-on-surface">Support Tickets</h1>
             <p className="text-body-sm text-on-surface-variant">Manage customer and vendor support requests</p>
           </div>
           <div className="flex gap-2">
@@ -72,8 +72,8 @@ export default function SupportPage() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-full text-[13px] font-bold transition-colors ${
-                  filter === f ? 'bg-[#420093] text-white' : 'bg-white border border-outline-variant/30 text-on-surface hover:bg-surface-container'
+                className={`px-4 py-2 rounded-full text-[13px] font-bold border transition-colors cursor-pointer ${
+                  filter === f ? 'bg-primary/10 text-primary border-primary/20 shadow-sm' : 'bg-white border-outline-variant/30 text-on-surface hover:bg-surface-container border-transparent'
                 }`}
               >
                 {f}
@@ -163,13 +163,13 @@ export default function SupportPage() {
                         <button 
                           onClick={handleReply}
                           disabled={!replyMessage.trim() || isReplying}
-                          className="flex-1 bg-primary text-white font-bold py-2 rounded-xl disabled:opacity-50"
+                          className="flex-1 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-bold py-2 rounded-xl disabled:opacity-50 cursor-pointer"
                         >
                           {isReplying ? 'Sending...' : 'Send & Resolve'}
                         </button>
                         <button 
                           onClick={() => handleClose(selectedTicket._id)}
-                          className="px-4 bg-error/10 text-error font-bold py-2 rounded-xl"
+                          className="px-4 bg-error/10 text-error hover:bg-error/20 transition-colors font-bold py-2 rounded-xl cursor-pointer"
                         >
                           Close
                         </button>

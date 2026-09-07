@@ -25,7 +25,7 @@ export default function AnalyticsPage() {
         
         if (usersRes.success) setUserGrowth(usersRes.data);
         if (catsRes.success) {
-          const colors = ['bg-primary', 'bg-purple-500', 'bg-blue-500', 'bg-teal-500', 'bg-outline-variant'];
+          const colors = ['bg-primary/70', 'bg-purple-400', 'bg-blue-400', 'bg-teal-400', 'bg-slate-400'];
           setCategories(catsRes.data.map((cat, idx) => ({ ...cat, color: colors[idx % colors.length] })));
         }
         if (vendorsRes.success) setTopVendors(vendorsRes.data);

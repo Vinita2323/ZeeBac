@@ -44,10 +44,14 @@ export default function LocationPermissionScreen() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-container-margin bg-[#f9f9ff] text-on-surface relative overflow-hidden select-none font-body-lg">
+    <div className="min-h-screen flex flex-col items-center justify-center p-container-margin mesh-gradient text-on-surface relative overflow-hidden select-none font-body-lg">
+      {/* Decorative floating orbs */}
+      <div className="blob-orb w-72 h-72 bg-primary/14 -top-16 -right-16 animate-drift" />
+      <div className="blob-orb w-64 h-64 bg-secondary/12 -bottom-16 -left-16 animate-drift-reverse" />
+
       {/* Top AppBar */}
       <header className="fixed top-0 left-0 w-full z-50 flex items-center px-container-margin h-16">
-        <button 
+        <button
           onClick={() => navigate(-1)}
           className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200 cursor-pointer"
         >
@@ -55,7 +59,7 @@ export default function LocationPermissionScreen() {
         </button>
       </header>
 
-      <main className="w-full max-w-[440px] flex flex-col items-center text-center mt-12 z-10 space-y-lg">
+      <main className="w-full max-w-[440px] flex flex-col items-center text-center mt-12 z-10 space-y-lg glass-panel rounded-[2.5rem] py-10 px-6">
         {/* Illustration Section */}
         <div className="relative w-full aspect-square flex items-center justify-center">
           {/* Background Decorative Blobs */}

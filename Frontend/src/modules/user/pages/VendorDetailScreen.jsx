@@ -71,7 +71,7 @@ export default function VendorDetailScreen() {
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface font-body-lg min-h-screen pb-12">
+    <div className="mesh-gradient text-on-surface font-body-lg min-h-screen pb-12">
       
       {/* Hero Banner Section */}
       <header className="relative h-[280px] w-full overflow-hidden bg-surface-container-high flex items-center justify-center">
@@ -146,6 +146,26 @@ export default function VendorDetailScreen() {
         {activeTab === 'photos' && <PhotosTab vendorId={vendor._id} />}
         {activeTab === 'reviews' && <ReviewsTab vendorId={vendor._id} vendor={vendor} />}
       </main>
+
+      {/* Sticky Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-outline-variant/10 p-3 shadow-lg">
+        <div className="max-w-[440px] mx-auto flex gap-3">
+          <button 
+            onClick={() => navigate('/pay-vendor', { state: { vendor } })} 
+            className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-[0.98] shadow-md shadow-purple-500/20"
+          >
+            <span className="material-symbols-outlined text-[20px]">payments</span>
+            Pay Online
+          </button>
+          <button 
+            onClick={() => navigate('/request-cashback', { state: { vendor } })} 
+            className="flex-1 h-12 bg-secondary text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-secondary/90 transition-colors active:scale-[0.98] shadow-md"
+          >
+            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+            Upload Bill
+          </button>
+        </div>
+      </div>
 
     </div>
   );

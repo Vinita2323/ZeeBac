@@ -8,8 +8,8 @@ export default function RequestsPage() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
-  const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const cashbackRate = currentUser?.cashbackRate ?? 5;
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -82,7 +82,7 @@ export default function RequestsPage() {
                 </div>
                 <div className="flex justify-between items-center mt-1">
                   <p className="text-[12px] text-on-surface-variant font-medium">{new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> Request</p>
-                  <p className="text-[11px] text-green-600 font-black">Estimated CB: ₹{(req.amount * (currentUser.cashbackRate / 100)).toFixed(2)}</p>
+                  <p className="text-[11px] text-green-600 font-black">Estimated CB: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}</p>
                 </div>
 
                 {req.billImageUrl && (

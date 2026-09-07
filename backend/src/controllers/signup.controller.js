@@ -119,109 +119,84 @@ export const customerSignup = async (req, res) => {
   }
 };
 
-// 2. Vendor Signup
-export const vendorSignup = async (req, res) => {
+// 2. Vendor Registration — Step 1 of the onboarding wizard.
+// Creates a minimal DRAFT Vendor doc (name/phone/email only) and issues tokens
+// immediately so Steps 2-4 can be saved incrementally via authenticated
+// /api/vendor/application/* endpoints. Replaces the old one-shot vendorSignup.
+export const vendorRegister = async (req, res) => {
   try {
-    const { 
-      phone, otp, storeName, ownerName, email, shopType, category, gstNumber,
-      fullAddress, landmark, city, state, pincode, lat, lng,
-      accountHolderName, bankName, accountNumber, ifscCode, upiId, description,
-      website, instagram, facebook, whatsapp
-    } = req.body;
+    const { phone, otp, name, email } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Full name is required.' });
+    }
 
     // 1. Verify OTP
     await verifyOtpOnly(phone, otp, 'signup', 'vendor');
 
-    // 2. Check if vendor already exists
+    // 2. One mobile number = one account
     const existingVendor = await Vendor.findOne({ phone });
     if (existingVendor) {
-      logger.warn(`[vendorSignup] Failed: Vendor already exists for phone ${phone}`);
-      return res.status(400).json({ success: false, message: 'Vendor account already exists.' });
+      logger.warn(`[vendorRegister] Failed: Vendor already exists for phone ${phone}`);
+      return res.status(400).json({ success: false, message: 'Vendor account already exists. Please login.' });
     }
 
     // 3. Generate Zeebac ID
     const zeebacId = await generateZeebacId('ZBV', Vendor);
 
-    // 4. Process files if any
-    const documents = {};
-    let profilePic = null;
-
-    if (!req.files || !req.files.aadhaarPan || !req.files.gstCertificate || !req.files.shopLicense) {
-      return res.status(400).json({ success: false, message: 'KYC documents (Aadhaar/PAN, GST, Shop License) are required.' });
-    }
-
-    if (req.files) {
-      if (req.files.storeLogo) profilePic = `/uploads/profiles/${req.files.storeLogo[0].filename}`;
-      
-      const addDoc = (field) => {
-        if (req.files[field]) {
-          documents[field] = {
-            fileName: req.files[field][0].originalname,
-            fileUrl: `/uploads/documents/${req.files[field][0].filename}`,
-            fileType: req.files[field][0].mimetype,
-            uploadedAt: new Date()
-          };
-        }
-      };
-
-      addDoc('aadhaarPan');
-      addDoc('gstCertificate');
-      addDoc('shopLicense');
-      addDoc('cancelledCheque');
-    }
-
-    // 5. Create Vendor (Status: Pending)
+    // 4. Create the DRAFT application
     const vendor = await Vendor.create({
       zeebacId,
-      storeName,
-      ownerName,
-      email,
+      ownerName: name.trim(),
       phone,
-      shopType,
-      category,
-      description,
-      gstNumber,
-      address: {
-        fullAddress,
-        landmark,
-        city,
-        state,
-        pincode
-      },
-      location: (lat && lng) ? {
-        type: 'Point',
-        coordinates: [parseFloat(lng), parseFloat(lat)]
-      } : undefined,
-      bankDetails: {
-        accountHolderName,
-        bankName,
-        accountNumber,
-        ifscCode,
-        upiId
-      },
-      socialLinks: {
-        website,
-        instagram,
-        facebook,
-        whatsapp
-      },
-      documents,
-      profilePic
+      email,
+      applicationStatus: 'DRAFT',
     });
 
-    logger.info(`[vendorSignup] Success: Vendor submitted application with ID ${vendor._id}`);
+    // 5. Issue tokens so the wizard can continue as an authenticated vendor
+    const tokens = sendTokens(res, vendor);
+    vendor.refreshToken = tokens.refreshToken;
+    await vendor.save();
 
-    // Notify Admins
-    await notifyAdmins('VENDOR_KYC', 'New Vendor Registration', `The store "${storeName}" has submitted KYC documents for approval.`);
+    logger.info(`[vendorRegister] Success: Vendor account created with ID ${vendor._id}`);
 
-    // Vendor application is pending KYC. No token is returned yet.
     res.status(201).json({
       success: true,
-      message: 'Vendor application submitted successfully. Pending KYC approval.'
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      vendor: {
+        _id: vendor._id,
+        ownerName: vendor.ownerName,
+        phone: vendor.phone,
+        email: vendor.email,
+        zeebacId: vendor.zeebacId,
+        role: vendor.role,
+        status: vendor.status,
+        applicationStatus: vendor.applicationStatus,
+      }
     });
-
   } catch (error) {
-    logger.error(`[vendorSignup] Error: ${error.message}`);
+    logger.error(`[vendorRegister] Error: ${error.message}`);
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// 3. Business categories for the vendor onboarding dropdown — derived from
+// existing vendors (any status, not just Verified, since a brand-new category
+// should still surface once any vendor has used it) plus a small seed list so
+// the dropdown isn't empty on a fresh database.
+const SEED_CATEGORIES = [
+  'Fashion & Apparel', 'Electronics', 'Groceries & Supermarkets', 'Restaurants & Cafes',
+  'Health & Pharmacy', 'Home & Furniture', 'Beauty & Personal Care', 'Other'
+];
+
+export const getVendorCategories = async (req, res) => {
+  try {
+    const dbCategories = await Vendor.distinct('category', { category: { $ne: null } });
+    const merged = Array.from(new Set([...SEED_CATEGORIES.filter(c => c !== 'Other'), ...dbCategories, 'Other']));
+    res.status(200).json({ success: true, data: merged });
+  } catch (error) {
+    logger.error(`[getVendorCategories] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

@@ -43,12 +43,12 @@ export default function AdminTopBar({ onMenuClick }) {
     };
   }, []);
   return (
-    <div className="h-[64px] bg-white border-b border-outline-variant/20 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+    <div className="h-[64px] bg-white border-b border-slate-200/80 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
       
       <div className="flex items-center gap-2 md:gap-4">
         {/* Mobile Menu Button */}
         <button 
-          className="md:hidden p-2 -ml-2 text-on-surface hover:bg-surface-container-low rounded-lg transition-colors shrink-0"
+          className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-50 active:bg-slate-100 rounded-lg transition-colors shrink-0 cursor-pointer"
           onClick={onMenuClick}
         >
           <span className="material-symbols-outlined">menu</span>
@@ -56,11 +56,11 @@ export default function AdminTopBar({ onMenuClick }) {
 
         {/* Left side: Search Bar */}
         <div className="relative group hidden md:block">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant group-focus-within:text-primary transition-colors text-[18px]">search</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 group-focus-within:text-primary transition-colors text-[18px]">search</span>
           <input 
             type="text" 
             placeholder="Search platform..." 
-            className="w-64 focus:w-96 h-10 bg-white border border-outline-variant/30 rounded-xl pl-10 pr-4 text-[13px] focus:outline-none focus:border-primary focus:shadow-[0_2px_12px_rgba(98,0,234,0.08)] transition-all duration-300"
+            className="w-60 focus:w-80 h-10 bg-slate-50/50 border border-slate-200 rounded-xl pl-10 pr-4 text-[13px] focus:outline-none focus:border-primary focus:bg-white focus:shadow-[0_2px_12px_rgba(124,58,237,0.06)] transition-all duration-300"
           />
         </div>
       </div>
@@ -70,7 +70,7 @@ export default function AdminTopBar({ onMenuClick }) {
         <div className="relative">
           <button 
             onClick={() => setShowDropdown(!showDropdown)}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors relative cursor-pointer"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-50 active:bg-slate-100 transition-colors relative cursor-pointer"
           >
             <span className="material-symbols-outlined text-[24px]">notifications</span>
             {unreadCount > 0 && (
@@ -100,10 +100,10 @@ export default function AdminTopBar({ onMenuClick }) {
           )}
         </div>
         
-        <div className="hidden sm:flex items-center gap-3 border-l border-outline-variant/20 pl-4 ml-2">
+        <div className="hidden sm:flex items-center gap-3 border-l border-slate-200/80 pl-4 ml-2">
           <div className="text-right">
-            <p className="text-[13px] font-bold text-on-surface leading-tight">Super Admin</p>
-            <p className="text-[11px] text-on-surface-variant">System Owner</p>
+            <p className="text-[13px] font-bold text-slate-800 leading-tight">Super Admin</p>
+            <p className="text-[11px] text-slate-500">System Owner</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
             <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>

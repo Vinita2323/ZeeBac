@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, API_BASE_URL } from '../../../services/api';
 import { downloadImage, shareContent } from '../../../utils/exportUtils';
+import useQrCode from '../../../hooks/useQrCode';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -680,46 +681,7 @@ export default function ProfilePage() {
         <hr className="border-t-2 border-blue-100/60 my-1.5" />
 
         {/* My Store QR Card */}
-        {(() => {
-          const zeebacId = currentUser.zeebacId || 'ZBV-0000';
-          const qrData = `zeebac://vendor/${zeebacId}`;
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=0-128-128&data=${encodeURIComponent(qrData)}`;
-          return (
-            <div className="flex items-center gap-4 py-3 px-1">
-              <div className="flex-1 space-y-3">
-                <div className="space-y-1">
-                  <h3 className="font-display text-[15px] font-black text-on-surface flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
-                    My Store QR
-                  </h3>
-                  <p className="text-[11px] text-on-surface-variant leading-tight">Show this to customers for instant cashback</p>
-                </div>
-                
-                <div className="flex gap-1.5">
-                  <button 
-                    onClick={() => downloadImage(qrUrl, `Zeebac_QR_${zeebacId}.png`)}
-                    className="flex-1 py-1.5 px-1 bg-primary text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 shadow-sm active:scale-95 transition-transform cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">download</span>
-                    Download
-                  </button>
-                  <button 
-                    onClick={() => shareContent(qrUrl, 'Scan & Pay via ZeeBac', 'Scan this QR at my store to pay and earn instant cashback!')}
-                    className="flex-1 py-1.5 px-1 bg-white text-primary border border-primary rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 active:scale-95 transition-transform cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">share</span>
-                    Share
-                  </button>
-                </div>
-              </div>
-
-              {/* QR Image */}
-              <div className="bg-[#fcfaff] border border-outline-variant/15 rounded-2xl p-1.5 w-[92px] h-[92px] flex items-center justify-center shadow-inner flex-shrink-0">
-                <img src={qrUrl} alt="Store QR" className="w-full h-full object-contain" />
-              </div>
-            </div>
-          );
-        })()}
+        <VendorStoreQrCard zeebacId={currentUser.zeebacId || 'ZBV-0000'} />
 
         <hr className="border-t-2 border-blue-100/60 my-1.5" />
 
@@ -1260,6 +1222,57 @@ export default function ProfilePage() {
         document.body
       )}
 
+    </div>
+  );
+}
+
+// Pulled out as its own component (not an inline IIFE) because it needs to
+// call the useQrCode hook, and hooks can't run inside a function invoked
+// mid-render. Signed + short-lived token, rendered locally instead of via
+// the third-party image API this used to call.
+function VendorStoreQrCard({ zeebacId }) {
+  const fetchQrToken = useCallback(() => VendorAPI.getQrToken(), []);
+  const { qrImageUrl, isLoading } = useQrCode(fetchQrToken);
+
+  return (
+    <div className="flex items-center gap-4 py-3 px-1">
+      <div className="flex-1 space-y-3">
+        <div className="space-y-1">
+          <h3 className="font-display text-[15px] font-black text-on-surface flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+            My Store QR
+          </h3>
+          <p className="text-[11px] text-on-surface-variant leading-tight">Show this to customers for instant cashback</p>
+        </div>
+
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_QR_${zeebacId}.png`)}
+            disabled={!qrImageUrl}
+            className="flex-1 py-1.5 px-1 bg-primary text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 shadow-sm active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[13px]">download</span>
+            Download
+          </button>
+          <button
+            onClick={() => qrImageUrl && shareContent(qrImageUrl, 'Scan & Pay via ZeeBac', 'Scan this QR at my store to pay and earn instant cashback!')}
+            disabled={!qrImageUrl}
+            className="flex-1 py-1.5 px-1 bg-white text-primary border border-primary rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[13px]">share</span>
+            Share
+          </button>
+        </div>
+      </div>
+
+      {/* QR Image */}
+      <div className="bg-[#fcfaff] border border-outline-variant/15 rounded-2xl p-1.5 w-[92px] h-[92px] flex items-center justify-center shadow-inner shrink-0">
+        {qrImageUrl ? (
+          <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
+        ) : (
+          <div className={`w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full ${isLoading ? 'animate-spin' : ''}`} />
+        )}
+      </div>
     </div>
   );
 }

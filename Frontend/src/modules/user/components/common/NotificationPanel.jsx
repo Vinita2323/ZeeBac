@@ -65,18 +65,18 @@ export default function NotificationPanel({ isOpen, onClose, triggerRef }) {
           ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-[#420093]/5 to-white">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-[#7c3aed]/5 to-white">
           <div>
-            <h2 className="font-black text-[17px] text-[#420093]">Notifications</h2>
-            <p className="text-[11px] text-gray-500 mt-0.5">Aapke saare updates</p>
+            <h2 className="font-black text-[17px] text-[#7c3aed]">Notifications</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">All your updates</p>
           </div>
           <div className="flex items-center gap-2">
             {notifications.some((n) => !n.isRead) && (
               <button
                 onClick={markAllAsRead}
-                className="text-[11px] text-[#420093] font-bold hover:underline"
+                className="text-[11px] text-[#7c3aed] font-bold hover:underline"
               >
-                Sab Read Karen
+                Mark all read
               </button>
             )}
             <button
@@ -92,14 +92,14 @@ export default function NotificationPanel({ isOpen, onClose, triggerRef }) {
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-              <div className="w-8 h-8 border-2 border-[#420093] border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm">Load ho raha hai...</p>
+              <div className="w-8 h-8 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm">Loading notifications...</p>
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400 px-8 text-center">
               <span className="material-symbols-outlined text-[56px] text-gray-200">notifications_off</span>
-              <p className="font-bold text-[15px] text-gray-500">Koi notification nahi</p>
-              <p className="text-[13px] text-gray-400">Payment karo ya koi activity karo, notifications yahan dikhengi!</p>
+              <p className="font-bold text-[15px] text-gray-500">No notifications yet</p>
+              <p className="text-[13px] text-gray-400">Make a payment or activity to see updates here!</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
@@ -110,7 +110,7 @@ export default function NotificationPanel({ isOpen, onClose, triggerRef }) {
                     key={notif._id}
                     onClick={() => !notif.isRead && markAsRead(notif._id)}
                     className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors duration-150
-                      ${notif.isRead ? 'bg-white hover:bg-gray-50' : 'bg-[#420093]/[0.03] hover:bg-[#420093]/[0.06]'}`}
+                      ${notif.isRead ? 'bg-white hover:bg-gray-50' : 'bg-[#7c3aed]/[0.03] hover:bg-[#7c3aed]/[0.06]'}`}
                   >
                     {/* Icon */}
                     <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${style.bg}`}>
@@ -126,7 +126,7 @@ export default function NotificationPanel({ isOpen, onClose, triggerRef }) {
                           {notif.title}
                         </p>
                         {!notif.isRead && (
-                          <div className="w-2 h-2 rounded-full bg-[#420093] flex-shrink-0 mt-1" />
+                          <div className="w-2 h-2 rounded-full bg-[#7c3aed] flex-shrink-0 mt-1" />
                         )}
                       </div>
                       <p className="text-[12px] text-gray-500 mt-0.5 leading-snug line-clamp-2">

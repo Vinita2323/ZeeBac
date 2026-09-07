@@ -161,39 +161,41 @@ export default function ChatScreen() {
 
   if (selectedChat && activeChatData) {
     return (
-      <div className="flex flex-col h-screen bg-[#f9f9ff] text-left animate-reveal" style={{ fontFamily: "'Quicksand', sans-serif" }}>
+      <div className="flex flex-col h-screen mesh-gradient text-left animate-reveal" style={{ fontFamily: "'Quicksand', sans-serif" }}>
         {/* Chat Room Header */}
-        <header className="sticky top-0 z-50 bg-white px-4 py-3 flex items-center gap-3 border-b border-outline-variant/10 shadow-sm">
-          <button 
-            onClick={() => setSelectedChat(null)} 
-            className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-primary text-[22px]">arrow_back</span>
-          </button>
-          
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[16px] uppercase overflow-hidden">
-            {activeChatData.vendorId?.profilePic ? (
-              <img src={activeChatData.vendorId.profilePic.startsWith('http') || activeChatData.vendorId.profilePic.startsWith('data:') ? activeChatData.vendorId.profilePic : `${import.meta.env.VITE_API_URL}${activeChatData.vendorId.profilePic}`} alt="avatar" className="w-full h-full object-cover" />
-            ) : (
-              activeChatData.vendorId?.storeName?.charAt(0) || 'V'
-            )}
+        <header className="sticky top-0 z-50 glass-header px-4 py-3 border-b border-outline-variant/10 shadow-sm">
+          <div className="app-container flex items-center gap-3">
+            <button
+              onClick={() => setSelectedChat(null)}
+              className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary text-[22px]">arrow_back</span>
+            </button>
+
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[16px] uppercase overflow-hidden">
+              {activeChatData.vendorId?.profilePic ? (
+                <img src={activeChatData.vendorId.profilePic.startsWith('http') || activeChatData.vendorId.profilePic.startsWith('data:') ? activeChatData.vendorId.profilePic : `${import.meta.env.VITE_API_URL}${activeChatData.vendorId.profilePic}`} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                activeChatData.vendorId?.storeName?.charAt(0) || 'V'
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-[15px] text-on-surface truncate leading-tight">{activeChatData.vendorId?.storeName}</h3>
+              <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
+                Online
+              </p>
+            </div>
+
+            <button className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2">
+              <span className="material-symbols-outlined text-[20px]">call</span>
+            </button>
           </div>
-          
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-[15px] text-on-surface truncate leading-tight">{activeChatData.vendorId?.storeName}</h3>
-            <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
-              Online
-            </p>
-          </div>
-          
-          <button className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2">
-            <span className="material-symbols-outlined text-[20px]">call</span>
-          </button>
         </header>
 
         {/* Messages List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth app-container w-full">
           {messages.map((msg) => {
             const isMe = msg.sender === 'customer';
             return (
@@ -224,11 +226,11 @@ export default function ChatScreen() {
         </div>
 
         {/* Input Bar */}
-        <div className="bg-white border-t border-outline-variant/10 pb-safe">
+        <div className="glass-header border-t border-outline-variant/10 pb-safe">
           {isUploading && (
-            <div className="px-4 py-1 text-xs text-primary animate-pulse">Uploading image...</div>
+            <div className="app-container px-4 py-1 text-xs text-primary animate-pulse">Uploading image...</div>
           )}
-          <form onSubmit={handleSendMessage} className="p-3 flex gap-2 items-center">
+          <form onSubmit={handleSendMessage} className="app-container p-3 flex gap-2 items-center">
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -266,26 +268,28 @@ export default function ChatScreen() {
   }
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-safe" style={{ fontFamily: "'Quicksand', sans-serif" }}>
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-safe" style={{ fontFamily: "'Quicksand', sans-serif" }}>
       
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-outline-variant/10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => navigate('/home')} 
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+      <header className="sticky top-0 z-50 glass-header px-4 py-3 border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/home')}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+            </button>
+            <h1 className="font-display font-black text-[20px]">Messages</h1>
+          </div>
+          <button className="text-primary w-10 h-10 rounded-full hover:bg-primary/5 transition-colors flex items-center justify-center active:scale-95 cursor-pointer">
+            <span className="material-symbols-outlined text-[22px]">search</span>
           </button>
-          <h1 className="font-display font-black text-[20px]">Messages</h1>
         </div>
-        <button className="text-primary w-10 h-10 rounded-full hover:bg-primary/5 transition-colors flex items-center justify-center active:scale-95 cursor-pointer">
-          <span className="material-symbols-outlined text-[22px]">search</span>
-        </button>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-[440px] mx-auto w-full px-4 py-6 space-y-4 text-left">
+      <main className="flex-1 app-container px-4 py-6 space-y-4 text-left">
         <div className="divide-y divide-outline-variant/10">
           {conversations.length === 0 ? (
              <div className="text-center py-10 text-on-surface-variant text-sm">No conversations yet.</div>

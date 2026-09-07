@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
+import Vendor from '../models/Vendor.js';
 
 // Protect routes — verify accessToken
 export const protect = async (req, res, next) => {
@@ -34,4 +35,28 @@ export const requireRole = (...roles) => {
     }
     next();
   };
+};
+
+// Blocks vendors whose onboarding application isn't yet approved from reaching
+// trading/dashboard functionality (profile + application endpoints stay open —
+// see vendor.routes.js for which routes this is applied to).
+export const requireApprovedVendor = async (req, res, next) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id).select('status applicationStatus');
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+    if (vendor.status !== 'Verified') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your vendor application is not yet approved.',
+        applicationStatus: vendor.applicationStatus,
+        status: vendor.status,
+      });
+    }
+    next();
+  } catch (error) {
+    logger.error(`[requireApprovedVendor] ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };

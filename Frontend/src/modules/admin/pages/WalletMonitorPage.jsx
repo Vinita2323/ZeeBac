@@ -106,7 +106,7 @@ export default function WalletMonitorPage() {
               <option value="amount_high">Amount (High-Low)</option>
               <option value="amount_low">Amount (Low-High)</option>
             </select>
-            <button onClick={handleExport} className="h-10 px-4 bg-white border border-outline-variant/30 rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors w-full sm:w-auto">
+            <button onClick={handleExport} className="h-10 px-4 bg-primary/10 text-primary rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors w-full sm:w-auto cursor-pointer">
               <span className="material-symbols-outlined text-[18px]">download</span>
               <span className="sm:inline">Export</span>
             </button>
@@ -136,7 +136,7 @@ export default function WalletMonitorPage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-1.5 text-[12px] font-bold transition-colors ${activeTab === tab ? 'bg-primary text-white' : 'text-on-surface-variant hover:bg-surface-container-low'}`}
+                className={`px-4 py-1.5 text-[12px] font-bold transition-colors cursor-pointer ${activeTab === tab ? 'bg-primary/10 text-primary font-bold' : 'text-on-surface-variant hover:bg-surface-container-low'}`}
               >
                 {tab}
               </button>

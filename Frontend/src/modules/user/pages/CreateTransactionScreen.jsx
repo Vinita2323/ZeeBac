@@ -64,7 +64,7 @@ export default function CreateTransactionScreen() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f9f9ff] text-on-surface font-body-lg">
+    <div className="min-h-screen flex flex-col mesh-gradient text-on-surface font-body-lg">
         {/* Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
           <button 
@@ -84,7 +84,7 @@ export default function CreateTransactionScreen() {
               <div className="h-[56px] relative">
                 <input 
                   autoFocus
-                  className="w-full h-full px-md bg-[#F3F4F6] rounded-xl border border-transparent outline-none focus:border-[#420093] focus:bg-white text-body-lg placeholder:text-outline transition-all"
+                  className="w-full h-full px-md bg-[#F3F4F6] rounded-xl border border-transparent outline-none focus:border-[#7c3aed] focus:bg-white text-body-lg placeholder:text-outline transition-all"
                   placeholder="Enter 10-digit number or ID" 
                   type="text"
                   value={recipientInput}
@@ -150,5 +150,3 @@ export default function CreateTransactionScreen() {
       </div>
   );
 }
-
-

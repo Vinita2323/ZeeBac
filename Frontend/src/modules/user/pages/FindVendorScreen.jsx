@@ -25,7 +25,7 @@ export default function FindVendorScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-on-surface flex flex-col font-body-lg">
+    <div className="min-h-screen mesh-gradient text-on-surface flex flex-col font-body-lg">
 
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 flex items-center border-b border-outline-variant/10 shadow-sm">

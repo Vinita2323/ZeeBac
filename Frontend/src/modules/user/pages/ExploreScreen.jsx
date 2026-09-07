@@ -138,7 +138,7 @@ export default function ExploreScreen() {
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       
       {/* Top Search bar Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-4 py-2 border-b border-outline-variant/10 shadow-sm space-y-2">

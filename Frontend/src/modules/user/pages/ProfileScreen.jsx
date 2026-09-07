@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { shareContent, downloadImage } from '../../../utils/exportUtils';
+import useQrCode from '../../../hooks/useQrCode';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -188,7 +189,7 @@ export default function ProfileScreen() {
 
   // MAIN PROFILE SCREEN VIEW
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 flex items-center border-b border-outline-variant/10 shadow-sm">
         <span className="font-display text-title-md text-primary font-black">My Profile</span>
@@ -218,7 +219,7 @@ export default function ProfileScreen() {
               capture="user"
               onChange={handleImageUpload}
             />
-            <div className="w-18 h-18 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093] border border-[#420093]/20 overflow-hidden relative">
+            <div className="w-18 h-18 rounded-full bg-[#7c3aed]/10 flex items-center justify-center text-[#7c3aed] border border-[#7c3aed]/20 overflow-hidden relative">
               {profile.profileImage ? (
                 <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
@@ -240,7 +241,7 @@ export default function ProfileScreen() {
           </div>
           <button 
             onClick={() => setSubView('edit-profile')}
-            className="w-9 h-9 rounded-full bg-[#420093]/10 hover:bg-[#420093]/20 flex items-center justify-center text-[#420093] cursor-pointer transition-colors"
+            className="w-9 h-9 rounded-full bg-[#7c3aed]/10 hover:bg-[#7c3aed]/20 flex items-center justify-center text-[#7c3aed] cursor-pointer transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">edit</span>
           </button>
@@ -296,10 +297,10 @@ export default function ProfileScreen() {
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
             <div 
               onClick={() => navigate('/passbook')}
-              className="p-md hover:bg-[#420093]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">history</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">history</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Cashback History</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">View details and check receipt audits</p>
@@ -310,10 +311,10 @@ export default function ProfileScreen() {
 
             <div 
               onClick={() => setSubView('linked-accounts')}
-              className="p-md hover:bg-[#420093]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">account_balance</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">account_balance</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Cashout Accounts</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">Manage linked bank details & UPI</p>
@@ -324,10 +325,10 @@ export default function ProfileScreen() {
 
             <div 
               onClick={() => navigate('/wallet')}
-              className="p-md hover:bg-[#420093]/5 cursor-pointer flex items-center justify-between transition-colors"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">wallet</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">wallet</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Rewards Wallet</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">Check balance status & perks list</p>
@@ -344,10 +345,10 @@ export default function ProfileScreen() {
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
             <div 
               onClick={() => setSubView('qr-code')}
-              className="p-md hover:bg-[#420093]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">qr_code_2</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">qr_code_2</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">My QR Code</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">Receive cashback or payments instantly</p>
@@ -358,10 +359,10 @@ export default function ProfileScreen() {
 
             <div 
               onClick={() => setSubView('refer-earn')}
-              className="p-md hover:bg-[#420093]/5 cursor-pointer flex items-center justify-between transition-colors"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">card_giftcard</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">card_giftcard</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Refer & Earn</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">Get ₹150 reward for each friend you invite</p>
@@ -380,7 +381,7 @@ export default function ProfileScreen() {
             {/* Toggle 1: Notifications */}
             <div className="flex items-center justify-between py-1">
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">notifications_active</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">notifications_active</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Push Notifications</p>
                   <p className="font-caption text-[10px] text-on-surface-variant">Alerts on cashback audits and rewards</p>
@@ -393,14 +394,14 @@ export default function ProfileScreen() {
                   onChange={(e) => setNotifications(e.target.checked)} 
                   className="sr-only peer" 
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#420093]"></div>
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
               </label>
             </div>
 
             {/* Toggle 2: Biometrics */}
             <div className="flex items-center justify-between py-1 border-t border-outline-variant/10 pt-md">
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">fingerprint</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">fingerprint</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Biometric Security</p>
                   <p className="font-caption text-[10px] text-on-surface-variant">Protect cashouts with biometric validation</p>
@@ -413,7 +414,7 @@ export default function ProfileScreen() {
                   onChange={(e) => setBiometrics(e.target.checked)} 
                   className="sr-only peer" 
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#420093]"></div>
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
               </label>
             </div>
 
@@ -423,7 +424,7 @@ export default function ProfileScreen() {
               className="flex items-center justify-between py-1 border-t border-outline-variant/10 pt-md cursor-pointer hover:opacity-80 transition-opacity"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#420093]">contact_support</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">contact_support</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Help & FAQ Support</p>
                   <p className="font-caption text-[10px] text-on-surface-variant">Ask questions or chat with support assistants</p>
@@ -464,12 +465,12 @@ export default function ProfileScreen() {
             <div className="flex justify-around gap-4 mb-6">
               <button 
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex-1 flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-[#420093]/5 hover:bg-[#420093]/10 border border-[#420093]/10 transition-colors cursor-pointer active:scale-95"
+                className="flex-1 flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-[#7c3aed]/5 hover:bg-[#7c3aed]/10 border border-[#7c3aed]/10 transition-colors cursor-pointer active:scale-95"
               >
-                <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center text-[#420093]">
+                <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center text-[#7c3aed]">
                   <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
                 </div>
-                <span className="text-[12px] font-bold text-[#420093]">Take Photo</span>
+                <span className="text-[12px] font-bold text-[#7c3aed]">Take Photo</span>
               </button>
 
               <button 
@@ -520,7 +521,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
         <button 
           onClick={onBack}
@@ -540,7 +541,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#420093] focus:border-[#420093] outline-none text-body-lg transition-all"
+              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
             />
           </div>
 
@@ -561,7 +562,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#420093] focus:border-[#420093] outline-none text-body-lg transition-all"
+              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
             />
           </div>
         </form>
@@ -597,7 +598,7 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
         <button 
           onClick={onBack}
@@ -610,7 +611,7 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
 
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
         <form onSubmit={handleSubmit} className="space-y-md flex-grow">
-          <div className="bg-gradient-to-br from-[#420093] to-[#250058] text-white p-5 rounded-3xl shadow-lg relative overflow-hidden mb-lg">
+          <div className="bg-gradient-to-br from-[#7c3aed] to-[#a855f7] text-white p-5 rounded-3xl shadow-lg shadow-primary/25 relative overflow-hidden mb-lg">
             <span className="material-symbols-outlined absolute right-6 top-6 text-white/10 text-[80px] pointer-events-none select-none">account_balance_wallet</span>
             <div className="space-y-sm">
               <span className="text-[10px] text-white/60 tracking-widest uppercase">DEFAULT RECEIVING BANK</span>
@@ -630,7 +631,7 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
               type="text"
               value={upiId}
               onChange={(e) => setUpiId(e.target.value)}
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#420093] focus:border-[#420093] outline-none text-body-lg transition-all"
+              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
             />
           </div>
 
@@ -640,7 +641,7 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
               type="text"
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#420093] focus:border-[#420093] outline-none text-body-lg transition-all"
+              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
             />
           </div>
 
@@ -651,7 +652,7 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
               value={accNo}
               onChange={(e) => setAccNo(e.target.value)}
               placeholder="Enter last 4 digits or full account"
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#420093] focus:border-[#420093] outline-none text-body-lg transition-all"
+              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
             />
           </div>
         </form>
@@ -740,7 +741,7 @@ function SupportSubView({ onBack }) {
   const [activeFaq, setActiveFaq] = useState(null);
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
         <button 
           onClick={onBack}
@@ -754,7 +755,7 @@ function SupportSubView({ onBack }) {
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
         <div className="space-y-lg flex-grow">
           <div className="text-center space-y-xs pb-2 border-b border-outline-variant/10">
-            <span className="material-symbols-outlined text-[#420093] text-[48px] animate-bounce">contact_support</span>
+            <span className="material-symbols-outlined text-[#7c3aed] text-[48px] animate-bounce">contact_support</span>
             <h2 className="text-headline-sm font-extrabold text-on-surface">Frequently Asked Questions</h2>
             <p className="text-body-sm text-on-surface-variant">Quick answers to common questions about Zeebac rewards.</p>
           </div>
@@ -806,7 +807,7 @@ function SupportSubView({ onBack }) {
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     required
-                    className="w-full bg-[#f9f9ff] border border-outline-variant/30 rounded-xl px-4 py-3 text-body-sm focus:border-primary focus:outline-none"
+                    className="w-full mesh-gradient border border-outline-variant/30 rounded-xl px-4 py-3 text-body-sm focus:border-primary focus:outline-none"
                     placeholder="E.g., Cashback not received"
                   />
                 </div>
@@ -817,7 +818,7 @@ function SupportSubView({ onBack }) {
                     onChange={(e) => setMessage(e.target.value)}
                     required
                     rows="3"
-                    className="w-full bg-[#f9f9ff] border border-outline-variant/30 rounded-xl px-4 py-3 text-body-sm focus:border-primary focus:outline-none resize-none"
+                    className="w-full mesh-gradient border border-outline-variant/30 rounded-xl px-4 py-3 text-body-sm focus:border-primary focus:outline-none resize-none"
                     placeholder="Describe your issue..."
                   ></textarea>
                 </div>
@@ -886,8 +887,11 @@ function QRCodeSubView({ profile, onBack }) {
   const [copied, setCopied] = useState(false);
   const currentUser = useAuthStore(state => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBC-0000';
-  const qrData = `zeebac://customer/${zeebacId}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=66-0-147&data=${encodeURIComponent(qrData)}`;
+
+  // Signed + short-lived (15 min) — refreshes itself automatically while
+  // this screen stays open. Rendered locally, never sent to a third party.
+  const fetchToken = useCallback(() => UserAPI.getQrToken(), []);
+  const { qrImageUrl, isLoading, error, refresh } = useQrCode(fetchToken);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(zeebacId);
@@ -897,15 +901,15 @@ function QRCodeSubView({ profile, onBack }) {
 
   const handleShare = async () => {
     const text = `My Zeebac ID: ${zeebacId} — Scan my QR or enter this ID in the Zeebac app to transact with me!`;
-    await shareContent(qrUrl, 'My Zeebac QR', text);
+    if (qrImageUrl) await shareContent(qrImageUrl, 'My Zeebac QR', text);
   };
 
   const handleDownload = () => {
-    downloadImage(qrUrl, `Zeebac_QR_${zeebacId}.png`);
+    if (qrImageUrl) downloadImage(qrImageUrl, `Zeebac_QR_${zeebacId}.png`);
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-2 flex items-center border-b border-outline-variant/10 shadow-sm">
         <button 
           onClick={onBack}
@@ -920,11 +924,11 @@ function QRCodeSubView({ profile, onBack }) {
         <div className="w-full space-y-3 flex-grow flex flex-col justify-center items-center">
           {/* QR Container Card */}
           <div className="bg-white border border-outline-variant/30 rounded-2xl p-4 shadow-md w-full max-w-[280px] flex flex-col items-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#420093]"></div>
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#7c3aed]"></div>
 
             {/* Profile Info Header */}
             <div className="flex flex-col items-center mt-1 mb-2">
-              <div className="w-10 h-10 rounded-full bg-[#420093]/10 flex items-center justify-center text-[#420093] font-bold border border-[#420093]/20 mb-1 overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-[#7c3aed]/10 flex items-center justify-center text-[#7c3aed] font-bold border border-[#7c3aed]/20 mb-1 overflow-hidden">
                 {profile.profileImage ? (
                   <img src={profile.profileImage} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -937,19 +941,20 @@ function QRCodeSubView({ profile, onBack }) {
 
             {/* Actual QR Image */}
             <div className="bg-[#fcfcff] border border-outline-variant/20 rounded-xl p-3 w-40 h-40 flex items-center justify-center shadow-inner">
-              <img 
-                src={qrUrl} 
-                alt="Zeebac QR Code" 
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f3f4f6"/><text x="50" y="55" font-size="8" text-anchor="middle" fill="%239ca3af">QR Code</text></svg>';
-                }}
-              />
+              {qrImageUrl ? (
+                <img src={qrImageUrl} alt="Zeebac QR Code" className="w-full h-full object-contain" />
+              ) : isLoading ? (
+                <div className="w-6 h-6 border-2 border-[#7c3aed]/30 border-t-[#7c3aed] rounded-full animate-spin" />
+              ) : (
+                <button onClick={refresh} className="text-[11px] text-red-500 font-bold underline cursor-pointer">
+                  {error ? 'Failed to load — tap to retry' : 'Tap to load QR'}
+                </button>
+              )}
             </div>
 
             <div className="mt-2.5 flex items-center gap-1">
               <span className="text-[9px] text-on-surface-variant font-bold tracking-widest uppercase">POWERED BY</span>
-              <span className="text-[11px] font-black text-[#420093] tracking-tight">zeebac</span>
+              <span className="text-[11px] font-black text-[#7c3aed] tracking-tight">zeebac</span>
             </div>
           </div>
 
@@ -961,7 +966,7 @@ function QRCodeSubView({ profile, onBack }) {
             </div>
             <button 
               onClick={handleCopy}
-              className="px-2.5 py-1 rounded-lg bg-[#420093]/10 hover:bg-[#420093]/20 text-[#420093] text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-[#7c3aed]/10 hover:bg-[#7c3aed]/20 text-[#7c3aed] text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined text-sm">{copied ? 'done' : 'content_copy'}</span>
               <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -1044,7 +1049,7 @@ function ReferEarnSubView({ profile, onBack }) {
   };
 
   return (
-    <div className="bg-[#f9f9ff] text-on-surface min-h-screen flex flex-col font-body-lg">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
         <button 
           onClick={onBack}
@@ -1058,7 +1063,7 @@ function ReferEarnSubView({ profile, onBack }) {
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
         <div className="space-y-lg flex-grow">
           {/* Promotional Banner Card */}
-          <div className="bg-gradient-to-br from-[#420093] to-[#6b00f2] text-white p-5 rounded-3xl shadow-lg relative overflow-hidden flex items-center gap-md">
+          <div className="bg-gradient-to-br from-[#7c3aed] to-[#c026d3] text-white p-5 rounded-3xl shadow-lg shadow-primary/25 relative overflow-hidden flex items-center gap-md">
             <span className="material-symbols-outlined absolute right-[-10px] bottom-[-10px] text-white/10 text-[110px] pointer-events-none select-none">card_giftcard</span>
             <div className="flex-grow z-10">
               <span className="text-[10px] text-yellow-300 font-extrabold tracking-wider uppercase bg-yellow-500/20 px-2.5 py-1 rounded-full">LIMITED OFFER</span>
@@ -1071,7 +1076,7 @@ function ReferEarnSubView({ profile, onBack }) {
           <div className="grid grid-cols-2 gap-md">
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-md flex flex-col text-left shadow-sm">
               <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Friends Invited</span>
-              <h3 className="font-display text-title-md font-black text-[#420093] mt-1">{stats.invited}</h3>
+              <h3 className="font-display text-title-md font-black text-[#7c3aed] mt-1">{stats.invited}</h3>
             </div>
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-md flex flex-col text-left shadow-sm">
               <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Total Earned</span>
@@ -1082,13 +1087,13 @@ function ReferEarnSubView({ profile, onBack }) {
           {/* Referral Code Box */}
           <div className="space-y-xs">
             <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold pl-1">Your Referral Code</span>
-            <div className="bg-white border-2 border-dashed border-[#420093]/30 rounded-2xl p-md flex items-center justify-between shadow-sm">
+            <div className="bg-white border-2 border-dashed border-[#7c3aed]/30 rounded-2xl p-md flex items-center justify-between shadow-sm">
               <div className="flex-grow">
-                <span className="font-display text-title-sm font-black tracking-widest text-[#420093] uppercase select-all">{stats.code}</span>
+                <span className="font-display text-title-sm font-black tracking-widest text-[#7c3aed] uppercase select-all">{stats.code}</span>
               </div>
               <button 
                 onClick={handleCopy}
-                className="px-3.5 py-2 rounded-xl bg-[#420093]/10 hover:bg-[#420093]/20 text-[#420093] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-[#7c3aed]/10 hover:bg-[#7c3aed]/20 text-[#7c3aed] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px]">{copied ? 'done' : 'content_copy'}</span>
                 <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -1101,7 +1106,7 @@ function ReferEarnSubView({ profile, onBack }) {
             <h3 className="font-display text-body-sm font-extrabold text-on-surface uppercase tracking-wider pl-1">How it works</h3>
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-md space-y-md shadow-sm">
               <div className="flex gap-md">
-                <div className="w-6 h-6 rounded-full bg-[#420093]/10 text-[#420093] flex items-center justify-center font-bold text-xs flex-shrink-0">1</div>
+                <div className="w-6 h-6 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">1</div>
                 <div>
                   <h4 className="text-body-sm font-bold text-on-surface">Share your link</h4>
                   <p className="text-[11px] text-on-surface-variant mt-0.5">Send your custom referral invite to your friends.</p>
@@ -1109,7 +1114,7 @@ function ReferEarnSubView({ profile, onBack }) {
               </div>
 
               <div className="flex gap-md border-t border-outline-variant/10 pt-md">
-                <div className="w-6 h-6 rounded-full bg-[#420093]/10 text-[#420093] flex items-center justify-center font-bold text-xs flex-shrink-0">2</div>
+                <div className="w-6 h-6 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">2</div>
                 <div>
                   <h4 className="text-body-sm font-bold text-on-surface">Friend does receipt audit</h4>
                   <p className="text-[11px] text-on-surface-variant mt-0.5">They sign up with your code and get cashback on their first upload.</p>
@@ -1117,7 +1122,7 @@ function ReferEarnSubView({ profile, onBack }) {
               </div>
 
               <div className="flex gap-md border-t border-outline-variant/10 pt-md">
-                <div className="w-6 h-6 rounded-full bg-[#420093]/10 text-[#420093] flex items-center justify-center font-bold text-xs flex-shrink-0">3</div>
+                <div className="w-6 h-6 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">3</div>
                 <div>
                   <h4 className="text-body-sm font-bold text-on-surface">Get your cash reward</h4>
                   <p className="text-[11px] text-on-surface-variant mt-0.5">₹150 will be instantly deposited into your rewards wallet.</p>

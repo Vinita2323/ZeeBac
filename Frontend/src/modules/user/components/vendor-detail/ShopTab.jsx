@@ -85,9 +85,9 @@ export default function ShopTab({ vendor }) {
                 <div>
                   {product.branding?.isBranded && (
                     <div className="flex items-center gap-1 mb-1">
-                      <span className="bg-[#420093]/10 text-[#420093] px-2 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-[#420093]/10 w-max">
+                      <span className="bg-[#7c3aed]/10 text-[#7c3aed] px-2 py-1 rounded-md font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-[#7c3aed]/10 w-max">
                         {product.branding.brandLogo ? (
-                          <img src={product.branding.brandLogo.startsWith('http') || product.branding.brandLogo.startsWith('data:') ? product.branding.brandLogo : `${API_BASE_URL}${product.branding.brandLogo}`} alt="logo" className="w-5 h-5 rounded-sm object-contain bg-white border border-[#420093]/20 p-[1px]" />
+                          <img src={product.branding.brandLogo.startsWith('http') || product.branding.brandLogo.startsWith('data:') ? product.branding.brandLogo : `${API_BASE_URL}${product.branding.brandLogo}`} alt="logo" className="w-5 h-5 rounded-sm object-contain bg-white border border-[#7c3aed]/20 p-[1px]" />
                         ) : (
                           <span className="material-symbols-outlined text-[12px]">verified</span>
                         )}
