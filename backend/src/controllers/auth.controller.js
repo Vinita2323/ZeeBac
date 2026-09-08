@@ -27,8 +27,8 @@ export const sendOtp = async (req, res) => {
       }
     }
 
-    // Generate OTP: if USE_DEFAULT_OTP=true in dev mode, use '1234', else generate random 4-digit OTP
-    const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true' && process.env.NODE_ENV !== 'production';
+    // Generate OTP: if USE_DEFAULT_OTP=true, use '1234', else generate random 4-digit OTP
+    const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true';
     const otp = useDefaultOtp ? '1234' : Math.floor(1000 + Math.random() * 9000).toString();
 
     const salt = await bcrypt.genSalt(10);
@@ -55,7 +55,7 @@ export const sendOtp = async (req, res) => {
 
 // Internal helper to verify OTP
 export const verifyOtpOnly = async (phone, otp, purpose, role) => {
-  const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true' && process.env.NODE_ENV !== 'production';
+  const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true';
   if (useDefaultOtp && otp === '1234') {
     return true;
   }

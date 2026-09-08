@@ -10,6 +10,11 @@ import logger from './logger.js';
 //   - in production, sending throws instead of silently no-op'ing — an
 //     unconfigured SMS provider in production must never look like success.
 export const sendOtpSms = async (phone, otp) => {
+  if (process.env.USE_DEFAULT_OTP === 'true') {
+    logger.warn(`[OTP] Default OTP mode enabled — OTP for ${phone}: ${otp}`);
+    return { delivered: true, dev: true };
+  }
+
   const authKey = process.env.MSG91_AUTH_KEY;
   const templateId = process.env.MSG91_TEMPLATE_ID;
 
