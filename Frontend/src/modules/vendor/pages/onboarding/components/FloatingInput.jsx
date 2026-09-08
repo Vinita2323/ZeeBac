@@ -1,18 +1,69 @@
 import { useState } from 'react';
 
-export default function FloatingInput({ label, icon, type = 'text', value, onChange, readOnly, placeholder, multiline, required, error }) {
+export default function FloatingInput({
+  label, icon, type = 'text', value, onChange,
+  readOnly, placeholder, multiline, required, error,
+}) {
   const [focused, setFocused] = useState(false);
-  const isFilled = value && String(value).length > 0;
+  const isFilled = value != null && String(value).length > 0;
+  const isUp = focused || isFilled || !!placeholder;
   const InputEl = multiline ? 'textarea' : 'input';
 
   return (
-    <div className="space-y-1">
-      <div className={`relative flex ${multiline ? 'items-start pt-4' : 'items-center'} bg-white border border-slate-200 rounded-xl transition-colors ${
-        error ? 'border-red-400' : focused ? 'border-purple-600' : 'border-slate-200 hover:border-slate-300'
-      } ${readOnly ? 'bg-slate-50 border-slate-200' : ''}`}>
+    <div style={{ width: '100%' }}>
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: multiline ? undefined : '58px',
+          minHeight: multiline ? '80px' : undefined,
+          backgroundColor: readOnly ? '#f8fafc' : '#ffffff',
+          border: `1.5px solid ${error ? '#f87171' : focused ? '#7c3aed' : '#e2e8f0'}`,
+          borderRadius: '12px',
+          boxSizing: 'border-box',
+          transition: 'border-color 0.2s',
+        }}
+      >
+        {/* Icon */}
         {icon && (
-          <span className={`material-symbols-outlined absolute left-4 transition-colors ${focused ? 'text-[#7c3aed]' : 'text-gray-400'} ${multiline ? 'top-5' : ''}`}>{icon}</span>
+          <span
+            className="material-symbols-outlined"
+            style={{
+              position: 'absolute',
+              left: '14px',
+              top: multiline ? '16px' : '50%',
+              transform: multiline ? 'none' : 'translateY(-50%)',
+              fontSize: '20px',
+              color: focused ? '#7c3aed' : '#94a3b8',
+              pointerEvents: 'none',
+              transition: 'color 0.2s',
+            }}
+          >
+            {icon}
+          </span>
         )}
+
+        {/* Floating Label */}
+        <label
+          style={{
+            position: 'absolute',
+            left: icon ? '44px' : '14px',
+            top: isUp ? '8px' : multiline ? '16px' : '50%',
+            transform: (!isUp && !multiline) ? 'translateY(-50%)' : 'none',
+            fontSize: isUp ? '11px' : '14px',
+            fontWeight: isUp ? '600' : '400',
+            color: isUp ? '#7c3aed' : '#94a3b8',
+            pointerEvents: 'none',
+            transition: 'all 0.18s ease',
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+          {required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+        </label>
+
+        {/* Input */}
         <InputEl
           type={type}
           readOnly={readOnly}
@@ -20,22 +71,38 @@ export default function FloatingInput({ label, icon, type = 'text', value, onCha
           onChange={onChange}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={focused || readOnly ? placeholder : ''}
+          placeholder={focused && placeholder ? placeholder : ''}
           rows={multiline ? 3 : undefined}
-          className={`w-full bg-transparent outline-none px-4 pt-[18px] pb-[10px] text-[15px] font-bold text-gray-900 ${icon ? 'pl-12' : ''} ${multiline ? 'resize-none' : ''}`}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            top: multiline ? 0 : undefined,
+            height: multiline ? undefined : '36px',
+            width: '100%',
+            paddingLeft: icon ? '44px' : '14px',
+            paddingRight: '14px',
+            paddingTop: multiline ? '28px' : '0',
+            paddingBottom: multiline ? '8px' : '0',
+            background: 'transparent',
+            outline: 'none',
+            border: 'none',
+            fontSize: '15px',
+            fontWeight: '600',
+            color: '#111827',
+            boxSizing: 'border-box',
+            resize: multiline ? 'none' : undefined,
+            fontFamily: 'inherit',
+          }}
         />
-        <label className={`absolute transition-all duration-200 pointer-events-none ${icon ? 'left-12' : 'left-4'} ${
-          focused || isFilled || placeholder
-            ? 'top-2 text-[11px] font-bold text-[#7c3aed]'
-            : `text-[15px] text-gray-500 ${multiline ? 'top-5' : 'top-1/2 -translate-y-1/2'}`
-        }`}>
-          {label}{required && <span className="text-red-500">*</span>}
-        </label>
       </div>
+
       {error && (
-        <p className="text-[11.5px] font-bold text-red-500 flex items-center gap-1 ml-1">
-          <span className="material-symbols-outlined text-[13px]">error</span>{error}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', marginLeft: '4px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#ef4444' }}>error</span>
+          <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#ef4444' }}>{error}</span>
+        </div>
       )}
     </div>
   );

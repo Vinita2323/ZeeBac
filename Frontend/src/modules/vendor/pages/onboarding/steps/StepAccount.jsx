@@ -5,6 +5,17 @@ import FloatingInput from '../components/FloatingInput';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const card = {
+  width: '100%',
+  boxSizing: 'border-box',
+  background: 'rgba(255,255,255,0.85)',
+  backdropFilter: 'blur(24px)',
+  border: '1px solid rgba(255,255,255,0.9)',
+  borderRadius: '24px',
+  padding: '28px 24px',
+  boxShadow: '0 20px 60px -12px rgba(22,8,47,0.14), 0 8px 24px rgba(96,0,218,0.07)',
+};
+
 export default function StepAccount({ onComplete }) {
   const [phase, setPhase] = useState('form'); // 'form' | 'otp'
   const [name, setName] = useState('');
@@ -64,75 +75,158 @@ export default function StepAccount({ onComplete }) {
   };
 
   return (
-    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 animate-reveal" style={{ width: '100%', boxSizing: 'border-box' }}>
-      <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-5">
-        <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">storefront</span>
+    <div style={card}>
+      {/* Icon */}
+      <div style={{
+        width: '52px', height: '52px', borderRadius: '14px',
+        background: 'rgba(124,58,237,0.1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: '20px',
+      }}>
+        <span className="material-symbols-outlined" style={{ color: '#7c3aed', fontSize: '26px' }}>storefront</span>
       </div>
 
       {phase === 'form' ? (
         <>
-          <h1 className="text-[26px] font-black tracking-tight text-gray-900 leading-tight mb-2">Create your vendor account</h1>
-          <p className="text-[14px] text-gray-500 mb-6">Let's start with the basics. We'll verify your mobile number with an OTP.</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111827', margin: '0 0 6px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+            Create your vendor account
+          </h1>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 24px', lineHeight: 1.5 }}>
+            Let's start with the basics. We'll verify your mobile number with an OTP.
+          </p>
 
-          <div className="space-y-3">
-            <FloatingInput label="Full Name" icon="person" required value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <FloatingInput
-              label="Mobile Number" icon="phone_iphone" required type="tel" value={phone}
+              label="Full Name" icon="person" required
+              value={name} onChange={(e) => setName(e.target.value)}
+              error={errors.name}
+            />
+            <FloatingInput
+              label="Mobile Number" icon="phone_iphone" required type="tel"
+              value={phone}
               onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
               error={errors.phone}
             />
-            <FloatingInput label="Email Address (Optional)" icon="mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} />
+            <FloatingInput
+              label="Email Address (Optional)" icon="mail" type="email"
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              error={errors.email}
+            />
           </div>
 
           {apiError && (
-            <p className="mt-3 text-[12.5px] font-bold text-red-500 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px]">error</span>{apiError}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '12px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#ef4444' }}>error</span>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>{apiError}</span>
+            </div>
           )}
 
           <button
             onClick={handleSendOtp}
             disabled={isLoading}
-            className="w-full h-12 rounded-xl font-bold text-[16px] shadow-lg btn-primary-gradient text-white flex items-center justify-center gap-2 mt-6 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              width: '100%', height: '52px', marginTop: '24px',
+              borderRadius: '14px', border: 'none',
+              background: 'linear-gradient(135deg, #16082f 0%, #3b0764 50%, #6000da 100%)',
+              color: '#fff', fontWeight: '700', fontSize: '15px',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.6 : 1,
+              boxShadow: '0 8px 24px rgba(96,0,218,0.28)',
+              fontFamily: 'inherit',
+              transition: 'opacity 0.2s',
+            }}
           >
-            {isLoading ? <span className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <>Send OTP <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>}
+            {isLoading
+              ? <span style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+              : <><span>Send OTP</span><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_forward</span></>
+            }
           </button>
         </>
       ) : (
         <>
-          <h1 className="text-[26px] font-black tracking-tight text-gray-900 leading-tight mb-2">Verify your number</h1>
-          <p className="text-[14px] text-gray-500 mb-6">Enter the 4-digit code sent to <span className="font-bold text-gray-900">+91 {phone}</span></p>
+          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111827', margin: '0 0 6px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+            Verify your number
+          </h1>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 24px', lineHeight: 1.5 }}>
+            Enter the 4-digit code sent to <strong style={{ color: '#111827' }}>+91 {phone}</strong>
+          </p>
 
-          <div className="flex justify-center gap-3 mb-2">
+          {/* OTP inputs */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
             {otp.map((digit, index) => (
               <input
                 key={index}
                 id={`vendor-otp-${index}`}
-                className="w-12 sm:w-14 h-14 sm:h-16 bg-white border border-slate-200 rounded-xl text-center text-2xl font-black focus:border-purple-600 outline-none transition-colors text-slate-800"
-                value={digit} maxLength="1" type="tel" inputMode="numeric" autoFocus={index === 0}
+                style={{
+                  width: '58px', height: '64px',
+                  background: '#fff',
+                  border: `2px solid ${digit ? '#7c3aed' : '#e2e8f0'}`,
+                  borderRadius: '14px',
+                  textAlign: 'center',
+                  fontSize: '24px', fontWeight: '900', color: '#111827',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                  transition: 'border-color 0.2s',
+                }}
+                value={digit}
+                maxLength="1"
+                type="tel"
+                inputMode="numeric"
+                autoFocus={index === 0}
                 onChange={(e) => handleOtpChange(index, e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Backspace' && !otp[index] && index > 0) document.getElementById(`vendor-otp-${index - 1}`)?.focus(); }}
+                onFocus={(e) => (e.target.style.borderColor = '#7c3aed')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Backspace' && !otp[index] && index > 0) {
+                    document.getElementById(`vendor-otp-${index - 1}`)?.focus();
+                  }
+                }}
               />
             ))}
           </div>
 
           {apiError && (
-            <p className="mt-3 text-[12.5px] font-bold text-red-500 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px]">error</span>{apiError}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '12px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#ef4444' }}>error</span>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>{apiError}</span>
+            </div>
           )}
 
           <button
             onClick={handleVerifyAndCreate}
             disabled={otp.join('').length !== 4 || isLoading}
-            className={`w-full h-12 rounded-xl font-bold text-[16px] shadow-lg flex items-center justify-center gap-2 mt-6 transition-all ${
-              otp.join('').length === 4 && !isLoading ? 'btn-primary-gradient text-white active:scale-[0.98] cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              width: '100%', height: '52px', marginTop: '24px',
+              borderRadius: '14px', border: 'none',
+              background: otp.join('').length === 4 && !isLoading
+                ? 'linear-gradient(135deg, #16082f 0%, #3b0764 50%, #6000da 100%)'
+                : '#e5e7eb',
+              color: otp.join('').length === 4 && !isLoading ? '#fff' : '#9ca3af',
+              fontWeight: '700', fontSize: '15px',
+              cursor: otp.join('').length !== 4 || isLoading ? 'not-allowed' : 'pointer',
+              boxShadow: otp.join('').length === 4 ? '0 8px 24px rgba(96,0,218,0.28)' : 'none',
+              fontFamily: 'inherit',
+              transition: 'all 0.2s',
+            }}
           >
-            {isLoading ? <span className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <>Verify & Create Account <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>}
+            {isLoading
+              ? <span style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+              : <><span>Verify &amp; Create Account</span><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_forward</span></>
+            }
           </button>
-          <button onClick={() => setPhase('form')} className="w-full text-center text-[13px] font-bold text-gray-500 mt-3 hover:text-[#7c3aed] transition-colors cursor-pointer">
-            Change mobile number
+
+          <button
+            onClick={() => setPhase('form')}
+            style={{
+              display: 'block', width: '100%', marginTop: '12px',
+              background: 'none', border: 'none',
+              fontSize: '13px', fontWeight: '700', color: '#6b7280',
+              cursor: 'pointer', textAlign: 'center', fontFamily: 'inherit',
+            }}
+          >
+            ← Change mobile number
           </button>
         </>
       )}

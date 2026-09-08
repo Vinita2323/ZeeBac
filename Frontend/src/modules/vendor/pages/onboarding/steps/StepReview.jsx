@@ -36,7 +36,7 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
   const docs = data.documents;
 
   return (
-    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 space-y-4 animate-reveal">
+    <div style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.9)', borderRadius: '24px', padding: '28px 24px', boxShadow: '0 20px 60px -12px rgba(22,8,47,0.14), 0 8px 24px rgba(96,0,218,0.07)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">fact_check</span>

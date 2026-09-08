@@ -20,8 +20,6 @@ const emptyFormData = {
   documents: { aadhaarPan: null, gstCertificate: null, shopLicense: null, panCard: null, cancelledCheque: null, additionalDoc: null },
 };
 
-// Maps a fetched vendor doc onto the wizard's formData shape (existing
-// documents/images stay as server objects/URLs until the vendor replaces them).
 const vendorToFormData = (vendor) => ({
   storeName: vendor.storeName || '',
   shopType: vendor.shopType || '',
@@ -78,9 +76,7 @@ const buildPayload = (data) => {
   return payload;
 };
 
-// `mode`: 'register' (public /vendor-app/signup entry) or 'resubmit' (rejected
-// vendor editing their existing application). In resubmit mode Step 1 is
-// skipped (account already exists) and Step 4 shows the changes-diff screen.
+// `mode`: 'register' (public /vendor-app/signup entry) or 'resubmit'
 export default function VendorOnboardingWizard({ mode = 'register' }) {
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -91,9 +87,8 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingResume, setIsLoadingResume] = useState(mode === 'resubmit' || (!!currentUser && currentUser.applicationStatus === 'DRAFT'));
-  const [previousSnapshotVendor, setPreviousSnapshotVendor] = useState(null); // full vendor doc as it was, for the diff screen
+  const [previousSnapshotVendor, setPreviousSnapshotVendor] = useState(null);
 
-  // Resume an existing DRAFT, or load current data for a resubmit edit.
   useEffect(() => {
     if (!isLoadingResume) return;
     VendorAPI.getProfile().then((res) => {
@@ -132,7 +127,7 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
   };
 
   const saveDraftSilently = async () => {
-    if (mode !== 'register') return; // draft endpoint only applies to DRAFT applications
+    if (mode !== 'register') return;
     try {
       setIsSaving(true);
       await VendorAPI.saveApplicationDraft(buildPayload(data));
@@ -190,44 +185,88 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
 
   if (isLoadingResume) {
     return (
-      <div className="min-h-screen flex items-center justify-center mesh-gradient">
-        <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fcfaff' }}>
+        <div className="w-8 h-8 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   const totalSteps = 4;
   const visibleStepStart = mode === 'resubmit' ? 2 : 1;
+  const visibleTotal = totalSteps - visibleStepStart + 1;
+  const visibleCurrent = step - visibleStepStart + 1;
 
   return (
-    <div className="min-h-screen mesh-gradient text-gray-900 relative" style={{ width: '100%', display: 'block' }}>
-      <div className="blob-orb w-72 h-72 bg-primary/14 -top-16 -right-16 animate-drift" />
-      <div className="blob-orb w-64 h-64 bg-secondary/12 bottom-10 -left-16 animate-drift-reverse" />
+    <div style={{ minHeight: '100vh', width: '100%', background: '#fcfaff', display: 'block', fontFamily: "'Hanken Grotesk', sans-serif" }}>
 
-      {/* Header / progress */}
-      <header className="sticky top-0 z-50 glass-header border-b border-outline-variant/10">
-        <div className="max-w-lg mx-auto w-full px-4 h-16 flex items-center gap-3">
+      {/* Sticky Header */}
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'rgba(252,250,255,0.92)',
+        backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(124,58,237,0.08)',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}>
+        <div style={{
+          maxWidth: '540px',
+          margin: '0 auto',
+          padding: '0 16px',
+          height: '60px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          boxSizing: 'border-box',
+          width: '100%',
+        }}>
+          {/* Back button */}
           {step > visibleStepStart ? (
-            <button onClick={goBack} className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 cursor-pointer shrink-0">
-              <span className="material-symbols-outlined">arrow_back</span>
+            <button
+              onClick={goBack}
+              style={{
+                width: '36px', height: '36px', borderRadius: '50%',
+                border: 'none', background: 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0, color: '#374151',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>arrow_back</span>
             </button>
-          ) : <div className="w-10 h-10 shrink-0" />}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
+          ) : (
+            <div style={{ width: '36px', height: '36px', flexShrink: 0 }} />
+          )}
+
+          {/* Progress */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
               {STEP_LABELS.map((label, idx) => {
                 const stepNum = idx + 1;
                 if (mode === 'resubmit' && stepNum === 1) return null;
                 return (
-                  <div key={label} className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${stepNum <= step ? 'bg-[#7c3aed]' : 'bg-gray-200'}`} />
+                  <div key={label} style={{
+                    flex: 1, height: '5px', borderRadius: '999px',
+                    background: stepNum <= step ? '#7c3aed' : '#e5e7eb',
+                    transition: 'background 0.4s ease',
+                  }} />
                 );
               })}
             </div>
-            <p className="text-[11px] font-bold text-gray-500 mt-1 truncate">Step {step - visibleStepStart + 1} of {totalSteps - visibleStepStart + 1} — {STEP_LABELS[step - 1]}</p>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280', margin: 0 }}>
+              Step {visibleCurrent} of {visibleTotal} — {STEP_LABELS[step - 1]}
+            </p>
           </div>
         </div>
       </header>
 
-      <main style={{ display: 'block', width: '100%', maxWidth: '512px', marginLeft: 'auto', marginRight: 'auto', paddingLeft: '16px', paddingRight: '16px', paddingTop: '24px', paddingBottom: '40px', position: 'relative', zIndex: 10 }}>
+      {/* Main Content */}
+      <main style={{
+        display: 'block',
+        width: '100%',
+        maxWidth: '540px',
+        margin: '0 auto',
+        padding: '20px 16px 48px',
+        boxSizing: 'border-box',
+      }}>
         {step === 1 && <StepAccount onComplete={(vendor) => { setAccount(vendor); setStep(2); }} />}
         {step === 2 && <StepBusiness data={data} update={update} errors={errors} />}
         {step === 3 && <StepDocuments data={data} update={update} errors={errors} />}
@@ -244,20 +283,45 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
           />
         )}
 
+        {/* Continue Button */}
         {step > 1 && step < 4 && (
-          <div className="w-full mt-5">
-            <button
-              onClick={goNext}
-              disabled={isSaving}
-              className="w-full h-13 rounded-2xl btn-primary-gradient text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
-            >
-              {isSaving ? (
-                <><span className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" /> Saving...</>
-              ) : (
-                <>Continue <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={goNext}
+            disabled={isSaving}
+            style={{
+              display: 'flex',
+              width: '100%',
+              height: '52px',
+              marginTop: '20px',
+              borderRadius: '14px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #16082f 0%, #3b0764 50%, #6000da 100%)',
+              color: '#ffffff',
+              fontWeight: '700',
+              fontSize: '15px',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              cursor: isSaving ? 'not-allowed' : 'pointer',
+              opacity: isSaving ? 0.6 : 1,
+              boxShadow: '0 8px 24px rgba(96,0,218,0.28)',
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+              transition: 'opacity 0.2s',
+            }}
+          >
+            {isSaving ? (
+              <>
+                <span className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+                Saving...
+              </>
+            ) : (
+              <>
+                Continue
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_forward</span>
+              </>
+            )}
+          </button>
         )}
       </main>
     </div>
