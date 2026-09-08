@@ -1,3 +1,77 @@
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+
+# ── Environment Variables ──────────────────────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.staging
+*.env
+
+# ── Build Outputs ──────────────────────────────────────────────────────────────
+dist/
+dist-ssr/
+build/
+out/
+.output/
+.next/
+.nuxt/
+.svelte-kit/
+
+# ── Dependencies ───────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ── Vite / Bundler Cache ───────────────────────────────────────────────────────
+.vite/
+*.timestamp-*.mjs
+vite.config.js.timestamp-*
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── OS Files ──────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Uploads (local dev only) ───────────────────────────────────────────────────
+backend/uploads/
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.local
+.cache/
+.parcel-cache/
+.turbo/
