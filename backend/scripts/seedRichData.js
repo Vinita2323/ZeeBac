@@ -237,7 +237,7 @@ async function seedData() {
     const res = await Vendor.findOneAndUpdate(
       { zeebacId: vData.zeebacId },
       { $set: { ...vData, updatedAt: new Date() } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     // Create Wallet for Vendor with ₹25,000 balance

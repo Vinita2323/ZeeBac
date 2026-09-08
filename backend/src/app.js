@@ -31,6 +31,14 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'API is running properly!' });
 });
 
+// Normalize accidentally doubled /api/api/ prefixes from reverse proxy / client baseURL misalignments
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/api/')) {
+    req.url = req.url.replace('/api/api/', '/api/');
+  }
+  next();
+});
+
 // Import routes
 import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';

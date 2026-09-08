@@ -10,7 +10,12 @@ dns.setServers(['1.1.1.1', '8.8.8.8']);
 
 export const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    let mongoUri = process.env.MONGODB_URI;
+    // Fix invalid write concern mode caused by accidental trailing db name (e.g. w=majority/zeebac)
+    if (mongoUri && mongoUri.includes('w=majority/')) {
+      mongoUri = mongoUri.replace(/w=majority\/[a-zA-Z0-9_-]+/g, 'w=majority');
+    }
+    const conn = await mongoose.connect(mongoUri);
     logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     logger.error(`❌ Error connecting to MongoDB: ${error.message}`);
