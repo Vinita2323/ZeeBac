@@ -6,6 +6,9 @@ import logger from './utils/logger.js';
 
 const app = express();
 
+// Behind Nginx reverse proxy: trust the proxy hop so client IPs (and express-rate-limit) work accurately
+app.set('trust proxy', process.env.TRUST_PROXY ? (Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY) : 1);
+
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -18,8 +21,10 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 }
 
-// Serve uploaded files as static
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Legacy /uploads handler — all permanent files are served via Cloudinary CDN; prevent local temp exposure
+app.use('/uploads', (req, res) => {
+  res.status(404).json({ success: false, message: 'Legacy local uploads are deprecated. Assets are served via Cloudinary CDN.' });
+});
 
 // Simple health check route
 app.get('/health', (req, res) => {

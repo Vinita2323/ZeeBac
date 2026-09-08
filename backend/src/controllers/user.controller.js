@@ -51,7 +51,7 @@ export const updateUserLocation = async (req, res) => {
           city
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('location zeebacId name');
     res.status(200).json({ success: true, data: user });
   } catch (error) {
@@ -569,7 +569,7 @@ export const updateUserProfile = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { name, email, phone, profileImage },
-      { new: true, select: '-password -refreshToken -otp -otpExpiry' }
+      { returnDocument: 'after', select: '-password -refreshToken -otp -otpExpiry' }
     );
     res.status(200).json({ success: true, data: user });
   } catch (error) {
@@ -621,7 +621,10 @@ export const createCashbackRequest = async (req, res) => {
     await assertWithinDailyRequestLimit(customer._id);
     await assertNoRecentDuplicateRequest(customer._id, vendor._id, parseFloat(amount));
 
-    const billImageUrl = req.file.filename.startsWith('http') ? req.file.filename : `/uploads/receipts/${req.file.filename}`;
+    const billImageUrl = req.file.url || (req.file.filename?.startsWith('http') ? req.file.filename : null);
+    if (!billImageUrl) {
+      return res.status(400).json({ success: false, message: 'Valid bill image upload is required' });
+    }
 
     // GPS is advisory-only per product decision: never blocks submission,
     // just recorded (with the computed distance) for admin/vendor review —

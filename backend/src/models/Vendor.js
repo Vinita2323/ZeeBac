@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { sanitizeMediaUrl } from '../utils/urlSanitizer.util.js';
 
 const changedFieldSchema = new mongoose.Schema(
   {
@@ -33,7 +34,7 @@ const applicationHistorySchema = new mongoose.Schema(
 
 const documentFieldSchema = {
   fileName: String,
-  fileUrl: String,
+  fileUrl: { type: String, get: sanitizeMediaUrl },
   fileType: String,
   uploadedAt: Date,
 };
@@ -157,10 +158,17 @@ const vendorSchema = new mongoose.Schema(
     aadhaar: String,
     pan: String,
     profilePic: {
-      type: String, // Store logo URL
+      type: String,
+      get: sanitizeMediaUrl,
     },
-    storeCoverImage: String,
-    storeImages: [{ type: String }],
+    storeCoverImage: {
+      type: String,
+      get: sanitizeMediaUrl,
+    },
+    storeImages: [{
+      type: String,
+      get: sanitizeMediaUrl,
+    }],
     operatingHours: {
       type: String,
       default: "Open Daily: 09:00 AM - 10:00 PM",
@@ -171,7 +179,8 @@ const vendorSchema = new mongoose.Schema(
       workingDays: [{ type: String, enum: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }],
     },
     storeLogo: {
-      type: String, // S3 URL or file ref
+      type: String,
+      get: sanitizeMediaUrl,
     },
     status: {
       type: String,
@@ -225,6 +234,8 @@ const vendorSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
   }
 );
 

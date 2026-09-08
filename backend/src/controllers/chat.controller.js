@@ -104,15 +104,16 @@ export const uploadChatImage = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No image uploaded' });
     }
     
-    // In production, you would upload to S3 here.
-    // For local dev, return the static file path.
-    const fileUrl = req.file.filename.startsWith('http') ? req.file.filename : `/${req.file.path.replace(/\\/g, '/')}`;
+    const fileUrl = req.file.url || (req.file.filename?.startsWith('http') ? req.file.filename : null);
+    if (!fileUrl) {
+      return res.status(500).json({ success: false, message: 'Failed to obtain secure Cloudinary URL for chat image' });
+    }
     
     res.status(200).json({ 
       success: true, 
       data: {
         url: fileUrl,
-        fileName: req.file.filename
+        fileName: req.file.originalname || fileUrl
       } 
     });
   } catch (error) {

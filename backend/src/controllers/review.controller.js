@@ -57,7 +57,7 @@ export const createReview = async (req, res) => {
           isVerified 
         } 
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
 
     // Recalculate Vendor's average rating and total reviews
@@ -147,7 +147,7 @@ export const replyToReview = async (req, res) => {
           'reply.repliedAt': new Date()
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!review) {

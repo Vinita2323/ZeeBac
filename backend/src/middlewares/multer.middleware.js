@@ -39,23 +39,51 @@ const rawUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // Max: 10MB per file
 });
 
+const FOLDER_MAP = {
+  profilePic: 'profiles',
+  storeLogo: 'profiles',
+  avatar: 'profiles',
+  profileImage: 'profiles',
+  storeCoverImage: 'storefront',
+  storeImages: 'storefront',
+  billImg: 'receipts',
+  chatImage: 'chat',
+  mediaFile: 'media',
+  image: 'products',
+  brandLogo: 'products',
+  aadhaarPan: 'documents',
+  gstCertificate: 'documents',
+  shopLicense: 'documents',
+  cancelledCheque: 'documents',
+  panCard: 'documents',
+  additionalDoc: 'documents',
+};
+
+const cleanupLocalFiles = (req) => {
+  try {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+    if (req.files) {
+      const list = Array.isArray(req.files)
+        ? req.files
+        : Object.values(req.files).flat();
+      for (const f of list) {
+        if (f?.path && fs.existsSync(f.path)) {
+          try { fs.unlinkSync(f.path); } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
+};
+
 /**
- * Middleware that seamlessly uploads all Multer-processed files to Cloudinary CDN (m4u1eato)
+ * Middleware that seamlessly uploads all Multer-processed files to Cloudinary CDN
  */
 export const uploadToCloudinaryMiddleware = async (req, res, next) => {
   try {
     if (req.file) {
-      const folderMap = {
-        profilePic: 'profiles',
-        storeLogo: 'profiles',
-        avatar: 'profiles',
-        storeCoverImage: 'storefront',
-        storeImages: 'storefront',
-        billImg: 'receipts',
-        chatImage: 'chat',
-        mediaFile: 'media',
-      };
-      const folder = folderMap[req.file.fieldname] || 'general';
+      const folder = FOLDER_MAP[req.file.fieldname] || 'general';
       const cloudinaryUrl = await uploadFileToCloudinary(req.file.path, folder);
 
       req.file.filename = cloudinaryUrl;
@@ -64,34 +92,33 @@ export const uploadToCloudinaryMiddleware = async (req, res, next) => {
     }
 
     if (req.files) {
-      for (const fieldName of Object.keys(req.files)) {
-        const fileList = req.files[fieldName];
-        const folderMap = {
-          profilePic: 'profiles',
-          storeLogo: 'profiles',
-          storeCoverImage: 'storefront',
-          storeImages: 'storefront',
-          aadhaarPan: 'documents',
-          gstCertificate: 'documents',
-          shopLicense: 'documents',
-          cancelledCheque: 'documents',
-          panCard: 'documents',
-          additionalDoc: 'documents',
-        };
-        const folder = folderMap[fieldName] || 'general';
-
-        for (const fileObj of fileList) {
+      if (Array.isArray(req.files)) {
+        for (const fileObj of req.files) {
+          const folder = FOLDER_MAP[fileObj.fieldname] || 'general';
           const cloudinaryUrl = await uploadFileToCloudinary(fileObj.path, folder);
           fileObj.filename = cloudinaryUrl;
           fileObj.path = cloudinaryUrl;
           fileObj.url = cloudinaryUrl;
+        }
+      } else if (typeof req.files === 'object') {
+        for (const fieldName of Object.keys(req.files)) {
+          const fileList = req.files[fieldName];
+          const folder = FOLDER_MAP[fieldName] || 'general';
+
+          for (const fileObj of fileList) {
+            const cloudinaryUrl = await uploadFileToCloudinary(fileObj.path, folder);
+            fileObj.filename = cloudinaryUrl;
+            fileObj.path = cloudinaryUrl;
+            fileObj.url = cloudinaryUrl;
+          }
         }
       }
     }
 
     next();
   } catch (error) {
-    console.error('[Multer-Cloudinary] Middleware Upload Error:', error);
+    console.error('[Multer-Cloudinary] Middleware Upload Error:', error.message);
+    cleanupLocalFiles(req);
     return res.status(500).json({ 
       success: false, 
       message: 'Failed to upload asset to Cloudinary', 

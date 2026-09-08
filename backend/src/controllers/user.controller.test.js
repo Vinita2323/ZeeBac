@@ -71,7 +71,7 @@ describe('createCashbackRequest (receipt claim)', () => {
     const req = {
       user: { id: customer._id.toString() },
       body: { vendorId: vendor._id.toString(), amount: '2500', paymentMethod: 'UPI', purchaseDate: '2026-01-01', billNumber: 'INV-998822' },
-      file: { filename: 'billImg-123456.jpg' },
+      file: { url: 'https://res.cloudinary.com/zeebac/image/upload/v1/receipts/billImg-123456.jpg', filename: 'billImg-123456.jpg' },
     };
     const res = makeRes();
 
@@ -80,7 +80,7 @@ describe('createCashbackRequest (receipt claim)', () => {
     expect(res.status).toHaveBeenCalledWith(201);
     const request = await CashbackRequest.findOne({ customerId: customer._id });
     expect(request.requestType).toBe('receipt_claim');
-    expect(request.billImageUrl).toBe('/uploads/receipts/billImg-123456.jpg');
+    expect(request.billImageUrl).toBe('https://res.cloudinary.com/zeebac/image/upload/v1/receipts/billImg-123456.jpg');
     expect(request.billNumber).toBe('INV-998822');
     expect(request.isHighValue).toBe(true);
   });
@@ -91,7 +91,7 @@ describe('createCashbackRequest (receipt claim)', () => {
     const req = {
       user: { id: customer._id.toString() },
       body: { vendorId: vendor._id.toString(), amount: '1999' },
-      file: { filename: 'billImg-x.jpg' },
+      file: { url: 'https://res.cloudinary.com/zeebac/image/upload/v1/receipts/billImg-x.jpg', filename: 'billImg-x.jpg' },
     };
     const res = makeRes();
 
@@ -108,7 +108,7 @@ describe('createCashbackRequest (receipt claim)', () => {
     const req = {
       user: { id: customer._id.toString() },
       body: { vendorId: vendor._id.toString(), amount: '300', latitude: '51.5074', longitude: '-0.1278' },
-      file: { filename: 'billImg-y.jpg' },
+      file: { url: 'https://res.cloudinary.com/zeebac/image/upload/v1/receipts/billImg-y.jpg', filename: 'billImg-y.jpg' },
     };
     const res = makeRes();
 
@@ -125,7 +125,7 @@ describe('createCashbackRequest (receipt claim)', () => {
     const req = {
       user: { id: customer._id.toString() },
       body: { vendorId: vendor._id.toString(), amount: '300', latitude: '51.5074', longitude: '-0.1278' }, // far from vendor
-      file: { filename: 'billImg-z.jpg' },
+      file: { url: 'https://res.cloudinary.com/zeebac/image/upload/v1/receipts/billImg-z.jpg', filename: 'billImg-z.jpg' },
     };
     const res = makeRes();
 

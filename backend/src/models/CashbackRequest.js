@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { sanitizeMediaUrl } from '../utils/urlSanitizer.util.js';
 
 const cashbackRequestSchema = new mongoose.Schema({
   customerId: {
@@ -29,6 +30,7 @@ const cashbackRequestSchema = new mongoose.Schema({
   billImageUrl: {
     type: String,
     required: function () { return this.requestType === 'receipt_claim'; },
+    get: sanitizeMediaUrl,
   },
   billNumber: {
     type: String,
@@ -74,7 +76,9 @@ const cashbackRequestSchema = new mongoose.Schema({
     default: 'Pending'
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
 });
 
 export default mongoose.model('CashbackRequest', cashbackRequestSchema);

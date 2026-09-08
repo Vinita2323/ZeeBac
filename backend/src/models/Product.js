@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { sanitizeMediaUrl } from '../utils/urlSanitizer.util.js';
 
 const productSchema = new mongoose.Schema({
   vendorId: {
@@ -28,7 +29,8 @@ const productSchema = new mongoose.Schema({
     type: String,
   },
   image: {
-    type: String, // Path or URL
+    type: String,
+    get: sanitizeMediaUrl,
   },
   isHighlight: {
     type: Boolean,
@@ -50,10 +52,15 @@ const productSchema = new mongoose.Schema({
     brandDescription: String,
     brandEmail: String,
     brandContact: String,
-    brandLogo: String,
+    brandLogo: { type: String, get: sanitizeMediaUrl },
     cashbackPercentage: Number,
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true },
+});
 
 const Product = mongoose.model('Product', productSchema);
 export default Product;
+

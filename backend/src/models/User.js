@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { sanitizeMediaUrl } from '../utils/urlSanitizer.util.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,7 +26,8 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
     profileImage: {
-      type: String, // URL to uploaded image
+      type: String,
+      get: sanitizeMediaUrl,
     },
     linkedAccounts: {
       google: String,
@@ -98,6 +100,8 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
   }
 );
 

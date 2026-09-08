@@ -355,7 +355,7 @@ export const createCashbackRule = async (req, res) => {
 export const updateCashbackRule = async (req, res) => {
   try {
     const rule = await CashbackRule.findByIdAndUpdate(
-      req.params.id, req.body, { new: true, runValidators: true }
+      req.params.id, req.body, { returnDocument: 'after', runValidators: true }
     );
     if (!rule) return res.status(404).json({ success: false, message: 'Rule not found' });
     res.status(200).json({ success: true, data: rule, message: 'Rule updated' });
@@ -849,7 +849,7 @@ export const createPartnerOffer = async (req, res) => {
 
 export const updatePartnerOffer = async (req, res) => {
   try {
-    const offer = await PartnerOffer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const offer = await PartnerOffer.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
     res.status(200).json({ success: true, data: offer });
   } catch (error) {

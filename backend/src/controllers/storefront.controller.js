@@ -23,12 +23,20 @@ export const uploadMedia = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
     const { caption, sortOrder } = req.body;
-    const url = req.file.filename.startsWith('http') ? req.file.filename : `/uploads/media/${req.file.filename}`;
+    const url = req.file.url || (req.file.filename?.startsWith('http') ? req.file.filename : null);
+
+    if (!url) {
+      return res.status(500).json({ success: false, message: 'Failed to obtain secure Cloudinary URL for media upload' });
+    }
+
+    const isVideo = req.file.mimetype?.startsWith('video') || Boolean(url.match(/\.(mp4|mov|webm|avi)(\?.*)?$/i));
+    const thumbnail = isVideo ? url.replace(/\.[^/.]+$/, '.jpg') : undefined;
 
     const media = await StorefrontMedia.create({
       vendorId: req.user.id,
-      type: req.file.mimetype.startsWith('video') ? 'video' : 'image',
+      type: isVideo ? 'video' : 'image',
       url,
+      thumbnail,
       caption: caption || '',
       sortOrder: sortOrder ? parseInt(sortOrder) : 0,
     });

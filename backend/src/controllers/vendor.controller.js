@@ -57,18 +57,18 @@ const applyApplicationFields = (vendor, body = {}, files = {}) => {
   }
 
   if (files) {
-    const getUrl = (f, folder) => f.filename.startsWith('http') ? f.filename : `/uploads/${folder}/${f.filename}`;
+    const getUrl = (f) => (f ? (f.url || (f.filename?.startsWith('http') ? f.filename : null)) : null);
 
-    if (files.storeLogo) vendor.storeLogo = vendor.profilePic = getUrl(files.storeLogo[0], 'profiles');
-    if (files.storeCoverImage) vendor.storeCoverImage = getUrl(files.storeCoverImage[0], 'storefront');
-    if (files.storeImages) vendor.storeImages = files.storeImages.map(f => getUrl(f, 'storefront'));
+    if (files.storeLogo) vendor.storeLogo = vendor.profilePic = getUrl(files.storeLogo[0]);
+    if (files.storeCoverImage) vendor.storeCoverImage = getUrl(files.storeCoverImage[0]);
+    if (files.storeImages) vendor.storeImages = files.storeImages.map(f => getUrl(f)).filter(Boolean);
 
     for (const field of DOCUMENT_FIELDS) {
-      if (files[field]) {
+      if (files[field] && files[field][0]) {
         if (!vendor.documents) vendor.documents = {};
         vendor.documents[field] = {
           fileName: files[field][0].originalname,
-          fileUrl: getUrl(files[field][0], 'documents'),
+          fileUrl: getUrl(files[field][0]),
           fileType: files[field][0].mimetype,
           uploadedAt: new Date(),
         };
@@ -459,10 +459,12 @@ export const createProduct = async (req, res) => {
 
     if (req.files) {
       if (req.files['image'] && req.files['image'][0]) {
-        imageUrl = req.files['image'][0].filename.startsWith('http') ? req.files['image'][0].filename : `/uploads/storefront/${req.files['image'][0].filename}`;
+        const f = req.files['image'][0];
+        imageUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
       }
       if (req.files['brandLogo'] && req.files['brandLogo'][0]) {
-        brandLogoUrl = req.files['brandLogo'][0].filename.startsWith('http') ? req.files['brandLogo'][0].filename : `/uploads/storefront/${req.files['brandLogo'][0].filename}`;
+        const f = req.files['brandLogo'][0];
+        brandLogoUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
       }
     }
 
@@ -529,6 +531,23 @@ export const updateProduct = async (req, res) => {
     ['name', 'category', 'sku', 'description'].forEach(key => {
       if (updates[key] !== undefined) product[key] = updates[key];
     });
+
+    // Handle uploaded product files
+    if (req.files) {
+      if (req.files['image'] && req.files['image'][0]) {
+        const f = req.files['image'][0];
+        const newImageUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
+        if (newImageUrl) product.image = newImageUrl;
+      }
+      if (req.files['brandLogo'] && req.files['brandLogo'][0]) {
+        const f = req.files['brandLogo'][0];
+        const newLogoUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
+        if (newLogoUrl) {
+          if (!product.branding) product.branding = {};
+          product.branding.brandLogo = newLogoUrl;
+        }
+      }
+    }
 
     await product.save();
     
