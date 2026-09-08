@@ -49,7 +49,7 @@ export default function MapPicker({ lat, lng, onChange, error }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2">
         <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">
           Business Location<span className="text-red-500">*</span>
         </label>
@@ -57,7 +57,7 @@ export default function MapPicker({ lat, lng, onChange, error }) {
           type="button"
           onClick={useCurrentLocation}
           disabled={locating}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] text-[12px] font-bold hover:bg-[#7c3aed]/15 transition-colors cursor-pointer disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] text-[12px] font-bold hover:bg-[#7c3aed]/15 transition-colors cursor-pointer disabled:opacity-50 self-start sm:self-auto"
         >
           <span className="material-symbols-outlined text-[16px]">{locating ? 'progress_activity' : 'my_location'}</span>
           {locating ? 'Locating...' : 'Use Current Location'}

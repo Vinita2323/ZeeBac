@@ -27,6 +27,8 @@ export default function UsersPage() {
         name: u.name,
         phone: u.phone,
         aadhaar: u.aadhaar || null,
+        walletBalance: `₹${(u.walletBalance || 0).toLocaleString()}`,
+        totalTransactions: u.totalTransactions || 0,
         status: u.status,
         joined: new Date(u.createdAt).toLocaleDateString()
       }));

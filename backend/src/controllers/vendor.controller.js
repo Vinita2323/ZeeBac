@@ -7,12 +7,14 @@ import WalletTransaction from '../models/WalletTransaction.js';
 import Transaction from '../models/Transaction.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
 import CashbackRequest from '../models/CashbackRequest.js';
+import CashbackRule from '../models/CashbackRule.js';
+import RewardConfig from '../models/RewardConfig.js';
 import Referral from '../models/Referral.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 import { buildSnapshot, diffSnapshots, validateApplicationComplete } from '../utils/vendorApplication.util.js';
-import { calculateCashback } from '../utils/cashback.util.js';
+import { calculateCashback, validateVendorCashbackRate } from '../utils/cashback.util.js';
 import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
@@ -55,16 +57,18 @@ const applyApplicationFields = (vendor, body = {}, files = {}) => {
   }
 
   if (files) {
-    if (files.storeLogo) vendor.storeLogo = vendor.profilePic = `/uploads/profiles/${files.storeLogo[0].filename}`;
-    if (files.storeCoverImage) vendor.storeCoverImage = `/uploads/storefront/${files.storeCoverImage[0].filename}`;
-    if (files.storeImages) vendor.storeImages = files.storeImages.map(f => `/uploads/storefront/${f.filename}`);
+    const getUrl = (f, folder) => f.filename.startsWith('http') ? f.filename : `/uploads/${folder}/${f.filename}`;
+
+    if (files.storeLogo) vendor.storeLogo = vendor.profilePic = getUrl(files.storeLogo[0], 'profiles');
+    if (files.storeCoverImage) vendor.storeCoverImage = getUrl(files.storeCoverImage[0], 'storefront');
+    if (files.storeImages) vendor.storeImages = files.storeImages.map(f => getUrl(f, 'storefront'));
 
     for (const field of DOCUMENT_FIELDS) {
       if (files[field]) {
         if (!vendor.documents) vendor.documents = {};
         vendor.documents[field] = {
           fileName: files[field][0].originalname,
-          fileUrl: `/uploads/documents/${files[field][0].filename}`,
+          fileUrl: getUrl(files[field][0], 'documents'),
           fileType: files[field][0].mimetype,
           uploadedAt: new Date(),
         };
@@ -231,12 +235,25 @@ export const updateProfile = async (req, res) => {
       address,
       email,
       operatingHours,
-      profilePic
+      profilePic,
+      cashbackRate,
     } = req.body;
 
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    if (cashbackRate !== undefined && cashbackRate !== null) {
+      const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+      const validation = validateVendorCashbackRate(cashbackRate, vendor.shopType, activeRule?.minCashback);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store category'}.`,
+        });
+      }
+      vendor.cashbackRate = Number(cashbackRate);
     }
 
     if (description !== undefined) vendor.description = description;
@@ -442,10 +459,10 @@ export const createProduct = async (req, res) => {
 
     if (req.files) {
       if (req.files['image'] && req.files['image'][0]) {
-        imageUrl = `/uploads/storefront/${req.files['image'][0].filename}`;
+        imageUrl = req.files['image'][0].filename.startsWith('http') ? req.files['image'][0].filename : `/uploads/storefront/${req.files['image'][0].filename}`;
       }
       if (req.files['brandLogo'] && req.files['brandLogo'][0]) {
-        brandLogoUrl = `/uploads/storefront/${req.files['brandLogo'][0].filename}`;
+        brandLogoUrl = req.files['brandLogo'][0].filename.startsWith('http') ? req.files['brandLogo'][0].filename : `/uploads/storefront/${req.files['brandLogo'][0].filename}`;
       }
     }
 
@@ -960,6 +977,59 @@ export const respondToCashbackRequest = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   } finally {
     session.endSession();
+  }
+};
+
+// ─── Phase 6: Vendor Subscription (Purchase / Renew) ───
+export const subscribePlan = async (req, res) => {
+  try {
+    const { planType } = req.body; // 'Monthly' or 'Yearly'
+    if (planType !== 'Monthly' && planType !== 'Yearly') {
+      return res.status(400).json({ success: false, message: 'Invalid planType. Must be Monthly or Yearly.' });
+    }
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const config = (await RewardConfig.findOne()) || {};
+    const isBrand = vendor.shopType === 'Chain & Brand';
+
+    let price = 0;
+    if (planType === 'Monthly') {
+      price = isBrand ? (config.brandMonthlyPrice ?? 999) : (config.independentStoreMonthlyPrice ?? 499);
+    } else {
+      price = isBrand ? (config.brandYearlyPrice ?? 9999) : (config.independentStoreYearlyPrice ?? 4999);
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now);
+    if (planType === 'Monthly') {
+      expiresAt.setDate(expiresAt.getDate() + 30);
+    } else {
+      expiresAt.setDate(expiresAt.getDate() + 365);
+    }
+
+    vendor.subscription = {
+      planType,
+      price,
+      status: 'ACTIVE',
+      startDate: now,
+      expiresAt,
+      lastRenewedAt: now,
+    };
+
+    await vendor.save();
+
+    logger.info(`[vendor.controller] Vendor ${vendor._id} subscribed to ${planType} plan for ₹${price}`);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully subscribed to ${planType} plan. Valid until ${expiresAt.toLocaleDateString()}`,
+      data: vendor.subscription,
+    });
+  } catch (error) {
+    logger.error(`Error in subscribePlan: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 

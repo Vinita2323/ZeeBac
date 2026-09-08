@@ -199,7 +199,15 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-bold text-[14px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
+                  <div>
+                    <h4 className="font-bold text-[14px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
+                    {req.billNumber && (
+                      <p className="text-[11px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[13px]">tag</span>
+                        <span>Bill No: <span className="bg-primary/10 px-1 py-0.2 rounded font-mono">{req.billNumber}</span></span>
+                      </p>
+                    )}
+                  </div>
                   <p className="font-black text-[14px] text-on-surface">₹{req.amount?.toLocaleString()}</p>
                 </div>
                 <div className="flex justify-between items-center mt-0.5">

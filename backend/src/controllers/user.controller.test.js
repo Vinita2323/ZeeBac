@@ -65,12 +65,12 @@ describe('createCashbackRequest (receipt claim)', () => {
     expect(await CashbackRequest.countDocuments()).toBe(0);
   });
 
-  it('creates a receipt_claim with the uploaded file path, and flags amounts >= 2000 as high-value', async () => {
+  it('creates a receipt_claim with the uploaded file path, bill number, and flags amounts >= 2000 as high-value', async () => {
     const vendor = await makeVendor();
     const customer = await makeCustomer();
     const req = {
       user: { id: customer._id.toString() },
-      body: { vendorId: vendor._id.toString(), amount: '2500', paymentMethod: 'UPI', purchaseDate: '2026-01-01' },
+      body: { vendorId: vendor._id.toString(), amount: '2500', paymentMethod: 'UPI', purchaseDate: '2026-01-01', billNumber: 'INV-998822' },
       file: { filename: 'billImg-123456.jpg' },
     };
     const res = makeRes();
@@ -81,6 +81,7 @@ describe('createCashbackRequest (receipt claim)', () => {
     const request = await CashbackRequest.findOne({ customerId: customer._id });
     expect(request.requestType).toBe('receipt_claim');
     expect(request.billImageUrl).toBe('/uploads/receipts/billImg-123456.jpg');
+    expect(request.billNumber).toBe('INV-998822');
     expect(request.isHighValue).toBe(true);
   });
 

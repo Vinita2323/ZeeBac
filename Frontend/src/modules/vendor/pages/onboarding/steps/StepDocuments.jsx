@@ -40,7 +40,7 @@ export default function StepDocuments({ data, update, errors }) {
   };
 
   return (
-    <div className="w-full max-w-[520px] glass-panel rounded-[2rem] p-7 space-y-6">
+    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 space-y-6 animate-reveal">
       <div>
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">photo_library</span>
@@ -50,9 +50,11 @@ export default function StepDocuments({ data, update, errors }) {
       </div>
 
       {/* Store visuals */}
-      <div className="flex items-start gap-4">
-        <ImagePicker label="Store Logo" round value={data.storeLogo} onChange={(f) => update('storeLogo', f)} />
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row items-start gap-4">
+        <div className="w-full sm:w-auto flex justify-center sm:block">
+          <ImagePicker label="Store Logo" round value={data.storeLogo} onChange={(f) => update('storeLogo', f)} />
+        </div>
+        <div className="flex-1 w-full">
           <ImagePicker label="Store Cover Image" value={data.storeCoverImage} onChange={(f) => update('storeCoverImage', f)} />
         </div>
       </div>
@@ -60,7 +62,7 @@ export default function StepDocuments({ data, update, errors }) {
       {/* Gallery */}
       <div className="space-y-1.5">
         <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">Store Gallery (Optional, up to 6)</label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {(data.storeImages || []).map((img, idx) => {
             const url = img instanceof File ? URL.createObjectURL(img) : `${API_BASE_URL}${img}`;
             return (

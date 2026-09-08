@@ -18,7 +18,11 @@ export const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    req.user = decoded; // { id, role, zeebacId }
+    req.user = {
+      ...decoded,
+      _id: decoded.id || decoded._id,
+      id: decoded.id || decoded._id
+    };
     next();
   } catch (error) {
     logger.error(`[protect middleware] Token failed: ${error.message}`);
@@ -34,6 +38,27 @@ export const requireRole = (...roles) => {
       return res.status(403).json({ success: false, message: 'Access denied: insufficient permissions' });
     }
     next();
+  };
+};
+
+// Admin Sub-Permission Guard (Super Admin bypasses all checks)
+export const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+    if (req.user.role === 'super_admin') {
+      return next();
+    }
+    if (req.user.role === 'admin' && req.user.permissions && req.user.permissions.includes(permission)) {
+      return next();
+    }
+    // If no explicit permissions array set on JWT, default admin role is granted access
+    if (req.user.role === 'admin' && (!req.user.permissions || req.user.permissions.length === 0)) {
+      return next();
+    }
+    logger.warn(`[requirePermission] Access denied for admin ${req.user.id}. Required permission: ${permission}`);
+    return res.status(403).json({ success: false, message: `Access denied: missing ${permission} permission` });
   };
 };
 

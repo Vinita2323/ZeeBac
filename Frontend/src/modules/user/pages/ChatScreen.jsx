@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ChatAPI, API_BASE_URL } from '../../../services/api';
 import { connectSocket, disconnectSocket, getSocket } from '../../../services/socket';
 import useAuthStore from '../../../store/useAuthStore';
+import MaskedCallModal from '../../../components/common/MaskedCallModal';
 
 export default function ChatScreen() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -159,9 +161,22 @@ export default function ChatScreen() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleCall = () => {
+    setIsCallModalOpen(true);
+  };
+
   if (selectedChat && activeChatData) {
+    const avatarUrl = activeChatData.vendorId?.profilePic ? (activeChatData.vendorId.profilePic.startsWith('http') || activeChatData.vendorId.profilePic.startsWith('data:') ? activeChatData.vendorId.profilePic : `${import.meta.env.VITE_API_URL}${activeChatData.vendorId.profilePic}`) : null;
+
     return (
       <div className="flex flex-col h-screen mesh-gradient text-left animate-reveal" style={{ fontFamily: "'Quicksand', sans-serif" }}>
+        <MaskedCallModal
+          isOpen={isCallModalOpen}
+          onClose={() => setIsCallModalOpen(false)}
+          recipientName={activeChatData.vendorId?.storeName || 'Partner Store'}
+          recipientAvatar={avatarUrl}
+          recipientRole="Partner Store"
+        />
         {/* Chat Room Header */}
         <header className="sticky top-0 z-50 glass-header px-4 py-3 border-b border-outline-variant/10 shadow-sm">
           <div className="app-container flex items-center gap-3">
@@ -188,7 +203,11 @@ export default function ChatScreen() {
               </p>
             </div>
 
-            <button className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2">
+            <button 
+              onClick={handleCall}
+              title="Call Vendor"
+              className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2"
+            >
               <span className="material-symbols-outlined text-[20px]">call</span>
             </button>
           </div>

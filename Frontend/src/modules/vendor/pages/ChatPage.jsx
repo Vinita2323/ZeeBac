@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChatAPI, API_BASE_URL } from '../../../services/api';
 import { connectSocket, disconnectSocket, getSocket } from '../../../services/socket';
 import useAuthStore from '../../../store/useAuthStore';
+import MaskedCallModal from '../../../components/common/MaskedCallModal';
 
 export default function ChatPage() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -173,12 +175,25 @@ export default function ChatPage() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleCall = () => {
+    setIsCallModalOpen(true);
+  };
+
   if (selectedChat && activeChatData) {
+    const avatarUrl = activeChatData.customerId?.profileImage || null;
+
     return (
       <div 
         className="fixed inset-y-0 left-0 right-0 max-w-[440px] mx-auto w-full md:relative md:inset-auto md:max-w-none md:h-[calc(100vh-120px)] bg-[#f9f9ff] text-left animate-reveal flex flex-col z-40" 
         style={{ fontFamily: "'Quicksand', sans-serif" }}
       >
+        <MaskedCallModal
+          isOpen={isCallModalOpen}
+          onClose={() => setIsCallModalOpen(false)}
+          recipientName={activeChatData.customerId?.name || 'Customer'}
+          recipientAvatar={avatarUrl}
+          recipientRole="Customer"
+        />
         {/* Chat Room Header */}
         <header className="sticky top-0 z-50 bg-white px-4 py-3 flex items-center gap-3 border-b border-outline-variant/10 shadow-sm">
           <button 
@@ -204,7 +219,11 @@ export default function ChatPage() {
             </p>
           </div>
           
-          <button className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2">
+          <button 
+            onClick={handleCall}
+            title="Call Customer"
+            className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2"
+          >
             <span className="material-symbols-outlined text-[20px]">call</span>
           </button>
         </header>

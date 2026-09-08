@@ -47,17 +47,17 @@ export default function UploadCard({ label, required, value, onUpload, onRemove,
           </label>
         ) : (
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-green-600 shrink-0 overflow-hidden">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-green-50 flex items-center justify-center text-green-600 shrink-0 overflow-hidden">
                 {!isPdf && previewUrl ? (
                   <img src={previewUrl} alt={label} className="w-full h-full object-cover" />
                 ) : (
                   <span className="material-symbols-outlined">{isPdf ? 'picture_as_pdf' : 'task'}</span>
                 )}
               </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-[14px] text-gray-900">{label}</h4>
-                <p className="text-[12px] text-gray-500 truncate max-w-[180px]">{fileName}</p>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-bold text-[13.5px] sm:text-[14px] text-gray-900 truncate">{label}</h4>
+                <p className="text-[12px] text-gray-500 truncate">{fileName}</p>
               </div>
             </div>
             <button type="button" onClick={onRemove} className="text-red-500 px-3 py-1.5 rounded-lg bg-red-50 text-[12px] font-bold hover:bg-red-100 transition-colors shrink-0 cursor-pointer">

@@ -586,7 +586,7 @@ export const updateUserProfile = async (req, res) => {
 // request with no photo despite the frontend claiming it was mandatory.
 export const createCashbackRequest = async (req, res) => {
   try {
-    const { vendorId, amount, description, paymentMethod, purchaseDate, latitude, longitude } = req.body;
+    const { vendorId, amount, description, paymentMethod, purchaseDate, billNumber, latitude, longitude } = req.body;
 
     if (!vendorId || !amount || amount < 1) {
       return res.status(400).json({ success: false, message: 'vendorId and amount (>=1) are required' });
@@ -600,6 +600,19 @@ export const createCashbackRequest = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
+    // Phase 6: Block cashback requests if vendor subscription is expired or wallet balance is <= 0
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const isSubExpired = vendor.subscription?.status === 'EXPIRED' || 
+      (vendor.subscription?.expiresAt && new Date(vendor.subscription.expiresAt) < new Date());
+
+    if (isSubExpired || vendorBalance <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cashback requests for this merchant are currently paused due to an expired subscription or low wallet balance.'
+      });
+    }
+
     const customer = await User.findById(req.user.id);
     if (!customer || customer.status !== 'Active') {
       return res.status(403).json({ success: false, message: 'Customer account is not active' });
@@ -608,7 +621,7 @@ export const createCashbackRequest = async (req, res) => {
     await assertWithinDailyRequestLimit(customer._id);
     await assertNoRecentDuplicateRequest(customer._id, vendor._id, parseFloat(amount));
 
-    const billImageUrl = `/uploads/receipts/${req.file.filename}`;
+    const billImageUrl = req.file.filename.startsWith('http') ? req.file.filename : `/uploads/receipts/${req.file.filename}`;
 
     // GPS is advisory-only per product decision: never blocks submission,
     // just recorded (with the computed distance) for admin/vendor review —
@@ -626,6 +639,7 @@ export const createCashbackRequest = async (req, res) => {
     }
 
     const isHighValue = parseFloat(amount) >= HIGH_VALUE_THRESHOLD;
+    const trimmedBillNumber = billNumber ? String(billNumber).trim() : undefined;
 
     const request = await CashbackRequest.create({
       customerId: customer._id,
@@ -633,6 +647,7 @@ export const createCashbackRequest = async (req, res) => {
       amount: parseFloat(amount),
       requestType: 'receipt_claim',
       billImageUrl,
+      billNumber: trimmedBillNumber,
       description,
       purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
       location,
@@ -642,13 +657,15 @@ export const createCashbackRequest = async (req, res) => {
       status: 'Pending',
     });
 
+    const billNumInfo = trimmedBillNumber ? ` (Bill No: ${trimmedBillNumber})` : '';
+
     sendNotification({
       recipientId: vendor._id,
       recipientType: 'vendor',
       fcmTokens: vendor.fcmTokens || [],
       type: 'approval',
       title: '📝 New Cashback Request!',
-      message: `A customer has requested cashback for a bill of ₹${amount}. Please review it in your pending requests.`,
+      message: `A customer has requested cashback for a bill of ₹${amount}${billNumInfo}. Please review it in your pending requests.`,
       icon: 'receipt',
       referenceId: request._id,
       referenceType: 'cashback_request',
@@ -760,15 +777,30 @@ export const getRecentVendors = async (req, res) => {
 export const requestWithdrawal = async (req, res) => {
   try {
     const { amount } = req.body;
-    if (!amount || amount < 50) return res.status(400).json({ success: false, message: 'Minimum withdrawal is ₹50' });
+    const reqAmount = Number(amount);
 
-    let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
-    if (!wallet || wallet.balance < amount) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+    const config = (await RewardConfig.findOne()) || {};
+    const minWithdrawal = config.userMinWithdrawalAmount ?? 250;
+    const maxWithdrawal = config.userMaxWithdrawalAmount ?? 10000;
+    const commissionPercent = config.userWithdrawalCommissionPercent ?? 2;
+
+    if (!reqAmount || reqAmount < minWithdrawal) {
+      return res.status(400).json({ success: false, message: `Minimum withdrawal amount is ₹${minWithdrawal}` });
+    }
+    if (maxWithdrawal && reqAmount > maxWithdrawal) {
+      return res.status(400).json({ success: false, message: `Maximum withdrawal limit per transaction is ₹${maxWithdrawal}` });
     }
 
+    let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
+    if (!wallet || wallet.balance < reqAmount) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+    }
+
+    const feeAmount = Math.round(((reqAmount * commissionPercent) / 100) * 100) / 100;
+    const netPayout = Math.round((reqAmount - feeAmount) * 100) / 100;
+
     // Deduct balance
-    wallet.balance -= amount;
+    wallet.balance -= reqAmount;
     await wallet.save();
 
     // Create wallet transaction
@@ -777,10 +809,12 @@ export const requestWithdrawal = async (req, res) => {
       ownerId: wallet.ownerId,
       ownerType: 'User',
       type: 'debit',
-      amount,
+      amount: reqAmount,
+      feeAmount,
+      netPayout,
       balanceAfter: wallet.balance,
       category: 'cashout',
-      description: 'Bank Withdrawal Request',
+      description: `Bank Withdrawal Request (Fee: ₹${feeAmount}, Net: ₹${netPayout})`,
       status: 'Pending'
     });
 
@@ -791,7 +825,7 @@ export const requestWithdrawal = async (req, res) => {
       fcmTokens: (await User.findById(req.user.id).select('fcmTokens'))?.fcmTokens || [],
       type: 'system',
       title: '⏳ Withdrawal Request Received',
-      message: `Your withdrawal request for ₹${amount} is pending Admin review. It will be processed in 24-48 hrs.`,
+      message: `Your withdrawal request for ₹${reqAmount} (Net Payout: ₹${netPayout} after ${commissionPercent}% fee) is pending Admin review.`,
       icon: 'schedule',
     });
 

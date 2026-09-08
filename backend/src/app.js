@@ -7,8 +7,8 @@ import logger from './utils/logger.js';
 const app = express();
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
-app.use(express.json({ limit: '10mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // HTTP request logging (only in development)
 if (process.env.NODE_ENV !== 'production') {
@@ -36,6 +36,7 @@ import supportRoutes from './routes/support.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import posRoutes from './routes/pos.routes.js';
+import fcmRoutes from './routes/fcm.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -46,6 +47,8 @@ app.use('/api/support', supportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/pos', posRoutes);
+app.use('/api/v1/fcm-tokens', fcmRoutes);
+app.use('/api/fcm-tokens', fcmRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

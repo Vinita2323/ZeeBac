@@ -136,7 +136,7 @@ export const vendorLogin = async (req, res) => {
     const tokens = sendTokens(res, vendor);
 
     vendor.refreshToken = tokens.refreshToken;
-    await vendor.save();
+    await vendor.save({ validateModifiedOnly: true });
 
     logger.info(`[vendorLogin] Success for phone: ${phone}`);
     res.status(200).json({

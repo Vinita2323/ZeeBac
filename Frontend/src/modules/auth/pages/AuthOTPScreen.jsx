@@ -152,8 +152,8 @@ export default function AuthOTPScreen() {
               <input
                 key={index}
                 ref={(el) => (inputRefs.current[index] = el)}
-                className={`w-14 h-16 bg-white/80 border-2 rounded-xl text-center font-display text-headline-lg text-primary focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none transition-all otp-input ${
-                  verified ? 'border-green-500 bg-green-50' : 'border-outline-variant/50'
+                className={`w-12 sm:w-14 h-14 sm:h-16 bg-white border rounded-xl text-center font-display text-2xl text-purple-700 focus:border-purple-600 outline-none transition-colors ${
+                  verified ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'
                 }`}
                 inputMode="numeric"
                 maxLength="1"

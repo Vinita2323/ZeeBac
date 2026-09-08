@@ -23,7 +23,7 @@ export const uploadMedia = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
     const { caption, sortOrder } = req.body;
-    const url = `/uploads/media/${req.file.filename}`;
+    const url = req.file.filename.startsWith('http') ? req.file.filename : `/uploads/media/${req.file.filename}`;
 
     const media = await StorefrontMedia.create({
       vendorId: req.user.id,

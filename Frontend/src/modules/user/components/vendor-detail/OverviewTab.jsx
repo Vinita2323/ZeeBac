@@ -165,27 +165,13 @@ export default function OverviewTab({ vendor }) {
         </div>
       </div>
 
-      <div className="flex gap-2.5 pt-2">
-        <button
-          onClick={() => navigate('/pay-vendor', { state: { vendor } })}
-          className="flex-1 h-[52px] bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:from-[#16082f] hover:to-[#4c00b0] transition-all active:scale-[0.98] shadow-md"
-        >
-          <span className="material-symbols-outlined text-[20px]">payments</span>
-          Pay Online
-        </button>
-        <button
-          onClick={() => navigate('/request-cashback', { state: { vendor } })}
-          className="flex-1 h-[52px] bg-secondary text-white font-title-md font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/90 transition-colors active:scale-[0.98] shadow-md"
-        >
-          <span className="material-symbols-outlined text-[20px]">receipt_long</span>
-          Upload Bill
-        </button>
+      <div className="pt-2">
         <button
           onClick={handleMessageVendor}
-          className="w-[52px] h-[52px] bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
-          title="Message Shop"
+          className="w-full h-12 bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
         >
-          <span className="material-symbols-outlined text-[22px]">chat</span>
+          <span className="material-symbols-outlined text-[20px]">chat</span>
+          Message Shop
         </button>
       </div>
     </div>

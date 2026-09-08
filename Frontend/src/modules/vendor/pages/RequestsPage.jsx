@@ -8,6 +8,7 @@ export default function RequestsPage() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
   const currentUser = useAuthStore((state) => state.currentUser);
   const cashbackRate = currentUser?.cashbackRate ?? 5;
 
@@ -77,7 +78,15 @@ export default function RequestsPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-bold text-[15px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
+                  <div>
+                    <h4 className="font-bold text-[15px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
+                    {req.billNumber && (
+                      <p className="text-[12px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">tag</span>
+                        <span>Bill No: <span className="bg-primary/10 px-1.5 py-0.5 rounded font-mono">{req.billNumber}</span></span>
+                      </p>
+                    )}
+                  </div>
                   <p className="font-black text-[16px] text-on-surface">₹{req.amount?.toLocaleString()}</p>
                 </div>
                 <div className="flex justify-between items-center mt-1">

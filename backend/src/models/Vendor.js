@@ -66,6 +66,13 @@ const vendorSchema = new mongoose.Schema(
     },
     shopType: {
       type: String,
+      set: function(val) {
+        if (val && !['Independent Store', 'Chain & Brand'].includes(val)) {
+          if (!this.category) this.category = val;
+          return 'Independent Store';
+        }
+        return val;
+      },
       enum: ['Independent Store', 'Chain & Brand'],
     },
     category: {
@@ -131,13 +138,21 @@ const vendorSchema = new mongoose.Schema(
     // to real transactions.
     cashbackRate: { type: Number, min: 0, max: 100 },
     subscription: {
-      plan: {
+      planType: {
         type: String,
-        enum: ['Basic Plan (Free)', 'Pro Plan (Paid)', 'Enterprise Plan'],
+        enum: ['Monthly', 'Yearly', 'None'],
+        default: 'None',
+      },
+      price: { type: Number, default: 0 },
+      status: {
+        type: String,
+        enum: ['ACTIVE', 'EXPIRED', 'NONE'],
+        default: 'ACTIVE',
       },
       startDate: Date,
-      endDate: Date,
-      isActive: Boolean,
+      expiresAt: Date,
+      lastRenewedAt: Date,
+      expiredAt: Date,
     },
     aadhaar: String,
     pan: String,

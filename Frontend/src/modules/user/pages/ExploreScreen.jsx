@@ -3,6 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 export default function ExploreScreen() {
   const navigate = useNavigate();
@@ -186,24 +199,34 @@ export default function ExploreScreen() {
 
         
         {showMap ? (
-          /* Mock Map representation */
-          <div className="w-full h-[450px] glass-card rounded-3xl overflow-hidden relative shadow-lg flex items-center justify-center animate-reveal">
-            <img 
-              alt="Map view" 
-              className="w-full h-full object-cover" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDR6lU_paT8suC7Y0iuxSdd3IQutJ4oAMJoxi8Hld2bUHqknZu3WDUqoyqEhC_MFk9jyqJul5eZn7HsXPkmdKlzf3x8Z2DukeQBh76A8_-OOA2OyZt3qLNpgMzq_0k2UMiu9tLuKY9MY6ExlYAdno7W8RHZhbnfr0GPMITMoi2zCDxNinsgiECCW1KltHrs5rEK5lS1Q03EqFYvjyg5hlIIJA9TqONZtt7_wYzQ4JLOYhP_ZDOt_1wtkpmouL4orX0YGmaEoaCoUhZb"
-            />
-            {vendors.map((vendor, idx) => (
-              <div 
-                key={vendor._id} 
-                onClick={() => handleVendorClick(vendor)}
-                className={`absolute w-8 h-8 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform ${
-                  idx === 0 ? 'top-1/4 left-1/3' : idx === 1 ? 'bottom-1/3 right-1/4' : 'top-1/2 right-1/3'
-                }`}
-              >
-                <span className="material-symbols-outlined text-primary text-3xl animate-pulse" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-              </div>
-            ))}
+          /* Interactive Leaflet Map representation */
+          <div className="w-full h-[450px] rounded-3xl overflow-hidden relative shadow-lg animate-reveal border border-outline-variant/20">
+            <MapContainer
+              center={location ? [location.lat, location.lng] : [20.5937, 78.9629]}
+              zoom={location ? 13 : 5}
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {vendors.map((vendor) => {
+                const coords = vendor.location?.coordinates;
+                const pos = coords && coords.length === 2 ? [coords[1], coords[0]] : null;
+                if (!pos) return null;
+                return (
+                  <Marker key={vendor._id} position={pos}>
+                    <Popup>
+                      <div className="p-1 text-left cursor-pointer" onClick={() => handleVendorClick(vendor)}>
+                        <h4 className="font-bold text-sm text-primary">{vendor.storeName}</h4>
+                        <p className="text-xs text-gray-600">{vendor.category} &bull; Flat {vendor.cashbackRate}% Cashback</p>
+                        <p className="text-[11px] font-bold text-green-700 mt-1">Tap to View Store</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })}
+            </MapContainer>
           </div>
         ) : (
           /* List View Representation */

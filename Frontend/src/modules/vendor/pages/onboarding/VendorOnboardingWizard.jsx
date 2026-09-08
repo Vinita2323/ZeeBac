@@ -200,34 +200,34 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
   const visibleStepStart = mode === 'resubmit' ? 2 : 1;
 
   return (
-    <div className="min-h-screen mesh-gradient text-gray-900 font-body-lg relative overflow-x-hidden">
+    <div className="min-h-screen mesh-gradient text-gray-900 relative" style={{ width: '100%', display: 'block' }}>
       <div className="blob-orb w-72 h-72 bg-primary/14 -top-16 -right-16 animate-drift" />
       <div className="blob-orb w-64 h-64 bg-secondary/12 bottom-10 -left-16 animate-drift-reverse" />
 
       {/* Header / progress */}
       <header className="sticky top-0 z-50 glass-header border-b border-outline-variant/10">
-        <div className="max-w-[600px] mx-auto w-full px-4 h-16 flex items-center">
+        <div className="max-w-lg mx-auto w-full px-4 h-16 flex items-center gap-3">
           {step > visibleStepStart ? (
-            <button onClick={goBack} className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 cursor-pointer">
+            <button onClick={goBack} className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 cursor-pointer shrink-0">
               <span className="material-symbols-outlined">arrow_back</span>
             </button>
-          ) : <div className="w-10 h-10" />}
-          <div className="flex-1 mx-2">
+          ) : <div className="w-10 h-10 shrink-0" />}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               {STEP_LABELS.map((label, idx) => {
                 const stepNum = idx + 1;
                 if (mode === 'resubmit' && stepNum === 1) return null;
                 return (
-                  <div key={label} className={`flex-1 h-1.5 rounded-full transition-colors ${stepNum <= step ? 'bg-[#7c3aed]' : 'bg-gray-200'}`} />
+                  <div key={label} className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${stepNum <= step ? 'bg-[#7c3aed]' : 'bg-gray-200'}`} />
                 );
               })}
             </div>
-            <p className="text-[11px] font-bold text-gray-500 mt-1">Step {step - visibleStepStart + 1} of {totalSteps - visibleStepStart + 1} — {STEP_LABELS[step - 1]}</p>
+            <p className="text-[11px] font-bold text-gray-500 mt-1 truncate">Step {step - visibleStepStart + 1} of {totalSteps - visibleStepStart + 1} — {STEP_LABELS[step - 1]}</p>
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-col items-center px-4 py-8">
+      <main style={{ display: 'block', width: '100%', maxWidth: '512px', marginLeft: 'auto', marginRight: 'auto', paddingLeft: '16px', paddingRight: '16px', paddingTop: '24px', paddingBottom: '40px', position: 'relative', zIndex: 10 }}>
         {step === 1 && <StepAccount onComplete={(vendor) => { setAccount(vendor); setStep(2); }} />}
         {step === 2 && <StepBusiness data={data} update={update} errors={errors} />}
         {step === 3 && <StepDocuments data={data} update={update} errors={errors} />}
@@ -245,13 +245,17 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
         )}
 
         {step > 1 && step < 4 && (
-          <div className="w-full max-w-[520px] flex justify-end mt-4">
+          <div className="w-full mt-5">
             <button
               onClick={goNext}
               disabled={isSaving}
-              className="px-6 h-12 rounded-xl btn-primary-gradient text-white font-bold text-[14px] flex items-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
+              className="w-full h-13 rounded-2xl btn-primary-gradient text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
             >
-              {isSaving ? 'Saving...' : 'Continue'} <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              {isSaving ? (
+                <><span className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" /> Saving...</>
+              ) : (
+                <>Continue <span className="material-symbols-outlined text-[18px]">arrow_forward</span></>
+              )}
             </button>
           </div>
         )}

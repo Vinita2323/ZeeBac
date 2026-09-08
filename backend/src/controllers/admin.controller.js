@@ -249,11 +249,21 @@ export const getAllUsers = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
+    const usersWithStats = await Promise.all(users.map(async (u) => {
+      const wallet = await Wallet.findOne({ ownerId: u._id, ownerType: 'User' }).select('balance');
+      const totalTx = await WalletTransaction.countDocuments({ ownerId: u._id });
+      return {
+        ...u.toObject(),
+        walletBalance: wallet?.balance || 0,
+        totalTransactions: totalTx
+      };
+    }));
+
     const total = await User.countDocuments(query);
 
     res.status(200).json({
       success: true,
-      data: users,
+      data: usersWithStats,
       meta: {
         total,
         page: parseInt(page),
@@ -329,8 +339,11 @@ export const createCashbackRule = async (req, res) => {
   try {
     const { shopType, minCashback, maxCashback, priority } = req.body;
     const rule = await CashbackRule.create({
-      shopType, minCashback, maxCashback, priority,
-      createdBy: req.user._id
+      shopType,
+      minCashback: Number(minCashback),
+      maxCashback: maxCashback ? Number(maxCashback) : undefined,
+      priority: priority ? Number(priority) : 0,
+      createdBy: req.user?._id || req.user?.id,
     });
     res.status(201).json({ success: true, data: rule, message: 'Rule created' });
   } catch (error) {
@@ -577,7 +590,15 @@ export const getWalletStats = async (req, res) => {
     ]);
     const todaysDebits = debitsResult[0]?.total || 0;
 
-    const pendingPayouts = 0; // Mocked for now
+    const pendingUserResult = await WalletTransaction.aggregate([
+      { $match: { category: 'cashout', status: 'Pending', ownerType: 'User' } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+    const pendingVendorResult = await mongoose.model('WithdrawalRequest').aggregate([
+      { $match: { status: 'Pending' } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+    const pendingPayouts = (pendingUserResult[0]?.total || 0) + (pendingVendorResult[0]?.total || 0);
 
     res.status(200).json({
       success: true,
@@ -781,10 +802,24 @@ export const updateRewardConfig = async (req, res) => {
     if (!config) {
       config = new RewardConfig();
     }
-    const { milestoneInterval, minScratchReward, maxScratchReward, isActive } = req.body;
-    if (milestoneInterval) config.milestoneInterval = milestoneInterval;
-    if (minScratchReward !== undefined) config.minScratchReward = minScratchReward;
-    if (maxScratchReward !== undefined) config.maxScratchReward = maxScratchReward;
+    const {
+      milestoneInterval, minScratchReward, maxScratchReward, isActive,
+      referralReward, userMinWithdrawalAmount, userMaxWithdrawalAmount, userWithdrawalCommissionPercent,
+      independentStoreMonthlyPrice, independentStoreYearlyPrice,
+      brandMonthlyPrice, brandYearlyPrice,
+    } = req.body;
+
+    if (milestoneInterval !== undefined) config.milestoneInterval = Number(milestoneInterval);
+    if (minScratchReward !== undefined) config.minScratchReward = Number(minScratchReward);
+    if (maxScratchReward !== undefined) config.maxScratchReward = Number(maxScratchReward);
+    if (referralReward !== undefined) config.referralReward = Number(referralReward);
+    if (userMinWithdrawalAmount !== undefined) config.userMinWithdrawalAmount = Number(userMinWithdrawalAmount);
+    if (userMaxWithdrawalAmount !== undefined) config.userMaxWithdrawalAmount = Number(userMaxWithdrawalAmount);
+    if (userWithdrawalCommissionPercent !== undefined) config.userWithdrawalCommissionPercent = Number(userWithdrawalCommissionPercent);
+    if (independentStoreMonthlyPrice !== undefined) config.independentStoreMonthlyPrice = Number(independentStoreMonthlyPrice);
+    if (independentStoreYearlyPrice !== undefined) config.independentStoreYearlyPrice = Number(independentStoreYearlyPrice);
+    if (brandMonthlyPrice !== undefined) config.brandMonthlyPrice = Number(brandMonthlyPrice);
+    if (brandYearlyPrice !== undefined) config.brandYearlyPrice = Number(brandYearlyPrice);
     if (isActive !== undefined) config.isActive = isActive;
     
     await config.save();

@@ -36,6 +36,32 @@ export default function FraudDetectionPage() {
   };
   const riskStyles = getRiskColors();
 
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [actionTxnId, setActionTxnId] = useState('');
+  const [actionReason, setActionReason] = useState('');
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+
+  const handleExecuteRefund = async (e) => {
+    e.preventDefault();
+    if (!actionTxnId.trim()) return alert('Please enter a Transaction ID');
+    try {
+      setIsProcessingAction(true);
+      const res = await AdminAPI.refundTransaction(actionTxnId.trim(), actionReason || 'Refunded via Fraud Action');
+      if (res.success) {
+        alert(res.message || 'Transaction refunded and cashback reversed successfully.');
+        setShowActionModal(false);
+        setActionTxnId('');
+        setActionReason('');
+      } else {
+        alert(res.message || 'Failed to process refund');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error processing transaction refund');
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-reveal text-left">
       <div className="flex items-center justify-between">
@@ -44,8 +70,8 @@ export default function FraudDetectionPage() {
           <p className="text-body-md text-on-surface-variant mt-1">Monitor suspicious activities and anomalies.</p>
         </div>
         <button 
-          onClick={() => navigate('/admin/users')}
-          className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold text-[13px] hover:bg-red-100 transition-colors"
+          onClick={() => setShowActionModal(true)}
+          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-xl font-bold text-[13px] hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">gavel</span> Take Action
         </button>
@@ -166,6 +192,67 @@ export default function FraudDetectionPage() {
         </div>
 
       </div>
+
+      {showActionModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl animate-reveal text-left">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-red-600">gavel</span> Admin Action Center
+              </h3>
+              <button onClick={() => setShowActionModal(false)} className="text-on-surface-variant hover:text-on-surface cursor-pointer">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant mb-4">
+              Enter a transaction ID to execute immediate cashback reversal & refund, or manage flagged account status.
+            </p>
+
+            <form onSubmit={handleExecuteRefund} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">Transaction ID *</label>
+                <input
+                  type="text"
+                  required
+                  value={actionTxnId}
+                  onChange={(e) => setActionTxnId(e.target.value)}
+                  placeholder="e.g. TX-1788847220500-1 or Mongo ID"
+                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-sm font-mono focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">Action Note / Reason</label>
+                <textarea
+                  rows="2"
+                  value={actionReason}
+                  onChange={(e) => setActionReason(e.target.value)}
+                  placeholder="e.g. Fraudulent receipt upload confirmed by vendor"
+                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowActionModal(false)}
+                  className="flex-1 py-2.5 border border-outline-variant/30 text-on-surface-variant font-bold rounded-xl hover:bg-surface-container-low transition-colors text-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessingAction}
+                  className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors text-sm cursor-pointer shadow disabled:opacity-50"
+                >
+                  {isProcessingAction ? 'Processing...' : 'Reverse & Refund'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

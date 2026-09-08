@@ -26,6 +26,18 @@ export default function ReferralAnalyticsPage() {
     fetchStats();
   }, []);
 
+  const handleExportCSV = () => {
+    if (!stats.topReferrers || stats.topReferrers.length === 0) return alert('No referral data to export.');
+    const headers = ["User Name", "Successful Invites", "Total Earned", "Status"];
+    const rows = stats.topReferrers.map(r => [r.name, r.invites, r.earned, r.status]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c || ''}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `ReferralAnalytics_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   if (isLoading) return <div className="p-8 text-center text-on-surface-variant font-bold">Loading Stats...</div>;
 
   return (
@@ -62,7 +74,10 @@ export default function ReferralAnalyticsPage() {
       <div className="bg-white border border-outline-variant/10 rounded-2xl flex flex-col shadow-sm overflow-hidden">
         <div className="p-5 border-b border-outline-variant/10 flex justify-between items-center">
           <h2 className="text-on-surface font-bold text-[15px]">Top Referrers</h2>
-          <button className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold text-[11px] hover:bg-primary hover:text-white transition-colors">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold text-[11px] hover:bg-primary hover:text-white transition-colors cursor-pointer"
+          >
             <span className="material-symbols-outlined text-[14px]">download</span> Export CSV
           </button>
         </div>

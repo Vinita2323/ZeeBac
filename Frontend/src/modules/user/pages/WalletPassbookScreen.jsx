@@ -76,19 +76,6 @@ export default function WalletPassbookScreen() {
             };
           });
 
-          if (formatted.length === 0) {
-            formatted.push({
-              id: 'dummy',
-              name: "Welcome Bonus",
-              time: "Just now",
-              amount: "+₹50.00",
-              type: "Credited",
-              tag: "Reward",
-              tagIcon: "featured_seasonal_and_gifts",
-              icon: "card_giftcard",
-              from: "ZeeBac"
-            });
-          }
           setTransactions(formatted);
         }
 

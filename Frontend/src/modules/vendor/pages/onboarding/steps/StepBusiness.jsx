@@ -75,7 +75,7 @@ export default function StepBusiness({ data, update, errors }) {
   const isVendorTypeSelected = (t) => data.shopType === t;
 
   return (
-    <div className="w-full max-w-[520px] glass-panel rounded-[2rem] p-7 space-y-5">
+    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 space-y-5 animate-reveal">
       <div>
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">storefront</span>

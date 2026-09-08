@@ -103,6 +103,12 @@ export default function RequestDetailsScreen() {
               <span className="font-caption text-xs">Merchant Name</span>
               <span className="font-title-md font-bold text-on-surface">{request.vendorId?.storeName || request.vendorName}</span>
             </div>
+            {request.billNumber && (
+              <div className="flex justify-between items-center">
+                <span className="font-caption text-xs">Bill / Invoice No</span>
+                <span className="font-bold text-on-surface font-mono">{request.billNumber}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="font-caption text-xs">Date of Purchase</span>
               <span className="font-bold text-on-surface">{new Date(request.purchaseDate || request.createdAt).toLocaleDateString()}</span>

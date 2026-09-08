@@ -64,7 +64,7 @@ export default function StepAccount({ onComplete }) {
   };
 
   return (
-    <div className="w-full max-w-[440px] glass-panel rounded-[2rem] p-7">
+    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 animate-reveal" style={{ width: '100%', boxSizing: 'border-box' }}>
       <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-5">
         <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">storefront</span>
       </div>
@@ -108,7 +108,7 @@ export default function StepAccount({ onComplete }) {
               <input
                 key={index}
                 id={`vendor-otp-${index}`}
-                className="w-14 h-16 bg-white/80 border-2 border-gray-200 rounded-xl text-center text-[26px] font-black focus:border-[#7c3aed] focus:shadow-[0_0_0_4px_rgba(124,58,237,0.12)] outline-none transition-all text-gray-800"
+                className="w-12 sm:w-14 h-14 sm:h-16 bg-white border border-slate-200 rounded-xl text-center text-2xl font-black focus:border-purple-600 outline-none transition-colors text-slate-800"
                 value={digit} maxLength="1" type="tel" inputMode="numeric" autoFocus={index === 0}
                 onChange={(e) => handleOtpChange(index, e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Backspace' && !otp[index] && index > 0) document.getElementById(`vendor-otp-${index - 1}`)?.focus(); }}

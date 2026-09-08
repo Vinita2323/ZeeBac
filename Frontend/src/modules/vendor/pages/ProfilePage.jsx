@@ -126,6 +126,8 @@ export default function ProfilePage() {
           state: res.data.address?.state || '',
           pincode: res.data.address?.pincode || '',
           operatingHours: res.data.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM',
+          cashbackRate: res.data.cashbackRate ?? 5,
+          shopType: res.data.shopType || 'Independent Store',
           upiId: res.data.bankDetails?.upiId || '',
           accountHolderName: res.data.bankDetails?.accountHolderName || '',
           bankName: res.data.bankDetails?.bankName || '',
@@ -185,8 +187,15 @@ export default function ProfilePage() {
   const handleEditSave = async () => {
     if (isEditing) {
       try {
+        const minAllowed = formData.shopType === 'Chain & Brand' ? 5 : 2;
+        if (formData.cashbackRate < minAllowed) {
+          alert(`Cashback rate cannot be less than ${minAllowed}% for ${formData.shopType}.`);
+          return;
+        }
+
         await VendorAPI.updateProfile({
           email: formData.email,
+          cashbackRate: Number(formData.cashbackRate),
           address: { 
             fullAddress: formData.fullAddress,
             landmark: formData.landmark,
@@ -214,6 +223,8 @@ export default function ProfilePage() {
         setTimeout(() => setToastMessage(null), 2500);
       } catch (error) {
         console.error('Failed to update profile', error);
+        alert(error.response?.data?.message || 'Failed to update profile.');
+        return;
       }
     }
     setIsEditing(!isEditing);

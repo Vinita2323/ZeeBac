@@ -71,23 +71,33 @@ const useAuthStore = create((set, get) => ({
   },
 
   // Log out and clear all persisted session data
-  logout: () => {
-    localStorage.removeItem('zeebac_current_user');
-    localStorage.removeItem('zeebac_access_token');
-    localStorage.removeItem('zeebac_refresh_token');
-    localStorage.removeItem('vendor_transactions');
-    localStorage.removeItem('vendor_balance');
-    localStorage.removeItem('zeebac_wallet_balance');
-    localStorage.removeItem('zeebac_transactions');
-    localStorage.removeItem('user_profile');
-    localStorage.removeItem('cashback_requests');
+  logout: async () => {
+    try {
+      const token = localStorage.getItem('zeebac_access_token');
+      if (token) {
+        const { apiClient } = await import('../services/api.js');
+        await apiClient.post('/auth/logout').catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Backend logout silent failure:', e);
+    } finally {
+      localStorage.removeItem('zeebac_current_user');
+      localStorage.removeItem('zeebac_access_token');
+      localStorage.removeItem('zeebac_refresh_token');
+      localStorage.removeItem('vendor_transactions');
+      localStorage.removeItem('vendor_balance');
+      localStorage.removeItem('zeebac_wallet_balance');
+      localStorage.removeItem('zeebac_transactions');
+      localStorage.removeItem('user_profile');
+      localStorage.removeItem('cashback_requests');
 
-    set({
-      currentUser: null,
-      accessToken: null,
-      isAuthenticated: false,
-      walletBalance: 0,
-    });
+      set({
+        currentUser: null,
+        accessToken: null,
+        isAuthenticated: false,
+        walletBalance: 0,
+      });
+    }
   },
 
   // Update wallet balance globally (all pages react instantly)

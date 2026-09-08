@@ -85,7 +85,7 @@ export default function ReviewChangesScreen({ previous, current, onEdit, onResub
   const totalChanges = sectionsWithDiffs.reduce((sum, s) => sum + s.changes.length, 0);
 
   return (
-    <div className="w-full max-w-[560px] glass-panel rounded-[2rem] p-7 space-y-5">
+    <div className="w-full max-w-lg mx-auto glass-panel rounded-3xl p-6 sm:p-8 space-y-5">
       <div>
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">difference</span>

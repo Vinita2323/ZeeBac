@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
+import AdminUser from '../models/AdminUser.js';
 import logger from '../utils/logger.js';
 
 // ─── Get My Notifications ───
@@ -105,10 +106,7 @@ export const saveAdminFcmToken = async (req, res) => {
     const { token } = req.body;
     if (!token) return res.status(400).json({ success: false, message: 'Token required' });
     
-    // In our system, Admin token might be saved in User collection if admin is a User role, 
-    // or maybe we don't strictly bind it to a DB model if there's only 1 superadmin.
-    // Let's assume Admin is just a User document with role 'admin'
-    await User.findByIdAndUpdate(req.user.id, {
+    await AdminUser.findByIdAndUpdate(req.user.id, {
       $addToSet: { fcmTokens: token }
     });
     res.status(200).json({ success: true, message: 'Admin FCM token saved' });
@@ -117,3 +115,46 @@ export const saveAdminFcmToken = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// ─── Save Mobile/Web FCM Token (Endpoint: /fcm-tokens/mobile/save) ───
+export const saveMobileFcmToken = async (req, res) => {
+  try {
+    const token = req.body.token || req.body.fcmToken || req.body.fcm_token || req.body.deviceToken;
+    const role = req.body.role || req.user?.role || 'customer';
+    const userId = req.body.userId || req.body.user_id || req.user?.id;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'FCM Token (token or fcmToken) is required',
+      });
+    }
+
+    if (userId) {
+      if (role === 'vendor') {
+        await Vendor.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
+      } else if (role === 'admin' || role === 'super_admin') {
+        await AdminUser.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
+      } else {
+        await User.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
+      }
+    }
+
+    logger.info(`Mobile FCM Token saved [role=${role}, userId=${userId || 'anonymous'}]`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'FCM token saved successfully',
+      data: {
+        token,
+        role,
+        userId: userId || null,
+        deviceType: req.body.deviceType || 'mobile',
+      },
+    });
+  } catch (error) {
+    logger.error(`saveMobileFcmToken error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server Error saving FCM token' });
+  }
+};
+

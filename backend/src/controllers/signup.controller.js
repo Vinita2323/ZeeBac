@@ -68,7 +68,7 @@ export const customerSignup = async (req, res) => {
     }
 
     // 4. Create User
-    const profileImage = req.file ? `/uploads/profiles/${req.file.filename}` : undefined;
+    const profileImage = req.file ? (req.file.filename.startsWith('http') ? req.file.filename : `/uploads/profiles/${req.file.filename}`) : undefined;
 
     const user = await User.create({
       zeebacId,

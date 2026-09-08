@@ -6,7 +6,7 @@ import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import Transaction from '../models/Transaction.js';
 import CashbackRequest from '../models/CashbackRequest.js';
-import { logPurchase, respondToCashbackRequest } from './vendor.controller.js';
+import { logPurchase, respondToCashbackRequest, updateProfile } from './vendor.controller.js';
 
 // The controllers call sendNotification (Firebase) as a side effect — mock it
 // out so tests don't depend on Firebase being configured.
@@ -143,5 +143,30 @@ describe('respondToCashbackRequest', () => {
     expect(finalRequest.status).toBe('Rejected');
     const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
     expect(vendorWallet.balance).toBe(1000); // untouched
+  });
+});
+
+describe('updateProfile (Phase 5 Rate Bounds)', () => {
+  it('rejects cashback rate updates below shop-type minimums with 400', async () => {
+    const brandVendor = await makeVendor({ shopType: 'Chain & Brand', cashbackRate: 5 });
+    const req = { user: { id: brandVendor._id.toString() }, body: { cashbackRate: 3 } };
+    const res = makeRes();
+
+    await updateProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].message).toContain('minimum required rate of 5%');
+  });
+
+  it('accepts valid cashback rate updates at or above shop-type minimums', async () => {
+    const indVendor = await makeVendor({ shopType: 'Independent Store', cashbackRate: 5 });
+    const req = { user: { id: indVendor._id.toString() }, body: { cashbackRate: 3 } };
+    const res = makeRes();
+
+    await updateProfile(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const updated = await Vendor.findById(indVendor._id);
+    expect(updated.cashbackRate).toBe(3);
   });
 });

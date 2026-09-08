@@ -7,7 +7,7 @@
 import axios from 'axios';
 import useAuthStore from '../store/useAuthStore.js';
 
-const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? `${window.location.protocol}//${window.location.host}/api` : 'http://localhost:5000/api');
 export const SERVER_URL = rawApiUrl.replace(/\/api\/?$/, '');
 export const API_BASE_URL = `${SERVER_URL}/api`;
 
@@ -26,12 +26,19 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if (error.response?.status === 413) {
+      if (typeof error.response.data !== 'object' || !error.response.data?.message) {
+        error.response.data = {
+          message: 'The uploaded file or total request size is too large (exceeds server limit). Please select smaller files (under 5MB each).'
+        };
+      }
+    }
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const refreshToken = localStorage.getItem('zeebac_refresh_token');
         if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
         useAuthStore.getState().setAccessToken(data.accessToken);
         originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
         return apiClient(originalRequest);
@@ -169,6 +176,10 @@ export const AdminAPI = {
   // Payouts & Withdrawals
   getPendingPayouts: async () => {
     const res = await apiClient.get('/admin/payouts/pending');
+    return res.data;
+  },
+  refundTransaction: async (txnId, reason = '') => {
+    const res = await apiClient.post(`/admin/transactions/${txnId}/refund`, { reason });
     return res.data;
   },
   processPayout: async (id, data) => {

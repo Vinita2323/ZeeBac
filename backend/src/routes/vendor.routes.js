@@ -21,6 +21,7 @@ import {
   saveApplicationDraft,
   submitApplication,
   resubmitApplication,
+  subscribePlan,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -74,6 +75,7 @@ router.route('/products/:id')
   .delete(requireApprovedVendor, deleteProduct);
 
 // Transaction & Wallet Routes (Phase 3C & 3D)
+router.post('/subscription/subscribe', requireApprovedVendor, subscribePlan);
 router.get('/customers/list', requireApprovedVendor, getVendorCustomers);
 router.get('/qr-token', requireApprovedVendor, getVendorQrToken);
 router.get('/customers/:phone', requireApprovedVendor, lookupCustomerByPhone);

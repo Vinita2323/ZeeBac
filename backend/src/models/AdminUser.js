@@ -33,7 +33,10 @@ const adminUserSchema = new mongoose.Schema(
     lastLoginAt: Date,
     refreshToken: {
       type: String,
-    }
+    },
+    fcmTokens: [{
+      type: String,
+    }]
   },
   {
     timestamps: true,

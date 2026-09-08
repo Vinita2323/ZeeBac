@@ -19,9 +19,9 @@ function SectionCard({ title, icon, onEdit, children }) {
 
 function Row({ label, value }) {
   return (
-    <div className="flex justify-between gap-3">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-bold text-gray-900 text-right">{value || <span className="text-gray-300">—</span>}</span>
+    <div className="flex justify-between gap-3 text-[13px] sm:text-[13.5px]">
+      <span className="text-gray-500 shrink-0">{label}</span>
+      <span className="font-bold text-gray-900 text-right min-w-0 flex-1 break-words">{value || <span className="text-gray-300">—</span>}</span>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
   const docs = data.documents;
 
   return (
-    <div className="w-full max-w-[560px] glass-panel rounded-[2rem] p-7 space-y-4">
+    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 space-y-4 animate-reveal">
       <div>
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">fact_check</span>

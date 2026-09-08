@@ -7,9 +7,9 @@ export default function FloatingInput({ label, icon, type = 'text', value, onCha
 
   return (
     <div className="space-y-1">
-      <div className={`relative flex ${multiline ? 'items-start pt-4' : 'items-center'} bg-white border-2 rounded-lg transition-all duration-300 ${
-        error ? 'border-red-300' : focused ? 'border-[#7c3aed] shadow-[0_0_0_4px_rgba(124,58,237,0.08)]' : 'border-gray-200 hover:border-gray-300'
-      } ${readOnly ? 'bg-gray-50 border-gray-200' : ''}`}>
+      <div className={`relative flex ${multiline ? 'items-start pt-4' : 'items-center'} bg-white border border-slate-200 rounded-xl transition-colors ${
+        error ? 'border-red-400' : focused ? 'border-purple-600' : 'border-slate-200 hover:border-slate-300'
+      } ${readOnly ? 'bg-slate-50 border-slate-200' : ''}`}>
         {icon && (
           <span className={`material-symbols-outlined absolute left-4 transition-colors ${focused ? 'text-[#7c3aed]' : 'text-gray-400'} ${multiline ? 'top-5' : ''}`}>{icon}</span>
         )}

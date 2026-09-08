@@ -30,6 +30,10 @@ const cashbackRequestSchema = new mongoose.Schema({
     type: String,
     required: function () { return this.requestType === 'receipt_claim'; },
   },
+  billNumber: {
+    type: String,
+    trim: true,
+  },
   purchaseDate: {
     type: Date,
   },

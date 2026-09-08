@@ -69,8 +69,15 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Pending', 'Success', 'Failed'],
+      enum: ['Pending', 'Success', 'Failed', 'Refunded'],
       default: 'Success',
+    },
+    feeAmount: {
+      type: Number,
+      default: 0,
+    },
+    netPayout: {
+      type: Number,
     },
     adminTransactionId: {
       type: String, // UTR or Bank Reference entered by admin during manual payout

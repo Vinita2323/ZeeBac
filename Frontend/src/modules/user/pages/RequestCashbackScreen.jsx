@@ -14,6 +14,7 @@ export default function RequestCashbackScreen() {
   // Form State
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [billNumber, setBillNumber] = useState('');
   const [billAmount, setBillAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [description, setDescription] = useState('');
@@ -109,6 +110,10 @@ export default function RequestCashbackScreen() {
         return false;
       }
     } else if (step === 2) {
+      if (!billNumber || !billNumber.trim()) {
+        setErrorMsg('Please enter the unique bill / invoice number.');
+        return false;
+      }
       if (!billAmount || parseFloat(billAmount) <= 0) {
         setErrorMsg('Please enter a valid bill amount.');
         return false;
@@ -141,6 +146,7 @@ export default function RequestCashbackScreen() {
       const formData = new FormData();
       formData.append('vendorId', selectedVendor.id);
       formData.append('amount', parseFloat(billAmount));
+      formData.append('billNumber', billNumber.trim());
       formData.append('description', description || 'Manual Cashback Request');
       formData.append('paymentMethod', paymentMethod);
       formData.append('purchaseDate', purchaseDate);
@@ -192,6 +198,12 @@ export default function RequestCashbackScreen() {
               <span>Request ID</span>
               <span className="font-label-mono font-bold text-[12px] text-on-surface">{submittedRequestId}</span>
             </div>
+            {billNumber && (
+              <div className="flex justify-between">
+                <span>Bill Number</span>
+                <span className="font-label-mono font-bold text-[12px] text-on-surface">{billNumber}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span>Submission Date</span>
               <span className="font-bold text-on-surface">{submittedDateTime}</span>
@@ -373,6 +385,22 @@ export default function RequestCashbackScreen() {
                 </div>
 
                 <div>
+                  <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">
+                    Unique Bill / Invoice Number <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. INV-2026-0042 or Receipt #98432"
+                    value={billNumber}
+                    onChange={(e) => setBillNumber(e.target.value)}
+                    className="w-full h-[52px] px-md bg-white border-2 border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary text-body-lg font-mono transition-all"
+                  />
+                  <p className="text-[10px] text-on-surface-variant/70 mt-1">
+                    Enter the unique bill or receipt number printed on your document.
+                  </p>
+                </div>
+
+                <div>
                   <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Bill Amount (₹)</label>
                   <input 
                     type="number"
@@ -512,6 +540,10 @@ export default function RequestCashbackScreen() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-md gap-x-sm text-body-sm text-on-surface-variant">
+                  <div>
+                    <p className="font-caption text-[10px] uppercase">Bill Number</p>
+                    <p className="font-bold text-on-surface font-mono">{billNumber || 'N/A'}</p>
+                  </div>
                   <div>
                     <p className="font-caption text-[10px] uppercase">Purchase Date</p>
                     <p className="font-bold text-on-surface">{purchaseDate}</p>

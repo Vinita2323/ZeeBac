@@ -1,46 +1,26 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { uploadFileToCloudinary } from '../utils/cloudinary.util.js';
 
-// Storage engine
+// Disk storage for temporary file handling before uploading to Cloudinary
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Pick subfolder based on fieldname
-    const map = {
-      profilePic:        'uploads/profiles',
-      storeLogo:         'uploads/profiles',
-      storeCoverImage:   'uploads/storefront',
-      storeImages:       'uploads/storefront',
-      aadhaarPan:        'uploads/documents',
-      gstCertificate:    'uploads/documents',
-      shopLicense:       'uploads/documents',
-      cancelledCheque:   'uploads/documents',
-      panCard:           'uploads/documents',
-      additionalDoc:     'uploads/documents',
-      storeImage:        'uploads/storefront',
-      productImage:      'uploads/storefront',
-      mediaFile:         'uploads/media',
-      billImg:           'uploads/receipts',
-      chatImage:         'uploads/chat',
-    };
-    const dest = map[file.fieldname] || 'uploads/storefront';
-    // multer's diskStorage does NOT create missing directories itself — it
-    // throws ENOENT on the first upload to a folder that doesn't exist yet
-    // (e.g. `uploads/receipts/` before Phase 2, since nothing ever wrote to
-    // it before). Ensuring it here makes every subfolder self-healing.
-    fs.mkdirSync(dest, { recursive: true });
-    cb(null, dest);
+    const tempDir = 'uploads/temp';
+    fs.mkdirSync(tempDir, { recursive: true });
+    cb(null, tempDir);
   },
   filename: (req, file, cb) => {
-    // Format: fieldname-timestamp.ext
     const ext = path.extname(file.originalname);
     cb(null, `${file.fieldname}-${Date.now()}${ext}`);
   }
 });
 
-// Document fields may be a scanned PDF as well as a photo; every other field
-// (logos, cover/gallery images, media, chat, receipts) stays image-only.
-const PDF_ALLOWED_FIELDS = new Set(['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancelledCheque', 'panCard', 'additionalDoc']);
+// Document fields may be a scanned PDF as well as a photo; every other field stays image-only.
+const PDF_ALLOWED_FIELDS = new Set([
+  'aadhaarPan', 'gstCertificate', 'shopLicense', 
+  'cancelledCheque', 'panCard', 'additionalDoc'
+]);
 
 const fileFilter = (req, file, cb) => {
   const allowedImages = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
@@ -53,8 +33,79 @@ const fileFilter = (req, file, cb) => {
     : cb(new Error(PDF_ALLOWED_FIELDS.has(file.fieldname) ? 'Only images or PDF files are allowed' : 'Only images are allowed'), false);
 };
 
-export const upload = multer({ 
+const rawUpload = multer({ 
   storage, 
   fileFilter, 
-  limits: { fileSize: 5 * 1024 * 1024 } // Max: 5MB per file
-}); 
+  limits: { fileSize: 10 * 1024 * 1024 } // Max: 10MB per file
+});
+
+/**
+ * Middleware that seamlessly uploads all Multer-processed files to Cloudinary CDN (m4u1eato)
+ */
+export const uploadToCloudinaryMiddleware = async (req, res, next) => {
+  try {
+    if (req.file) {
+      const folderMap = {
+        profilePic: 'profiles',
+        storeLogo: 'profiles',
+        avatar: 'profiles',
+        storeCoverImage: 'storefront',
+        storeImages: 'storefront',
+        billImg: 'receipts',
+        chatImage: 'chat',
+        mediaFile: 'media',
+      };
+      const folder = folderMap[req.file.fieldname] || 'general';
+      const cloudinaryUrl = await uploadFileToCloudinary(req.file.path, folder);
+
+      req.file.filename = cloudinaryUrl;
+      req.file.path = cloudinaryUrl;
+      req.file.url = cloudinaryUrl;
+    }
+
+    if (req.files) {
+      for (const fieldName of Object.keys(req.files)) {
+        const fileList = req.files[fieldName];
+        const folderMap = {
+          profilePic: 'profiles',
+          storeLogo: 'profiles',
+          storeCoverImage: 'storefront',
+          storeImages: 'storefront',
+          aadhaarPan: 'documents',
+          gstCertificate: 'documents',
+          shopLicense: 'documents',
+          cancelledCheque: 'documents',
+          panCard: 'documents',
+          additionalDoc: 'documents',
+        };
+        const folder = folderMap[fieldName] || 'general';
+
+        for (const fileObj of fileList) {
+          const cloudinaryUrl = await uploadFileToCloudinary(fileObj.path, folder);
+          fileObj.filename = cloudinaryUrl;
+          fileObj.path = cloudinaryUrl;
+          fileObj.url = cloudinaryUrl;
+        }
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('[Multer-Cloudinary] Middleware Upload Error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to upload asset to Cloudinary', 
+      error: error.message 
+    });
+  }
+};
+
+/**
+ * Universal upload object exposing Express middleware arrays compatible with all routes
+ */
+export const upload = {
+  single: (fieldName) => [rawUpload.single(fieldName), uploadToCloudinaryMiddleware],
+  array: (fieldName, maxCount) => [rawUpload.array(fieldName, maxCount), uploadToCloudinaryMiddleware],
+  fields: (fieldsArray) => [rawUpload.fields(fieldsArray), uploadToCloudinaryMiddleware],
+  any: () => [rawUpload.any(), uploadToCloudinaryMiddleware],
+};

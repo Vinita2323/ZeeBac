@@ -106,7 +106,7 @@ export const uploadChatImage = async (req, res) => {
     
     // In production, you would upload to S3 here.
     // For local dev, return the static file path.
-    const fileUrl = `/${req.file.path.replace(/\\/g, '/')}`;
+    const fileUrl = req.file.filename.startsWith('http') ? req.file.filename : `/${req.file.path.replace(/\\/g, '/')}`;
     
     res.status(200).json({ 
       success: true, 

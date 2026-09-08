@@ -145,8 +145,9 @@ export default function CashbackRulesPage() {
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </button>
                         <button 
-                          onClick={() => handleDelete(rule.id)}
+                          onClick={() => handleDelete(rule._id)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-error hover:bg-error/10 transition-colors cursor-pointer"
+                          title="Delete Rule"
                         >
                           <span className="material-symbols-outlined text-[18px]">delete</span>
                         </button>
