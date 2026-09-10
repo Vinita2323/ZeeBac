@@ -1,12 +1,12 @@
-// Tracked fields for application snapshots/diffing — deliberately excludes
-// account-level fields (ownerName, phone) and post-approval fields (bankDetails,
-// cashbackRate, stats) which aren't part of the onboarding application itself.
+// Tracked fields for application snapshots/diffing — captures onboarding fields
+// including store details, location, media, documents, and chosen cashback rate.
 export const TRACKED_FIELD_PATHS = [
   'storeName',
   'shopType',
   'category',
   'subCategory',
   'description',
+  'cashbackRate',
   'businessContactNumber',
   'businessEmail',
   'gstNumber',
@@ -67,6 +67,9 @@ export function validateApplicationComplete(vendorDoc) {
   if (!vendorDoc.storeName?.trim()) missing.push('Business/Shop Name');
   if (!vendorDoc.shopType) missing.push('Business Type (Independent Store / Chain & Brand)');
   if (!vendorDoc.category) missing.push('Business Category');
+  if (vendorDoc.cashbackRate === undefined || vendorDoc.cashbackRate === null || Number.isNaN(Number(vendorDoc.cashbackRate))) {
+    missing.push('Customer Cashback Percentage (%)');
+  }
   if (!vendorDoc.address?.fullAddress?.trim()) missing.push('Business Address');
   if (!vendorDoc.address?.city?.trim()) missing.push('City');
   if (!vendorDoc.address?.state?.trim()) missing.push('State');

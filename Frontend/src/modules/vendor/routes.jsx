@@ -18,16 +18,19 @@ import VendorLogTransactionScreen from './pages/VendorLogTransactionScreen';
 import StorefrontPage from './pages/StorefrontPage';
 import RequestsPage from './pages/RequestsPage';
 import SupportPage from './pages/SupportPage';
+import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
 
 export default function VendorRoutes() {
   const status = useAuthStore((s) => s.currentUser?.status);
 
   // A vendor whose application isn't yet approved never reaches the real
   // dashboard — they only see their application status/rejection/resubmit flow.
+  // However, they can visit the subscription page when onboarding is approved.
   if (status !== 'Verified') {
     return (
       <Routes>
         <Route path="application/*" element={<VendorApplicationRoutes />} />
+        <Route path="subscription" element={<VendorSubscriptionPage />} />
         <Route path="*" element={<Navigate to="application" replace />} />
       </Routes>
     );
@@ -43,6 +46,7 @@ export default function VendorRoutes() {
         <VendorLayout>
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="subscription" element={<VendorSubscriptionPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="wallet" element={<WalletPage />} />
             <Route path="passbook" element={<PassbookPage />} />

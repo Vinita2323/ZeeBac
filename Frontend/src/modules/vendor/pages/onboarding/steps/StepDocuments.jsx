@@ -1,10 +1,10 @@
-import { API_BASE_URL } from '../../../../../services/api';
+import { getMediaUrl } from '../../../../../services/api';
 import UploadCard from '../components/UploadCard';
 import WorkingHoursPicker from '../components/WorkingHoursPicker';
 
 function ImagePicker({ label, value, onChange, round }) {
   const isFile = value instanceof File;
-  const previewUrl = isFile ? URL.createObjectURL(value) : (value ? `${API_BASE_URL}${value}` : null);
+  const previewUrl = isFile ? URL.createObjectURL(value) : (value ? getMediaUrl(value) : null);
   const inputId = `img-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
   return (
@@ -64,7 +64,7 @@ export default function StepDocuments({ data, update, errors }) {
         <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">Store Gallery (Optional, up to 6)</label>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {(data.storeImages || []).map((img, idx) => {
-            const url = img instanceof File ? URL.createObjectURL(img) : `${API_BASE_URL}${img}`;
+            const url = img instanceof File ? URL.createObjectURL(img) : getMediaUrl(img);
             return (
               <div key={idx} className="relative aspect-square rounded-lg overflow-hidden group">
                 <img src={url} alt="" className="w-full h-full object-cover" />

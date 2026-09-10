@@ -62,9 +62,9 @@ export default function VendorsPage() {
 
   const handleExport = () => {
     if (vendors.length === 0) return alert('No vendors to export.');
-    const headers = ["Zeebac ID", "Store Name", "Owner Name", "Category", "Phone", "Status", "Resubmissions", "Joined"];
+    const headers = ["Zeebac ID", "Store Name", "Owner Name", "Category", "Cashback Rate", "Phone", "Status", "Resubmissions", "Joined"];
     const rows = vendors.map(v => [
-      v.zeebacId, v.storeName, v.ownerName, v.category, v.phone, v.applicationStatus, v.resubmissionCount || 0, new Date(v.createdAt).toLocaleDateString()
+      v.zeebacId, v.storeName, v.ownerName, v.category, v.cashbackRate ? `${v.cashbackRate}%` : '—', v.phone, v.applicationStatus, v.resubmissionCount || 0, new Date(v.createdAt).toLocaleDateString()
     ]);
     const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c ?? ''}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -137,6 +137,7 @@ export default function VendorsPage() {
                 <th className="p-4 font-bold">Vendor</th>
                 <th className="p-4 font-bold">Shop Name</th>
                 <th className="p-4 font-bold">Category</th>
+                <th className="p-4 font-bold text-center">Cashback</th>
                 <th className="p-4 font-bold">Location</th>
                 <th className="p-4 font-bold">Submitted</th>
                 <th className="p-4 font-bold">Last Updated</th>
@@ -147,9 +148,9 @@ export default function VendorsPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan="9" className="p-8 text-center text-on-surface-variant">Loading...</td></tr>
+                <tr><td colSpan="10" className="p-8 text-center text-on-surface-variant">Loading...</td></tr>
               ) : vendors.length === 0 ? (
-                <tr><td colSpan="9" className="p-8 text-center text-on-surface-variant">No vendor applications found.</td></tr>
+                <tr><td colSpan="10" className="p-8 text-center text-on-surface-variant">No vendor applications found.</td></tr>
               ) : vendors.map((vendor) => (
                 <tr key={vendor._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">
                   <td className="p-4">
@@ -158,6 +159,11 @@ export default function VendorsPage() {
                   </td>
                   <td className="p-4 text-on-surface-variant">{vendor.storeName || '—'}</td>
                   <td className="p-4 text-on-surface-variant">{vendor.category || '—'}</td>
+                  <td className="p-4 text-center">
+                    <span className="inline-block px-2.5 py-1 rounded-lg text-[12px] font-black bg-purple-50 text-purple-700 border border-purple-200">
+                      {vendor.cashbackRate ? `${vendor.cashbackRate}%` : '—'}
+                    </span>
+                  </td>
                   <td className="p-4 text-on-surface-variant">{vendor.address?.city ? `${vendor.address.city}, ${vendor.address.state}` : '—'}</td>
                   <td className="p-4 text-on-surface-variant text-[12.5px]">{vendor.submittedAt ? new Date(vendor.submittedAt).toLocaleDateString() : '—'}</td>
                   <td className="p-4 text-on-surface-variant text-[12.5px]">{vendor.lastSubmittedAt ? new Date(vendor.lastSubmittedAt).toLocaleDateString() : '—'}</td>

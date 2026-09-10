@@ -22,6 +22,12 @@ import {
   submitApplication,
   resubmitApplication,
   subscribePlan,
+  getVendorSubscriptionPlans,
+  getVendorSubscriptionStatus,
+  createSubscriptionRazorpayOrder,
+  verifySubscriptionRazorpayPayment,
+  cancelSubscriptionRazorpayOrder,
+  paySubscriptionFromWallet,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -74,8 +80,16 @@ router.route('/products/:id')
   )
   .delete(requireApprovedVendor, deleteProduct);
 
+// Subscription Routes (Phase 6) — available to all authenticated vendors
+router.get('/subscription/plans', getVendorSubscriptionPlans);
+router.get('/subscription/status', getVendorSubscriptionStatus);
+router.post('/subscription/create-order', createSubscriptionRazorpayOrder);
+router.post('/subscription/verify-payment', verifySubscriptionRazorpayPayment);
+router.post('/subscription/cancel-order', cancelSubscriptionRazorpayOrder);
+router.post('/subscription/pay-from-wallet', paySubscriptionFromWallet);
+router.post('/subscription/subscribe', subscribePlan);
+
 // Transaction & Wallet Routes (Phase 3C & 3D)
-router.post('/subscription/subscribe', requireApprovedVendor, subscribePlan);
 router.get('/customers/list', requireApprovedVendor, getVendorCustomers);
 router.get('/qr-token', requireApprovedVendor, getVendorQrToken);
 router.get('/customers/:phone', requireApprovedVendor, lookupCustomerByPhone);

@@ -7,7 +7,7 @@ import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import RewardConfig from '../models/RewardConfig.js';
 import { requestWithdrawal, createCashbackRequest } from './user.controller.js';
-import { subscribePlan } from './vendor.controller.js';
+import { paySubscriptionFromWallet } from './vendor.controller.js';
 
 vi.mock('../services/notification.service.js', () => ({ sendNotification: vi.fn() }));
 vi.mock('../utils/adminNotification.js', () => ({
@@ -113,11 +113,11 @@ describe('Phase 6 Revenue Model & User Withdrawal Limits', () => {
     await createCashbackRequest(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json.mock.calls[0][0].message).toContain('paused due to an expired subscription or low wallet balance');
+    expect(res.json.mock.calls[0][0].message).toBe('Cashback blocked due to subscription expiry');
   });
 
   it('blocks customer cashback requests if vendor wallet balance is 0', async () => {
-    const zeroWalletVendor = await makeVendor({ subscription: { status: 'ACTIVE' } });
+    const zeroWalletVendor = await makeVendor({ subscription: { status: 'ACTIVE', expiresAt: new Date(Date.now() + 86400000) } });
     await Wallet.updateOne({ ownerId: zeroWalletVendor._id, ownerType: 'Vendor' }, { balance: 0 });
     const customer = await makeCustomer();
 
@@ -131,17 +131,18 @@ describe('Phase 6 Revenue Model & User Withdrawal Limits', () => {
     await createCashbackRequest(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json.mock.calls[0][0].message).toContain('paused due to an expired subscription or low wallet balance');
+    expect(res.json.mock.calls[0][0].message).toBe('Cashback blocked due to insufficient cashback wallet balance.');
   });
 
-  it('allows vendor subscription purchase / renewal for Monthly and Yearly plans', async () => {
+  it('allows vendor subscription purchase / renewal for Monthly and Yearly plans via wallet payment', async () => {
     await RewardConfig.create({ independentStoreMonthlyPrice: 499, independentStoreYearlyPrice: 4999 });
     const vendor = await makeVendor({ shopType: 'Independent Store' });
+    await Wallet.create({ ownerId: vendor._id, ownerType: 'Vendor', balance: 1000, ownerZeebacId: vendor.zeebacId });
 
     const req = { user: { id: vendor._id.toString() }, body: { planType: 'Monthly' } };
     const res = makeRes();
 
-    await subscribePlan(req, res);
+    await paySubscriptionFromWallet(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     const updatedVendor = await Vendor.findById(vendor._id);
@@ -149,5 +150,8 @@ describe('Phase 6 Revenue Model & User Withdrawal Limits', () => {
     expect(updatedVendor.subscription.price).toBe(499);
     expect(updatedVendor.subscription.status).toBe('ACTIVE');
     expect(updatedVendor.subscription.expiresAt).toBeTruthy();
+
+    const updatedWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    expect(updatedWallet.balance).toBe(501);
   });
 });

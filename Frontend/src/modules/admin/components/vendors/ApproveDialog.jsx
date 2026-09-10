@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 
-export default function ApproveDialog({ vendorName, onConfirm, onClose }) {
-  const [cashbackRate, setCashbackRate] = useState(5);
+export default function ApproveDialog({ vendorName, initialCashbackRate, onConfirm, onClose }) {
+  const [cashbackRate, setCashbackRate] = useState(initialCashbackRate ?? 5);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirm = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await onConfirm(cashbackRate);
+      await onConfirm(Number(cashbackRate));
     } finally {
       setIsSubmitting(false);
     }
@@ -28,9 +28,16 @@ export default function ApproveDialog({ vendorName, onConfirm, onClose }) {
           </p>
 
           <div className="text-left mb-2">
-            <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Cashback Rate (%)</label>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Final Cashback Rate (%)</label>
+              {initialCashbackRate != null && (
+                <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                  Vendor requested: {initialCashbackRate}%
+                </span>
+              )}
+            </div>
             <input
-              type="number" min="0" max="100" value={cashbackRate}
+              type="number" min="0" max="100" step="0.5" value={cashbackRate}
               onChange={(e) => setCashbackRate(e.target.value)}
               className="w-full h-11 px-3 border border-outline-variant/30 rounded-xl outline-none focus:border-primary text-[14px] font-bold"
             />

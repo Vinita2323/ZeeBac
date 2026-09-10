@@ -17,6 +17,7 @@ import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentEr
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
+import { getStoreVisibilityQuery, getVendorSubscriptionState } from '../utils/subscription.util.js';
 import {
   assertWithinDailyRequestLimit,
   assertNoRecentDuplicateRequest,
@@ -110,12 +111,24 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category cashbackRate phone address storeLogo profilePic description operatingHours stats socialLinks');
+      .select('zeebacId storeName category cashbackRate phone address storeLogo profilePic description operatingHours stats socialLinks subscription shopType');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
     }
-    res.status(200).json({ success: true, data: vendor });
+
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const balance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, balance);
+
+    const vendorObj = vendor.toObject ? vendor.toObject() : vendor;
+    vendorObj.isStoreInactive = !subState.isStoreVisible;
+    vendorObj.isStoreVisible = subState.isStoreVisible;
+    vendorObj.cashbackBlocked = subState.cashbackBlocked;
+    vendorObj.cashbackBlockedReason = subState.cashbackBlockedReason;
+    vendorObj.subscriptionState = subState;
+
+    res.status(200).json({ success: true, data: vendorObj });
   } catch (error) {
     logger.error(`lookupVendorById error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -155,6 +168,24 @@ export const createCustomerTransaction = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found or not verified' });
     }
 
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, vendorBalance);
+
+    if (!subState.isSubActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cashback blocked due to subscription expiry'
+      });
+    }
+
+    if (vendorBalance <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cashback blocked due to insufficient cashback wallet balance.'
+      });
+    }
+
     const customer = await User.findById(req.user.id);
     if (!customer || customer.status !== 'Active') {
       return res.status(403).json({ success: false, message: 'Customer account is not active' });
@@ -165,10 +196,6 @@ export const createCustomerTransaction = async (req, res) => {
 
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
 
-    // Advisory only — lets the customer know immediately if this clearly
-    // can't be approved, but it is NOT the security boundary. The real,
-    // atomic balance check happens when the vendor approves the request.
-    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
     if ((vendorWallet?.balance || 0) < cashbackAmount) {
       return res.status(400).json({
         success: false,
@@ -223,15 +250,30 @@ export const createRazorpayOrder = async (req, res) => {
     const { amount, vendorZeebacId } = req.body;
     if (!amount || amount < 1) return res.status(400).json({ success: false, message: 'Invalid amount' });
 
-    // --- Strict Vendor Balance Check ---
+    // --- Strict Vendor Subscription & Balance Check ---
     if (vendorZeebacId) {
       const vendor = await Vendor.findOne({ zeebacId: vendorZeebacId.toUpperCase(), status: 'Verified' });
       if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found or not verified' });
       
-      const expectedCashback = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
       let vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
       const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
-      
+      const subState = getVendorSubscriptionState(vendor, vendorBalance);
+
+      if (!subState.isSubActive) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cashback blocked due to subscription expiry'
+        });
+      }
+
+      if (vendorBalance <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cashback blocked due to insufficient cashback wallet balance.'
+        });
+      }
+
+      const expectedCashback = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
       if (vendorBalance < expectedCashback) {
         return res.status(400).json({ 
           success: false, 
@@ -403,14 +445,13 @@ export const searchVendors = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Search query is required' });
     }
     
-    const query = {
-      status: 'Verified',
+    const query = getStoreVisibilityQuery({
       $or: [
         { storeName: { $regex: q, $options: 'i' } },
         { category: { $regex: q, $options: 'i' } },
         { zeebacId: { $regex: q, $options: 'i' } }
       ]
-    };
+    });
 
     if (lat && lng) {
       // Global search, but nearest first
@@ -425,10 +466,25 @@ export const searchVendors = async (req, res) => {
     }
 
     const vendors = await Vendor.find(query)
-      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location')
+      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location subscription shopType')
       .limit(50);
+
+    const visibleVendors = vendors
+      .filter(vendor => {
+        const state = getVendorSubscriptionState(vendor);
+        return state.isStoreVisible;
+      })
+      .map(vendor => {
+        const vObj = vendor.toObject ? vendor.toObject() : { ...vendor };
+        const state = getVendorSubscriptionState(vendor);
+        vObj.isStoreVisible = state.isStoreVisible;
+        vObj.inGracePeriod = state.inGracePeriod;
+        vObj.cashbackBlocked = state.cashbackBlocked;
+        vObj.subscriptionState = state;
+        return vObj;
+      });
       
-    res.status(200).json({ success: true, data: vendors });
+    res.status(200).json({ success: true, data: visibleVendors });
   } catch (error) {
     logger.error(`searchVendors error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -438,8 +494,11 @@ export const searchVendors = async (req, res) => {
 // 1.5 Get dynamic categories
 export const getCategories = async (req, res) => {
   try {
-    const categories = await Vendor.distinct('category', { status: 'Verified' });
-    const shopTypes = await Vendor.distinct('shopType', { status: 'Verified' });
+    const visQuery = getStoreVisibilityQuery();
+    const vendors = await Vendor.find(visQuery).select('category shopType subscription status');
+    const validVendors = vendors.filter(v => getVendorSubscriptionState(v).isStoreVisible);
+    const categories = [...new Set(validVendors.map(v => v.category).filter(Boolean))];
+    const shopTypes = [...new Set(validVendors.map(v => v.shopType).filter(Boolean))];
     
     // Combine them and ensure 'All' is first
     const dynamicList = ['All', ...shopTypes, ...categories].filter(Boolean);
@@ -457,7 +516,6 @@ export const getVendorsByCategory = async (req, res) => {
     const { name } = req.params;
     const { lat, lng } = req.query;
     
-    
     let query = {};
     if (name !== 'All') {
       if (name === 'Independent Store' || name === 'Chain & Brand') {
@@ -467,7 +525,7 @@ export const getVendorsByCategory = async (req, res) => {
       }
     }
     
-    query.status = 'Verified';
+    query = getStoreVisibilityQuery(query);
     
     if (lat && lng) {
       // 70km max radius for Explore (Nearby)
@@ -483,10 +541,25 @@ export const getVendorsByCategory = async (req, res) => {
     }
     
     const vendors = await Vendor.find(query)
-      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location')
+      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location subscription shopType')
       .limit(50);
+
+    const visibleVendors = vendors
+      .filter(vendor => {
+        const state = getVendorSubscriptionState(vendor);
+        return state.isStoreVisible;
+      })
+      .map(vendor => {
+        const vObj = vendor.toObject ? vendor.toObject() : { ...vendor };
+        const state = getVendorSubscriptionState(vendor);
+        vObj.isStoreVisible = state.isStoreVisible;
+        vObj.inGracePeriod = state.inGracePeriod;
+        vObj.cashbackBlocked = state.cashbackBlocked;
+        vObj.subscriptionState = state;
+        return vObj;
+      });
       
-    res.status(200).json({ success: true, data: vendors });
+    res.status(200).json({ success: true, data: visibleVendors });
   } catch (error) {
     logger.error(`getVendorsByCategory error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -603,13 +676,19 @@ export const createCashbackRequest = async (req, res) => {
     // Phase 6: Block cashback requests if vendor subscription is expired or wallet balance is <= 0
     const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
     const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
-    const isSubExpired = vendor.subscription?.status === 'EXPIRED' || 
-      (vendor.subscription?.expiresAt && new Date(vendor.subscription.expiresAt) < new Date());
+    const subState = getVendorSubscriptionState(vendor, vendorBalance);
 
-    if (isSubExpired || vendorBalance <= 0) {
+    if (!subState.isSubActive) {
       return res.status(400).json({
         success: false,
-        message: 'Cashback requests for this merchant are currently paused due to an expired subscription or low wallet balance.'
+        message: 'Cashback blocked due to subscription expiry'
+      });
+    }
+
+    if (vendorBalance <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cashback blocked due to insufficient cashback wallet balance.'
       });
     }
 
@@ -737,8 +816,7 @@ export const getNearbyVendors = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Latitude and Longitude are required' });
     }
 
-    const vendors = await Vendor.find({
-      status: 'Verified',
+    const query = getStoreVisibilityQuery({
       location: {
         $near: {
           $geometry: {
@@ -748,9 +826,26 @@ export const getNearbyVendors = async (req, res) => {
           $maxDistance: parseInt(radius)
         }
       }
-    }).select('storeName zeebacId category storeLogo profilePic address cashbackRate stats');
+    });
 
-    res.status(200).json({ success: true, data: vendors });
+    const vendors = await Vendor.find(query).select('storeName zeebacId category storeLogo profilePic address cashbackRate stats subscription shopType');
+
+    const visibleVendors = vendors
+      .filter(vendor => {
+        const state = getVendorSubscriptionState(vendor);
+        return state.isStoreVisible;
+      })
+      .map(vendor => {
+        const vObj = vendor.toObject ? vendor.toObject() : { ...vendor };
+        const state = getVendorSubscriptionState(vendor);
+        vObj.isStoreVisible = state.isStoreVisible;
+        vObj.inGracePeriod = state.inGracePeriod;
+        vObj.cashbackBlocked = state.cashbackBlocked;
+        vObj.subscriptionState = state;
+        return vObj;
+      });
+
+    res.status(200).json({ success: true, data: visibleVendors });
   } catch (error) {
     logger.error(`getNearbyVendors error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -761,14 +856,24 @@ export const getRecentVendors = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate({
       path: 'recentVendors',
-      select: 'storeName zeebacId category storeLogo profilePic address cashbackRate stats',
+      select: 'storeName zeebacId category storeLogo profilePic address cashbackRate stats subscription shopType',
       match: { status: 'Verified' }
     });
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     
-    // Filter out nulls in case some vendors were deleted or suspended
-    const validVendors = user.recentVendors.filter(v => v != null);
+    // Filter out nulls and vendors whose stores are hidden (>24h expired or NONE)
+    const validVendors = (user.recentVendors || [])
+      .filter(v => v != null && getVendorSubscriptionState(v).isStoreVisible)
+      .map(vendor => {
+        const vObj = vendor.toObject ? vendor.toObject() : { ...vendor };
+        const state = getVendorSubscriptionState(vendor);
+        vObj.isStoreVisible = state.isStoreVisible;
+        vObj.inGracePeriod = state.inGracePeriod;
+        vObj.cashbackBlocked = state.cashbackBlocked;
+        vObj.subscriptionState = state;
+        return vObj;
+      });
     
     res.status(200).json({ success: true, data: validVendors });
   } catch (error) {

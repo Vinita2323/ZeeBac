@@ -139,7 +139,32 @@ export default function VendorDetailScreen() {
       </nav>
 
       {/* Tab Pages content */}
-      <main className="app-container px-container-margin py-lg text-left">
+      <main className="app-container px-container-margin py-lg text-left space-y-4">
+        {/* Inactive Store / Cashback Blocked Warning Banner */}
+        {vendor.isStoreInactive && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-red-600 text-[22px] flex-shrink-0">storefront</span>
+            <div>
+              <h4 className="text-[13px] font-bold text-red-900">Store is currently inactive/hidden</h4>
+              <p className="text-[12px] text-red-700 mt-0.5">
+                This store is currently not active on ZeeBac. Cashback claims and online payments are temporarily unavailable.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!vendor.isStoreInactive && vendor.cashbackBlocked && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-amber-600 text-[22px] flex-shrink-0">warning</span>
+            <div>
+              <h4 className="text-[13px] font-bold text-amber-900">Cashback Temporarily Unavailable</h4>
+              <p className="text-[12px] text-amber-700 mt-0.5">
+                {vendor.cashbackBlockedReason || 'Cashback is temporarily paused for this store. Please check back later.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'overview' && <OverviewTab vendor={vendor} />}
         {activeTab === 'shop' && <ShopTab vendor={vendor} />}
         {activeTab === 'photos' && <PhotosTab vendorId={vendor._id} />}
@@ -150,15 +175,44 @@ export default function VendorDetailScreen() {
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-outline-variant/10 p-3 shadow-lg">
         <div className="app-container flex gap-3">
           <button
-            onClick={() => navigate('/pay-vendor', { state: { vendor } })}
-            className="flex-1 h-12 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:from-[#16082f] hover:to-[#4c00b0] transition-all active:scale-[0.98] shadow-md shadow-[#6000da]/25"
+            onClick={() => {
+              if (vendor.isStoreInactive) {
+                alert('This store is currently inactive and not accepting payments.');
+                return;
+              }
+              if (vendor.cashbackBlocked) {
+                alert(vendor.cashbackBlockedReason || 'Cashback is temporarily unavailable for this store.');
+              }
+              navigate('/pay-vendor', { state: { vendor } });
+            }}
+            disabled={vendor.isStoreInactive}
+            className={`flex-1 h-12 rounded-xl flex items-center justify-center gap-2 font-title-md font-extrabold transition-all ${
+              vendor.isStoreInactive
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white hover:from-[#16082f] hover:to-[#4c00b0] active:scale-[0.98] shadow-md shadow-[#6000da]/25 cursor-pointer'
+            }`}
           >
             <span className="material-symbols-outlined text-[20px]">payments</span>
             Pay Online
           </button>
           <button
-            onClick={() => navigate('/request-cashback', { state: { vendor } })}
-            className="flex-1 h-12 bg-secondary text-white font-title-md font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-secondary/90 transition-colors active:scale-[0.98] shadow-md"
+            onClick={() => {
+              if (vendor.isStoreInactive) {
+                alert('This store is currently inactive and not accepting cashback claims.');
+                return;
+              }
+              if (vendor.cashbackBlocked) {
+                alert(vendor.cashbackBlockedReason || 'Cashback is temporarily unavailable for this store.');
+                return;
+              }
+              navigate('/request-cashback', { state: { vendor } });
+            }}
+            disabled={vendor.isStoreInactive || vendor.cashbackBlocked}
+            className={`flex-1 h-12 rounded-xl flex items-center justify-center gap-2 font-title-md font-extrabold transition-colors ${
+              vendor.isStoreInactive || vendor.cashbackBlocked
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-secondary text-white hover:bg-secondary/90 active:scale-[0.98] shadow-md cursor-pointer'
+            }`}
           >
             <span className="material-symbols-outlined text-[20px]">receipt_long</span>
             Upload Bill

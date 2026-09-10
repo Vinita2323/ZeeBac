@@ -50,15 +50,14 @@
   --color-secondary-fixed: #f3e8ff;
   --color-error: #ba1a1a;
 
-  /* Spacing */
-  --spacing-base: 4px;
-  --spacing-container-margin: 20px;
-  --spacing-xs: 8px;
-  --spacing-sm: 12px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
-  --spacing-gutter: 16px;
+  /* Custom container and spacing helpers without clobbering Tailwind's core spacing/max-width scale */
+  --container-xs: 20rem;
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+  --container-7xl: 80rem;
 
   /* Typography Fonts */
   --font-headline-lg-mobile: 'Hanken Grotesk', sans-serif;
@@ -126,6 +125,35 @@
     letter-spacing: -0.01em;
     font-weight: 700;
   }
+
+  /* Material Design spacing token compatibility utilities */
+  .px-container-margin { padding-left: 20px; padding-right: 20px; }
+  .-mx-container-margin { margin-left: -20px; margin-right: -20px; }
+  .p-xs { padding: 8px; }
+  .p-sm { padding: 12px; }
+  .p-md { padding: 16px; }
+  .p-lg { padding: 24px; }
+  .p-xl { padding: 32px; }
+  .px-sm { padding-left: 12px; padding-right: 12px; }
+  .px-md { padding-left: 16px; padding-right: 16px; }
+  .px-lg { padding-left: 24px; padding-right: 24px; }
+  .py-sm { padding-top: 12px; padding-bottom: 12px; }
+  .py-md { padding-top: 16px; padding-bottom: 16px; }
+  .py-lg { padding-top: 24px; padding-bottom: 24px; }
+  .py-xl { padding-top: 32px; padding-bottom: 32px; }
+  .gap-xs { gap: 8px; }
+  .gap-sm { gap: 12px; }
+  .gap-md { gap: 16px; }
+  .gap-lg { gap: 24px; }
+  .gap-xl { gap: 32px; }
+  .space-y-sm > :not(:last-child) { margin-bottom: 12px; }
+  .space-y-md > :not(:last-child) { margin-bottom: 16px; }
+  .space-y-lg > :not(:last-child) { margin-bottom: 24px; }
+  .space-y-xl > :not(:last-child) { margin-bottom: 32px; }
+  .mb-sm { margin-bottom: 12px; }
+  .mb-md { margin-bottom: 16px; }
+  .mb-lg { margin-bottom: 24px; }
+  .mb-xl { margin-bottom: 32px; }
 }
 
 body {

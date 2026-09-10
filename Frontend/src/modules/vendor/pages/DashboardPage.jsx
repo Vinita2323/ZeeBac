@@ -27,26 +27,36 @@ export default function DashboardPage() {
   const fetchQrToken = useCallback(() => VendorAPI.getQrToken(), []);
   const { qrImageUrl, isLoading: qrLoading } = useQrCode(fetchQrToken, showQRModal);
 
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const cashbackRate = currentUser?.cashbackRate ?? dashboardData?.data?.cashbackRate ?? 5;
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [statsRes, txnsRes, reqsRes] = await Promise.all([
+        const [statsRes, txnsRes, reqsRes, subRes] = await Promise.allSettled([
           VendorAPI.getDashboardStats(),
           VendorAPI.getTransactions(),
-          VendorAPI.getPendingRequests()
+          VendorAPI.getPendingRequests(),
+          VendorAPI.getSubscriptionStatus(),
         ]);
-        setDashboardData(statsRes);
-        if (statsRes.success && statsRes.data?.cashbackRate && !currentUser.cashbackRate) {
-          useAuthStore.getState().updateProfile({ cashbackRate: statsRes.data.cashbackRate });
+
+        if (statsRes.status === 'fulfilled') {
+          setDashboardData(statsRes.value);
+          if (statsRes.value.success && statsRes.value.data?.cashbackRate && !currentUser.cashbackRate) {
+            useAuthStore.getState().updateProfile({ cashbackRate: statsRes.value.data.cashbackRate });
+          }
         }
-        if (reqsRes.success) {
-          setPendingRequests(reqsRes.data);
+
+        if (subRes.status === 'fulfilled' && subRes.value.success) {
+          setSubscriptionInfo(subRes.value.data);
         }
-        if (txnsRes.success) {
-          // Take top 5 transactions for dashboard
-          setRecentTransactions(txnsRes.data.slice(0, 5).map(t => ({
+
+        if (reqsRes.status === 'fulfilled' && reqsRes.value.success) {
+          setPendingRequests(reqsRes.value.data);
+        }
+
+        if (txnsRes.status === 'fulfilled' && txnsRes.value.success) {
+          setRecentTransactions(txnsRes.value.data.slice(0, 5).map(t => ({
             id: t.transactionId,
             customer: t.customerName || t.customerPhone,
             amount: `₹${t.amount.toLocaleString()}`,
@@ -116,6 +126,152 @@ export default function DashboardPage() {
           </h1>
         </div>
       </div>
+
+      {/* Subscription & Store Status Banners */}
+      {/* Alert 1: Subscription Required / Store Inactive */}
+      {subscriptionInfo?.effectiveStatus === 'NONE' && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-[22px]">store_mall_directory</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700">
+                  Onboarding Completed
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/20 text-red-700">
+                  Store Inactive & Hidden
+                </span>
+              </div>
+              <h3 className="font-bold text-[14px] text-on-surface leading-tight">
+                Subscription Required to Go Live
+              </h3>
+              <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
+                Your store is currently hidden from user discovery and cashback issuance is blocked. Choose a subscription plan to make your store live.
+              </p>
+              <div className="mt-3">
+                <button
+                  onClick={() => navigate('/vendor/subscription')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-[12px] font-bold rounded-xl shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">verified</span>
+                  <span>Choose Subscription Plan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert 2: Expired in 24h Grace or Expired > 24h */}
+      {subscriptionInfo?.effectiveStatus === 'EXPIRED' && (
+        <div className={`rounded-2xl p-4 border shadow-sm ${
+          subscriptionInfo?.inGracePeriod
+            ? 'bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-amber-500/30'
+            : 'bg-gradient-to-r from-rose-500/15 via-red-500/10 to-rose-500/5 border-rose-500/30'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              subscriptionInfo?.inGracePeriod ? 'bg-amber-500/20 text-amber-700' : 'bg-rose-500/20 text-rose-700'
+            }`}>
+              <span className="material-symbols-outlined text-[22px]">
+                {subscriptionInfo?.inGracePeriod ? 'hourglass_top' : 'block'}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  subscriptionInfo?.inGracePeriod ? 'bg-amber-500/20 text-amber-700' : 'bg-rose-500/20 text-rose-700'
+                }`}>
+                  Subscription Expired
+                </span>
+                {subscriptionInfo?.inGracePeriod ? (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-700">
+                    24h Grace Period ({subscriptionInfo.hoursRemainingInGrace}h remaining)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/20 text-red-700">
+                    Store Hidden & Inactive
+                  </span>
+                )}
+              </div>
+              <h3 className="font-bold text-[14px] text-on-surface leading-tight">
+                {subscriptionInfo?.inGracePeriod
+                  ? 'Cashback Blocked • Store visible in 24h Grace Period'
+                  : 'Store Inactive • Hidden from Users'}
+              </h3>
+              <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
+                {subscriptionInfo?.inGracePeriod
+                  ? 'Your subscription expired but your store is temporarily visible for 24 hours. Customer cashback is blocked. Renew immediately to prevent your store from being hidden.'
+                  : 'Your subscription expired over 24 hours ago. Your store is completely hidden from user search and map listings, and cashback is blocked.'}
+              </p>
+              <div className="mt-3">
+                <button
+                  onClick={() => navigate('/vendor/subscription')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white text-[12px] font-bold rounded-xl shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">autorenew</span>
+                  <span>Renew Subscription Plan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert 3: Active Subscription & Zero Wallet Warning */}
+      {subscriptionInfo?.effectiveStatus === 'ACTIVE' && (
+        <div className="space-y-2">
+          {/* Active plan chip */}
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <div>
+                <p className="text-[12px] font-bold text-emerald-800 flex items-center gap-1.5">
+                  <span>Subscription Active</span>
+                  <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-700 px-1.5 py-0.5 rounded">
+                    {subscriptionInfo.planType} Plan
+                  </span>
+                </p>
+                {subscriptionInfo.expiresAt && (
+                  <p className="text-[10px] text-emerald-700/80">
+                    Renews on {new Date(subscriptionInfo.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/vendor/subscription')}
+              className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+            >
+              Manage
+            </button>
+          </div>
+
+          {/* Zero Wallet Warning */}
+          {Number(subscriptionInfo.walletBalance) <= 0 && (
+            <div className="bg-gradient-to-r from-amber-500/15 via-red-500/10 to-amber-500/5 border border-amber-500/30 rounded-xl p-3 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-on-surface">Cashback wallet balance is ₹0</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Cashback is currently blocked for customers. Recharge your cashback wallet to enable cashback distribution.
+                </p>
+                <button
+                  onClick={() => navigate('/vendor/passbook')}
+                  className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[14px]">add_circle</span>
+                  <span>Recharge Wallet</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-2 mx-auto w-full">

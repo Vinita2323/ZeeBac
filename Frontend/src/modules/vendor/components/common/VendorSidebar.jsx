@@ -21,6 +21,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
+    { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },
     { label: 'Chat', icon: 'chat', path: '/vendor/chat' },
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },

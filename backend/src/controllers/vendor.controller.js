@@ -10,7 +10,10 @@ import CashbackRequest from '../models/CashbackRequest.js';
 import CashbackRule from '../models/CashbackRule.js';
 import RewardConfig from '../models/RewardConfig.js';
 import Referral from '../models/Referral.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
+import SubscriptionPayment from '../models/SubscriptionPayment.js';
 import logger from '../utils/logger.js';
+import { getVendorSubscriptionState, resolvePlanPrice, calculateNewSubscriptionDates } from '../utils/subscription.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 import { buildSnapshot, diffSnapshots, validateApplicationComplete } from '../utils/vendorApplication.util.js';
@@ -41,6 +44,9 @@ const applyApplicationFields = (vendor, body = {}, files = {}) => {
   if (businessEmail !== undefined) vendor.businessEmail = businessEmail;
   if (gstNumber !== undefined) vendor.gstNumber = gstNumber;
   if (registrationNumber !== undefined) vendor.registrationNumber = registrationNumber;
+  if (body.cashbackRate !== undefined && body.cashbackRate !== null && body.cashbackRate !== '') {
+    vendor.cashbackRate = Number(body.cashbackRate);
+  }
 
   if (address !== undefined) {
     const addressObj = typeof address === 'string' ? JSON.parse(address) : address;
@@ -126,6 +132,15 @@ export const submitApplication = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Application is incomplete.', missingFields: missing });
     }
 
+    const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+    const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
+      });
+    }
+
     const snapshot = buildSnapshot(vendor);
     const now = new Date();
     vendor.applicationStatus = 'PENDING_REVIEW';
@@ -174,6 +189,15 @@ export const resubmitApplication = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Application is incomplete.', missingFields: missing });
     }
 
+    const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+    const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
+      });
+    }
+
     const newSnapshot = buildSnapshot(vendor);
     const changedFields = diffSnapshots(previousSnapshot, newSnapshot);
     const now = new Date();
@@ -218,7 +242,16 @@ export const getProfile = async (req, res) => {
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
-    res.status(200).json({ success: true, data: vendor });
+
+    const wallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const balance = wallet ? (wallet.balance || 0) : 0;
+    const subscriptionState = getVendorSubscriptionState(vendor, balance);
+
+    const vendorObj = vendor.toObject ? vendor.toObject() : vendor;
+    vendorObj.walletBalance = balance;
+    vendorObj.subscriptionState = subscriptionState;
+
+    res.status(200).json({ success: true, data: vendorObj });
   } catch (error) {
     logger.error(`Error in vendor getProfile: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
@@ -651,6 +684,18 @@ export const logPurchase = async (req, res) => {
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, vendorBalance);
+
+    if (!subState.isSubActive) {
+      return res.status(400).json({ success: false, message: 'Cashback blocked due to subscription expiry' });
+    }
+
+    if (vendorBalance <= 0) {
+      return res.status(400).json({ success: false, message: 'Cashback blocked due to insufficient cashback wallet balance.' });
+    }
+
     const customer = await User.findOne({ phone: customerPhone });
     if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
 
@@ -913,6 +958,18 @@ export const respondToCashbackRequest = async (req, res) => {
 
     // action === 'Approve'
     const vendor = await Vendor.findById(req.user.id);
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, vendorBalance);
+
+    if (!subState.isSubActive) {
+      return res.status(400).json({ success: false, message: 'Cashback blocked due to subscription expiry' });
+    }
+
+    if (vendorBalance <= 0) {
+      return res.status(400).json({ success: false, message: 'Cashback blocked due to insufficient cashback wallet balance.' });
+    }
+
     const customer = claimed.customerId;
     const amount = claimed.amount;
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
@@ -999,56 +1056,364 @@ export const respondToCashbackRequest = async (req, res) => {
   }
 };
 
-// ─── Phase 6: Vendor Subscription (Purchase / Renew) ───
-export const subscribePlan = async (req, res) => {
+// ─── Phase 6: Vendor Subscription (Plans, Status & Purchase) ───
+export const getVendorSubscriptionPlans = async (req, res) => {
   try {
-    const { planType } = req.body; // 'Monthly' or 'Yearly'
-    if (planType !== 'Monthly' && planType !== 'Yearly') {
-      return res.status(400).json({ success: false, message: 'Invalid planType. Must be Monthly or Yearly.' });
+    await SubscriptionPlan.seedDefaultsIfEmpty();
+    const vendor = await Vendor.findById(req.user.id);
+    const plans = await SubscriptionPlan.find({ isActive: true }).sort({ durationDays: 1 });
+
+    const isBrand = vendor?.shopType === 'Chain & Brand';
+    const plansWithEffectivePrice = plans.map(p => ({
+      ...p.toObject(),
+      price: isBrand ? p.pricing.chainBrand : p.pricing.independentStore,
+      shopType: vendor?.shopType || 'Independent Store',
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: plansWithEffectivePrice,
+    });
+  } catch (error) {
+    logger.error(`Error in getVendorSubscriptionPlans: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getVendorSubscriptionStatus = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const wallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const balance = wallet ? (wallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, balance);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...subState,
+        walletBalance: balance,
+        storeName: vendor.storeName,
+        shopType: vendor.shopType,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getVendorSubscriptionStatus: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Disable direct subscription shortcut
+export const subscribePlan = async (req, res) => {
+  return res.status(400).json({
+    success: false,
+    message: 'Direct subscription is not permitted. Please use /subscription/create-order for Razorpay or /subscription/pay-from-wallet for Wallet payment.',
+  });
+};
+
+/**
+ * 1. Create Razorpay Order for Subscription Purchase / Renewal
+ * Validates vendor, plan, and calculates authoritative price from backend (shopType).
+ * Frontend price is NEVER trusted.
+ */
+export const createSubscriptionRazorpayOrder = async (req, res) => {
+  try {
+    const { planType, planId } = req.body;
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const targetPlan = planType || planId || 'Monthly';
+    const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
+
+    const transactionId = `SUB-RZP-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const rzpOptions = {
+      amount: Math.round(planInfo.price * 100), // paise
+      currency: 'INR',
+      receipt: transactionId.slice(0, 40),
+    };
+
+    const order = await getRazorpayInstance().orders.create(rzpOptions);
+    if (!order) {
+      return res.status(500).json({ success: false, message: 'Failed to create Razorpay order' });
+    }
+
+    // Create pending payment record
+    await SubscriptionPayment.create({
+      vendorId: vendor._id,
+      planId: planInfo.planId,
+      planType: planInfo.planType,
+      shopType: planInfo.shopType,
+      amount: planInfo.price,
+      paymentMethod: 'RAZORPAY',
+      paymentStatus: 'PENDING',
+      razorpayOrderId: order.id,
+      transactionId,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orderId: order.id,
+        amount: planInfo.price,
+        key: process.env.RAZORPAY_KEY_ID,
+        planType: planInfo.planType,
+        shopType: planInfo.shopType,
+        transactionId,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in createSubscriptionRazorpayOrder: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+/**
+ * 2. Verify Razorpay Payment for Subscription
+ * Verifies signature and server-side captured payment status before activating subscription.
+ */
+export const verifySubscriptionRazorpayPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planType, planId } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment verification fields' });
+    }
+
+    // Verify signature
+    const isValidSignature = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    if (!isValidSignature) {
+      await SubscriptionPayment.findOneAndUpdate(
+        { razorpayOrderId: razorpay_order_id },
+        { paymentStatus: 'FAILED', errorMessage: 'Invalid payment signature' }
+      );
+      return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+
+    // Verify status & captured amount with Razorpay
+    const verifiedAmount = await fetchVerifiedPaymentAmount(razorpay_payment_id);
+
+    // Check payment record
+    let payment = await SubscriptionPayment.findOne({ razorpayOrderId: razorpay_order_id });
+    if (payment && payment.paymentStatus === 'SUCCESS') {
+      // Idempotent return if already activated
+      const vendor = await Vendor.findById(req.user.id);
+      return res.status(200).json({
+        success: true,
+        message: 'Subscription payment already processed',
+        data: vendor?.subscription,
+      });
     }
 
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-    const config = (await RewardConfig.findOne()) || {};
-    const isBrand = vendor.shopType === 'Chain & Brand';
+    const targetPlan = planType || planId || payment?.planType || 'Monthly';
+    const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
 
-    let price = 0;
-    if (planType === 'Monthly') {
-      price = isBrand ? (config.brandMonthlyPrice ?? 999) : (config.independentStoreMonthlyPrice ?? 499);
-    } else {
-      price = isBrand ? (config.brandYearlyPrice ?? 9999) : (config.independentStoreYearlyPrice ?? 4999);
+    if (Math.abs(verifiedAmount - planInfo.price) > 1) {
+      await SubscriptionPayment.findOneAndUpdate(
+        { razorpayOrderId: razorpay_order_id },
+        { paymentStatus: 'FAILED', errorMessage: `Amount mismatch: expected ${planInfo.price}, received ${verifiedAmount}` }
+      );
+      return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
     }
 
-    const now = new Date();
-    const expiresAt = new Date(now);
-    if (planType === 'Monthly') {
-      expiresAt.setDate(expiresAt.getDate() + 30);
-    } else {
-      expiresAt.setDate(expiresAt.getDate() + 365);
-    }
+    // Calculate dates (respects active renewal vs new/expired)
+    const newDates = calculateNewSubscriptionDates(vendor.subscription, planInfo.durationDays);
 
     vendor.subscription = {
-      planType,
-      price,
+      planType: planInfo.planType,
+      price: planInfo.price,
       status: 'ACTIVE',
-      startDate: now,
-      expiresAt,
-      lastRenewedAt: now,
+      startDate: newDates.startDate,
+      expiresAt: newDates.expiresAt,
+      lastRenewedAt: newDates.lastRenewedAt,
+      expiredAt: null,
+      paymentId: razorpay_payment_id,
     };
-
     await vendor.save();
 
-    logger.info(`[vendor.controller] Vendor ${vendor._id} subscribed to ${planType} plan for ₹${price}`);
+    // Update payment record
+    if (payment) {
+      payment.paymentStatus = 'SUCCESS';
+      payment.razorpayPaymentId = razorpay_payment_id;
+      payment.razorpaySignature = razorpay_signature;
+      payment.paidAt = new Date();
+      await payment.save();
+    } else {
+      await SubscriptionPayment.create({
+        vendorId: vendor._id,
+        planId: planInfo.planId,
+        planType: planInfo.planType,
+        shopType: vendor.shopType,
+        amount: planInfo.price,
+        paymentMethod: 'RAZORPAY',
+        paymentStatus: 'SUCCESS',
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        transactionId: `SUB-RZP-${Date.now()}`,
+        paidAt: new Date(),
+      });
+    }
+
+    logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Razorpay (${planInfo.planType})`);
+
+    sendNotification({
+      recipientId: vendor._id,
+      recipientType: 'vendor',
+      fcmTokens: vendor.fcmTokens || [],
+      type: 'system',
+      title: '🎉 Subscription Active!',
+      message: `Your store is active and visible on ZeeBac until ${newDates.expiresAt.toLocaleDateString('en-IN')}.`,
+      icon: 'card_membership',
+    });
 
     res.status(200).json({
       success: true,
-      message: `Successfully subscribed to ${planType} plan. Valid until ${expiresAt.toLocaleDateString()}`,
+      message: `Successfully subscribed to ${planInfo.planType} plan. Valid until ${newDates.expiresAt.toLocaleDateString('en-IN')}`,
       data: vendor.subscription,
     });
   } catch (error) {
-    logger.error(`Error in subscribePlan: ${error.message}`);
+    logger.error(`Error in verifySubscriptionRazorpayPayment: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
+/**
+ * 3. Cancel / Fail Razorpay Order
+ */
+export const cancelSubscriptionRazorpayOrder = async (req, res) => {
+  try {
+    const { razorpay_order_id, reason } = req.body;
+    if (razorpay_order_id) {
+      await SubscriptionPayment.findOneAndUpdate(
+        { razorpayOrderId: razorpay_order_id, paymentStatus: 'PENDING' },
+        { paymentStatus: 'FAILED', errorMessage: reason || 'Payment cancelled by user' }
+      );
+    }
+    res.status(200).json({ success: true, message: 'Order marked as cancelled' });
+  } catch (error) {
+    logger.error(`Error in cancelSubscriptionRazorpayOrder: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+/**
+ * 4. Pay Subscription From Vendor Wallet
+ * Atomically validates balance, debits wallet, creates transaction, and activates subscription.
+ * Does NOT trust frontend amount.
+ */
+export const paySubscriptionFromWallet = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { planType, planId } = req.body;
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const targetPlan = planType || planId || 'Monthly';
+    const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
+
+    // Check wallet balance
+    const wallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: { $in: ['vendor', 'Vendor'] } });
+    const currentBalance = wallet ? (wallet.balance || 0) : 0;
+
+    if (currentBalance < planInfo.price) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient wallet balance. Please recharge your wallet or pay using Razorpay.',
+        walletBalance: currentBalance,
+        requiredAmount: planInfo.price,
+      });
+    }
+
+    const transactionId = `SUB-WLT-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    let newDates;
+
+    await session.withTransaction(async () => {
+      // 1. Create subscription payment transaction record
+      const [createdSubPayment] = await SubscriptionPayment.create(
+        [
+          {
+            vendorId: vendor._id,
+            planId: planInfo.planId,
+            planType: planInfo.planType,
+            shopType: vendor.shopType,
+            amount: planInfo.price,
+            paymentMethod: 'WALLET',
+            paymentStatus: 'SUCCESS',
+            transactionId,
+            paidAt: new Date(),
+          },
+        ],
+        { session }
+      );
+
+      // 2. Atomically debit wallet
+      await debitWallet({
+        session,
+        ownerId: vendor._id,
+        ownerType: 'Vendor',
+        amount: planInfo.price,
+        category: 'subscription',
+        description: `Subscription payment for ${planInfo.planType} Plan`,
+        referenceId: createdSubPayment._id,
+        referenceType: 'SubscriptionPayment',
+      });
+
+      // 3. Calculate dates
+      newDates = calculateNewSubscriptionDates(vendor.subscription, planInfo.durationDays);
+
+      // 4. Update vendor subscription
+      vendor.subscription = {
+        planType: planInfo.planType,
+        price: planInfo.price,
+        status: 'ACTIVE',
+        startDate: newDates.startDate,
+        expiresAt: newDates.expiresAt,
+        lastRenewedAt: newDates.lastRenewedAt,
+        expiredAt: null,
+        paymentId: transactionId,
+      };
+      await vendor.save({ session });
+    });
+
+    logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Wallet (${planInfo.planType})`);
+
+    sendNotification({
+      recipientId: vendor._id,
+      recipientType: 'vendor',
+      fcmTokens: vendor.fcmTokens || [],
+      type: 'system',
+      title: '🎉 Subscription Active!',
+      message: `Your store is active and visible on ZeeBac until ${newDates.expiresAt.toLocaleDateString('en-IN')}.`,
+      icon: 'card_membership',
+    });
+
+    const updatedWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: { $in: ['vendor', 'Vendor'] } });
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully purchased ${planInfo.planType} plan from wallet. Valid until ${newDates.expiresAt.toLocaleDateString('en-IN')}`,
+      data: {
+        subscription: vendor.subscription,
+        walletBalance: updatedWallet?.balance ?? 0,
+        transactionId,
+      },
+    });
+  } catch (error) {
+    if (error instanceof InsufficientBalanceError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient wallet balance. Please recharge your wallet or pay using Razorpay.',
+      });
+    }
+    logger.error(`Error in paySubscriptionFromWallet: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  } finally {
+    session.endSession();
   }
 };
 

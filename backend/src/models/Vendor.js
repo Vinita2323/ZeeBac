@@ -148,7 +148,7 @@ const vendorSchema = new mongoose.Schema(
       status: {
         type: String,
         enum: ['ACTIVE', 'EXPIRED', 'NONE'],
-        default: 'ACTIVE',
+        default: 'NONE',
       },
       startDate: Date,
       expiresAt: Date,

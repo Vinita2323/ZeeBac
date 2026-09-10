@@ -1,6 +1,8 @@
 import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
 import Referral from '../models/Referral.js';
+import CashbackRule from '../models/CashbackRule.js';
+import { SHOP_TYPE_MIN_RATES } from '../utils/cashback.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 import { sendTokens } from '../utils/token.utils.js';
@@ -198,5 +200,36 @@ export const getVendorCategories = async (req, res) => {
   } catch (error) {
     logger.error(`[getVendorCategories] Error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 4. Public cashback rules for vendor onboarding — returns active rules & min rates
+export const getPublicCashbackRules = async (req, res) => {
+  try {
+    const rules = await CashbackRule.find({ isActive: true }).sort({ priority: -1, createdAt: -1 });
+    const independentRule = rules.find(r => r.shopType === 'Independent Store');
+    const chainRule = rules.find(r => r.shopType === 'Chain & Brand');
+
+    const minRates = {
+      'Independent Store': independentRule ? independentRule.minCashback : (SHOP_TYPE_MIN_RATES['Independent Store'] ?? 2),
+      'Chain & Brand': chainRule ? chainRule.minCashback : (SHOP_TYPE_MIN_RATES['Chain & Brand'] ?? 5),
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        rules,
+        minRates,
+      },
+    });
+  } catch (error) {
+    logger.error(`[getPublicCashbackRules] Error: ${error.message}`);
+    res.status(200).json({
+      success: true,
+      data: {
+        rules: [],
+        minRates: SHOP_TYPE_MIN_RATES,
+      },
+    });
   }
 };

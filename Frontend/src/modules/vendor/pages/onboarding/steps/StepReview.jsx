@@ -54,6 +54,7 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
       <SectionCard title="Business" icon="storefront" onEdit={() => onEdit(2)}>
         <Row label="Shop Name" value={data.storeName} />
         <Row label="Type" value={data.shopType} />
+        <Row label="Customer Cashback" value={data.cashbackRate ? `${data.cashbackRate}% to users` : null} />
         <Row label="Category" value={data.category} />
         {data.subCategory && <Row label="Sub-category" value={data.subCategory} />}
         {data.gstNumber && <Row label="GST Number" value={data.gstNumber} />}

@@ -15,6 +15,7 @@ import SupportPage from './pages/SupportPage';
 import RewardsManagerPage from './pages/RewardsManagerPage';
 import PayoutsPage from './pages/PayoutsPage';
 import AdminNotificationsPage from './pages/AdminNotificationsPage';
+import SubscriptionPlansPage from './pages/SubscriptionPlansPage';
 
 export default function AdminRoutes() {
   return (
@@ -25,6 +26,7 @@ export default function AdminRoutes() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/vendors/:id" element={<VendorApplicationDetailPage />} />
+        <Route path="/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/rules" element={<CashbackRulesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />

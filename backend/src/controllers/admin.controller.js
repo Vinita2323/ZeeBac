@@ -7,9 +7,12 @@ import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
+import SubscriptionPayment from '../models/SubscriptionPayment.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
 import { debitWallet, creditWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
+import { getVendorSubscriptionState } from '../utils/subscription.util.js';
 
 // ─── Dashboard Stats ───
 export const getDashboardStats = async (req, res) => {
@@ -94,7 +97,15 @@ export const getVendorById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
-    res.status(200).json({ success: true, data: vendor });
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const balance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subscriptionState = getVendorSubscriptionState(vendor, balance);
+
+    const vendorObj = vendor.toObject ? vendor.toObject() : vendor;
+    vendorObj.walletBalance = balance;
+    vendorObj.subscriptionState = subscriptionState;
+
+    res.status(200).json({ success: true, data: vendorObj });
   } catch (error) {
     logger.error(`Error in getVendorById: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -108,16 +119,18 @@ export const approveVendor = async (req, res) => {
     const { id } = req.params;
     let { cashbackRate } = req.body;
 
-    if (!cashbackRate) {
-      cashbackRate = 5; // Default 5%
-    }
-
     const vendor = await Vendor.findById(id);
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
     if (vendor.applicationStatus === 'DRAFT') {
       return res.status(400).json({ success: false, message: 'Vendor has not submitted an application yet.' });
+    }
+
+    if (cashbackRate !== undefined && cashbackRate !== null && cashbackRate !== '') {
+      cashbackRate = Number(cashbackRate);
+    } else {
+      cashbackRate = vendor.cashbackRate ?? 5;
     }
 
     const now = new Date();
@@ -1113,5 +1126,188 @@ export const refundTransaction = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error processing refund', error: error.message });
   } finally {
     session.endSession();
+  }
+};
+
+// ─── Subscription Plans Management (Admin) ───
+export const getAdminSubscriptionPlans = async (req, res) => {
+  try {
+    await SubscriptionPlan.seedDefaultsIfEmpty();
+    const plans = await SubscriptionPlan.find().sort({ durationDays: 1 });
+
+    const totalSubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE' });
+    const monthlySubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE', 'subscription.planType': 'Monthly' });
+    const yearlySubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE', 'subscription.planType': 'Yearly' });
+    const expiredVendors = await Vendor.countDocuments({ 'subscription.status': 'EXPIRED' });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        plans,
+        stats: {
+          totalSubscribers,
+          monthlySubscribers,
+          yearlySubscribers,
+          expiredVendors,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getAdminSubscriptionPlans: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const createAdminSubscriptionPlan = async (req, res) => {
+  try {
+    const { name, planType, durationDays, pricing, features, description, isActive } = req.body;
+    if (!name || !planType || !durationDays || !pricing) {
+      return res.status(400).json({ success: false, message: 'Missing required plan fields' });
+    }
+
+    const plan = await SubscriptionPlan.create({
+      name,
+      planType,
+      durationDays: Number(durationDays),
+      pricing: {
+        independentStore: Number(pricing.independentStore || 499),
+        chainBrand: Number(pricing.chainBrand || 999),
+      },
+      features: Array.isArray(features) ? features : [],
+      description: description || '',
+      isActive: isActive !== undefined ? isActive : true,
+    });
+
+    res.status(201).json({ success: true, message: 'Subscription plan created', data: plan });
+  } catch (error) {
+    logger.error(`Error in createAdminSubscriptionPlan: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
+export const updateAdminSubscriptionPlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, durationDays, pricing, features, description, isActive } = req.body;
+
+    const plan = await SubscriptionPlan.findById(id);
+    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+
+    if (name !== undefined) plan.name = name;
+    if (durationDays !== undefined) plan.durationDays = Number(durationDays);
+    if (pricing) {
+      if (pricing.independentStore !== undefined) plan.pricing.independentStore = Number(pricing.independentStore);
+      if (pricing.chainBrand !== undefined) plan.pricing.chainBrand = Number(pricing.chainBrand);
+
+      // Keep RewardConfig in sync for backward compatibility
+      const config = await RewardConfig.findOne();
+      if (config) {
+        if (plan.planType === 'Monthly') {
+          config.independentStoreMonthlyPrice = plan.pricing.independentStore;
+          config.brandMonthlyPrice = plan.pricing.chainBrand;
+        } else if (plan.planType === 'Yearly') {
+          config.independentStoreYearlyPrice = plan.pricing.independentStore;
+          config.brandYearlyPrice = plan.pricing.chainBrand;
+        }
+        await config.save();
+      }
+    }
+    if (features !== undefined) plan.features = Array.isArray(features) ? features : [];
+    if (description !== undefined) plan.description = description;
+    if (isActive !== undefined) plan.isActive = isActive;
+
+    await plan.save();
+    res.status(200).json({ success: true, message: 'Plan updated successfully', data: plan });
+  } catch (error) {
+    logger.error(`Error in updateAdminSubscriptionPlan: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
+export const deleteAdminSubscriptionPlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const plan = await SubscriptionPlan.findById(id);
+    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+
+    plan.isActive = !plan.isActive;
+    await plan.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Plan ${plan.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: plan,
+    });
+  } catch (error) {
+    logger.error(`Error in deleteAdminSubscriptionPlan: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const adminActivateVendorSubscription = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { planType = 'Monthly', days = 30 } = req.body;
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + Number(days) * 24 * 60 * 60 * 1000);
+
+    vendor.subscription = {
+      planType,
+      price: 0,
+      status: 'ACTIVE',
+      startDate: now,
+      expiresAt,
+      lastRenewedAt: now,
+    };
+    await vendor.save();
+
+    logger.info(`[admin.controller] Admin activated ${planType} subscription for vendor ${vendorId} until ${expiresAt.toISOString()}`);
+    res.status(200).json({ success: true, message: `Subscription activated until ${expiresAt.toLocaleDateString()}`, data: vendor.subscription });
+  } catch (error) {
+    logger.error(`Error in adminActivateVendorSubscription: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getAdminSubscriptionPayments = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.paymentStatus) {
+      query.paymentStatus = req.query.paymentStatus;
+    }
+    if (req.query.paymentMethod) {
+      query.paymentMethod = req.query.paymentMethod;
+    }
+
+    const [payments, total] = await Promise.all([
+      SubscriptionPayment.find(query)
+        .populate('vendorId', 'storeName zeebacId phone ownerName shopType')
+        .populate('planId', 'name planType')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SubscriptionPayment.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        payments,
+        total,
+        page,
+        pages: Math.ceil(total / limit) || 1,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getAdminSubscriptionPayments: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

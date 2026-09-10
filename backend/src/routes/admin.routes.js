@@ -29,7 +29,13 @@ import {
   deletePartnerOffer,
   getPendingPayouts,
   processPayout,
-  refundTransaction
+  refundTransaction,
+  getAdminSubscriptionPlans,
+  createAdminSubscriptionPlan,
+  updateAdminSubscriptionPlan,
+  deleteAdminSubscriptionPlan,
+  adminActivateVendorSubscription,
+  getAdminSubscriptionPayments,
 } from '../controllers/admin.controller.js';
 import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
@@ -113,5 +119,17 @@ router.route('/rewards/offers')
 router.route('/rewards/offers/:id')
   .put(updatePartnerOffer)
   .delete(deletePartnerOffer);
+
+// ─── Subscription Plans (Admin) ───
+router.route('/subscription-plans')
+  .get(getAdminSubscriptionPlans)
+  .post(createAdminSubscriptionPlan);
+
+router.route('/subscription-plans/:id')
+  .put(updateAdminSubscriptionPlan)
+  .delete(deleteAdminSubscriptionPlan);
+
+router.post('/vendors/:vendorId/activate-subscription', adminActivateVendorSubscription);
+router.get('/subscription-payments', getAdminSubscriptionPayments);
 
 export default router;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { AdminAPI, API_BASE_URL } from '../../../services/api';
+import { AdminAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
 import ApproveDialog from '../components/vendors/ApproveDialog';
 import RejectDialog from '../components/vendors/RejectDialog';
 
@@ -23,8 +23,8 @@ const HISTORY_META = {
 function Section({ title, icon, children }) {
   return (
     <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-5">
-      <h3 className="font-bold text-[14px] text-on-surface mb-4 flex items-center gap-2">
-        <span className="material-symbols-outlined text-primary text-[18px]">{icon}</span>
+      <h3 className="font-title-md font-bold text-on-surface mb-4 flex items-center gap-2">
+        <span className="material-symbols-outlined text-primary text-[20px]">{icon}</span>
         {title}
       </h3>
       {children}
@@ -35,8 +35,8 @@ function Section({ title, icon, children }) {
 function Row({ label, value }) {
   return (
     <div>
-      <p className="text-on-surface-variant text-[11px] uppercase tracking-wider font-bold mb-0.5">{label}</p>
-      <p className="font-medium text-on-surface text-[13.5px]">{value || <span className="text-outline">—</span>}</p>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="text-[13.5px] font-bold text-on-surface mt-0.5">{value || <span className="text-gray-300 font-normal">—</span>}</p>
     </div>
   );
 }
@@ -45,8 +45,8 @@ function DocPreview({ label, doc }) {
   const [fullscreen, setFullscreen] = useState(false);
   if (!doc?.fileUrl) {
     return (
-      <div className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-outline-variant/30">
-        <span className="material-symbols-outlined text-outline">description</span>
+      <div className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant/10 bg-surface-container-low opacity-60">
+        <span className="material-symbols-outlined text-outline text-[22px]">description</span>
         <div>
           <p className="text-[13px] font-bold text-on-surface-variant">{label}</p>
           <p className="text-[11px] text-outline">Not provided</p>
@@ -54,8 +54,8 @@ function DocPreview({ label, doc }) {
       </div>
     );
   }
-  const url = `${API_BASE_URL}${doc.fileUrl}`;
-  const isPdf = doc.fileType === 'application/pdf';
+  const url = getMediaUrl(doc.fileUrl);
+  const isPdf = doc.fileType === 'application/pdf' || (typeof doc.fileUrl === 'string' && doc.fileUrl.toLowerCase().endsWith('.pdf'));
 
   return (
     <>
@@ -196,6 +196,19 @@ export default function VendorApplicationDetailPage() {
             <Row label="Category" value={vendor.category} />
             <Row label="Sub-category" value={vendor.subCategory} />
             <Row label="GST Number" value={vendor.gstNumber} />
+            <Row label="Account Status" value={vendor.status} />
+            <div className="col-span-2 p-3.5 bg-purple-50/80 border border-purple-200/80 rounded-2xl flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Proposed Customer Cashback</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[20px] font-black text-purple-700">{vendor.cashbackRate ? `${vendor.cashbackRate}%` : '5%'}</span>
+                  <span className="text-[12px] font-semibold text-gray-600">offered on purchases</span>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-white rounded-full text-[11px] font-black text-purple-700 border border-purple-200 shadow-sm">
+                Min Required: {vendor.shopType === 'Chain & Brand' ? '5%' : '2%'}
+              </span>
+            </div>
             <div className="col-span-2"><Row label="Description" value={vendor.description} /></div>
           </div>
         </Section>
@@ -204,6 +217,65 @@ export default function VendorApplicationDetailPage() {
           <div className="grid grid-cols-2 gap-3">
             <Row label="Business Contact" value={vendor.businessContactNumber} />
             <Row label="Business Email" value={vendor.businessEmail} />
+          </div>
+        </Section>
+
+        <Section title="Subscription & Store Live Status" icon="verified_user">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Row label="Current Plan" value={vendor.subscription?.planType || 'None'} />
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Subscription Status</p>
+                <div className="mt-1">
+                  {vendor.subscriptionState?.effectiveStatus === 'ACTIVE' ? (
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-green-100 text-green-700">
+                      ● Active
+                    </span>
+                  ) : vendor.subscriptionState?.effectiveStatus === 'EXPIRED' ? (
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700">
+                      ● Expired {vendor.subscriptionState?.inGracePeriod ? `(24h Grace: ${vendor.subscriptionState.hoursRemainingInGrace}h left)` : '(Hidden)'}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 text-gray-700">
+                      ● None (Required)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Row label="Expires On" value={vendor.subscription?.expiresAt ? new Date(vendor.subscription.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'} />
+              <Row label="Wallet Balance" value={`₹${(vendor.walletBalance ?? 0).toLocaleString()}`} />
+            </div>
+
+            <div className="p-3 bg-surface-container-low rounded-xl space-y-2 border border-outline-variant/10 text-[12px]">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-on-surface-variant">Store Visibility:</span>
+                <span className={`font-bold px-2 py-0.5 rounded ${vendor.subscriptionState?.isStoreVisible ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {vendor.subscriptionState?.isStoreVisible ? 'Visible on Map & Search' : 'Hidden from Discovery'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-on-surface-variant">Cashback Allowed:</span>
+                <span className={`font-bold px-2 py-0.5 rounded ${!vendor.subscriptionState?.cashbackBlocked ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {!vendor.subscriptionState?.cashbackBlocked ? 'Allowed' : (vendor.subscriptionState?.cashbackBlockedReason || 'Blocked')}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between">
+              <span className="text-[11px] text-gray-500">Explicit admin override only:</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (window.confirm(`Manual Admin Activation: Activate 30-day Monthly subscription override for ${vendor.storeName || 'this vendor'}?`)) {
+                    await AdminAPI.activateVendorSubscription(vendor._id, { planType: 'Monthly', days: 30 });
+                    fetchVendor();
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-700 hover:text-white font-bold text-[12px] transition-all cursor-pointer border border-purple-200"
+              >
+                Manual Admin Activation
+              </button>
+            </div>
           </div>
         </Section>
 
@@ -229,13 +301,34 @@ export default function VendorApplicationDetailPage() {
         </Section>
 
         <Section title="Store Images" icon="photo_library">
-          <div className="flex gap-3 flex-wrap">
-            {vendor.storeLogo && <img src={`${API_BASE_URL}${vendor.storeLogo}`} alt="Logo" className="w-16 h-16 rounded-full object-cover border border-outline-variant/20" />}
-            {vendor.storeCoverImage && <img src={`${API_BASE_URL}${vendor.storeCoverImage}`} alt="Cover" className="w-24 h-16 rounded-lg object-cover border border-outline-variant/20" />}
+          <div className="flex gap-4 flex-wrap items-center">
+            {vendor.storeLogo && (
+              <div className="text-center">
+                <a href={getMediaUrl(vendor.storeLogo)} target="_blank" rel="noreferrer" title="Click to view full logo">
+                  <img src={getMediaUrl(vendor.storeLogo)} alt="Logo" className="w-16 h-16 rounded-full object-cover border-2 border-purple-200 shadow-sm hover:scale-105 transition-transform" />
+                </a>
+                <p className="text-[10.5px] font-bold text-gray-500 mt-1">Logo</p>
+              </div>
+            )}
+            {vendor.storeCoverImage && (
+              <div className="text-center">
+                <a href={getMediaUrl(vendor.storeCoverImage)} target="_blank" rel="noreferrer" title="Click to view full cover">
+                  <img src={getMediaUrl(vendor.storeCoverImage)} alt="Cover" className="w-28 h-16 rounded-xl object-cover border-2 border-purple-200 shadow-sm hover:scale-105 transition-transform" />
+                </a>
+                <p className="text-[10.5px] font-bold text-gray-500 mt-1">Cover</p>
+              </div>
+            )}
             {(vendor.storeImages || []).map((img, i) => (
-              <img key={i} src={`${API_BASE_URL}${img}`} alt={`Gallery ${i}`} className="w-16 h-16 rounded-lg object-cover border border-outline-variant/20" />
+              <div key={i} className="text-center">
+                <a href={getMediaUrl(img)} target="_blank" rel="noreferrer" title={`Click to view photo ${i + 1}`}>
+                  <img src={getMediaUrl(img)} alt={`Gallery ${i}`} className="w-16 h-16 rounded-xl object-cover border-2 border-outline-variant/30 shadow-sm hover:scale-105 transition-transform" />
+                </a>
+                <p className="text-[10.5px] font-bold text-gray-500 mt-1">Photo {i + 1}</p>
+              </div>
             ))}
-            {!vendor.storeLogo && !vendor.storeCoverImage && !(vendor.storeImages || []).length && <p className="text-[13px] text-outline">No images uploaded</p>}
+            {!vendor.storeLogo && !vendor.storeCoverImage && !(vendor.storeImages || []).length && (
+              <p className="text-[13px] text-outline">No images uploaded</p>
+            )}
           </div>
         </Section>
 
@@ -285,7 +378,14 @@ export default function VendorApplicationDetailPage() {
         )}
       </Section>
 
-      {showApprove && <ApproveDialog vendorName={vendor.storeName || vendor.ownerName} onConfirm={handleApprove} onClose={() => setShowApprove(false)} />}
+      {showApprove && (
+        <ApproveDialog 
+          vendorName={vendor.storeName || vendor.ownerName} 
+          initialCashbackRate={vendor.cashbackRate}
+          onConfirm={handleApprove} 
+          onClose={() => setShowApprove(false)} 
+        />
+      )}
       {showReject && <RejectDialog vendorName={vendor.storeName || vendor.ownerName} onConfirm={handleReject} onClose={() => setShowReject(false)} />}
     </div>
   );

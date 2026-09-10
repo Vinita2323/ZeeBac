@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../../../../services/api';
+import { getMediaUrl } from '../../../../../services/api';
 
 const MAX_SIZE_MB = 5;
 
@@ -28,7 +28,7 @@ export default function UploadCard({ label, required, value, onUpload, onRemove,
 
   const fileName = isFile ? value.name : isServerDoc ? (value.fileName || 'Document') : null;
   const isPdf = (isFile && value.type === 'application/pdf') || (isServerDoc && value.fileType === 'application/pdf');
-  const previewUrl = isFile ? URL.createObjectURL(value) : (isServerDoc && value.fileUrl ? `${API_BASE_URL}${value.fileUrl}` : null);
+  const previewUrl = isFile ? URL.createObjectURL(value) : (isServerDoc && value.fileUrl ? getMediaUrl(value.fileUrl) : null);
 
   return (
     <div className="space-y-1">

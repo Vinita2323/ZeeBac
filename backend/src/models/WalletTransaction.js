@@ -25,7 +25,7 @@ const walletTransactionSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase'],
+      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription'],
     },
     amount: {
       type: Number,
@@ -43,7 +43,7 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     referenceType: {
       type: String,
-      enum: ['Transaction', 'CashbackRequest', 'Cashout', 'Referral', 'WithdrawalRequest'],
+      enum: ['Transaction', 'CashbackRequest', 'Cashout', 'Referral', 'WithdrawalRequest', 'SubscriptionPayment'],
     },
     // External Gateway info (for recharges via Razorpay etc.)
     gatewayName: {

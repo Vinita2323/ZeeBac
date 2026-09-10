@@ -7,6 +7,7 @@ const STATUS_META = {
   DRAFT: { icon: 'edit_note', color: 'text-gray-500', bg: 'bg-gray-100', label: 'Draft', message: 'Your application is not yet submitted. Continue where you left off.' },
   PENDING_REVIEW: { icon: 'hourglass_top', color: 'text-amber-600', bg: 'bg-amber-100', label: '🟡 Under Review', message: 'Your vendor application has been submitted and is currently being reviewed by the Zeebac admin team.' },
   RESUBMITTED: { icon: 'hourglass_top', color: 'text-amber-600', bg: 'bg-amber-100', label: '🟡 Resubmitted — Under Review', message: 'Your updated application has been resubmitted and is being reviewed by the Zeebac admin team.' },
+  APPROVED: { icon: 'verified', color: 'text-emerald-600', bg: 'bg-emerald-100', label: '🎉 Onboarding Completed', message: 'Your vendor application has been approved! Purchase a subscription to activate your store and start receiving customers.' },
 };
 
 export default function ApplicationStatusScreen() {
@@ -29,7 +30,8 @@ export default function ApplicationStatusScreen() {
     );
   }
 
-  const meta = STATUS_META[vendor?.applicationStatus] || STATUS_META.PENDING_REVIEW;
+  const isApproved = vendor?.applicationStatus === 'APPROVED' || vendor?.status === 'Verified';
+  const meta = isApproved ? STATUS_META.APPROVED : (STATUS_META[vendor?.applicationStatus] || STATUS_META.PENDING_REVIEW);
 
   return (
     <div className="min-h-screen flex items-center justify-center mesh-gradient p-4 relative overflow-hidden">
@@ -49,20 +51,28 @@ export default function ApplicationStatusScreen() {
 
         <div className="bg-white/70 rounded-2xl p-4 space-y-2 text-left text-[13px]">
           <div className="flex justify-between">
+            <span className="text-gray-500">Approved Cashback</span>
+            <span className="font-bold text-purple-700">{vendor?.cashbackRate ? `${vendor.cashbackRate}% to users` : '—'}</span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-gray-500">Submitted On</span>
             <span className="font-bold text-gray-900">{vendor?.submittedAt ? new Date(vendor.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Last Updated</span>
-            <span className="font-bold text-gray-900">{vendor?.lastSubmittedAt ? new Date(vendor.lastSubmittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+            <span className="text-gray-500">Store Status</span>
+            <span className="font-bold text-rose-600">Subscription Required</span>
           </div>
-          {vendor?.resubmissionCount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">Resubmissions</span>
-              <span className="font-bold text-gray-900">{vendor.resubmissionCount}</span>
-            </div>
-          )}
         </div>
+
+        {isApproved && (
+          <button
+            onClick={() => navigate('/vendor/subscription')}
+            className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[20px]">card_membership</span>
+            Choose Subscription Plan
+          </button>
+        )}
 
         {vendor?.applicationStatus === 'DRAFT' && (
           <button

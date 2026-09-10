@@ -11,6 +11,17 @@ const rawApiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined'
 export const SERVER_URL = rawApiUrl.replace(/\/api\/?$/, '');
 export const API_BASE_URL = `${SERVER_URL}/api`;
 
+// Safely resolves media URLs from Cloudinary, external HTTPS, data URIs, or server uploads
+export const getMediaUrl = (url) => {
+  if (!url) return '';
+  if (typeof url !== 'string') return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${SERVER_URL}${cleanPath}`;
+};
+
 // ─── Axios Instance & Interceptors ──────────────────────────────────────────
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -85,6 +96,10 @@ export const AuthAPI = {
   },
   getVendorCategories: async () => {
     const res = await apiClient.get('/auth/vendor/categories');
+    return res.data;
+  },
+  getCashbackRules: async () => {
+    const res = await apiClient.get('/auth/vendor/cashback-rules');
     return res.data;
   },
   logout: async () => {
@@ -291,7 +306,35 @@ export const AdminAPI = {
   deletePartnerOffer: async (id) => {
     const res = await apiClient.delete(`/admin/rewards/offers/${id}`);
     return res.data;
-  }
+  },
+  // Subscriptions (Admin)
+  getSubscriptionPlans: async () => {
+    const res = await apiClient.get('/admin/subscription-plans');
+    return res.data;
+  },
+  createSubscriptionPlan: async (data) => {
+    const res = await apiClient.post('/admin/subscription-plans', data);
+    return res.data;
+  },
+  updateSubscriptionPlan: async (id, data) => {
+    const res = await apiClient.put(`/admin/subscription-plans/${id}`, data);
+    return res.data;
+  },
+  deleteSubscriptionPlan: async (id) => {
+    const res = await apiClient.delete(`/admin/subscription-plans/${id}`);
+    return res.data;
+  },
+  activateVendorSubscription: async (vendorId, data = {}) => {
+    const res = await apiClient.post(`/admin/vendors/${vendorId}/activate-subscription`, data);
+    return res.data;
+  },
+  getSubscriptionPayments: async (page = 1, paymentStatus = '', paymentMethod = '') => {
+    let url = `/admin/subscription-payments?page=${page}`;
+    if (paymentStatus) url += `&paymentStatus=${paymentStatus}`;
+    if (paymentMethod) url += `&paymentMethod=${paymentMethod}`;
+    const res = await apiClient.get(url);
+    return res.data;
+  },
 };
 
 // ── Vendor Service ──
@@ -448,6 +491,35 @@ export const VendorAPI = {
   },
   getMySupportTickets: async () => {
     const res = await apiClient.get('/vendor/support');
+    return res.data;
+  },
+  // Subscriptions (Vendor)
+  getSubscriptionPlans: async () => {
+    const res = await apiClient.get('/vendor/subscription/plans');
+    return res.data;
+  },
+  getSubscriptionStatus: async () => {
+    const res = await apiClient.get('/vendor/subscription/status');
+    return res.data;
+  },
+  createSubscriptionRazorpayOrder: async (data) => {
+    const res = await apiClient.post('/vendor/subscription/create-order', data);
+    return res.data;
+  },
+  verifySubscriptionRazorpayPayment: async (data) => {
+    const res = await apiClient.post('/vendor/subscription/verify-payment', data);
+    return res.data;
+  },
+  cancelSubscriptionRazorpayOrder: async (data) => {
+    const res = await apiClient.post('/vendor/subscription/cancel-order', data);
+    return res.data;
+  },
+  paySubscriptionFromWallet: async (data) => {
+    const res = await apiClient.post('/vendor/subscription/pay-from-wallet', data);
+    return res.data;
+  },
+  subscribePlan: async (planType) => {
+    const res = await apiClient.post('/vendor/subscription/subscribe', { planType });
     return res.data;
   },
 };

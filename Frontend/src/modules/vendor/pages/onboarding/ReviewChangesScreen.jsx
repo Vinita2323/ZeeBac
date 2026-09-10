@@ -3,6 +3,7 @@ const FIELD_LABELS = {
   shopType: 'Business Type',
   category: 'Category',
   subCategory: 'Sub-category',
+  cashbackRate: 'Customer Cashback (%)',
   description: 'Description',
   gstNumber: 'GST Number',
   businessContactNumber: 'Business Contact Number',
@@ -28,7 +29,7 @@ const FIELD_LABELS = {
 };
 
 const SECTIONS = [
-  { title: 'Business', fields: ['storeName', 'shopType', 'category', 'subCategory', 'description', 'gstNumber', 'businessContactNumber', 'businessEmail'] },
+  { title: 'Business', fields: ['storeName', 'shopType', 'cashbackRate', 'category', 'subCategory', 'description', 'gstNumber', 'businessContactNumber', 'businessEmail'] },
   { title: 'Location', fields: ['address.fullAddress', 'address.landmark', 'address.city', 'address.state', 'address.pincode', 'location'] },
   { title: 'Store', fields: ['storeLogo', 'storeCoverImage', 'storeImages', 'businessHours.openingTime', 'businessHours.closingTime', 'businessHours.workingDays'] },
   { title: 'Documents', fields: ['documents.aadhaarPan', 'documents.gstCertificate', 'documents.shopLicense', 'documents.panCard', 'documents.cancelledCheque'] },
@@ -54,6 +55,7 @@ function readCurrent(current, path) {
     if (key === 'workingDays') return current.businessHours.workingDays?.join(', ') || '—';
     return current.businessHours[key] || '—';
   }
+  if (path === 'cashbackRate') return current.cashbackRate != null ? `${current.cashbackRate}%` : '—';
   return current[path] || '—';
 }
 
@@ -71,6 +73,7 @@ function readPrevious(previous, path) {
     if (key === 'workingDays') return previous.businessHours?.workingDays?.join(', ') || '—';
     return previous.businessHours?.[key] || '—';
   }
+  if (path === 'cashbackRate') return previous.cashbackRate != null ? `${previous.cashbackRate}%` : '—';
   return previous[path] || '—';
 }
 

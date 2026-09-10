@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserAPI, API_BASE_URL } from '../../../../services/api';
+import { UserAPI, API_BASE_URL, getMediaUrl } from '../../../../services/api';
 
 export default function PhotosTab({ vendorId }) {
   const [media, setMedia] = useState([]);
@@ -47,9 +47,9 @@ export default function PhotosTab({ vendorId }) {
         {media.map(item => (
           <div key={item._id} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container">
             {item.type === 'video' ? (
-              <video src={`${API_BASE_URL}${item.url}`} className="w-full h-full object-cover" controls={true} playsInline />
+              <video src={getMediaUrl(item.url)} className="w-full h-full object-cover" controls={true} playsInline />
             ) : (
-              <img src={`${API_BASE_URL}${item.url}`} alt="Store media" className="w-full h-full object-cover" />
+              <img src={getMediaUrl(item.url)} alt="Store media" className="w-full h-full object-cover" />
             )}
             
             {item.type === 'video' && (

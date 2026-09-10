@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { VendorAPI, API_BASE_URL } from '../../../services/api';
+import { VendorAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
 
 export default function StorefrontPage() {
   const navigate = useNavigate();
@@ -332,7 +332,7 @@ export default function StorefrontPage() {
               ) : products.length > 0 ? products.map(product => (
                 <div key={product._id} className="flex flex-col sm:flex-row gap-4 p-4 bg-white rounded-2xl border border-outline-variant/10 shadow-sm animate-reveal">
                   <div className="flex gap-4 flex-1">
-                    <img src={product.image ? `${API_BASE_URL}${product.image}` : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'} alt={product.name} className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-xl bg-surface-container flex-shrink-0" />
+                    <img src={product.image ? getMediaUrl(product.image) : 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=300&q=80'} alt={product.name} className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-xl bg-surface-container flex-shrink-0" />
                     <div className="flex-1 flex flex-col justify-between py-0.5">
                       <div>
                         <div className="flex justify-between items-start gap-2">
@@ -422,9 +422,9 @@ export default function StorefrontPage() {
               {mediaList.map(item => (
                 <div key={item._id} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container group animate-reveal">
                   {item.type === 'video' ? (
-                    <video src={`${API_BASE_URL}${item.url}`} className="w-full h-full object-cover" controls={false} muted loop playsInline />
+                    <video src={getMediaUrl(item.url)} className="w-full h-full object-cover" controls={false} muted loop playsInline />
                   ) : (
-                    <img src={`${API_BASE_URL}${item.url}`} alt="Gallery" className="w-full h-full object-cover" />
+                    <img src={getMediaUrl(item.url)} alt="Gallery" className="w-full h-full object-cover" />
                   )}
                   {item.type === 'video' && (
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">

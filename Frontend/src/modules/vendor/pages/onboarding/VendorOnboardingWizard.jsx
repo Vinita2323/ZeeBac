@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { VendorAPI } from '../../../../services/api';
+import { VendorAPI, AuthAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
 import StepAccount from './steps/StepAccount';
 import StepBusiness from './steps/StepBusiness';
@@ -12,6 +12,7 @@ const STEP_LABELS = ['Account', 'Business', 'Documents', 'Review'];
 
 const emptyFormData = {
   storeName: '', shopType: '', category: '', subCategory: '', description: '',
+  cashbackRate: 5,
   gstNumber: '', businessContactNumber: '', businessEmail: '',
   address: { fullAddress: '', landmark: '', city: '', state: '', pincode: '' },
   lat: null, lng: null,
@@ -26,6 +27,7 @@ const vendorToFormData = (vendor) => ({
   category: vendor.category || '',
   subCategory: vendor.subCategory || '',
   description: vendor.description || '',
+  cashbackRate: vendor.cashbackRate ?? (vendor.shopType === 'Chain & Brand' ? 5 : 2),
   gstNumber: vendor.gstNumber || '',
   businessContactNumber: vendor.businessContactNumber || '',
   businessEmail: vendor.businessEmail || '',
@@ -58,7 +60,7 @@ const vendorToFormData = (vendor) => ({
 
 const buildPayload = (data) => {
   const payload = new FormData();
-  const scalarFields = ['storeName', 'shopType', 'category', 'subCategory', 'description', 'gstNumber', 'businessContactNumber', 'businessEmail'];
+  const scalarFields = ['storeName', 'shopType', 'category', 'subCategory', 'description', 'cashbackRate', 'gstNumber', 'businessContactNumber', 'businessEmail'];
   scalarFields.forEach(f => { if (data[f] !== undefined && data[f] !== null) payload.append(f, data[f]); });
   payload.append('address', JSON.stringify(data.address));
   payload.append('businessHours', JSON.stringify(data.businessHours));
@@ -88,6 +90,18 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingResume, setIsLoadingResume] = useState(mode === 'resubmit' || (!!currentUser && currentUser.applicationStatus === 'DRAFT'));
   const [previousSnapshotVendor, setPreviousSnapshotVendor] = useState(null);
+  const [minRates, setMinRates] = useState({
+    'Independent Store': 2,
+    'Chain & Brand': 5,
+  });
+
+  useEffect(() => {
+    AuthAPI.getCashbackRules().then((res) => {
+      if (res.success && res.data?.minRates) {
+        setMinRates(res.data.minRates);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isLoadingResume) return;
@@ -108,6 +122,16 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
     if (!data.shopType) next.shopType = 'Select a business type';
     if (!data.category) next.category = 'Select a business category';
     if (data.shopType === 'Chain & Brand' && !data.gstNumber?.trim()) next.gstNumber = 'GST number is required for Chain & Brand';
+
+    const minAllowed = minRates[data.shopType] ?? (data.shopType === 'Chain & Brand' ? 5 : 2);
+    if (data.cashbackRate === undefined || data.cashbackRate === null || data.cashbackRate === '') {
+      next.cashbackRate = 'Select or enter a customer cashback percentage';
+    } else if (Number(data.cashbackRate) < minAllowed) {
+      next.cashbackRate = `Minimum required cashback for ${data.shopType || 'your store'} is ${minAllowed}%`;
+    } else if (Number(data.cashbackRate) > 100) {
+      next.cashbackRate = 'Cashback rate cannot exceed 100%';
+    }
+
     if (!data.address.fullAddress.trim()) next['address.fullAddress'] = 'Enter your business address';
     if (!data.address.city.trim()) next['address.city'] = 'Enter city';
     if (!data.address.state.trim()) next['address.state'] = 'Enter state';
@@ -268,7 +292,7 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
         boxSizing: 'border-box',
       }}>
         {step === 1 && <StepAccount onComplete={(vendor) => { setAccount(vendor); setStep(2); }} />}
-        {step === 2 && <StepBusiness data={data} update={update} errors={errors} />}
+        {step === 2 && <StepBusiness data={data} update={update} errors={errors} minRates={minRates} />}
         {step === 3 && <StepDocuments data={data} update={update} errors={errors} />}
         {step === 4 && mode === 'register' && (
           <StepReview

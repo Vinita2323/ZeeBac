@@ -31,6 +31,13 @@ const makeVendor = async (overrides = {}) => {
     phone: `9${Math.floor(100000000 + Math.random() * 899999999)}`,
     status: 'Verified',
     cashbackRate: 5,
+    subscription: {
+      status: 'ACTIVE',
+      planType: 'Monthly',
+      price: 499,
+      startDate: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
     ...overrides,
   });
   await Wallet.create({ ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId, balance: 1000 });

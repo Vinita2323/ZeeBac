@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
-import { VendorAPI, API_BASE_URL } from '../../../services/api';
+import { VendorAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
 import { downloadImage, shareContent } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
 
@@ -140,8 +140,7 @@ export default function ProfilePage() {
         });
 
         if (res.data.profilePic) {
-          // If it's a relative path, prepend API_BASE_URL. If it's base64 or absolute, use as is.
-          const picUrl = res.data.profilePic.startsWith('/') ? `${API_BASE_URL}${res.data.profilePic}` : res.data.profilePic;
+          const picUrl = getMediaUrl(res.data.profilePic);
           setProfilePic(picUrl);
         }
 
@@ -273,7 +272,7 @@ export default function ProfilePage() {
                 className={`w-20 h-20 bg-white rounded-[20px] shadow-md flex items-center justify-center text-primary text-3xl font-black relative overflow-hidden ${isEditing ? 'cursor-pointer' : ''}`}
               >
                 {profilePic ? (
-                  <img src={profilePic.startsWith('http') || profilePic.startsWith('data:') ? profilePic : `${API_BASE_URL}${profilePic}`} alt="Store" className="w-full h-full object-cover" />
+                  <img src={getMediaUrl(profilePic)} alt="Store" className="w-full h-full object-cover" />
                 ) : (
                   <span>{firstLetter}</span>
                 )}
@@ -943,7 +942,7 @@ export default function ProfilePage() {
                 <div className="w-full flex items-center justify-center p-2 h-[400px]">
                   {vendorData?.documents?.gstCertificate?.fileUrl ? (
                     <img 
-                      src={`${API_BASE_URL}${vendorData.documents.gstCertificate.fileUrl}`} 
+                      src={getMediaUrl(vendorData.documents.gstCertificate.fileUrl)} 
                       alt="GST Certificate" 
                       className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
                     />
@@ -1002,7 +1001,7 @@ export default function ProfilePage() {
                 <div className="w-full flex items-center justify-center p-2 h-[400px]">
                   {vendorData?.documents?.aadhaarPan?.fileUrl ? (
                     <img 
-                      src={`${API_BASE_URL}${vendorData.documents.aadhaarPan.fileUrl}`} 
+                      src={getMediaUrl(vendorData.documents.aadhaarPan.fileUrl)} 
                       alt="PAN Card" 
                       className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
                     />
@@ -1061,7 +1060,7 @@ export default function ProfilePage() {
                 <div className="w-full flex items-center justify-center p-2 h-[400px]">
                   {vendorData?.documents?.cancelledCheque?.fileUrl ? (
                     <img 
-                      src={`${API_BASE_URL}${vendorData.documents.cancelledCheque.fileUrl}`} 
+                      src={getMediaUrl(vendorData.documents.cancelledCheque.fileUrl)} 
                       alt="Cancelled Cheque" 
                       className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
                     />
