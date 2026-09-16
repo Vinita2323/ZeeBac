@@ -1,34 +1,80 @@
 import Referral from '../models/Referral.js';
 import User from '../models/User.js';
+import RewardConfig from '../models/RewardConfig.js';
 import logger from '../utils/logger.js';
 
 // Get current user's referral stats and history
 export const getMyReferrals = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Auto-generate referral code if missing
+    let referralCode = user.referralCode;
+    if (!referralCode) {
+      const cleanName = (user.name || 'ZEE').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4) || 'ZEE';
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      referralCode = `${cleanName}${randomSuffix}`;
+
+      // Ensure uniqueness
+      const existing = await User.findOne({ referralCode });
+      if (existing) {
+        referralCode = `${cleanName}${Date.now().toString().slice(-4)}`;
+      }
+
+      user.referralCode = referralCode;
+      await user.save();
+    }
+
+    // Fetch dynamic reward amount from Admin RewardConfig
+    const config = await RewardConfig.findOne();
+    const activeRewardAmount = config?.referralReward || 150;
+
     // Fetch all referrals made by this user
-    const referrals = await Referral.find({ referrerId: userId }).sort({ createdAt: -1 });
-    
+    const referrals = await Referral.find({ referrerId: userId })
+      .populate('referredUserId', 'name phone profileImage')
+      .sort({ createdAt: -1 });
+
     // Calculate stats
     const totalInvited = referrals.length;
     const totalEarned = referrals
-      .filter(r => r.rewardStatus === 'Credited')
-      .reduce((sum, r) => sum + (r.rewardAmount || 0), 0);
-    
-    const user = await User.findById(userId);
-    const referralCode = user?.referralCode || '';
+      .filter((r) => r.rewardStatus === 'Credited')
+      .reduce((sum, r) => sum + (r.rewardAmount || activeRewardAmount), 0);
+
+    // Format referral history with masked phone for privacy
+    const history = referrals.map((r) => {
+      const friendName = r.referredUserId?.name || r.referrerName || 'Friend';
+      const rawPhone = r.referredUserId?.phone || r.referredPhone || '';
+      const maskedPhone = rawPhone.length >= 10
+        ? `${rawPhone.slice(0, 3)}****${rawPhone.slice(-3)}`
+        : rawPhone;
+
+      return {
+        _id: r._id,
+        friendName,
+        friendPhone: maskedPhone,
+        status: r.status, // 'Signed Up' | 'Converted'
+        rewardStatus: r.rewardStatus, // 'Pending' | 'Credited'
+        rewardAmount: r.rewardAmount || activeRewardAmount,
+        createdAt: r.createdAt,
+        rewardCreditedAt: r.rewardCreditedAt,
+      };
+    });
 
     res.status(200).json({
       success: true,
       data: {
         referralCode,
+        rewardAmount: activeRewardAmount,
         stats: {
           totalInvited,
-          totalEarned
+          totalEarned,
         },
-        history: referrals
-      }
+        history,
+      },
     });
   } catch (error) {
     logger.error(`Error in getMyReferrals: ${error.message}`);

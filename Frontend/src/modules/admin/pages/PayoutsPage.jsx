@@ -25,14 +25,14 @@ export default function PayoutsPage() {
 
   useEffect(() => { fetchPayouts(); }, []);
 
-  const openModal = (id, type, action) => {
-    setModal({ isOpen: true, id, type, action });
+  const openModal = (item, type, action) => {
+    setModal({ isOpen: true, id: item._id, type, action, item });
     setTransactionId('');
     setRemarks('');
   };
 
   const closeModal = () => {
-    setModal({ isOpen: false, id: null, type: null, action: null });
+    setModal({ isOpen: false, id: null, type: null, action: null, item: null });
   };
 
   const handleConfirmProcess = async () => {
@@ -132,11 +132,16 @@ export default function PayoutsPage() {
                     </td>
                     <td className="p-4 text-[13px] text-on-surface-variant">
                       {activeTab === 'vendors' ? (
-                        <div>
-                          <p><span className="font-bold">Bank:</span> {item.bankDetailsSnapshot?.bankName || item.vendorId?.bankDetails?.bankName || 'N/A'}</p>
-                          <p><span className="font-bold">A/C:</span> {item.bankDetailsSnapshot?.accountNumber || item.vendorId?.bankDetails?.accountNumber || 'N/A'}</p>
-                          <p><span className="font-bold">IFSC:</span> {item.bankDetailsSnapshot?.ifscCode || item.vendorId?.bankDetails?.ifscCode || 'N/A'}</p>
-                          {item.bankDetailsSnapshot?.upiId && <p><span className="font-bold">UPI:</span> {item.bankDetailsSnapshot.upiId}</p>}
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-on-surface text-[13.5px]">
+                            {item.bankDetailsSnapshot?.accountHolderName || item.vendorId?.bankDetails?.accountHolderName || item.vendorId?.ownerName || 'N/A'}
+                          </p>
+                          <p><span className="font-semibold text-gray-700">Bank:</span> {item.bankDetailsSnapshot?.bankName || item.vendorId?.bankDetails?.bankName || 'N/A'}</p>
+                          <p className="font-mono"><span className="font-semibold text-gray-700 font-sans">A/C:</span> {item.bankDetailsSnapshot?.accountNumber || item.vendorId?.bankDetails?.accountNumber || 'N/A'}</p>
+                          <p className="font-mono"><span className="font-semibold text-gray-700 font-sans">IFSC:</span> {item.bankDetailsSnapshot?.ifscCode || item.vendorId?.bankDetails?.ifscCode || 'N/A'}</p>
+                          {(item.bankDetailsSnapshot?.upiId || item.vendorId?.bankDetails?.upiId) && (
+                            <p><span className="font-semibold text-gray-700">UPI:</span> {item.bankDetailsSnapshot?.upiId || item.vendorId?.bankDetails?.upiId}</p>
+                          )}
                         </div>
                       ) : (
                         <div>
@@ -161,14 +166,14 @@ export default function PayoutsPage() {
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => openModal(item._id, activeTab === 'vendors' ? 'Vendor' : 'User', 'Approve')}
+                          onClick={() => openModal(item, activeTab === 'vendors' ? 'Vendor' : 'User', 'Approve')}
                           disabled={isProcessing}
                           className="px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => openModal(item._id, activeTab === 'vendors' ? 'Vendor' : 'User', 'Reject')}
+                          onClick={() => openModal(item, activeTab === 'vendors' ? 'Vendor' : 'User', 'Reject')}
                           disabled={isProcessing}
                           className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
                         >
@@ -197,8 +202,155 @@ export default function PayoutsPage() {
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <p style={{ fontSize: '14px', color: '#666' }}>
                 You are about to <strong>{modal.action.toLowerCase()}</strong> this payout request.
-                {modal.action === 'Approve' && ' Please enter the Bank/UPI Transaction ID.'}
+                {modal.action === 'Approve' && ' Please transfer funds to the verified account below and enter the Bank/UPI Transaction ID (UTR).'}
               </p>
+
+              {modal.action === 'Approve' && modal.item && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.75rem', padding: '0.85rem', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.4rem' }}>
+                    <span style={{ fontWeight: 'bold', color: '#334155' }}>Destination Account ({modal.type})</span>
+                    <span style={{ fontWeight: '900', color: '#7E3AF2', fontSize: '14px' }}>₹{modal.item.amount?.toLocaleString()}</span>
+                  </div>
+
+                  {modal.type === 'Vendor' ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748b' }}>Account Holder:</span>
+                        <span style={{ fontWeight: 'bold', color: '#1e293b' }}>
+                          {modal.item.bankDetailsSnapshot?.accountHolderName || modal.item.vendorId?.bankDetails?.accountHolderName || modal.item.vendorId?.ownerName || 'N/A'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748b' }}>Bank Name:</span>
+                        <span style={{ fontWeight: '600', color: '#1e293b' }}>
+                          {modal.item.bankDetailsSnapshot?.bankName || modal.item.vendorId?.bankDetails?.bankName || 'N/A'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b' }}>Account No:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1e293b' }}>
+                            {modal.item.bankDetailsSnapshot?.accountNumber || modal.item.vendorId?.bankDetails?.accountNumber || 'N/A'}
+                          </span>
+                          {(modal.item.bankDetailsSnapshot?.accountNumber || modal.item.vendorId?.bankDetails?.accountNumber) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(modal.item.bankDetailsSnapshot?.accountNumber || modal.item.vendorId?.bankDetails?.accountNumber);
+                                alert('Account Number copied to clipboard!');
+                              }}
+                              style={{ fontSize: '10px', padding: '0.15rem 0.4rem', background: '#e2e8f0', borderRadius: '0.25rem', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Copy
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b' }}>IFSC Code:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1e293b' }}>
+                            {modal.item.bankDetailsSnapshot?.ifscCode || modal.item.vendorId?.bankDetails?.ifscCode || 'N/A'}
+                          </span>
+                          {(modal.item.bankDetailsSnapshot?.ifscCode || modal.item.vendorId?.bankDetails?.ifscCode) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(modal.item.bankDetailsSnapshot?.ifscCode || modal.item.vendorId?.bankDetails?.ifscCode);
+                                alert('IFSC Code copied to clipboard!');
+                              }}
+                              style={{ fontSize: '10px', padding: '0.15rem 0.4rem', background: '#e2e8f0', borderRadius: '0.25rem', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Copy
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {(modal.item.bankDetailsSnapshot?.upiId || modal.item.vendorId?.bankDetails?.upiId) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#64748b' }}>UPI ID:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#1e293b' }}>
+                              {modal.item.bankDetailsSnapshot?.upiId || modal.item.vendorId?.bankDetails?.upiId}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(modal.item.bankDetailsSnapshot?.upiId || modal.item.vendorId?.bankDetails?.upiId);
+                                alert('UPI ID copied to clipboard!');
+                              }}
+                              style={{ fontSize: '10px', padding: '0.15rem 0.4rem', background: '#e2e8f0', borderRadius: '0.25rem', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {modal.item.ownerId?.bankDetails?.accountNumber && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748b' }}>Bank Name:</span>
+                            <span style={{ fontWeight: '600', color: '#1e293b' }}>{modal.item.ownerId.bankDetails.bankName || 'N/A'}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#64748b' }}>Account No:</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1e293b' }}>{modal.item.ownerId.bankDetails.accountNumber}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(modal.item.ownerId.bankDetails.accountNumber);
+                                  alert('Account Number copied to clipboard!');
+                                }}
+                                style={{ fontSize: '10px', padding: '0.15rem 0.4rem', background: '#e2e8f0', borderRadius: '0.25rem', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#64748b' }}>IFSC Code:</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1e293b' }}>{modal.item.ownerId.bankDetails.ifscCode}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(modal.item.ownerId.bankDetails.ifscCode);
+                                  alert('IFSC Code copied to clipboard!');
+                                }}
+                                style={{ fontSize: '10px', padding: '0.15rem 0.4rem', background: '#e2e8f0', borderRadius: '0.25rem', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {modal.item.ownerId?.bankDetails?.upiId && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#64748b' }}>UPI ID:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#1e293b' }}>{modal.item.ownerId.bankDetails.upiId}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(modal.item.ownerId.bankDetails.upiId);
+                                alert('UPI ID copied to clipboard!');
+                              }}
+                              style={{ fontSize: '10px', padding: '0.15rem 0.4rem', background: '#e2e8f0', borderRadius: '0.25rem', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {modal.action === 'Approve' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

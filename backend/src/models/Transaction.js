@@ -10,7 +10,7 @@ const transactionSchema = new mongoose.Schema(
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
     },
     customerZeebacId: String,
     customerPhone: String,
@@ -53,7 +53,7 @@ const transactionSchema = new mongoose.Schema(
     
     paymentMethod: {
       type: String,
-      enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other', 'Cash (POS Bill Scan)'],
+      enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other', 'Cash (POS Bill Scan)', 'Cash (POS Auto Credit)', 'POS'],
       default: 'Cash',
     },
     
@@ -79,7 +79,7 @@ const transactionSchema = new mongoose.Schema(
     
     source: {
       type: String,
-      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan'],
+      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan', 'pos_auto_credit', 'upi_qr_scan', 'upi_utr_claim'],
       required: true,
     },
     
@@ -87,6 +87,7 @@ const transactionSchema = new mongoose.Schema(
       gatewayName: String,
       gatewayOrderId: String,
       gatewayPaymentId: String,
+      utr: { type: String, index: true },
     },
     
     timestamp: {

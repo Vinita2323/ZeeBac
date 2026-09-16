@@ -100,7 +100,7 @@ export const getVendorSubscriptionState = (vendor, walletBalance = null) => {
     hoursRemainingInGrace,
     expiresAt,
     expiredAt,
-    planType: sub.planType || 'None',
+    planType: effectiveStatus === 'NONE' ? 'None' : (sub.planType || 'None'),
     price: sub.price || 0,
     cashbackBlocked,
     cashbackBlockedReason,
@@ -189,31 +189,63 @@ export const resolvePlanPrice = async (planTypeOrId, shopType) => {
   if (planTypeOrId && mongoose.Types.ObjectId.isValid(planTypeOrId)) {
     plan = await SubscriptionPlan.findById(planTypeOrId);
   }
+
   if (!plan && typeof planTypeOrId === 'string') {
-    plan = await SubscriptionPlan.findOne({ planType: planTypeOrId, isActive: true });
+    const raw = planTypeOrId.trim();
+    let searchTypes = [raw];
+
+    if (/^(1\s*month|monthly)$/i.test(raw)) {
+      searchTypes = ['1 Month', 'Monthly'];
+    } else if (/^(3\s*months?|quarterly)$/i.test(raw)) {
+      searchTypes = ['3 Months', '3 Month'];
+    } else if (/^(yearly|annual|12\s*months?)$/i.test(raw)) {
+      searchTypes = ['Yearly'];
+    }
+
+    plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes }, isActive: true });
     if (!plan) {
-      plan = await SubscriptionPlan.findOne({ planType: planTypeOrId });
+      plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes } });
+    }
+    if (!plan) {
+      plan = await SubscriptionPlan.findOne({ planType: raw });
     }
   }
 
   const isBrand = shopType === 'Chain & Brand';
   let price = 0;
   let durationDays = 30;
-  let planType = 'Monthly';
+  let planType = '1 Month';
 
   if (plan) {
     price = isBrand ? plan.pricing.chainBrand : plan.pricing.independentStore;
-    durationDays = plan.durationDays || (plan.planType === 'Monthly' ? 30 : 365);
-    planType = plan.planType;
+    durationDays = plan.durationDays || (plan.planType === 'Yearly' ? 365 : (plan.planType.includes('3') ? 90 : 30));
+    const callerRaw = typeof planTypeOrId === 'string' ? planTypeOrId.trim() : '';
+    if (/^monthly$/i.test(callerRaw)) {
+      planType = 'Monthly';
+    } else if (/^1\s*month$/i.test(callerRaw)) {
+      planType = '1 Month';
+    } else if (/^3\s*months?$/i.test(callerRaw)) {
+      planType = '3 Months';
+    } else {
+      planType = plan.planType;
+    }
   } else {
     // Fallback to RewardConfig
     const config = (await RewardConfig.findOne()) || {};
-    planType = planTypeOrId === 'Yearly' ? 'Yearly' : 'Monthly';
-    durationDays = planType === 'Monthly' ? 30 : 365;
-    if (planType === 'Monthly') {
-      price = isBrand ? (config.brandMonthlyPrice ?? 999) : (config.independentStoreMonthlyPrice ?? 499);
-    } else {
+    const raw = typeof planTypeOrId === 'string' ? planTypeOrId.trim() : '';
+
+    if (/^(yearly|annual|12\s*months?)$/i.test(raw)) {
+      planType = 'Yearly';
+      durationDays = 365;
       price = isBrand ? (config.brandYearlyPrice ?? 9999) : (config.independentStoreYearlyPrice ?? 4999);
+    } else if (/^(3\s*months?|quarterly)$/i.test(raw)) {
+      planType = '3 Months';
+      durationDays = 90;
+      price = isBrand ? (config.brandThreeMonthPrice ?? 2699) : (config.independentStoreThreeMonthPrice ?? 1299);
+    } else {
+      planType = '1 Month';
+      durationDays = 30;
+      price = isBrand ? (config.brandMonthlyPrice ?? 999) : (config.independentStoreMonthlyPrice ?? 499);
     }
   }
 

@@ -26,7 +26,11 @@ import {
   getRewardData,
   claimScratchCard,
   processWalletPayment,
-  getMyQrToken
+  getMyQrToken,
+  claimUpiCashbackByUtr,
+  setupSecurityPin,
+  toggleBiometricSecurity,
+  verifySecurityPin
 } from '../controllers/user.controller.js';
 import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
@@ -80,9 +84,17 @@ router.get('/transactions', getMyTransactions);
 router.post('/wallet/withdraw', requestWithdrawal);
 router.get('/wallet/withdrawals', getUserWithdrawals);
 
+// Biometric & PIN Security
+router.post('/security/setup-pin', setupSecurityPin);
+router.post('/security/toggle-biometric', toggleBiometricSecurity);
+router.post('/security/verify-pin', verifySecurityPin);
+
 // Razorpay Flow (For UPI/Cards)
 router.post('/transactions/razorpay/order', createRazorpayOrder);
 router.post('/transactions/razorpay/verify', verifyRazorpayAndCreateTransaction);
+
+// Claim Cashback via 12-digit UPI Reference ID / UTR (GPay Backup)
+router.post('/transactions/claim-upi-utr', claimUpiCashbackByUtr);
 
 // Wallet Payment (Phase 9)
 router.post('/pay-via-wallet', processWalletPayment);

@@ -37,8 +37,10 @@ vi.mock('../utils/razorpay.util.js', () => ({
       throw new Error('Payment not captured');
     }
     if (paymentId === 'pay_monthly_indep') return 499;
+    if (paymentId === 'pay_3months_indep') return 1299;
     if (paymentId === 'pay_yearly_indep') return 4999;
     if (paymentId === 'pay_monthly_brand') return 999;
+    if (paymentId === 'pay_3months_brand') return 2699;
     if (paymentId === 'pay_yearly_brand') return 9999;
     return 499;
   }),
@@ -61,15 +63,24 @@ describe('Vendor Subscription End-to-End & Payment Flow', () => {
   });
 
   // 1. Basic Plan Seeding & Discovery Visibility
-  it('correctly seeds default Monthly and Yearly plans', async () => {
+  it('correctly seeds default 1 Month, 3 Months, and Yearly plans', async () => {
     const plans = await SubscriptionPlan.find().sort({ durationDays: 1 });
-    expect(plans.length).toBe(2);
-    expect(plans[0].planType).toBe('Monthly');
+    expect(plans.length).toBe(3);
+
+    expect(plans[0].planType).toBe('1 Month');
+    expect(plans[0].durationDays).toBe(30);
     expect(plans[0].pricing.independentStore).toBe(499);
     expect(plans[0].pricing.chainBrand).toBe(999);
-    expect(plans[1].planType).toBe('Yearly');
-    expect(plans[1].pricing.independentStore).toBe(4999);
-    expect(plans[1].pricing.chainBrand).toBe(9999);
+
+    expect(plans[1].planType).toBe('3 Months');
+    expect(plans[1].durationDays).toBe(90);
+    expect(plans[1].pricing.independentStore).toBe(1299);
+    expect(plans[1].pricing.chainBrand).toBe(2699);
+
+    expect(plans[2].planType).toBe('Yearly');
+    expect(plans[2].durationDays).toBe(365);
+    expect(plans[2].pricing.independentStore).toBe(4999);
+    expect(plans[2].pricing.chainBrand).toBe(9999);
   });
 
   it('hides vendors without an active subscription (status NONE) from search', async () => {
@@ -520,5 +531,63 @@ describe('Vendor Subscription End-to-End & Payment Flow', () => {
     expect(newDates.expiresAt.getTime()).toBe(expectedExpires.getTime());
     expect(newDates.status).toBe('ACTIVE');
     expect(newDates.expiredAt).toBeNull();
+  });
+
+  // 7. 3 Months Plan & +10 Days Extra Validity for New Users
+  it('applies +10 days extra validity bonus for a new vendor purchasing their first plan', async () => {
+    const newVendor = await Vendor.create({
+      zeebacId: 'ZBV-NEW-BONUS',
+      storeName: 'New Merchant Store',
+      ownerName: 'Fresh Owner',
+      phone: '9876543299',
+      shopType: 'Independent Store',
+      status: 'Verified',
+      subscription: { status: 'NONE' },
+    });
+
+    await Wallet.create({
+      ownerId: newVendor._id,
+      ownerType: 'Vendor',
+      ownerZeebacId: newVendor.zeebacId,
+      balance: 2000,
+    });
+
+    // Purchase 3 Months Plan (90 days base)
+    const req = { user: { id: newVendor._id.toString() }, body: { planType: '3 Months' } };
+    const res = makeRes();
+
+    const beforePurchase = Date.now();
+    await paySubscriptionFromWallet(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const json = res.json.mock.calls[0][0];
+    expect(json.bonusDaysApplied).toBe(10);
+
+    const updatedVendor = await Vendor.findById(newVendor._id);
+    expect(updatedVendor.hasUsedNewUserBonus).toBe(true);
+    expect(updatedVendor.subscription.status).toBe('ACTIVE');
+    expect(updatedVendor.subscription.planType).toBe('3 Months');
+    expect(updatedVendor.subscription.price).toBe(1299);
+    expect(updatedVendor.subscription.bonusDaysApplied).toBe(10);
+
+    // Total validity granted = 90 base + 10 bonus = 100 days
+    const durationMs = updatedVendor.subscription.expiresAt.getTime() - updatedVendor.subscription.startDate.getTime();
+    const durationDays = Math.round(durationMs / (24 * 60 * 60 * 1000));
+    expect(durationDays).toBe(100);
+
+    // Verify subsequent renewal does NOT receive the +10 days bonus
+    const renewReq = { user: { id: newVendor._id.toString() }, body: { planType: '1 Month' } };
+    const renewRes = makeRes();
+    await paySubscriptionFromWallet(renewReq, renewRes);
+
+    expect(renewRes.status).toHaveBeenCalledWith(200);
+    const renewJson = renewRes.json.mock.calls[0][0];
+    expect(renewJson.bonusDaysApplied).toBe(0);
+
+    const renewedVendor = await Vendor.findById(newVendor._id);
+    // Renewed for 30 standard days from previous expiresAt
+    const renewedDurationMs = renewedVendor.subscription.expiresAt.getTime() - updatedVendor.subscription.expiresAt.getTime();
+    const renewedDays = Math.round(renewedDurationMs / (24 * 60 * 60 * 1000));
+    expect(renewedDays).toBe(30);
   });
 });

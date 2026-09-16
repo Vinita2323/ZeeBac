@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 import registerChatHandlers from './chatHandlers.js';
+import registerCallHandlers from './callHandlers.js';
 
 let io;
 
@@ -33,8 +34,15 @@ export const initSocket = (httpServer) => {
   io.on('connection', (socket) => {
     logger.info(`Socket connected: ${socket.id} (User: ${socket.user.id}, Role: ${socket.user.role})`);
 
+    // Auto-join private user / vendor rooms for targeted real-time events
+    if (socket.user?.id) {
+      socket.join(`user_${socket.user.id}`);
+      socket.join(`vendor_${socket.user.id}`);
+    }
+
     // Register handlers
     registerChatHandlers(io, socket);
+    registerCallHandlers(io, socket);
 
     socket.on('disconnect', () => {
       logger.info(`Socket disconnected: ${socket.id}`);

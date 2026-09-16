@@ -30,6 +30,25 @@ export const protect = async (req, res, next) => {
   }
 };
 
+// Optional auth — extracts user if token provided, but doesn't block if missing
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      req.user = {
+        ...decoded,
+        _id: decoded.id || decoded._id,
+        id: decoded.id || decoded._id,
+      };
+    }
+    next();
+  } catch (_) {
+    next();
+  }
+};
+
 // Role guard
 export const requireRole = (...roles) => {
   return (req, res, next) => {

@@ -15,7 +15,7 @@ const walletTransactionSchema = new mongoose.Schema(
     ownerType: {
       type: String,
       required: true,
-      enum: ['User', 'Vendor', 'user', 'vendor', 'customer', 'Customer'],
+      enum: ['User', 'Vendor', 'Admin', 'user', 'vendor', 'admin', 'customer', 'Customer'],
     },
     type: {
       type: String,

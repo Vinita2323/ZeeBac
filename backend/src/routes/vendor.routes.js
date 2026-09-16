@@ -28,6 +28,9 @@ import {
   verifySubscriptionRazorpayPayment,
   cancelSubscriptionRazorpayOrder,
   paySubscriptionFromWallet,
+  getVendorBankAccount,
+  sendVendorBankOtp,
+  verifyAndSaveVendorBankAccount,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -99,6 +102,11 @@ router.get('/wallet', requireApprovedVendor, getVendorWallet);
 router.post('/wallet/create-order', requireApprovedVendor, createRazorpayOrder);
 router.post('/wallet/verify-payment', requireApprovedVendor, verifyRazorpayPayment);
 router.post('/wallet/withdraw', requireApprovedVendor, requestWithdrawal);
+
+// Bank Account with OTP Verification
+router.get('/bank-account', requireApprovedVendor, getVendorBankAccount);
+router.post('/bank-account/send-otp', requireApprovedVendor, sendVendorBankOtp);
+router.post('/bank-account/verify', requireApprovedVendor, verifyAndSaveVendorBankAccount);
 
 // Cashback Requests (Phase 4 Approvals)
 router.get('/requests/pending', requireApprovedVendor, getPendingRequests);

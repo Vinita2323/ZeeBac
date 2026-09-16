@@ -28,7 +28,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
+  const token = useAuthStore.getState().accessToken || localStorage.getItem('zeebac_access_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -522,6 +522,19 @@ export const VendorAPI = {
     const res = await apiClient.post('/vendor/subscription/subscribe', { planType });
     return res.data;
   },
+  // Bank Account Management with OTP Verification
+  getBankAccount: async () => {
+    const res = await apiClient.get('/vendor/bank-account');
+    return res.data;
+  },
+  sendBankOtp: async () => {
+    const res = await apiClient.post('/vendor/bank-account/send-otp');
+    return res.data;
+  },
+  verifyAndSaveBankAccount: async (bankData) => {
+    const res = await apiClient.post('/vendor/bank-account/verify', bankData);
+    return res.data;
+  },
 };
 
 // ─── Customer API ───
@@ -576,7 +589,12 @@ export const UserAPI = {
     const res = await apiClient.post('/pos/claim', { billCode });
     return res.data;
   },
-  getNearbyVendors: async (lat, lng, radius = 15000) => {
+  // UPI Flow: Claim cashback via 12-digit UPI Reference ID / UTR (e.g. GPay)
+  claimUpiCashback: async (utr) => {
+    const res = await apiClient.post('/user/transactions/claim-upi-utr', { utr });
+    return res.data;
+  },
+  getNearbyVendors: async (lat, lng, radius = 10000) => {
     const res = await apiClient.get(`/user/vendors/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
     return res.data;
   },
@@ -635,6 +653,19 @@ export const UserAPI = {
   },
   getUserWithdrawals: async () => {
     const res = await apiClient.get('/user/wallet/withdrawals');
+    return res.data;
+  },
+  // Security: PIN & Biometrics
+  setupSecurityPin: async (pin, currentPin = null) => {
+    const res = await apiClient.post('/user/security/setup-pin', { pin, currentPin });
+    return res.data;
+  },
+  toggleBiometricSecurity: async (enabled, credentialId = null) => {
+    const res = await apiClient.post('/user/security/toggle-biometric', { enabled, credentialId });
+    return res.data;
+  },
+  verifySecurityPin: async (pin) => {
+    const res = await apiClient.post('/user/security/verify-pin', { pin });
     return res.data;
   },
   // Phase 4E
@@ -756,3 +787,44 @@ export const PosAPI = {
     return res.data;
   }
 };
+
+// ── 24-Hour Instagram Stories API ──
+export const StoryAPI = {
+  createStory: async (formData) => {
+    const res = await apiClient.post('/stories', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  },
+  getActiveStories: async (lat, lng, radius = 10000) => {
+    let url = '/stories/active';
+    if (lat && lng) {
+      url += `?lat=${lat}&lng=${lng}&radius=${radius}`;
+    }
+    const res = await apiClient.get(url);
+    return res.data;
+  },
+  getVendorStories: async (vendorId) => {
+    const res = await apiClient.get(`/stories/vendor/${vendorId}`);
+    return res.data;
+  },
+  getMyStories: async () => {
+    const res = await apiClient.get('/stories/my');
+    return res.data;
+  },
+  recordStoryView: async (storyId) => {
+    const res = await apiClient.post(`/stories/${storyId}/view`);
+    return res.data;
+  },
+  getStoryViewers: async (storyId) => {
+    const res = await apiClient.get(`/stories/${storyId}/viewers`);
+    return res.data;
+  },
+  deleteStory: async (storyId) => {
+    const res = await apiClient.delete(`/stories/${storyId}`);
+    return res.data;
+  },
+};
+

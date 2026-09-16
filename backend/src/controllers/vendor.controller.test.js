@@ -6,7 +6,18 @@ import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import Transaction from '../models/Transaction.js';
 import CashbackRequest from '../models/CashbackRequest.js';
-import { logPurchase, respondToCashbackRequest, updateProfile } from './vendor.controller.js';
+import OtpVerification from '../models/OtpVerification.js';
+import WalletTransaction from '../models/WalletTransaction.js';
+import {
+  logPurchase,
+  respondToCashbackRequest,
+  updateProfile,
+  getVendorBankAccount,
+  sendVendorBankOtp,
+  verifyAndSaveVendorBankAccount,
+  requestWithdrawal,
+  getVendorWallet,
+} from './vendor.controller.js';
 
 // The controllers call sendNotification (Firebase) as a side effect — mock it
 // out so tests don't depend on Firebase being configured.
@@ -177,3 +188,185 @@ describe('updateProfile (Phase 5 Rate Bounds)', () => {
     expect(updated.cashbackRate).toBe(3);
   });
 });
+
+describe('Vendor Bank Account Management with OTP Verification', () => {
+  it('sends OTP to vendor registered mobile number', async () => {
+    const vendor = await makeVendor({ phone: '9876543210' });
+    const req = { user: { id: vendor._id.toString() } };
+    const res = makeRes();
+
+    await sendVendorBankOtp(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.json.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.maskedPhone).toContain('98******10');
+
+    // Check OTP record in DB
+    const otpRec = await OtpVerification.findOne({ phone: '9876543210', purpose: 'bank_update', role: 'vendor' });
+    expect(otpRec).toBeTruthy();
+    expect(otpRec.purpose).toBe('bank_update');
+  });
+
+  it('rejects bank verification with invalid OTP', async () => {
+    const vendor = await makeVendor({ phone: '9876543210' });
+
+    // Send OTP first
+    await sendVendorBankOtp({ user: { id: vendor._id.toString() } }, makeRes());
+
+    const req = {
+      user: { id: vendor._id.toString() },
+      body: {
+        accountHolderName: 'Ramesh Sharma',
+        bankName: 'HDFC Bank',
+        accountNumber: '50100234567890',
+        ifscCode: 'HDFC0001234',
+        upiId: 'ramesh@upi',
+        otp: '9999', // wrong OTP
+      },
+    };
+    const res = makeRes();
+
+    await verifyAndSaveVendorBankAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].success).toBe(false);
+
+    // Ensure bank details NOT saved
+    const updated = await Vendor.findById(vendor._id);
+    expect(updated.bankDetails?.accountNumber).toBeFalsy();
+  });
+
+  it('rejects bank verification with invalid IFSC code', async () => {
+    const vendor = await makeVendor({ phone: '9876543210' });
+
+    const req = {
+      user: { id: vendor._id.toString() },
+      body: {
+        accountHolderName: 'Ramesh Sharma',
+        bankName: 'HDFC Bank',
+        accountNumber: '50100234567890',
+        ifscCode: 'INVALID_IFSC',
+        otp: '1234',
+      },
+    };
+    const res = makeRes();
+
+    await verifyAndSaveVendorBankAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].message).toContain('valid 11-character IFSC code');
+  });
+
+  it('successfully verifies OTP, saves bank details, and marks bank account as verified', async () => {
+    process.env.USE_DEFAULT_OTP = 'true';
+    const vendor = await makeVendor({ phone: '9876543210' });
+
+    // Send OTP
+    await sendVendorBankOtp({ user: { id: vendor._id.toString() } }, makeRes());
+
+    const req = {
+      user: { id: vendor._id.toString() },
+      body: {
+        accountHolderName: 'Ramesh Sharma',
+        bankName: 'HDFC Bank',
+        accountNumber: '50100234567890',
+        ifscCode: 'HDFC0001234',
+        upiId: 'ramesh@okhdfcbank',
+        otp: '1234', // default dev OTP
+      },
+    };
+    const res = makeRes();
+
+    await verifyAndSaveVendorBankAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.json.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.bankDetails.bankName).toBe('HDFC Bank');
+    expect(body.data.bankDetails.accountNumber).toBe('50100234567890');
+    expect(body.data.bankDetails.ifscCode).toBe('HDFC0001234');
+    expect(body.data.bankDetails.isVerified).toBe(true);
+
+    // Verify DB
+    const updated = await Vendor.findById(vendor._id);
+    expect(updated.bankDetails.accountNumber).toBe('50100234567890');
+    expect(updated.bankDetails.isVerified).toBe(true);
+  });
+
+  it('returns linked bank account in getVendorBankAccount and getVendorWallet', async () => {
+    const vendor = await makeVendor({
+      phone: '9876543210',
+      bankDetails: {
+        accountHolderName: 'Test Vendor',
+        bankName: 'State Bank of India',
+        accountNumber: '123456789012',
+        ifscCode: 'SBIN0001234',
+        isVerified: true,
+      },
+    });
+
+    const req = { user: { id: vendor._id.toString() } };
+    const res1 = makeRes();
+    await getVendorBankAccount(req, res1);
+
+    expect(res1.status).toHaveBeenCalledWith(200);
+    expect(res1.json.mock.calls[0][0].data.bankDetails.bankName).toBe('State Bank of India');
+
+    const res2 = makeRes();
+    await getVendorWallet(req, res2);
+
+    expect(res2.status).toHaveBeenCalledWith(200);
+    expect(res2.json.mock.calls[0][0].data.bankDetails.accountNumber).toBe('123456789012');
+  });
+
+  it('rejects withdrawal if vendor has not linked a bank account', async () => {
+    const vendor = await makeVendor({ phone: '9876543210', bankDetails: {} });
+    const req = { user: { id: vendor._id.toString() }, body: { amount: 200 } };
+    const res = makeRes();
+
+    await requestWithdrawal(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].message).toContain('link and verify your bank account');
+  });
+
+  it('snapshots verified bank details upon withdrawal and logs destination in ledger', async () => {
+    const vendor = await makeVendor({
+      phone: '9876543210',
+      bankDetails: {
+        accountHolderName: 'Pooja Sharma',
+        bankName: 'Axis Bank',
+        accountNumber: '912345678901',
+        ifscCode: 'UTIB0001234',
+        upiId: 'pooja@axisbank',
+        isVerified: true,
+      },
+    });
+
+    // Credit vendor wallet first
+    await Wallet.findOneAndUpdate(
+      { ownerId: vendor._id },
+      { $inc: { balance: 1000 } },
+      { upsert: true }
+    );
+
+    const req = { user: { id: vendor._id.toString() }, body: { amount: 400 } };
+    const res = makeRes();
+
+    await requestWithdrawal(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const createdReq = res.json.mock.calls[0][0].data;
+    expect(createdReq.amount).toBe(400);
+    expect(createdReq.bankDetailsSnapshot.bankName).toBe('Axis Bank');
+    expect(createdReq.bankDetailsSnapshot.accountNumber).toBe('912345678901');
+    expect(createdReq.bankDetailsSnapshot.accountHolderName).toBe('Pooja Sharma');
+
+    const tx = await WalletTransaction.findOne({ referenceId: createdReq._id });
+    expect(tx).not.toBeNull();
+    expect(tx.description).toContain('Withdrawal to Axis Bank');
+    expect(tx.description).toContain('8901');
+  });
+});
+

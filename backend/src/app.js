@@ -50,12 +50,14 @@ import notificationRoutes from './routes/notification.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import posRoutes from './routes/pos.routes.js';
 import fcmRoutes from './routes/fcm.routes.js';
+import storyRoutes from './routes/story.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/stories', storyRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/webhooks', webhookRoutes);

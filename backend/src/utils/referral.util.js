@@ -1,21 +1,17 @@
 import Referral from '../models/Referral.js';
 import User from '../models/User.js';
+import AdminUser from '../models/AdminUser.js';
+import RewardConfig from '../models/RewardConfig.js';
 import Transaction from '../models/Transaction.js';
-import { creditWallet } from './wallet.util.js';
+import { creditWallet, debitWallet } from './wallet.util.js';
+import logger from './logger.js';
 
 // Awards the referrer's bonus on a customer's first APPROVED transaction.
 // Must be called inside the same session as the transaction that just made
 // the count go to 1, so the count read sees that transaction consistently.
 //
-// The referral is atomically flipped from 'Signed Up' to 'Converted' as part
-// of the same findOneAndUpdate that decides whether to pay out — two
-// concurrent "first transactions" for the same customer can no longer both
-// pass a stale read and both trigger a payout.
-//
-// Does NOT send the notification itself — `withTransaction` may re-run this
-// callback on a transient error, and a push notification is not something
-// that should ever fire twice. Callers send the notification only after the
-// transaction has actually committed, using the returned info.
+// The referral amount is strictly debited from the Admin Platform Wallet
+// and credited to the Referrer User Wallet, maintaining a balanced double-entry ledger.
 export const claimFirstPurchaseReferralBonus = async ({ session, customer }) => {
   if (!customer.referredBy) return null;
 
@@ -29,10 +25,37 @@ export const claimFirstPurchaseReferralBonus = async ({ session, customer }) => 
   );
   if (!referral) return null;
 
-  const rewardAmount = referral.rewardAmount || 150;
+  // Determine dynamic reward amount from RewardConfig (fallback to 150)
+  const config = await RewardConfig.findOne().session(session);
+  const rewardAmount = referral.rewardAmount || config?.referralReward || 150;
+
   const referrer = await User.findById(referral.referrerId).select('zeebacId fcmTokens name').session(session);
   if (!referrer) return null;
 
+  // 1. Debit Admin Platform Wallet
+  const adminUser = await AdminUser.findOne({ role: { $in: ['super_admin', 'admin'] } }).session(session);
+  if (adminUser) {
+    try {
+      await debitWallet({
+        session,
+        ownerId: adminUser._id,
+        ownerType: 'Admin',
+        amount: rewardAmount,
+        category: 'referral_bonus',
+        description: `Referral bonus payout to ${referrer.name || 'User'} for inviting ${customer.name || 'Customer'}`,
+        referenceId: referral._id,
+        referenceType: 'Referral',
+      });
+      logger.info(`[Referral Payout] Debited ₹${rewardAmount} from Admin Wallet (${adminUser.email})`);
+    } catch (err) {
+      logger.error(`[Referral Payout] Failed to debit admin wallet: ${err.message}`);
+      throw err; // Abort transaction if admin wallet fails
+    }
+  } else {
+    logger.warn(`[Referral Payout] No active AdminUser found for wallet debit!`);
+  }
+
+  // 2. Credit Referrer User Wallet
   await creditWallet({
     session,
     ownerId: referrer._id,
@@ -40,10 +63,12 @@ export const claimFirstPurchaseReferralBonus = async ({ session, customer }) => 
     ownerZeebacId: referrer.zeebacId,
     amount: rewardAmount,
     category: 'referral_bonus',
-    description: `Referral bonus for inviting ${customer.name}`,
+    description: `Referral bonus for inviting ${customer.name || 'Customer'}`,
     referenceId: referral._id,
     referenceType: 'Referral',
   });
+
+  logger.info(`[Referral Payout] Credited ₹${rewardAmount} to Referrer (${referrer.name || referrer._id})`);
 
   return {
     referralId: referral._id,

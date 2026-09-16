@@ -32,14 +32,16 @@ export const debitWallet = async ({
 }) => {
   const normalizedType = (ownerType || 'vendor').toLowerCase();
   const ownerTypeQuery = { $in: [normalizedType, normalizedType.toUpperCase(), normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)] };
+  const resolvedOwnerType = normalizedType === 'admin' ? 'Admin' : (normalizedType === 'vendor' ? 'Vendor' : 'User');
 
-  // Ensure wallet exists (if missing, auto-initialize vendor with ₹25,000 balance)
+  // Ensure wallet exists (if missing, auto-initialize vendor with ₹25,000, admin with ₹500,000, user with ₹1,000)
   let wallet = await Wallet.findOne({ ownerId, ownerType: ownerTypeQuery }).session(session);
   if (!wallet) {
-    const initialBalance = normalizedType === 'vendor' ? 25000 : 1000;
+    const initialBalance = normalizedType === 'vendor' ? 25000 : (normalizedType === 'admin' ? 500000 : 1000);
     const created = await Wallet.create([{
       ownerId,
-      ownerType: normalizedType,
+      ownerType: resolvedOwnerType,
+      ownerZeebacId: normalizedType === 'admin' ? 'ZEEBAC-ADMIN' : (normalizedType === 'vendor' ? 'VEND-INIT' : 'USER-INIT'),
       balance: initialBalance,
       totalEarned: initialBalance,
       totalWithdrawn: 0
@@ -60,7 +62,7 @@ export const debitWallet = async ({
   await WalletTransaction.create([{
     walletId: updatedWallet._id,
     ownerId,
-    ownerType: normalizedType === 'vendor' ? 'Vendor' : 'User',
+    ownerType: resolvedOwnerType,
     type: 'debit',
     category: category || 'cashback',
     amount,
@@ -83,12 +85,13 @@ export const creditWallet = async ({
 }) => {
   const normalizedType = (ownerType || 'customer').toLowerCase();
   const ownerTypeQuery = { $in: [normalizedType, normalizedType.toUpperCase(), normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)] };
+  const resolvedOwnerType = normalizedType === 'admin' ? 'Admin' : (normalizedType === 'vendor' ? 'Vendor' : 'User');
 
   const wallet = await Wallet.findOneAndUpdate(
     { ownerId, ownerType: ownerTypeQuery },
     {
       $inc: { balance: amount, totalEarned: amount },
-      $setOnInsert: { ownerZeebacId, ownerType: normalizedType === 'vendor' ? 'Vendor' : 'User' },
+      $setOnInsert: { ownerZeebacId, ownerType: resolvedOwnerType },
     },
     { returnDocument: 'after', upsert: true, session, runValidators: true }
   );
@@ -96,7 +99,7 @@ export const creditWallet = async ({
   await WalletTransaction.create([{
     walletId: wallet._id,
     ownerId,
-    ownerType: normalizedType === 'vendor' ? 'Vendor' : 'User',
+    ownerType: resolvedOwnerType,
     type: 'credit',
     category: category || 'cashback',
     amount,

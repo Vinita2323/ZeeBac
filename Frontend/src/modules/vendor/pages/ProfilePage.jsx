@@ -1250,9 +1250,10 @@ function VendorStoreQrCard({ zeebacId }) {
         <div className="space-y-1">
           <h3 className="font-display text-[15px] font-black text-on-surface flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
-            My Store QR
+            Counter QR
           </h3>
-          <p className="text-[11px] text-on-surface-variant leading-tight">Show this to customers for instant cashback</p>
+          <p className="text-[10px] text-primary font-bold leading-tight">PhonePe • Paytm • GPay • ZeeBac</p>
+          <p className="text-[11px] text-on-surface-variant leading-tight">Customers earn instant wallet cashback</p>
         </div>
 
         <div className="flex gap-1.5">

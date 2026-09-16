@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Force DNS resolution for mongodb+srv
-dns.setServers(['1.1.1.1', '8.8.8.8']);
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
