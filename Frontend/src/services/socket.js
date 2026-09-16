@@ -5,6 +5,9 @@ import { API_BASE_URL } from './api';
 let socket;
 
 export const connectSocket = (token) => {
+  if (socket && socket.connected) {
+    return socket;
+  }
   if (socket) {
     socket.disconnect();
   }
@@ -37,8 +40,8 @@ export const getSocket = () => {
   return socket;
 };
 
-export const disconnectSocket = () => {
-  if (socket) {
+export const disconnectSocket = (force = false) => {
+  if (socket && force) {
     socket.disconnect();
     socket = null;
   }

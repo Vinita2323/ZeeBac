@@ -52,6 +52,20 @@ const posBillSchema = new mongoose.Schema(
       ref: 'Transaction',
       default: null,
     },
+    customerPhone: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    claimMode: {
+      type: String,
+      enum: ['SCAN', 'AUTO_PHONE', null],
+      default: null,
+    },
+    paymentMethod: {
+      type: String,
+      default: 'Cash',
+    },
     expiresAt: {
       type: Date,
       default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours

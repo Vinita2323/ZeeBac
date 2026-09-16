@@ -97,6 +97,11 @@ const userSchema = new mongoose.Schema(
       type: String,
     },
     fcmTokens: [{ type: String }],  // FCM push notification tokens (multiple devices)
+    security: {
+      biometricEnabled: { type: Boolean, default: false },
+      securityPin: { type: String, default: null },
+      biometricCredentialId: { type: String, default: null },
+    },
   },
   {
     timestamps: true,

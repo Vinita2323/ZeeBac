@@ -12,7 +12,11 @@ import RewardConfig from '../models/RewardConfig.js';
 import Referral from '../models/Referral.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import SubscriptionPayment from '../models/SubscriptionPayment.js';
+import OtpVerification from '../models/OtpVerification.js';
+import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
+import { sendOtpSms } from '../utils/sms.util.js';
+import { verifyOtpOnly } from './auth.controller.js';
 import { getVendorSubscriptionState, resolvePlanPrice, calculateNewSubscriptionDates } from '../utils/subscription.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
@@ -421,20 +425,40 @@ export const requestWithdrawal = async (req, res) => {
 
     const wallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
 
+    if (!vendor.bankDetails?.accountNumber || !vendor.bankDetails?.ifscCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please link and verify your bank account before requesting a withdrawal.',
+      });
+    }
+
     if (wallet.balance < amount) {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance for withdrawal' });
     }
 
+    // Snapshot the verified bank details at the time of withdrawal
+    const bankSnapshot = {
+      accountHolderName: vendor.bankDetails?.accountHolderName || vendor.ownerName || vendor.storeName || '',
+      bankName: vendor.bankDetails?.bankName || '',
+      accountNumber: vendor.bankDetails?.accountNumber || '',
+      ifscCode: vendor.bankDetails?.ifscCode || '',
+      upiId: vendor.bankDetails?.upiId || '',
+      isVerified: Boolean(vendor.bankDetails?.isVerified),
+      verifiedAt: vendor.bankDetails?.verifiedAt || new Date(),
+    };
+
     // Deduct from balance
     wallet.balance -= amount;
-    // Add to pending withdrawal tracking if schema supports it, else we just deduct.
-    // Let's create the withdrawal request record
+    // Let's create the withdrawal request record with bankDetailsSnapshot
     const withdrawalReq = await WithdrawalRequest.create({
       vendorId: vendor._id,
       amount,
       status: 'Pending',
-      bankDetailsSnapshot: vendor.bankDetails || {}
+      bankDetailsSnapshot: bankSnapshot,
     });
+
+    const maskedAcc = bankSnapshot.accountNumber ? `•••• ${bankSnapshot.accountNumber.slice(-4)}` : '';
+    const destDesc = bankSnapshot.bankName ? `Withdrawal to ${bankSnapshot.bankName} (${maskedAcc})` : 'Withdrawal request initiated';
 
     // Create a ledger entry for the withdrawal deduction
     await WalletTransaction.create({
@@ -447,13 +471,17 @@ export const requestWithdrawal = async (req, res) => {
       balanceAfter: wallet.balance,
       referenceId: withdrawalReq._id,
       referenceType: 'WithdrawalRequest',
-      description: `Withdrawal request initiated`,
-      vendorName: vendor.storeName
+      description: destDesc,
+      vendorName: vendor.storeName,
     });
 
     await wallet.save();
 
-    await notifyAdmins('PAYOUT_REQUEST', 'New Payout Request', `Vendor "${vendor.storeName}" requested a withdrawal of ₹${amount}.`);
+    await notifyAdmins(
+      'PAYOUT_REQUEST',
+      'New Payout Request',
+      `Vendor "${vendor.storeName}" requested a withdrawal of ₹${amount} to ${bankSnapshot.bankName} (${maskedAcc}).`
+    );
 
     res.status(201).json({ success: true, message: 'Withdrawal request submitted successfully', data: withdrawalReq });
   } catch (error) {
@@ -658,11 +686,24 @@ export const lookupCustomerByPhone = async (req, res) => {
 // since it's now a live, usable credential, not just a public ID).
 export const getVendorQrToken = async (req, res) => {
   try {
-    const vendor = await Vendor.findById(req.user.id).select('zeebacId');
+    const vendor = await Vendor.findById(req.user.id).select('zeebacId storeName bankDetails phone');
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
     const token = signQrToken({ type: 'vendor', id: vendor._id, zeebacId: vendor.zeebacId }, VENDOR_QR_TTL_SECONDS);
-    res.status(200).json({ success: true, data: { token, expiresIn: VENDOR_QR_TTL_SECONDS } });
+    const payeeVpa = vendor.bankDetails?.upiId || process.env.MERCHANT_UPI_ID || `${vendor.phone}@upi`;
+    const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(vendor.storeName || 'ZeeBac Store')}&tr=${vendor.zeebacId}&tn=Zeebac%20Cashback&cu=INR`;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        token,
+        upiUri,
+        expiresIn: VENDOR_QR_TTL_SECONDS,
+        zeebacId: vendor.zeebacId,
+        storeName: vendor.storeName,
+        payeeVpa,
+      }
+    });
   } catch (error) {
     logger.error(`getVendorQrToken error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -812,7 +853,18 @@ export const getVendorWallet = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(30);
 
-    res.status(200).json({ success: true, data: { wallet, ledger } });
+    const phone = vendor.businessContactNumber || vendor.phone || '';
+    const maskedPhone = phone ? `${phone.slice(0, 2)}******${phone.slice(-2)}` : '';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        wallet,
+        ledger,
+        bankDetails: vendor.bankDetails || {},
+        phone: maskedPhone,
+      },
+    });
   } catch (error) {
     logger.error(`Error in getVendorWallet: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
@@ -1089,6 +1141,14 @@ export const getVendorSubscriptionStatus = async (req, res) => {
     const balance = wallet ? (wallet.balance || 0) : 0;
     const subState = getVendorSubscriptionState(vendor, balance);
 
+    const successfulPayments = await SubscriptionPayment.countDocuments({
+      vendorId: vendor._id,
+      paymentStatus: 'SUCCESS',
+    });
+    const isNewUserBonusEligible = !vendor.hasUsedNewUserBonus &&
+      successfulPayments === 0 &&
+      (!vendor.subscription?.startDate || vendor.subscription?.status === 'NONE');
+
     res.status(200).json({
       success: true,
       data: {
@@ -1096,6 +1156,8 @@ export const getVendorSubscriptionStatus = async (req, res) => {
         walletBalance: balance,
         storeName: vendor.storeName,
         shopType: vendor.shopType,
+        isNewUserBonusEligible,
+        newUserBonusDays: 10,
       },
     });
   } catch (error) {
@@ -1123,8 +1185,17 @@ export const createSubscriptionRazorpayOrder = async (req, res) => {
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-    const targetPlan = planType || planId || 'Monthly';
+    const targetPlan = planType || planId || '1 Month';
     const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
+
+    const successfulPayments = await SubscriptionPayment.countDocuments({
+      vendorId: vendor._id,
+      paymentStatus: 'SUCCESS',
+    });
+    const isNewUserBonusEligible = !vendor.hasUsedNewUserBonus &&
+      successfulPayments === 0 &&
+      (!vendor.subscription?.startDate || vendor.subscription?.status === 'NONE');
+    const bonusDays = isNewUserBonusEligible ? 10 : 0;
 
     const transactionId = `SUB-RZP-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -1150,6 +1221,7 @@ export const createSubscriptionRazorpayOrder = async (req, res) => {
       paymentStatus: 'PENDING',
       razorpayOrderId: order.id,
       transactionId,
+      bonusDaysApplied: bonusDays,
     });
 
     res.status(200).json({
@@ -1161,6 +1233,9 @@ export const createSubscriptionRazorpayOrder = async (req, res) => {
         planType: planInfo.planType,
         shopType: planInfo.shopType,
         transactionId,
+        bonusDays,
+        totalDurationDays: planInfo.durationDays + bonusDays,
+        isNewUserBonusEligible,
       },
     });
   } catch (error) {
@@ -1209,7 +1284,7 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-    const targetPlan = planType || planId || payment?.planType || 'Monthly';
+    const targetPlan = planType || planId || payment?.planType || '1 Month';
     const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
 
     if (Math.abs(verifiedAmount - planInfo.price) > 1) {
@@ -1220,9 +1295,21 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
     }
 
-    // Calculate dates (respects active renewal vs new/expired)
-    const newDates = calculateNewSubscriptionDates(vendor.subscription, planInfo.durationDays);
+    // Check if new user bonus applies (+10 days)
+    const successfulPayments = await SubscriptionPayment.countDocuments({
+      vendorId: vendor._id,
+      paymentStatus: 'SUCCESS',
+    });
+    const isNewUserBonusEligible = !vendor.hasUsedNewUserBonus &&
+      successfulPayments === 0 &&
+      (!vendor.subscription?.startDate || vendor.subscription?.status === 'NONE');
+    const bonusDays = isNewUserBonusEligible ? 10 : 0;
+    const totalDurationDays = planInfo.durationDays + bonusDays;
 
+    // Calculate dates (respects active renewal vs new/expired)
+    const newDates = calculateNewSubscriptionDates(vendor.subscription, totalDurationDays);
+
+    vendor.hasUsedNewUserBonus = true;
     vendor.subscription = {
       planType: planInfo.planType,
       price: planInfo.price,
@@ -1231,6 +1318,7 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
       expiresAt: newDates.expiresAt,
       lastRenewedAt: newDates.lastRenewedAt,
       expiredAt: null,
+      bonusDaysApplied: bonusDays,
       paymentId: razorpay_payment_id,
     };
     await vendor.save();
@@ -1240,6 +1328,7 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
       payment.paymentStatus = 'SUCCESS';
       payment.razorpayPaymentId = razorpay_payment_id;
       payment.razorpaySignature = razorpay_signature;
+      payment.bonusDaysApplied = bonusDays;
       payment.paidAt = new Date();
       await payment.save();
     } else {
@@ -1255,11 +1344,12 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
         razorpayPaymentId: razorpay_payment_id,
         razorpaySignature: razorpay_signature,
         transactionId: `SUB-RZP-${Date.now()}`,
+        bonusDaysApplied: bonusDays,
         paidAt: new Date(),
       });
     }
 
-    logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Razorpay (${planInfo.planType})`);
+    logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Razorpay (${planInfo.planType}) with ${bonusDays} bonus days`);
 
     sendNotification({
       recipientId: vendor._id,
@@ -1267,14 +1357,15 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
       fcmTokens: vendor.fcmTokens || [],
       type: 'system',
       title: '🎉 Subscription Active!',
-      message: `Your store is active and visible on ZeeBac until ${newDates.expiresAt.toLocaleDateString('en-IN')}.`,
+      message: `Your store is active and visible on ZeeBac until ${newDates.expiresAt.toLocaleDateString('en-IN')}.${bonusDays > 0 ? ' (Includes +10 days new user bonus!)' : ''}`,
       icon: 'card_membership',
     });
 
     res.status(200).json({
       success: true,
-      message: `Successfully subscribed to ${planInfo.planType} plan. Valid until ${newDates.expiresAt.toLocaleDateString('en-IN')}`,
+      message: `Successfully subscribed to ${planInfo.planType} plan${bonusDays > 0 ? ' with +10 days new user bonus' : ''}. Valid until ${newDates.expiresAt.toLocaleDateString('en-IN')}`,
       data: vendor.subscription,
+      bonusDaysApplied: bonusDays,
     });
   } catch (error) {
     logger.error(`Error in verifySubscriptionRazorpayPayment: ${error.message}`);
@@ -1313,7 +1404,7 @@ export const paySubscriptionFromWallet = async (req, res) => {
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-    const targetPlan = planType || planId || 'Monthly';
+    const targetPlan = planType || planId || '1 Month';
     const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
 
     // Check wallet balance
@@ -1328,6 +1419,16 @@ export const paySubscriptionFromWallet = async (req, res) => {
         requiredAmount: planInfo.price,
       });
     }
+
+    const successfulPayments = await SubscriptionPayment.countDocuments({
+      vendorId: vendor._id,
+      paymentStatus: 'SUCCESS',
+    });
+    const isNewUserBonusEligible = !vendor.hasUsedNewUserBonus &&
+      successfulPayments === 0 &&
+      (!vendor.subscription?.startDate || vendor.subscription?.status === 'NONE');
+    const bonusDays = isNewUserBonusEligible ? 10 : 0;
+    const totalDurationDays = planInfo.durationDays + bonusDays;
 
     const transactionId = `SUB-WLT-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
     let newDates;
@@ -1345,6 +1446,7 @@ export const paySubscriptionFromWallet = async (req, res) => {
             paymentMethod: 'WALLET',
             paymentStatus: 'SUCCESS',
             transactionId,
+            bonusDaysApplied: bonusDays,
             paidAt: new Date(),
           },
         ],
@@ -1364,9 +1466,10 @@ export const paySubscriptionFromWallet = async (req, res) => {
       });
 
       // 3. Calculate dates
-      newDates = calculateNewSubscriptionDates(vendor.subscription, planInfo.durationDays);
+      newDates = calculateNewSubscriptionDates(vendor.subscription, totalDurationDays);
 
       // 4. Update vendor subscription
+      vendor.hasUsedNewUserBonus = true;
       vendor.subscription = {
         planType: planInfo.planType,
         price: planInfo.price,
@@ -1375,12 +1478,13 @@ export const paySubscriptionFromWallet = async (req, res) => {
         expiresAt: newDates.expiresAt,
         lastRenewedAt: newDates.lastRenewedAt,
         expiredAt: null,
+        bonusDaysApplied: bonusDays,
         paymentId: transactionId,
       };
       await vendor.save({ session });
     });
 
-    logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Wallet (${planInfo.planType})`);
+    logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Wallet (${planInfo.planType}) with ${bonusDays} bonus days`);
 
     sendNotification({
       recipientId: vendor._id,
@@ -1388,7 +1492,7 @@ export const paySubscriptionFromWallet = async (req, res) => {
       fcmTokens: vendor.fcmTokens || [],
       type: 'system',
       title: '🎉 Subscription Active!',
-      message: `Your store is active and visible on ZeeBac until ${newDates.expiresAt.toLocaleDateString('en-IN')}.`,
+      message: `Your store is active and visible on ZeeBac until ${newDates.expiresAt.toLocaleDateString('en-IN')}.${bonusDays > 0 ? ' (Includes +10 days new user bonus!)' : ''}`,
       icon: 'card_membership',
     });
 
@@ -1396,11 +1500,13 @@ export const paySubscriptionFromWallet = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Successfully purchased ${planInfo.planType} plan from wallet. Valid until ${newDates.expiresAt.toLocaleDateString('en-IN')}`,
+      message: `Successfully purchased ${planInfo.planType} plan from wallet${bonusDays > 0 ? ' with +10 days new user bonus' : ''}. Valid until ${newDates.expiresAt.toLocaleDateString('en-IN')}`,
+      bonusDaysApplied: bonusDays,
       data: {
         subscription: vendor.subscription,
         walletBalance: updatedWallet?.balance ?? 0,
         transactionId,
+        bonusDaysApplied: bonusDays,
       },
     });
   } catch (error) {
@@ -1416,5 +1522,151 @@ export const paySubscriptionFromWallet = async (req, res) => {
     session.endSession();
   }
 };
+
+/**
+ * ─── Bank Account Management with OTP Verification ───
+ */
+
+// 1. Get Vendor Linked Bank Account
+export const getVendorBankAccount = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const phone = vendor.businessContactNumber || vendor.phone || '';
+    const maskedPhone = phone ? `${phone.slice(0, 2)}******${phone.slice(-2)}` : '';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        bankDetails: vendor.bankDetails || {},
+        phone: maskedPhone,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getVendorBankAccount: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 2. Send OTP for Bank Account Linking / Updating
+export const sendVendorBankOtp = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const phone = vendor.businessContactNumber || vendor.phone;
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'No registered mobile number found on your vendor account. Please update your profile phone number first.',
+      });
+    }
+
+    const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true';
+    const otp = useDefaultOtp ? '1234' : Math.floor(1000 + Math.random() * 9000).toString();
+
+    const salt = await bcrypt.genSalt(10);
+    const otpHash = await bcrypt.hash(otp, salt);
+
+    await OtpVerification.deleteMany({ phone, purpose: 'bank_update', role: 'vendor' });
+
+    await OtpVerification.create({
+      phone,
+      otpHash,
+      purpose: 'bank_update',
+      role: 'vendor',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes validity
+    });
+
+    await sendOtpSms(phone, otp);
+
+    const maskedPhone = `${phone.slice(0, 2)}******${phone.slice(-2)}`;
+    logger.info(`[sendVendorBankOtp] Bank update OTP sent to vendor ${vendor._id} (${maskedPhone})`);
+
+    res.status(200).json({
+      success: true,
+      message: `OTP sent successfully to registered mobile number ${maskedPhone}`,
+      maskedPhone,
+    });
+  } catch (error) {
+    logger.error(`Error in sendVendorBankOtp: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Failed to send OTP' });
+  }
+};
+
+// 3. Verify OTP & Save Bank Account
+export const verifyAndSaveVendorBankAccount = async (req, res) => {
+  try {
+    const { accountHolderName, bankName, accountNumber, ifscCode, upiId, otp } = req.body;
+
+    if (!accountHolderName?.trim()) {
+      return res.status(400).json({ success: false, message: 'Account holder name is required' });
+    }
+    if (!bankName?.trim()) {
+      return res.status(400).json({ success: false, message: 'Bank name is required' });
+    }
+    const cleanAcc = (accountNumber || '').toString().trim();
+    if (!cleanAcc || cleanAcc.length < 9 || cleanAcc.length > 18 || !/^\d+$/.test(cleanAcc)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid bank account number (9 to 18 digits)',
+      });
+    }
+    const cleanIfsc = (ifscCode || '').toString().trim().toUpperCase();
+    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+    if (!cleanIfsc || !ifscRegex.test(cleanIfsc)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 11-character IFSC code (e.g. SBIN0001234, HDFC0000123)',
+      });
+    }
+    if (!otp?.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Verification OTP is required' });
+    }
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const phone = vendor.businessContactNumber || vendor.phone;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'No registered mobile number found' });
+    }
+
+    // Verify OTP
+    try {
+      await verifyOtpOnly(phone, otp.toString().trim(), 'bank_update', 'vendor');
+    } catch (otpErr) {
+      return res.status(400).json({ success: false, message: otpErr.message || 'Invalid or expired OTP' });
+    }
+
+    // Save Bank Details
+    const now = new Date();
+    vendor.bankDetails = {
+      accountHolderName: accountHolderName.trim(),
+      bankName: bankName.trim(),
+      accountNumber: cleanAcc,
+      ifscCode: cleanIfsc,
+      upiId: (upiId || '').toString().trim(),
+      isVerified: true,
+      verifiedAt: now,
+    };
+    await vendor.save();
+
+    logger.info(`[verifyAndSaveVendorBankAccount] Vendor ${vendor._id} successfully verified & saved bank account ending in ${cleanAcc.slice(-4)}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Bank account verified and linked successfully!',
+      data: {
+        bankDetails: vendor.bankDetails,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in verifyAndSaveVendorBankAccount: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
 
 

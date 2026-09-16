@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { UserAPI, API_BASE_URL } from '../../../services/api';
+import { UserAPI, StoryAPI, API_BASE_URL } from '../../../services/api';
 import OverviewTab from '../components/vendor-detail/OverviewTab';
 import ShopTab from '../components/vendor-detail/ShopTab';
 import PhotosTab from '../components/vendor-detail/PhotosTab';
 import ReviewsTab from '../components/vendor-detail/ReviewsTab';
+import StoryViewerModal from '../components/StoryViewerModal';
 
 export default function VendorDetailScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('overview');
   const [isFavorite, setIsFavorite] = useState(false);
+  const [vendorStories, setVendorStories] = useState([]);
+  const [showStoryViewer, setShowStoryViewer] = useState(false);
 
   const defaultVendor = {
     _id: 1,
@@ -54,6 +57,22 @@ export default function VendorDetailScreen() {
     };
     checkFavoriteStatus();
   }, [vendor._id]);
+
+  // Fetch vendor's active 24h stories
+  useEffect(() => {
+    const fetchStories = async () => {
+      if (!vendor?._id) return;
+      try {
+        const res = await StoryAPI.getVendorStories(vendor._id);
+        if (res.success) {
+          setVendorStories(res.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load vendor stories', err);
+      }
+    };
+    fetchStories();
+  }, [vendor?._id]);
 
   const handleFavoriteToggle = async () => {
     try {
@@ -111,7 +130,18 @@ export default function VendorDetailScreen() {
 
         {/* Vendor Name Text */}
         <div className="absolute bottom-6 left-6 right-6 text-left text-white space-y-xs">
-          <span className="bg-primary text-white font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">FLAT {vendor.cashbackRate}% CASHBACK</span>
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="bg-primary text-white font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">FLAT {vendor.cashbackRate}% CASHBACK</span>
+            {vendorStories.length > 0 && (
+              <button
+                onClick={() => setShowStoryViewer(true)}
+                className="bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 text-slate-950 font-label-mono text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase flex items-center gap-1 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse"
+              >
+                <span>🔥 24h Story</span>
+                <span className="material-symbols-outlined text-[13px]">play_circle</span>
+              </button>
+            )}
+          </div>
           <h1 className="font-display text-headline-lg font-black tracking-tight">{vendor.storeName}</h1>
           <div className="flex items-center gap-xs text-[13px] text-white/80">
             <span className="material-symbols-outlined text-[14px]">distance</span>
@@ -219,6 +249,16 @@ export default function VendorDetailScreen() {
           </button>
         </div>
       </div>
+
+      {/* 24-Hour Story Viewer Modal */}
+      {showStoryViewer && vendorStories.length > 0 && (
+        <StoryViewerModal
+          isOpen={showStoryViewer}
+          groups={[{ vendor, stories: vendorStories }]}
+          initialGroupIndex={0}
+          onClose={() => setShowStoryViewer(false)}
+        />
+      )}
 
     </div>
   );

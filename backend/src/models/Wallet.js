@@ -10,7 +10,7 @@ const walletSchema = new mongoose.Schema(
     ownerType: {
       type: String,
       required: true,
-      enum: ['User', 'Vendor'],
+      enum: ['User', 'Vendor', 'Admin'],
     },
     ownerZeebacId: {
       type: String,

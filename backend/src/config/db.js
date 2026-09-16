@@ -2,11 +2,10 @@ import dns from 'dns';
 import mongoose from 'mongoose';
 import logger from '../utils/logger.js';
 
-// Node's c-ares resolver sometimes gets ECONNREFUSED on the SRV lookup
-// mongodb+srv:// needs, even when the OS resolver (nslookup, etc.) works
-// fine, because the network's DHCP-assigned DNS server doesn't answer SRV
-// queries the way Node expects. Point Node at public resolvers that do.
-dns.setServers(['1.1.1.1', '8.8.8.8']);
+// Node's c-ares resolver sometimes gets ECONNREFUSED or ETIMEOUT on SRV lookups
+// when querying local or certain public DNS servers (like 1.1.1.1 on some networks/ISPs).
+// Point Node at reliable public resolvers, prioritizing Google DNS (8.8.8.8, 8.8.4.4).
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 export const connectDB = async () => {
   try {

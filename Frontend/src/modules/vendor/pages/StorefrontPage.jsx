@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { VendorAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
+import StoreStoriesModal from '../components/StoreStoriesModal';
 
 export default function StorefrontPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('catalog');
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -287,7 +289,7 @@ export default function StorefrontPage() {
 
       {/* Internal Tabs */}
       <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-[72px] md:top-0 z-30 -mx-container-margin px-container-margin md:mx-0 md:px-0">
-        {['catalog', 'media', 'promotions'].map((tab) => (
+        {['catalog', 'media', 'promotions', 'stories'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -503,7 +505,54 @@ export default function StorefrontPage() {
           </div>
         )}
 
+        {/* 24-Hour Stories Tab */}
+        {activeTab === 'stories' && (
+          <div className="space-y-4 animate-reveal">
+            <div className="flex justify-between items-center bg-white p-3.5 rounded-2xl border border-outline-variant/10 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] p-[2px] flex items-center justify-center">
+                  <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-pink-600">
+                    <span className="material-symbols-outlined text-[18px]">history_toggle_off</span>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-[14px] font-bold text-on-surface leading-tight">24-Hour Stories (Instagram Style)</h3>
+                  <p className="text-[11px] text-on-surface-variant">Temporary daily deals & updates visible on customer Home feed</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowStoriesModal(true)}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/95 hover:to-purple-600/95 text-white px-3.5 py-2 rounded-xl font-bold text-[12px] hover:shadow active:scale-95 transition-all cursor-pointer shadow-sm flex-shrink-0"
+              >
+                <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                Add Story
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-amber-500/10 p-4 rounded-2xl border border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-xs text-on-surface">Daily High-Engagement Marketing</h4>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Post photos with offer tags (e.g. "Flat 20% OFF", "Today Only"). Stories disappear automatically after 24 hours.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowStoriesModal(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-white border border-outline-variant/20 text-primary text-xs font-bold shadow-xs hover:bg-primary/5 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                Manage Active Stories
+              </button>
+            </div>
+          </div>
+        )}
+
       </main>
+
+      {/* Store Stories Modal */}
+      <StoreStoriesModal
+        isOpen={showStoriesModal}
+        onClose={() => setShowStoriesModal(false)}
+      />
 
       {/* Full-Screen Add Catalog Modal */}
       {showAddModal && createPortal(

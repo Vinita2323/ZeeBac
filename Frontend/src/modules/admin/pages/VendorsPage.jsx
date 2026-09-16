@@ -142,15 +142,16 @@ export default function VendorsPage() {
                 <th className="p-4 font-bold">Submitted</th>
                 <th className="p-4 font-bold">Last Updated</th>
                 <th className="p-4 font-bold">Status</th>
+                <th className="p-4 font-bold">Subscription</th>
                 <th className="p-4 font-bold text-center">Resubmits</th>
                 <th className="p-4 font-bold text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan="10" className="p-8 text-center text-on-surface-variant">Loading...</td></tr>
+                <tr><td colSpan="11" className="p-8 text-center text-on-surface-variant">Loading...</td></tr>
               ) : vendors.length === 0 ? (
-                <tr><td colSpan="10" className="p-8 text-center text-on-surface-variant">No vendor applications found.</td></tr>
+                <tr><td colSpan="11" className="p-8 text-center text-on-surface-variant">No vendor applications found.</td></tr>
               ) : vendors.map((vendor) => (
                 <tr key={vendor._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">
                   <td className="p-4">
@@ -171,6 +172,21 @@ export default function VendorsPage() {
                     <span className={`px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide ${STATUS_BADGE[vendor.applicationStatus] || 'bg-gray-100 text-gray-500'}`}>
                       {vendor.applicationStatus?.replace('_', ' ')}
                     </span>
+                  </td>
+                  <td className="p-4">
+                    {vendor.subscriptionState?.effectiveStatus === 'ACTIVE' ? (
+                      <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-green-100 text-green-700 whitespace-nowrap">
+                        ● {vendor.subscriptionState.planType} Active
+                      </span>
+                    ) : vendor.subscriptionState?.effectiveStatus === 'EXPIRED' ? (
+                      <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700 whitespace-nowrap">
+                        ● Expired {vendor.subscriptionState.inGracePeriod ? '(Grace)' : ''}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-gray-100 text-gray-500 whitespace-nowrap">
+                        None
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-center text-on-surface-variant">{vendor.resubmissionCount || 0}</td>
                   <td className="p-4">

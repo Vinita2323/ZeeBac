@@ -77,6 +77,8 @@ const useAuthStore = create((set, get) => ({
       if (token) {
         const { apiClient } = await import('../services/api.js');
         await apiClient.post('/auth/logout').catch(() => {});
+        const { disconnectSocket } = await import('../services/socket.js');
+        disconnectSocket(true);
       }
     } catch (e) {
       console.warn('Backend logout silent failure:', e);

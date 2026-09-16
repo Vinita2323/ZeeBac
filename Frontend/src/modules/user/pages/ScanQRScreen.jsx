@@ -15,6 +15,7 @@ export default function ScanQRScreen() {
   const isBusyRef = useRef(false);
 
   const [vendorId, setVendorId] = useState('');
+  const [inputMode, setInputMode] = useState('storeId'); // 'storeId' | 'utr'
   const [showIdInput, setShowIdInput] = useState(true);
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -56,9 +57,46 @@ export default function ScanQRScreen() {
       }
     }
 
-    // 2. Standard Vendor Lookup (Store ID / QR Token)
+    // 2. Check if it's a 12-digit UPI UTR / Transaction ID (e.g. from GPay, PhonePe, Paytm)
+    const rawTrimmed = scannedValue.trim();
+    if (/^\d{12}$/.test(rawTrimmed) || rawTrimmed.toLowerCase().startsWith('pay_')) {
+      try {
+        const upiRes = await UserAPI.claimUpiCashback(rawTrimmed);
+        if (upiRes.success) {
+          useAuthStore.getState().updateBalance(upiRes.data.newWalletBalance);
+          navigate('/transaction-success', {
+            state: {
+              vendorName: upiRes.data.vendorName,
+              amount: upiRes.data.amount,
+              cashback: upiRes.data.cashbackEarned,
+              transactionId: upiRes.data.transactionId,
+            }
+          });
+          return;
+        }
+      } catch (upiErr) {
+        if (/^\d{12}$/.test(rawTrimmed)) {
+          const msg = upiErr.response?.data?.message || upiErr.message || 'No payment found matching this 12-digit UPI Reference ID.';
+          setError(msg);
+          setIsSearching(false);
+          isBusyRef.current = false;
+          return;
+        }
+      }
+    }
+
+    // 2. Check if it's a UPI Counter QR code (e.g. upi://pay?pa=...&tr=ZBV-12345)
+    let lookupQuery = scannedValue.trim();
+    if (lookupQuery.toLowerCase().startsWith('upi://') || lookupQuery.includes('tr=')) {
+      const trMatch = lookupQuery.match(/tr=([^&]+)/i);
+      if (trMatch) {
+        lookupQuery = decodeURIComponent(trMatch[1]);
+      }
+    }
+
+    // 3. Standard Vendor Lookup (Store ID / QR Token / UPI Reference)
     try {
-      const res = await UserAPI.lookupVendor(scannedValue);
+      const res = await UserAPI.lookupVendor(lookupQuery);
       if (res.success) {
         navigate('/pay-vendor', { state: { vendor: res.data } });
         return;
@@ -117,7 +155,35 @@ export default function ScanQRScreen() {
 
   const handleManualSearch = async () => {
     if (!vendorId.trim() || isSearching) return;
-    await resolveVendor(vendorId.trim());
+    const cleanInput = vendorId.trim();
+
+    if (inputMode === 'utr') {
+      setIsSearching(true);
+      setError('');
+      try {
+        const upiRes = await UserAPI.claimUpiCashback(cleanInput);
+        if (upiRes.success) {
+          useAuthStore.getState().updateBalance(upiRes.data.newWalletBalance);
+          navigate('/transaction-success', {
+            state: {
+              vendorName: upiRes.data.vendorName,
+              amount: upiRes.data.amount,
+              cashback: upiRes.data.cashbackEarned,
+              transactionId: upiRes.data.transactionId,
+            }
+          });
+          return;
+        }
+      } catch (upiErr) {
+        const msg = upiErr.response?.data?.message || upiErr.message || 'No payment found for this UPI UTR. Please ensure payment was completed.';
+        setError(msg);
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
+
+    await resolveVendor(cleanInput);
   };
 
   const handleGalleryClick = () => {
@@ -241,32 +307,76 @@ export default function ScanQRScreen() {
         </div>
       </div>
 
-      {/* Manual ID Input Panel */}
+      {/* Manual Input Panel */}
       {showIdInput && (
         <div className="absolute bottom-44 left-0 right-0 px-4 z-30 animate-reveal">
           <div className="bg-white rounded-2xl p-4 shadow-2xl app-container">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-primary text-[20px]">badge</span>
-              <span className="text-[13px] font-bold text-on-surface">Enter Vendor's Zeebac ID</span>
+            {/* Input Mode Selector Tabs */}
+            <div className="flex bg-[#f3f4f6] p-1 rounded-xl mb-3">
+              <button
+                type="button"
+                onClick={() => { setInputMode('storeId'); setError(''); }}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${inputMode === 'storeId' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant'}`}
+              >
+                <span className="material-symbols-outlined text-[14px]">store</span>
+                Store ID
+              </button>
+              <button
+                type="button"
+                onClick={() => { setInputMode('utr'); setError(''); }}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${inputMode === 'utr' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant'}`}
+              >
+                <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                Claim GPay / UPI UTR
+              </button>
             </div>
+
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-bold text-on-surface flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-primary text-[18px]">
+                  {inputMode === 'utr' ? 'receipt' : 'badge'}
+                </span>
+                {inputMode === 'utr' ? 'Enter 12-Digit UPI Reference No. (UTR)' : "Enter Vendor's Zeebac ID"}
+              </span>
+              {inputMode === 'utr' && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">GPay Backup</span>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <input
                 autoFocus
                 type="text"
                 value={vendorId}
-                onChange={(e) => { setVendorId(e.target.value.toUpperCase()); setError(''); }}
+                onChange={(e) => {
+                  setVendorId(inputMode === 'utr' ? e.target.value.trim() : e.target.value.toUpperCase());
+                  setError('');
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
-                placeholder="ZBV-1234"
-                className="flex-1 h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-primary text-[15px] font-bold text-on-surface uppercase transition-all"
+                placeholder={inputMode === 'utr' ? "e.g. 425512345678" : "ZBV-1234"}
+                className="flex-1 h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-primary text-[14px] font-bold text-on-surface transition-all"
               />
               <button
                 onClick={handleManualSearch}
-                disabled={!vendorId.trim()}
-                className="h-12 px-5 bg-primary text-white rounded-xl font-bold active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                disabled={!vendorId.trim() || isSearching}
+                className="h-12 px-5 bg-primary text-white rounded-xl font-bold active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 shadow-sm"
               >
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                {isSearching ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">
+                    {inputMode === 'utr' ? 'redeem' : 'arrow_forward'}
+                  </span>
+                )}
               </button>
             </div>
+
+            {inputMode === 'utr' && (
+              <p className="text-[10px] text-on-surface-variant mt-2 leading-relaxed">
+                Paid via Google Pay, PhonePe, or Paytm at the counter? Enter the 12-digit UPI Transaction / Ref ID from your payment screen to claim instant cashback.
+              </p>
+            )}
+
             {error && (
               <p className="text-red-500 text-[11px] font-medium mt-2 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">error</span>

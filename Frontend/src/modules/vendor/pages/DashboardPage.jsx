@@ -4,11 +4,14 @@ import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, PosAPI, API_BASE_URL } from '../../../services/api';
 import useQrCode from '../../../hooks/useQrCode';
+import { downloadImage } from '../../../utils/exportUtils';
+import StoreStoriesModal from '../components/StoreStoriesModal';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
   const [showPosModal, setShowPosModal] = useState(false);
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [posAmount, setPosAmount] = useState('1590');
   const [generatedPosBill, setGeneratedPosBill] = useState(null);
   const [isGeneratingPos, setIsGeneratingPos] = useState(false);
@@ -273,6 +276,34 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* 24-Hour Store Stories Widget (Instagram Style) */}
+      <div className="rounded-2xl p-3.5 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-amber-500/10 border border-purple-500/20 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] p-[2px] flex-shrink-0 shadow-sm">
+            <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-pink-600 font-bold">
+              <span className="material-symbols-outlined text-[22px]">history_toggle_off</span>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-bold text-xs text-on-surface flex items-center gap-1.5">
+              <span>24h Store Stories</span>
+             
+            </h3>
+            <p className="text-[11px] text-on-surface-variant mt-0.5">
+              Post daily deals & photos to nearby customers
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowStoriesModal(true)}
+          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/95 hover:to-purple-600/95 text-white font-bold text-xs shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
+        >
+          <span className="material-symbols-outlined text-[16px]">add_circle</span>
+          Add Story
+        </button>
+      </div>
+
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-2 mx-auto w-full">
         <button
@@ -473,12 +504,19 @@ export default function DashboardPage() {
               <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-4">
                 <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
               </div>
-              <h3 className="font-display font-bold text-[20px] text-on-surface text-center leading-tight">My Store QR</h3>
-              <p className="text-[13px] text-on-surface-variant text-center mt-1 mb-6 px-4">
-                Show this code to customers for instant payments and cashback
+              <h3 className="font-display font-bold text-[20px] text-on-surface text-center leading-tight">Counter QR</h3>
+              <p className="text-[12px] text-on-surface-variant text-center mt-1 mb-2 px-2">
+                Scan & Pay via PhonePe, Paytm, GPay or ZeeBac
               </p>
 
-              <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-5 w-56 h-56 flex items-center justify-center shadow-inner mb-6">
+              <div className="flex items-center gap-1.5 justify-center mb-4 flex-wrap">
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">PhonePe</span>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Paytm</span>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">GPay</span>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary">ZeeBac</span>
+              </div>
+
+              <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-5 w-56 h-56 flex items-center justify-center shadow-inner mb-4">
                 {qrImageUrl ? (
                   <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
                 ) : (
@@ -486,10 +524,19 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="bg-surface-container py-2 px-4 rounded-full flex items-center gap-2">
+              <div className="bg-surface-container py-1.5 px-4 rounded-full flex items-center gap-2 mb-4">
                 <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Store ID:</span>
-                <span className="text-[14px] font-black tracking-widest text-on-surface">{zeebacId}</span>
+                <span className="text-[13px] font-black tracking-widest text-on-surface">{zeebacId}</span>
               </div>
+
+              <button
+                onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_Counter_QR_${zeebacId}.png`)}
+                disabled={!qrImageUrl}
+                className="w-full py-2.5 px-4 bg-primary text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                Download Counter QR
+              </button>
             </div>
           </div>
         </div>,
@@ -574,6 +621,12 @@ export default function DashboardPage() {
         </div>,
         document.body
       )}
+
+      {/* Store Stories Modal */}
+      <StoreStoriesModal
+        isOpen={showStoriesModal}
+        onClose={() => setShowStoriesModal(false)}
+      />
 
     </div>
   );

@@ -152,34 +152,62 @@ export default function SubscriptionPlansPage() {
       )}
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-outline-variant/15 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Active Subscribers</p>
-          <h3 className="text-[26px] font-black text-purple-700 mt-1">{stats.totalSubscribers}</h3>
-          <p className="text-[12px] text-gray-500 mt-0.5">Live store listings</p>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div className="bg-white rounded-2xl p-4.5 border border-outline-variant/15 shadow-sm">
+          <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest">Active Stores</p>
+          <h3 className="text-[24px] font-black text-purple-700 mt-1">{stats.totalSubscribers || 0}</h3>
+          <p className="text-[11.5px] text-gray-500 mt-0.5">Live store listings</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-outline-variant/15 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Monthly Plans</p>
-          <h3 className="text-[26px] font-black text-gray-900 mt-1">{stats.monthlySubscribers}</h3>
-          <p className="text-[12px] text-gray-500 mt-0.5">Recurring month-to-month</p>
+        <div className="bg-white rounded-2xl p-4.5 border border-outline-variant/15 shadow-sm">
+          <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest">1 Month Plans</p>
+          <h3 className="text-[24px] font-black text-gray-900 mt-1">{stats.oneMonthSubscribers ?? stats.monthlySubscribers ?? 0}</h3>
+          <p className="text-[11.5px] text-gray-500 mt-0.5">Monthly billing</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-outline-variant/15 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Yearly Plans</p>
-          <h3 className="text-[26px] font-black text-emerald-600 mt-1">{stats.yearlySubscribers}</h3>
-          <p className="text-[12px] text-gray-500 mt-0.5">Annual commitments</p>
+        <div className="bg-white rounded-2xl p-4.5 border border-outline-variant/15 shadow-sm">
+          <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest">3 Months Plans</p>
+          <h3 className="text-[24px] font-black text-indigo-700 mt-1">{stats.threeMonthSubscribers || 0}</h3>
+          <p className="text-[11.5px] text-gray-500 mt-0.5">Quarterly billing</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-outline-variant/15 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Expired / Inactive</p>
-          <h3 className="text-[26px] font-black text-rose-600 mt-1">{stats.expiredVendors}</h3>
-          <p className="text-[12px] text-gray-500 mt-0.5">Require plan renewal</p>
+        <div className="bg-white rounded-2xl p-4.5 border border-outline-variant/15 shadow-sm">
+          <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest">Yearly Plans</p>
+          <h3 className="text-[24px] font-black text-emerald-600 mt-1">{stats.yearlySubscribers || 0}</h3>
+          <p className="text-[11.5px] text-gray-500 mt-0.5">Annual commitments</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4.5 border border-outline-variant/15 shadow-sm col-span-2 lg:col-span-1">
+          <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest">Expired / None</p>
+          <h3 className="text-[24px] font-black text-rose-600 mt-1">{stats.expiredVendors || 0}</h3>
+          <p className="text-[11.5px] text-gray-500 mt-0.5">Require renewal</p>
+        </div>
+      </div>
+
+      {/* New User Extra Validity Bonus Notice */}
+      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 rounded-2xl p-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-[20px] shadow-sm shrink-0">
+            🎁
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-[14.5px] font-black text-gray-900">
+                New User Bonus: +10 Days Extra Validity
+              </h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                Active System Rule
+              </span>
+            </div>
+            <p className="text-[12.5px] text-gray-600 mt-0.5 leading-relaxed">
+              Every first-time vendor subscription automatically receives <strong>+10 bonus days</strong> (1 Month → 40 days, 3 Months → 100 days, Yearly → 375 days). Subsequent renewals follow standard plan days.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Plan Cards Grid */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         {plans.map((plan) => (
           <div
             key={plan._id}
@@ -338,9 +366,11 @@ export default function SubscriptionPlansPage() {
                       <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
                         p.paymentMethod === 'RAZORPAY'
                           ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                          : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          : p.paymentMethod === 'WALLET'
+                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          : 'bg-blue-100 text-blue-700 border border-blue-200'
                       }`}>
-                        {p.paymentMethod}
+                        {p.paymentMethod === 'ADMIN_MANUAL' ? 'Manual Admin' : p.paymentMethod}
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
@@ -353,6 +383,11 @@ export default function SubscriptionPlansPage() {
                       }`}>
                         {p.paymentStatus}
                       </span>
+                      {p.errorMessage && (
+                        <p className="text-[10.5px] text-red-600 mt-1 max-w-[200px] truncate" title={p.errorMessage}>
+                          {p.errorMessage}
+                        </p>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 font-mono text-[11px] text-gray-600">
                       <div>{p.transactionId}</div>

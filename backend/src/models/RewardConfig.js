@@ -33,6 +33,10 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Number,
     default: 499,
   },
+  independentStoreThreeMonthPrice: {
+    type: Number,
+    default: 1299,
+  },
   independentStoreYearlyPrice: {
     type: Number,
     default: 4999,
@@ -41,9 +45,17 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Number,
     default: 999,
   },
+  brandThreeMonthPrice: {
+    type: Number,
+    default: 2699,
+  },
   brandYearlyPrice: {
     type: Number,
     default: 9999,
+  },
+  newUserBonusDays: {
+    type: Number,
+    default: 10,
   },
   isActive: {
     type: Boolean,

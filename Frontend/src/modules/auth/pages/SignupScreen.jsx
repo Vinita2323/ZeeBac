@@ -27,6 +27,17 @@ export default function SignupScreen() {
 
   const totalSteps = 3;
 
+  // Auto-populate referral code from invite link (e.g. /signup?ref=AMAN8492)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref') || params.get('referral');
+      if (refCode) {
+        setFormData(prev => ({ ...prev, referralCode: refCode.trim().toUpperCase() }));
+      }
+    } catch (e) {}
+  }, []);
+
   const updateForm = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };

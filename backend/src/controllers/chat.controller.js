@@ -75,20 +75,44 @@ export const getMessages = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Unauthorized access to conversation' });
     }
 
+    // Reset unread count and mark unread messages as read
+    const isVendor = req.user.role === 'vendor';
+    const senderToMark = isVendor ? 'customer' : 'vendor';
+    const readAt = new Date();
+
+    const updateResult = await Message.updateMany(
+      { conversationId: id, sender: senderToMark, isRead: false },
+      { isRead: true, readAt }
+    );
+
+    if (isVendor && conversation.unreadByVendor > 0) {
+      conversation.unreadByVendor = 0;
+      conversation.lastMessageIsRead = true;
+      await conversation.save();
+    } else if (!isVendor && conversation.unreadByCustomer > 0) {
+      conversation.unreadByCustomer = 0;
+      conversation.lastMessageIsRead = true;
+      await conversation.save();
+    }
+
+    if (updateResult.modifiedCount > 0) {
+      try {
+        const { getIO } = await import('../socket/socket.js');
+        const io = getIO();
+        io.to(id).emit('messagesSeen', {
+          conversationId: id,
+          seenBy: req.user.role,
+          readAt,
+        });
+      } catch (err) {
+        // Socket may not be initialized or active, safe to ignore
+      }
+    }
+
     const messages = await Message.find({ conversationId: id })
       .sort({ createdAt: 1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
-
-    // Reset unread count
-    const isVendor = req.user.role === 'vendor';
-    if (isVendor && conversation.unreadByVendor > 0) {
-      conversation.unreadByVendor = 0;
-      await conversation.save();
-    } else if (!isVendor && conversation.unreadByCustomer > 0) {
-      conversation.unreadByCustomer = 0;
-      await conversation.save();
-    }
 
     res.status(200).json({ success: true, data: messages });
   } catch (error) {

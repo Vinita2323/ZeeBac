@@ -26,8 +26,10 @@ export default function useQrCode(fetchToken, enabled = true) {
     setError(null);
     try {
       const res = await fetchTokenRef.current();
-      const { token, expiresIn } = res.data;
-      const dataUrl = await QRCode.toDataURL(token, {
+      const { token, upiUri, expiresIn } = res.data;
+      // Prefer standard interoperable upiUri for external UPI apps (PhonePe, Paytm, GPay), fallback to token
+      const qrPayload = upiUri || token;
+      const dataUrl = await QRCode.toDataURL(qrPayload, {
         width: 320,
         margin: 1,
         color: { dark: '#4a0093', light: '#ffffff' },

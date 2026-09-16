@@ -224,8 +224,11 @@ export default function VendorSubscriptionPage() {
   const isStoreVisible = Boolean(subStatus?.isStoreVisible);
   const walletBalance = subStatus?.walletBalance ?? 0;
 
-  const monthlyPlan = plans.find((p) => p.planType === 'Monthly') || {
-    planType: 'Monthly',
+  const isBonusEligible = Boolean(subStatus?.isNewUserBonusEligible);
+
+  const oneMonthPlan = plans.find((p) => p.planType === '1 Month' || p.planType === 'Monthly') || {
+    planType: '1 Month',
+    name: '1 Month Plan',
     price: isBrand ? 999 : 499,
     durationDays: 30,
     features: [
@@ -237,21 +240,36 @@ export default function VendorSubscriptionPage() {
     ],
   };
 
+  const threeMonthPlan = plans.find((p) => p.planType === '3 Months' || p.planType === '3 Month') || {
+    planType: '3 Months',
+    name: '3 Months Plan',
+    price: isBrand ? 2699 : 1299,
+    durationDays: 90,
+    features: [
+      'All 1 Month Plan Features',
+      'Save ~13% on Quarterly Billing',
+      'Priority Listing in Search Results',
+      'Enhanced Business Analytics',
+      'Priority Merchant Support',
+    ],
+  };
+
   const yearlyPlan = plans.find((p) => p.planType === 'Yearly') || {
     planType: 'Yearly',
+    name: 'Yearly Plan',
     price: isBrand ? 9999 : 4999,
     durationDays: 365,
     features: [
-      'All Monthly Plan Features',
+      'All 3 Months Plan Features',
       '2 Months Free (Save ~17%)',
-      'Priority Placement in Search',
+      'Top Priority Placement in Search',
       'Dedicated Account Manager',
       'Promotional Banners on ZeeBac',
     ],
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12 animate-reveal text-left">
+    <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-reveal text-left">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -289,6 +307,30 @@ export default function VendorSubscriptionPage() {
         <div className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-2xl flex items-center gap-3 animate-reveal">
           <span className="material-symbols-outlined text-red-600 text-[24px]">error</span>
           <div className="flex-1 text-[13.5px] font-semibold">{errorMessage}</div>
+        </div>
+      )}
+
+      {/* Welcome Bonus for New Merchants Banner */}
+      {isBonusEligible && (
+        <div className="bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/10 border-2 border-emerald-500/40 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-reveal">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-2xl shadow-md shrink-0">
+              🎁
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-display text-[17px] font-black text-gray-900">
+                  Welcome Offer: +10 Days Extra Validity Free!
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  New Merchant Special
+                </span>
+              </div>
+              <p className="text-[13px] text-gray-600 mt-1 leading-relaxed">
+                Purchase your first subscription today and automatically receive <strong>+10 bonus days</strong> added to your plan validity upon checkout!
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -385,30 +427,39 @@ export default function VendorSubscriptionPage() {
         )}
       </div>
 
-      {/* Plan Cards */}
-      <div className="grid md:grid-cols-2 gap-6 pt-2">
-        {/* Monthly Plan */}
-        <div className={`bg-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${billingCycle === 'Monthly' ? 'border-primary/50 ring-2 ring-primary/10' : 'border-gray-200/80 hover:border-gray-300'}`}>
+      {/* 3 Plan Cards Grid */}
+      <div className="grid md:grid-cols-3 gap-6 pt-2">
+        {/* 1 Month Plan */}
+        <div className={`bg-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${billingCycle === 'Monthly' || billingCycle === '1 Month' ? 'border-primary/50 ring-2 ring-primary/10' : 'border-gray-200/80 hover:border-gray-300'}`}>
           <div className="space-y-4">
             <div className="flex justify-between items-start">
               <div>
                 <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-gray-100 text-gray-700">
                   Flexible Option
                 </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">Monthly Plan</h3>
+                <h3 className="text-[20px] font-black text-gray-900 mt-2">1 Month Plan</h3>
                 <p className="text-[12.5px] text-gray-500">Pay month-to-month with complete flexibility.</p>
               </div>
               <div className="text-right">
-                <span className="text-[28px] font-black text-gray-900">₹{monthlyPlan.price}</span>
-                <span className="text-[12px] text-gray-400 font-bold block">/ 30 Days</span>
+                <span className="text-[26px] font-black text-gray-900">₹{oneMonthPlan.price}</span>
+                <span className="text-[11.5px] text-gray-400 font-bold block">/ 30 Days</span>
               </div>
             </div>
+
+            {isBonusEligible && (
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
+                <span className="text-[11.5px] font-bold text-emerald-800">
+                  +10 Days Bonus = <strong>40 Days Total</strong>
+                </span>
+              </div>
+            )}
 
             <hr className="border-gray-100" />
 
             <div className="space-y-2.5">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan Highlights</p>
-              {monthlyPlan.features.map((feat, idx) => (
+              {oneMonthPlan.features.map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
                   <span className="material-symbols-outlined text-emerald-600 text-[18px]">check_circle</span>
                   <span>{feat}</span>
@@ -419,14 +470,72 @@ export default function VendorSubscriptionPage() {
 
           <div className="pt-6">
             <button
-              onClick={() => openPaymentModal(monthlyPlan)}
+              onClick={() => openPaymentModal(oneMonthPlan)}
               className="w-full py-3 rounded-2xl bg-gray-900 text-white font-bold text-[14px] hover:bg-black active:scale-[0.98] transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-[18px]">payment</span>
               <span>
-                {isSubActive && subStatus?.planType === 'Monthly'
-                  ? `Renew Monthly Plan (₹${monthlyPlan.price})`
-                  : `Choose Monthly Plan (₹${monthlyPlan.price})`}
+                {isSubActive && (subStatus?.planType === '1 Month' || subStatus?.planType === 'Monthly')
+                  ? `Renew 1 Month Plan (₹${oneMonthPlan.price})`
+                  : `Choose 1 Month Plan (₹${oneMonthPlan.price})`}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3 Months Plan */}
+        <div className="bg-gradient-to-b from-indigo-50/50 to-white rounded-3xl p-6 border-2 border-indigo-200 hover:border-indigo-400 transition-all flex flex-col justify-between shadow-sm relative ring-2 ring-indigo-500/10">
+          <div className="absolute -top-3 right-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
+            Most Popular · Save ~13%
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-indigo-100 text-indigo-700">
+                  Quarterly Boost
+                </span>
+                <h3 className="text-[20px] font-black text-gray-900 mt-2">3 Months Plan</h3>
+                <p className="text-[12.5px] text-gray-500">Steady customer footfall with quarterly savings.</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[26px] font-black text-indigo-900">₹{threeMonthPlan.price}</span>
+                <span className="text-[11.5px] text-indigo-500 font-bold block">/ 90 Days</span>
+              </div>
+            </div>
+
+            {isBonusEligible && (
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
+                <span className="text-[11.5px] font-bold text-emerald-800">
+                  +10 Days Bonus = <strong>100 Days Total</strong>
+                </span>
+              </div>
+            )}
+
+            <hr className="border-indigo-100" />
+
+            <div className="space-y-2.5">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan Highlights</p>
+              {threeMonthPlan.features.map((feat, idx) => (
+                <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
+                  <span className="material-symbols-outlined text-indigo-600 text-[18px]">check_circle</span>
+                  <span>{feat}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-6">
+            <button
+              onClick={() => openPaymentModal(threeMonthPlan)}
+              className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[14px] active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">trending_up</span>
+              <span>
+                {isSubActive && (subStatus?.planType === '3 Months' || subStatus?.planType === '3 Month')
+                  ? `Renew 3 Months Plan (₹${threeMonthPlan.price})`
+                  : `Choose 3 Months Plan (₹${threeMonthPlan.price})`}
               </span>
             </button>
           </div>
@@ -434,8 +543,8 @@ export default function VendorSubscriptionPage() {
 
         {/* Yearly Plan */}
         <div className={`bg-gradient-to-b from-purple-50/50 to-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${billingCycle === 'Yearly' ? 'border-primary ring-2 ring-primary/20' : 'border-purple-200 hover:border-purple-300'}`}>
-          <div className="absolute -top-3 right-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
-            Best Value · Save 17%
+          <div className="absolute -top-3 right-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
+            Best Value · 2 Mo Free
           </div>
 
           <div className="space-y-4">
@@ -448,10 +557,19 @@ export default function VendorSubscriptionPage() {
                 <p className="text-[12.5px] text-gray-500">Uninterrupted listing with priority discovery boost.</p>
               </div>
               <div className="text-right">
-                <span className="text-[28px] font-black text-purple-700">₹{yearlyPlan.price}</span>
-                <span className="text-[12px] text-purple-500 font-bold block">/ 365 Days</span>
+                <span className="text-[26px] font-black text-purple-700">₹{yearlyPlan.price}</span>
+                <span className="text-[11.5px] text-purple-500 font-bold block">/ 365 Days</span>
               </div>
             </div>
+
+            {isBonusEligible && (
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
+                <span className="text-[11.5px] font-bold text-emerald-800">
+                  +10 Days Bonus = <strong>375 Days Total</strong>
+                </span>
+              </div>
+            )}
 
             <hr className="border-purple-100" />
 
@@ -505,9 +623,19 @@ export default function VendorSubscriptionPage() {
               <h3 className="text-[22px] font-black tracking-tight text-white">
                 {paymentModalPlan.planType} Plan
               </h3>
-              <p className="text-[13px] text-purple-200/80 mt-1">
-                Amount payable: <strong className="text-white text-[16px]">₹{paymentModalPlan.price.toLocaleString('en-IN')}</strong> for {paymentModalPlan.durationDays || (paymentModalPlan.planType === 'Monthly' ? 30 : 365)} days
-              </p>
+              <div className="text-[13px] text-purple-200/90 mt-1 space-y-0.5">
+                <div>
+                  Amount payable: <strong className="text-white text-[16px]">₹{paymentModalPlan.price.toLocaleString('en-IN')}</strong>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span>Validity: <strong>{paymentModalPlan.durationDays || 30} Days</strong></span>
+                  {isBonusEligible && (
+                    <span className="px-2 py-0.2 rounded-md bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-[11px] font-black">
+                      +10 Days New User Bonus = {(paymentModalPlan.durationDays || 30) + 10} Days Total
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Modal Body */}

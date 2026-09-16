@@ -5,6 +5,7 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { shareContent, downloadImage } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
+import { isBiometricSupported, registerBiometricCredential } from '../../../utils/biometric.util';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -75,7 +76,129 @@ export default function ProfileScreen() {
 
   // Settings Toggles
   const [notifications, setNotifications] = useState(true);
-  const [biometrics, setBiometrics] = useState(false);
+  const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
+  const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '', currentPin: '' });
+  const [pinError, setPinError] = useState('');
+  const [isSubmittingPin, setIsSubmittingPin] = useState(false);
+  const [securityToast, setSecurityToast] = useState('');
+
+  useEffect(() => {
+    if (currentUser?.security) {
+      setBiometrics(!!currentUser.security.biometricEnabled);
+    }
+  }, [currentUser]);
+
+  const enrollBiometrics = async () => {
+    try {
+      const supported = await isBiometricSupported();
+      if (!supported) {
+        await UserAPI.toggleBiometricSecurity(true);
+        updateProfileStore({ security: { ...currentUser?.security, biometricEnabled: true } });
+        setBiometrics(true);
+        setSecurityToast('Device does not have biometric hardware. Protected with your Security PIN.');
+        setTimeout(() => setSecurityToast(''), 4500);
+        return;
+      }
+
+      const bioRes = await registerBiometricCredential(currentUser);
+      if (bioRes.success) {
+        await UserAPI.toggleBiometricSecurity(true, bioRes.credentialId);
+        updateProfileStore({
+          security: {
+            ...currentUser?.security,
+            biometricEnabled: true,
+            biometricCredentialId: bioRes.credentialId,
+          }
+        });
+        setBiometrics(true);
+        setSecurityToast('✅ Biometric security enabled! Cashouts are now protected.');
+        setTimeout(() => setSecurityToast(''), 4000);
+      } else {
+        setSecurityToast(bioRes.error || 'Biometric registration cancelled.');
+        setBiometrics(false);
+        setTimeout(() => setSecurityToast(''), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+      setSecurityToast('Failed to setup biometrics.');
+      setBiometrics(false);
+      setTimeout(() => setSecurityToast(''), 4000);
+    }
+  };
+
+  const handleToggleBiometrics = async (e) => {
+    const shouldEnable = e.target.checked;
+    setSecurityToast('');
+
+    if (shouldEnable) {
+      // If user hasn't configured a backup PIN yet, prompt PIN setup first
+      if (!currentUser?.security?.hasPin) {
+        setPinMode('setup');
+        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
+        setPinError('');
+        setShowPinModal(true);
+        return;
+      }
+      await enrollBiometrics();
+    } else {
+      try {
+        const res = await UserAPI.toggleBiometricSecurity(false);
+        if (res.success) {
+          updateProfileStore({ security: { ...currentUser?.security, biometricEnabled: false } });
+          setBiometrics(false);
+          setSecurityToast('Biometric security disabled.');
+          setTimeout(() => setSecurityToast(''), 3500);
+        }
+      } catch (err) {
+        console.error('Failed to disable biometrics', err);
+      }
+    }
+  };
+
+  const handleSavePin = async (e) => {
+    e.preventDefault();
+    setPinError('');
+    if (!pinForm.pin || pinForm.pin.length < 4 || pinForm.pin.length > 8) {
+      setPinError('PIN must be 4 to 8 digits.');
+      return;
+    }
+    if (pinForm.pin !== pinForm.confirmPin) {
+      setPinError('PINs do not match.');
+      return;
+    }
+    if (pinMode === 'change' && !pinForm.currentPin) {
+      setPinError('Current PIN is required.');
+      return;
+    }
+
+    setIsSubmittingPin(true);
+    try {
+      const res = await UserAPI.setupSecurityPin(pinForm.pin, pinForm.currentPin || null);
+      if (res.success) {
+        updateProfileStore({
+          security: {
+            ...currentUser?.security,
+            hasPin: true,
+          }
+        });
+        setShowPinModal(false);
+        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
+
+        if (pinMode === 'setup') {
+          await enrollBiometrics();
+        } else {
+          setSecurityToast('✅ Security PIN updated successfully.');
+          setTimeout(() => setSecurityToast(''), 3500);
+        }
+      }
+    } catch (err) {
+      setPinError(err.response?.data?.message || err.message || 'Failed to set PIN.');
+    } finally {
+      setIsSubmittingPin(false);
+    }
+  };
 
   // Stats summary (dynamically read from localStorage)
   const [stats, setStats] = useState({
@@ -401,23 +524,60 @@ export default function ProfileScreen() {
             </div>
 
             {/* Toggle 2: Biometrics */}
-            <div className="flex items-center justify-between py-1 border-t border-outline-variant/10 pt-md">
-              <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">fingerprint</span>
-                <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Biometric Security</p>
-                  <p className="font-caption text-[10px] text-on-surface-variant">Protect cashouts with biometric validation</p>
+            <div className="py-2 border-t border-outline-variant/10 pt-md space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-sm">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${biometrics ? 'bg-purple-100 text-[#7c3aed]' : 'bg-gray-100 text-gray-400'}`}>
+                    <span className="material-symbols-outlined text-[22px]">fingerprint</span>
+                  </div>
+                  <div>
+                    <p className="font-title-md text-on-surface font-bold text-body-sm flex items-center gap-1.5">
+                      Biometric Security
+                      {biometrics && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                      )}
+                    </p>
+                    <p className="font-caption text-[10px] text-on-surface-variant">Protect cashouts with Fingerprint, Face ID or PIN</p>
+                  </div>
                 </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={biometrics} 
+                    onChange={handleToggleBiometrics} 
+                    className="sr-only peer" 
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={biometrics} 
-                  onChange={(e) => setBiometrics(e.target.checked)} 
-                  className="sr-only peer" 
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
-              </label>
+
+              {/* Security Toast */}
+              {securityToast && (
+                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200/60 text-[11px] font-medium text-purple-900 flex items-center gap-2 animate-reveal">
+                  <span className="material-symbols-outlined text-[16px] text-primary shrink-0">info</span>
+                  <span>{securityToast}</span>
+                </div>
+              )}
+
+              {/* Backup PIN Manager */}
+              <div className="flex items-center justify-between pl-11 pr-1 text-[11px]">
+                <span className="text-on-surface-variant font-medium">
+                  Backup PIN: <strong className="text-on-surface">{currentUser?.security?.hasPin ? 'Configured ✅' : 'Not Set'}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPinMode(currentUser?.security?.hasPin ? 'change' : 'setup');
+                    setPinForm({ pin: '', confirmPin: '', currentPin: '' });
+                    setPinError('');
+                    setShowPinModal(true);
+                  }}
+                  className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                >
+                  <span className="material-symbols-outlined text-[14px]">key</span>
+                  {currentUser?.security?.hasPin ? 'Change PIN' : 'Set PIN'}
+                </button>
+              </div>
             </div>
 
             {/* Direct Support link */}
@@ -499,6 +659,116 @@ export default function ProfileScreen() {
                 Remove Photo
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Security PIN Setup / Change Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-reveal">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[24px]">key</span>
+                </div>
+                <div>
+                  <h3 className="font-display font-extrabold text-[17px] text-on-surface">
+                    {pinMode === 'setup' ? 'Set Security PIN' : 'Change Security PIN'}
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">Backup for Biometrics & Cashouts</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowPinModal(false); setPinError(''); }}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p className="text-[12px] text-on-surface-variant leading-relaxed">
+              {pinMode === 'setup'
+                ? 'Create a 4 to 8 digit Security PIN. You can use this PIN to withdraw cash if your fingerprint or Face ID is unavailable.'
+                : 'Enter your current PIN and choose a new 4 to 8 digit Security PIN.'}
+            </p>
+
+            <form onSubmit={handleSavePin} className="space-y-3">
+              {pinMode === 'change' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Current PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    required
+                    value={pinForm.currentPin}
+                    onChange={(e) => setPinForm({ ...pinForm, currentPin: e.target.value.replace(/\D/g, '') })}
+                    placeholder="Enter current PIN"
+                    className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  {pinMode === 'setup' ? 'Create PIN (4-8 digits)' : 'New PIN (4-8 digits)'}
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  required
+                  value={pinForm.pin}
+                  onChange={(e) => setPinForm({ ...pinForm, pin: e.target.value.replace(/\D/g, '') })}
+                  placeholder="e.g. 1234"
+                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Confirm PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  required
+                  value={pinForm.confirmPin}
+                  onChange={(e) => setPinForm({ ...pinForm, confirmPin: e.target.value.replace(/\D/g, '') })}
+                  placeholder="Re-enter PIN"
+                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
+                />
+              </div>
+
+              {pinError && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">error</span>
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(false)}
+                  className="flex-1 h-11 rounded-xl border border-outline-variant/30 font-bold text-[13px] text-on-surface-variant hover:bg-gray-50 active:scale-95 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPin || !pinForm.pin || !pinForm.confirmPin}
+                  className="flex-1 h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-md hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {isSubmittingPin ? (
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    pinMode === 'setup' ? 'Save & Continue' : 'Update PIN'
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1014,47 +1284,72 @@ function QRCodeSubView({ profile, onBack }) {
 // SUBPAGE 5: REFER & EARN COMPONENT
 function ReferEarnSubView({ profile, onBack }) {
   const [copied, setCopied] = useState(false);
-  const [stats, setStats] = useState({ invited: 0, earned: 0, code: 'ZEEBAC150' });
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [stats, setStats] = useState({
+    invited: 0,
+    earned: 0,
+    code: profile?.referralCode || '',
+    rewardAmount: 150,
+    history: []
+  });
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     const fetchReferralStats = async () => {
       try {
+        setLoading(true);
         const res = await UserAPI.getMyReferrals();
         if (res.success && res.data) {
           setStats({
             invited: res.data.stats?.totalInvited || 0,
             earned: res.data.stats?.totalEarned || 0,
-            code: res.data.referralCode || profile?.referralCode || 'ZEEBAC150'
+            code: res.data.referralCode || profile?.referralCode || 'ZEEBAC',
+            rewardAmount: res.data.rewardAmount || 150,
+            history: res.data.history || []
           });
         }
       } catch (err) {
         console.error("Failed to fetch referral stats:", err);
+      } finally {
+        setLoading(false);
       }
     };
     fetchReferralStats();
   }, [profile?.referralCode]);
 
-  const handleCopy = () => {
+  const inviteLink = `${window.location.origin}/signup?ref=${stats.code}`;
+
+  const handleCopyCode = () => {
     navigator.clipboard.writeText(stats.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
   const handleShare = async () => {
-    const text = `Join Zeebac and earn cashback on all your shopping! Use my code: ${stats.code} to sign up and get rewards.`;
+    const text = `Join me on Zeebac and earn cashback on all your shopping! Sign up using my referral link: ${inviteLink} (Code: ${stats.code}) to unlock rewards!`;
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Zeebac Referral Invite',
           text: text,
-          url: window.location.origin,
+          url: inviteLink,
         });
       } catch (err) {
-        console.log('Error sharing:', err);
+        if (err.name !== 'AbortError') {
+          console.log('Error sharing:', err);
+        }
       }
     } else {
-      navigator.clipboard.writeText(`${text} ${window.location.origin}`);
-      alert('Referral link and code copied to clipboard!');
+      navigator.clipboard.writeText(text);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+      alert('Referral link copied to clipboard!');
     }
   };
 
@@ -1070,85 +1365,176 @@ function ReferEarnSubView({ profile, onBack }) {
         <span className="font-display text-title-md text-primary ml-4">Refer & Earn</span>
       </header>
 
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
-        <div className="space-y-lg flex-grow">
+      <main className="flex-grow max-w-[460px] mx-auto w-full px-container-margin py-lg flex flex-col justify-between text-left space-y-6">
+        <div className="space-y-5 flex-grow">
           {/* Promotional Banner Card */}
-          <div className="bg-gradient-to-br from-[#7c3aed] to-[#c026d3] text-white p-5 rounded-3xl shadow-lg shadow-primary/25 relative overflow-hidden flex items-center gap-md">
-            <span className="material-symbols-outlined absolute right-[-10px] bottom-[-10px] text-white/10 text-[110px] pointer-events-none select-none">card_giftcard</span>
+          <div className="bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#c026d3] text-white p-5 rounded-3xl shadow-lg shadow-purple-600/20 relative overflow-hidden flex items-center gap-md">
+            <span className="material-symbols-outlined absolute right-[-12px] bottom-[-14px] text-white/10 text-[115px] pointer-events-none select-none">card_giftcard</span>
             <div className="flex-grow z-10">
-              <span className="text-[10px] text-yellow-300 font-extrabold tracking-wider uppercase bg-yellow-500/20 px-2.5 py-1 rounded-full">LIMITED OFFER</span>
-              <h2 className="text-title-md font-black mt-2 leading-tight">Invite Friends &amp; Earn ₹150!</h2>
-              <p className="text-[11px] text-white/85 mt-1 leading-relaxed">Get cashback in your wallet as soon as your friend completes their first receipt audit.</p>
+              <span className="text-[10px] text-amber-300 font-extrabold tracking-wider uppercase bg-amber-400/20 border border-amber-300/30 px-2.5 py-1 rounded-full">
+                INSTANT CASH REWARD
+              </span>
+              <h2 className="text-title-md font-black mt-2 leading-tight">
+                Invite Friends &amp; Earn ₹{stats.rewardAmount}!
+              </h2>
+              <p className="text-[11px] text-white/90 mt-1 leading-relaxed">
+                When your friend signs up and completes their first bill cashback or QR payment, ₹{stats.rewardAmount} is directly deposited from Zeebac Admin into your rewards wallet.
+              </p>
             </div>
           </div>
 
           {/* Referral Stats Summary */}
-          <div className="grid grid-cols-2 gap-md">
-            <div className="bg-white border border-outline-variant/20 rounded-2xl p-md flex flex-col text-left shadow-sm">
-              <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Friends Invited</span>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white border border-outline-variant/20 rounded-2xl p-4 flex flex-col text-left shadow-xs">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Friends Invited</span>
               <h3 className="font-display text-title-md font-black text-[#7c3aed] mt-1">{stats.invited}</h3>
+              <span className="text-[10px] text-slate-400 mt-0.5">Total successful joins</span>
             </div>
-            <div className="bg-white border border-outline-variant/20 rounded-2xl p-md flex flex-col text-left shadow-sm">
-              <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Total Earned</span>
-              <h3 className="font-display text-title-md font-black text-green-600 mt-1">₹{stats.earned}</h3>
+            <div className="bg-white border border-outline-variant/20 rounded-2xl p-4 flex flex-col text-left shadow-xs">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Total Bonus Earned</span>
+              <h3 className="font-display text-title-md font-black text-emerald-600 mt-1">₹{stats.earned}</h3>
+              <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-0.5">
+                <span className="material-symbols-outlined text-[12px]">verified</span> Credited to wallet
+              </span>
             </div>
           </div>
 
-          {/* Referral Code Box */}
-          <div className="space-y-xs">
-            <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold pl-1">Your Referral Code</span>
-            <div className="bg-white border-2 border-dashed border-[#7c3aed]/30 rounded-2xl p-md flex items-center justify-between shadow-sm">
-              <div className="flex-grow">
-                <span className="font-display text-title-sm font-black tracking-widest text-[#7c3aed] uppercase select-all">{stats.code}</span>
+          {/* Referral Code & Invite Link Box */}
+          <div className="bg-white border border-outline-variant/25 rounded-2xl p-4 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold block">
+                  Your Unique Referral Code
+                </span>
+                <span className="font-display text-lg font-black tracking-widest text-[#7c3aed] uppercase select-all">
+                  {stats.code || 'GENERATING...'}
+                </span>
               </div>
               <button 
-                onClick={handleCopy}
-                className="px-3.5 py-2 rounded-xl bg-[#7c3aed]/10 hover:bg-[#7c3aed]/20 text-[#7c3aed] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                onClick={handleCopyCode}
+                className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200/60 text-[#7c3aed] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
               >
                 <span className="material-symbols-outlined text-[16px]">{copied ? 'done' : 'content_copy'}</span>
-                <span>{copied ? 'Copied' : 'Copy'}</span>
+                <span>{copied ? 'Copied' : 'Copy Code'}</span>
+              </button>
+            </div>
+
+            {/* Direct Link */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Invite Link (Auto-Applies Code)</span>
+                <p className="text-[11px] text-slate-600 truncate font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/60 mt-0.5 select-all">
+                  {inviteLink}
+                </p>
+              </div>
+              <button
+                onClick={handleCopyLink}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
+              >
+                <span className="material-symbols-outlined text-[14px]">{copiedLink ? 'check' : 'link'}</span>
+                <span>{copiedLink ? 'Copied' : 'Copy Link'}</span>
               </button>
             </div>
           </div>
 
+          {/* Invited Friends List */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="font-display text-xs font-black text-slate-800 uppercase tracking-wider">
+                Invited Friends ({stats.history.length})
+              </h3>
+              <span className="text-[10px] text-purple-600 font-bold">Auto-updates</span>
+            </div>
+
+            {loading ? (
+              <div className="py-6 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200/60">
+                Loading referral status...
+              </div>
+            ) : stats.history.length === 0 ? (
+              <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-5 text-center text-slate-400 space-y-1">
+                <span className="material-symbols-outlined text-[32px] text-purple-300">group_add</span>
+                <p className="text-xs font-bold text-slate-700">No friends invited yet</p>
+                <p className="text-[10px] text-slate-400 max-w-[240px] mx-auto">
+                  Share your invite link below. When friends join and do their first transaction, you get ₹{stats.rewardAmount} each!
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden shadow-2xs max-h-[220px] overflow-y-auto">
+                {stats.history.map((item, idx) => (
+                  <div key={item._id || idx} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-2xs">
+                        {(item.friendName || 'F').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">
+                          {item.friendName || 'Friend'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {item.friendPhone || 'Customer'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      {item.rewardStatus === 'Credited' ? (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
+                          <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                          +₹{item.rewardAmount} Credited
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px]">
+                          <span className="material-symbols-outlined text-[12px]">schedule</span>
+                          Pending 1st Bill
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* How It Works Timeline */}
-          <div className="space-y-sm">
-            <h3 className="font-display text-body-sm font-extrabold text-on-surface uppercase tracking-wider pl-1">How it works</h3>
-            <div className="bg-white border border-outline-variant/20 rounded-2xl p-md space-y-md shadow-sm">
-              <div className="flex gap-md">
-                <div className="w-6 h-6 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">1</div>
+          <div className="space-y-2">
+            <h3 className="font-display text-xs font-black text-slate-800 uppercase tracking-wider pl-1">
+              How Referral Payout Works
+            </h3>
+            <div className="bg-white border border-outline-variant/20 rounded-2xl p-4 space-y-3.5 shadow-2xs">
+              <div className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">1</div>
                 <div>
-                  <h4 className="text-body-sm font-bold text-on-surface">Share your link</h4>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">Send your custom referral invite to your friends.</p>
+                  <h4 className="text-xs font-bold text-slate-900">Share your invite link</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Send your link to friends. The code auto-fills when they tap it.</p>
                 </div>
               </div>
 
-              <div className="flex gap-md border-t border-outline-variant/10 pt-md">
-                <div className="w-6 h-6 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">2</div>
+              <div className="flex gap-3 border-t border-slate-100 pt-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">2</div>
                 <div>
-                  <h4 className="text-body-sm font-bold text-on-surface">Friend does receipt audit</h4>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">They sign up with your code and get cashback on their first upload.</p>
+                  <h4 className="text-xs font-bold text-slate-900">Friend completes first cashback</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">They do their first POS/bill scan or QR payment and get cashback.</p>
                 </div>
               </div>
 
-              <div className="flex gap-md border-t border-outline-variant/10 pt-md">
-                <div className="w-6 h-6 rounded-full bg-[#7c3aed]/10 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">3</div>
+              <div className="flex gap-3 border-t border-slate-100 pt-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">3</div>
                 <div>
-                  <h4 className="text-body-sm font-bold text-on-surface">Get your cash reward</h4>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">₹150 will be instantly deposited into your rewards wallet.</p>
+                  <h4 className="text-xs font-bold text-slate-900">Instant Admin Wallet Payout</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">₹{stats.rewardAmount} is debited from Zeebac Admin pool and credited to your Rewards Wallet.</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="pt-xl">
+        <div className="pt-3">
           <button 
             onClick={handleShare}
-            className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg active:scale-95 transition-transform cursor-pointer"
+            className="w-full h-13 bg-gradient-to-r from-purple-600 via-purple-700 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 active:scale-98 transition-all cursor-pointer"
           >
-            <span className="material-symbols-outlined">share</span>
-            Invite Friends
+            <span className="material-symbols-outlined text-[18px]">share</span>
+            Share Invite Link &amp; Earn ₹{stats.rewardAmount}
           </button>
         </div>
       </main>

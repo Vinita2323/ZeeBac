@@ -23,6 +23,9 @@ import GlobalSnackbar from './components/GlobalSnackbar';
 import { AuthAPI } from './services/api';
 import { requestNotificationPermission, onForegroundMessage } from './utils/notificationUtils';
 import { Toaster, toast } from 'react-hot-toast';
+import { CallProvider } from './context/CallContext';
+import IncomingCallModal from './components/common/IncomingCallModal';
+import MaskedCallModal from './components/common/MaskedCallModal';
 
 // Globally override browser alert to use toast for a better UI experience
 window.alert = (message) => {
@@ -86,53 +89,57 @@ function App() {
   }, [accessToken]);
   return (
     <BrowserRouter>
-      <ScrollToTop />
-      <div className="app-backdrop" aria-hidden="true" />
+      <CallProvider>
+        <ScrollToTop />
+        <div className="app-backdrop" aria-hidden="true" />
 
-      {/* Global UI Overlays */}
-      <Toaster position="top-center" reverseOrder={false} />
-      <GlobalAlertDialog />
-      <GlobalSnackbar />
+        {/* Global UI Overlays */}
+        <Toaster position="top-center" reverseOrder={false} />
+        <GlobalAlertDialog />
+        <GlobalSnackbar />
+        <IncomingCallModal />
+        <MaskedCallModal />
 
-      <Routes>
-        {/* ─── Customer App Auth ─── */}
-        <Route path="/login" element={<AuthLoginScreen role="customer" />} />
-        <Route path="/signup" element={<SignupScreen role="customer" />} />
-        <Route path="/verify-otp" element={<AuthOTPScreen />} />
-        <Route path="/terms" element={<TermsScreen />} />
-        <Route path="/privacy" element={<PrivacyPolicyScreen />} />
+        <Routes>
+          {/* ─── Customer App Auth ─── */}
+          <Route path="/login" element={<AuthLoginScreen role="customer" />} />
+          <Route path="/signup" element={<SignupScreen role="customer" />} />
+          <Route path="/verify-otp" element={<AuthOTPScreen />} />
+          <Route path="/terms" element={<TermsScreen />} />
+          <Route path="/privacy" element={<PrivacyPolicyScreen />} />
 
-        {/* ─── Vendor App Auth (Separate App) ─── */}
-        <Route path="/vendor-app" element={<VendorLandingScreen />} />
-        <Route path="/vendor-app/login" element={<AuthLoginScreen role="vendor" />} />
-        <Route path="/vendor-app/signup" element={<VendorOnboardingWizard mode="register" />} />
-        <Route path="/vendor-app/verify-otp" element={<AuthOTPScreen />} />
+          {/* ─── Vendor App Auth (Separate App) ─── */}
+          <Route path="/vendor-app" element={<VendorLandingScreen />} />
+          <Route path="/vendor-app/login" element={<AuthLoginScreen role="vendor" />} />
+          <Route path="/vendor-app/signup" element={<VendorOnboardingWizard mode="register" />} />
+          <Route path="/vendor-app/verify-otp" element={<AuthOTPScreen />} />
 
-        {/* ─── Admin Login (Public) ─── */}
-        <Route path="/admin/login" element={<AdminLoginScreen />} />
+          {/* ─── Admin Login (Public) ─── */}
+          <Route path="/admin/login" element={<AdminLoginScreen />} />
 
-        {/* ─── Vendor Dashboard (Protected) ─── */}
-        <Route 
-          path="/vendor/*" 
-          element={
-            <ProtectedRoute allowedRole="vendor">
-              <VendorRoutes />
-            </ProtectedRoute>
-          } 
-        />
+          {/* ─── Vendor Dashboard (Protected) ─── */}
+          <Route 
+            path="/vendor/*" 
+            element={
+              <ProtectedRoute allowedRole="vendor">
+                <VendorRoutes />
+              </ProtectedRoute>
+            } 
+          />
 
-        {/* ─── Admin Dashboard (Protected) ─── */}
-        <Route 
-          path="/admin/*" 
-          element={
-            <ProtectedRoute allowedRole="admin">
-              <AdminRoutes />
-            </ProtectedRoute>
-          } 
-        />
-        {/* ─── Customer App (Protected & Public) ─── */}
-        <Route path="/*" element={<UserRoutes />} />
-      </Routes>
+          {/* ─── Admin Dashboard (Protected) ─── */}
+          <Route 
+            path="/admin/*" 
+            element={
+              <ProtectedRoute allowedRole="admin">
+                <AdminRoutes />
+              </ProtectedRoute>
+            } 
+          />
+          {/* ─── Customer App (Protected & Public) ─── */}
+          <Route path="/*" element={<UserRoutes />} />
+        </Routes>
+      </CallProvider>
     </BrowserRouter>
   );
 }

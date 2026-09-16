@@ -119,6 +119,8 @@ const vendorSchema = new mongoose.Schema(
       accountNumber: { type: String },
       ifscCode: { type: String },
       upiId: String,
+      isVerified: { type: Boolean, default: false },
+      verifiedAt: Date,
     },
     documents: {
       aadhaarPan: documentFieldSchema,
@@ -141,7 +143,7 @@ const vendorSchema = new mongoose.Schema(
     subscription: {
       planType: {
         type: String,
-        enum: ['Monthly', 'Yearly', 'None'],
+        enum: ['1 Month', '3 Months', 'Yearly', 'Monthly', '3 Month', 'None'],
         default: 'None',
       },
       price: { type: Number, default: 0 },
@@ -154,6 +156,11 @@ const vendorSchema = new mongoose.Schema(
       expiresAt: Date,
       lastRenewedAt: Date,
       expiredAt: Date,
+      bonusDaysApplied: { type: Number, default: 0 },
+    },
+    hasUsedNewUserBonus: {
+      type: Boolean,
+      default: false,
     },
     aadhaar: String,
     pan: String,

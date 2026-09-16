@@ -72,10 +72,15 @@ export const getAllVendors = async (req, res) => {
       .limit(parseInt(limit));
 
     const total = await Vendor.countDocuments(query);
+    const vendorsWithSub = vendors.map(v => {
+      const obj = v.toObject ? v.toObject() : { ...v };
+      obj.subscriptionState = getVendorSubscriptionState(v);
+      return obj;
+    });
 
     res.status(200).json({
       success: true,
-      data: vendors,
+      data: vendorsWithSub,
       meta: {
         total,
         page: parseInt(page),
@@ -979,11 +984,16 @@ export const processPayout = async (req, res) => {
         reqDoc.adminTransactionId = transactionId;
         await reqDoc.save();
 
+        const destBank = reqDoc.bankDetailsSnapshot?.bankName || reqDoc.vendorId?.bankDetails?.bankName || 'Bank';
+        const rawAcc = reqDoc.bankDetailsSnapshot?.accountNumber || reqDoc.vendorId?.bankDetails?.accountNumber || '';
+        const maskedAcc = rawAcc ? `•••• ${rawAcc.slice(-4)}` : '';
+        const accInfo = maskedAcc ? ` to ${destBank} (${maskedAcc})` : '';
+
         // Update the corresponding WalletTransaction with UTR
         const tx = await WalletTransaction.findOne({ referenceId: reqDoc._id });
         if (tx) {
           tx.adminTransactionId = transactionId;
-          tx.description = remarks ? `Withdrawal Approved: ${remarks}` : 'Withdrawal request approved';
+          tx.description = remarks ? `Withdrawal Approved: ${remarks}` : `Withdrawal approved${accInfo}`;
           await tx.save();
         }
 
@@ -994,7 +1004,7 @@ export const processPayout = async (req, res) => {
           fcmTokens: reqDoc.vendorId.fcmTokens || [],
           type: 'system',
           title: '💸 Withdrawal Approved!',
-          message: `₹${reqDoc.amount} has been transferred to your bank account. UTR: ${transactionId}`,
+          message: `₹${reqDoc.amount} has been transferred to your ${destBank} account${maskedAcc ? ` (${maskedAcc})` : ''}. UTR: ${transactionId}`,
           icon: 'account_balance',
         });
       } else if (action === 'Reject') {
@@ -1136,8 +1146,18 @@ export const getAdminSubscriptionPlans = async (req, res) => {
     const plans = await SubscriptionPlan.find().sort({ durationDays: 1 });
 
     const totalSubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE' });
-    const monthlySubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE', 'subscription.planType': 'Monthly' });
-    const yearlySubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE', 'subscription.planType': 'Yearly' });
+    const oneMonthSubscribers = await Vendor.countDocuments({
+      'subscription.status': 'ACTIVE',
+      'subscription.planType': { $in: ['1 Month', 'Monthly'] },
+    });
+    const threeMonthSubscribers = await Vendor.countDocuments({
+      'subscription.status': 'ACTIVE',
+      'subscription.planType': { $in: ['3 Months', '3 Month'] },
+    });
+    const yearlySubscribers = await Vendor.countDocuments({
+      'subscription.status': 'ACTIVE',
+      'subscription.planType': 'Yearly',
+    });
     const expiredVendors = await Vendor.countDocuments({ 'subscription.status': 'EXPIRED' });
 
     res.status(200).json({
@@ -1146,8 +1166,10 @@ export const getAdminSubscriptionPlans = async (req, res) => {
         plans,
         stats: {
           totalSubscribers,
-          monthlySubscribers,
+          oneMonthSubscribers,
+          threeMonthSubscribers,
           yearlySubscribers,
+          monthlySubscribers: oneMonthSubscribers, // backwards compatibility
           expiredVendors,
         },
       },
@@ -1202,9 +1224,12 @@ export const updateAdminSubscriptionPlan = async (req, res) => {
       // Keep RewardConfig in sync for backward compatibility
       const config = await RewardConfig.findOne();
       if (config) {
-        if (plan.planType === 'Monthly') {
+        if (plan.planType === 'Monthly' || plan.planType === '1 Month') {
           config.independentStoreMonthlyPrice = plan.pricing.independentStore;
           config.brandMonthlyPrice = plan.pricing.chainBrand;
+        } else if (plan.planType === '3 Months' || plan.planType === '3 Month') {
+          config.independentStoreThreeMonthPrice = plan.pricing.independentStore;
+          config.brandThreeMonthPrice = plan.pricing.chainBrand;
         } else if (plan.planType === 'Yearly') {
           config.independentStoreYearlyPrice = plan.pricing.independentStore;
           config.brandYearlyPrice = plan.pricing.chainBrand;
@@ -1247,13 +1272,27 @@ export const deleteAdminSubscriptionPlan = async (req, res) => {
 export const adminActivateVendorSubscription = async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { planType = 'Monthly', days = 30 } = req.body;
+    const { planType = '1 Month', days, includeNewUserBonus = false } = req.body;
 
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
+    let effectiveDays = Number(days);
+    if (!effectiveDays || isNaN(effectiveDays)) {
+      if (planType === 'Yearly') effectiveDays = 365;
+      else if (planType.includes('3')) effectiveDays = 90;
+      else effectiveDays = 30;
+    }
+
+    const bonusDays = includeNewUserBonus ? 10 : 0;
+    const totalDays = effectiveDays + bonusDays;
+
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + Number(days) * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + totalDays * 24 * 60 * 60 * 1000);
+
+    if (includeNewUserBonus) {
+      vendor.hasUsedNewUserBonus = true;
+    }
 
     vendor.subscription = {
       planType,
@@ -1262,11 +1301,30 @@ export const adminActivateVendorSubscription = async (req, res) => {
       startDate: now,
       expiresAt,
       lastRenewedAt: now,
+      bonusDaysApplied: bonusDays,
     };
     await vendor.save();
 
-    logger.info(`[admin.controller] Admin activated ${planType} subscription for vendor ${vendorId} until ${expiresAt.toISOString()}`);
-    res.status(200).json({ success: true, message: `Subscription activated until ${expiresAt.toLocaleDateString()}`, data: vendor.subscription });
+    // Record manual activation in subscription audit log
+    const transactionId = `SUB-ADM-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    await SubscriptionPayment.create({
+      vendorId: vendor._id,
+      planType,
+      shopType: vendor.shopType || 'Independent Store',
+      amount: 0,
+      paymentMethod: 'ADMIN_MANUAL',
+      paymentStatus: 'SUCCESS',
+      transactionId,
+      bonusDaysApplied: bonusDays,
+      paidAt: now,
+    });
+
+    logger.info(`[admin.controller] Admin activated ${planType} subscription for vendor ${vendorId} until ${expiresAt.toISOString()} (bonus: ${bonusDays}d)`);
+    res.status(200).json({
+      success: true,
+      message: `Subscription activated until ${expiresAt.toLocaleDateString()}${bonusDays > 0 ? ' (including +10 days bonus)' : ''}`,
+      data: vendor.subscription,
+    });
   } catch (error) {
     logger.error(`Error in adminActivateVendorSubscription: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });

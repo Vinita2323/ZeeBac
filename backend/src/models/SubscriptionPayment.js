@@ -14,8 +14,12 @@ const subscriptionPaymentSchema = new mongoose.Schema(
     },
     planType: {
       type: String,
-      enum: ['Monthly', 'Yearly'],
+      enum: ['1 Month', '3 Months', 'Yearly', 'Monthly', '3 Month'],
       required: true,
+    },
+    bonusDaysApplied: {
+      type: Number,
+      default: 0,
     },
     shopType: {
       type: String,
@@ -29,7 +33,7 @@ const subscriptionPaymentSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['RAZORPAY', 'WALLET'],
+      enum: ['RAZORPAY', 'WALLET', 'ADMIN_MANUAL'],
       required: true,
     },
     paymentStatus: {

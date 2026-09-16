@@ -86,6 +86,10 @@ export default function VendorApplicationDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [selectedPlanType, setSelectedPlanType] = useState('1 Month');
+  const [includeBonusDays, setIncludeBonusDays] = useState(true);
+  const [isActivating, setIsActivating] = useState(false);
 
   const fetchVendor = async () => {
     setIsLoading(true);
@@ -109,6 +113,29 @@ export default function VendorApplicationDetailPage() {
     await AdminAPI.rejectVendor(id, reasonCategory, comment);
     setShowReject(false);
     fetchVendor();
+  };
+
+  const handleAdminActivate = async () => {
+    setIsActivating(true);
+    try {
+      let days = 30;
+      if (selectedPlanType === '3 Months') days = 90;
+      else if (selectedPlanType === 'Yearly') days = 365;
+
+      const res = await AdminAPI.activateVendorSubscription(vendor._id, {
+        planType: selectedPlanType,
+        days,
+        includeNewUserBonus: includeBonusDays,
+      });
+      if (res.success) {
+        setShowActivateModal(false);
+        fetchVendor();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to activate subscription');
+    } finally {
+      setIsActivating(false);
+    }
   };
 
   if (isLoading) {
@@ -265,14 +292,10 @@ export default function VendorApplicationDetailPage() {
               <span className="text-[11px] text-gray-500">Explicit admin override only:</span>
               <button
                 type="button"
-                onClick={async () => {
-                  if (window.confirm(`Manual Admin Activation: Activate 30-day Monthly subscription override for ${vendor.storeName || 'this vendor'}?`)) {
-                    await AdminAPI.activateVendorSubscription(vendor._id, { planType: 'Monthly', days: 30 });
-                    fetchVendor();
-                  }
-                }}
-                className="px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-700 hover:text-white font-bold text-[12px] transition-all cursor-pointer border border-purple-200"
+                onClick={() => setShowActivateModal(true)}
+                className="px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-700 hover:text-white font-bold text-[12px] transition-all cursor-pointer border border-purple-200 flex items-center gap-1.5"
               >
+                <span className="material-symbols-outlined text-[16px]">verified</span>
                 Manual Admin Activation
               </button>
             </div>
@@ -387,6 +410,102 @@ export default function VendorApplicationDetailPage() {
         />
       )}
       {showReject && <RejectDialog vendorName={vendor.storeName || vendor.ownerName} onConfirm={handleReject} onClose={() => setShowReject(false)} />}
+
+      {/* Manual Subscription Activation Modal */}
+      {showActivateModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-gray-100 space-y-5 animate-reveal text-left">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-[17px] font-black text-gray-900">
+                  Manual Subscription Activation
+                </h3>
+                <p className="text-[12px] text-gray-500">
+                  {vendor.storeName || vendor.ownerName} ({vendor.shopType || 'Independent Store'})
+                </p>
+              </div>
+              <button
+                onClick={() => setShowActivateModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  Select Subscription Plan
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { type: '1 Month', days: 30, label: '1 Month (30d)' },
+                    { type: '3 Months', days: 90, label: '3 Months (90d)' },
+                    { type: 'Yearly', days: 365, label: 'Yearly (365d)' },
+                  ].map((p) => (
+                    <button
+                      key={p.type}
+                      type="button"
+                      onClick={() => setSelectedPlanType(p.type)}
+                      className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                        selectedPlanType === p.type
+                          ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold ring-2 ring-purple-200'
+                          : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-[13px] font-black">{p.type}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{p.days} Days</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bonus Days Checkbox */}
+              <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200/80 space-y-2">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeBonusDays}
+                    onChange={(e) => setIncludeBonusDays(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-[13px] font-bold text-emerald-950 block">
+                      Include +10 Days New User Bonus
+                    </span>
+                    <span className="text-[11.5px] text-emerald-800 leading-tight block">
+                      Grant +10 extra days validity for new vendor onboarding.
+                    </span>
+                  </div>
+                </label>
+                <div className="text-[12px] font-black text-emerald-900 pl-6">
+                  Total Duration:{' '}
+                  {selectedPlanType === 'Yearly' ? 365 : selectedPlanType === '3 Months' ? 90 : 30}
+                  {includeBonusDays ? ' + 10 = ' + ((selectedPlanType === 'Yearly' ? 365 : selectedPlanType === '3 Months' ? 90 : 30) + 10) : ''} Days
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setShowActivateModal(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-[13px] font-bold hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isActivating}
+                onClick={handleAdminActivate}
+                className="px-5 py-2 rounded-xl bg-purple-600 text-white text-[13px] font-bold hover:bg-purple-700 shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isActivating ? 'Activating...' : 'Confirm Activation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -105,4 +105,20 @@ describe('lookupCustomerByPhone — manual entry still works alongside QR scanni
     await lookupCustomerByPhone({ params: { phone: vendorToken } }, res);
     expect(res.status).toHaveBeenCalledWith(400);
   });
+
+  it('resolves vendor when lookup query is an interoperable UPI URI string', async () => {
+    const vendor = await makeVendor();
+    const upiUri = `upi://pay?pa=merchant@upi&pn=${encodeURIComponent(vendor.storeName)}&tr=${vendor.zeebacId}&tn=Zeebac`;
+    const res = makeRes();
+
+    await lookupVendorById({ params: { query: upiUri } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      data: expect.objectContaining({
+        zeebacId: vendor.zeebacId,
+      }),
+    }));
+  });
 });

@@ -57,6 +57,7 @@ const FOLDER_MAP = {
   cancelledCheque: 'documents',
   panCard: 'documents',
   additionalDoc: 'documents',
+  storyMedia: 'stories',
 };
 
 const cleanupLocalFiles = (req) => {
@@ -79,50 +80,59 @@ const cleanupLocalFiles = (req) => {
 
 /**
  * Middleware that seamlessly uploads all Multer-processed files to Cloudinary CDN
+ * Uses concurrent parallel uploads and passes file metadata for optimized handling.
  */
 export const uploadToCloudinaryMiddleware = async (req, res, next) => {
   try {
+    const uploadTasks = [];
+
     if (req.file) {
       const folder = FOLDER_MAP[req.file.fieldname] || 'general';
-      const cloudinaryUrl = await uploadFileToCloudinary(req.file.path, folder);
-
-      req.file.filename = cloudinaryUrl;
-      req.file.path = cloudinaryUrl;
-      req.file.url = cloudinaryUrl;
+      uploadTasks.push({ fileObj: req.file, folder });
     }
 
     if (req.files) {
       if (Array.isArray(req.files)) {
         for (const fileObj of req.files) {
           const folder = FOLDER_MAP[fileObj.fieldname] || 'general';
-          const cloudinaryUrl = await uploadFileToCloudinary(fileObj.path, folder);
-          fileObj.filename = cloudinaryUrl;
-          fileObj.path = cloudinaryUrl;
-          fileObj.url = cloudinaryUrl;
+          uploadTasks.push({ fileObj, folder });
         }
       } else if (typeof req.files === 'object') {
         for (const fieldName of Object.keys(req.files)) {
           const fileList = req.files[fieldName];
           const folder = FOLDER_MAP[fieldName] || 'general';
-
-          for (const fileObj of fileList) {
-            const cloudinaryUrl = await uploadFileToCloudinary(fileObj.path, folder);
-            fileObj.filename = cloudinaryUrl;
-            fileObj.path = cloudinaryUrl;
-            fileObj.url = cloudinaryUrl;
+          if (Array.isArray(fileList)) {
+            for (const fileObj of fileList) {
+              uploadTasks.push({ fileObj, folder });
+            }
           }
         }
       }
     }
 
+    if (uploadTasks.length > 0) {
+      await Promise.all(
+        uploadTasks.map(async ({ fileObj, folder }) => {
+          const cloudinaryUrl = await uploadFileToCloudinary(fileObj.path, folder, {
+            mimetype: fileObj.mimetype,
+            fieldname: fileObj.fieldname,
+          });
+          fileObj.filename = cloudinaryUrl;
+          fileObj.path = cloudinaryUrl;
+          fileObj.url = cloudinaryUrl;
+        })
+      );
+    }
+
     next();
   } catch (error) {
-    console.error('[Multer-Cloudinary] Middleware Upload Error:', error.message);
+    const errorMsg = error?.message || error?.error?.message || (typeof error === 'string' ? error : 'Failed to upload asset to Cloudinary');
+    console.error('[Multer-Cloudinary] Middleware Upload Error:', errorMsg);
     cleanupLocalFiles(req);
     return res.status(500).json({ 
       success: false, 
-      message: 'Failed to upload asset to Cloudinary', 
-      error: error.message 
+      message: `Failed to upload asset to Cloudinary: ${errorMsg}`, 
+      error: errorMsg 
     });
   }
 };

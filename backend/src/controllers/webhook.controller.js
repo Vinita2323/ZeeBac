@@ -3,16 +3,28 @@ import { verifyWebhookSignature } from '../utils/webhook.util.js';
 import { debitWallet, creditWallet, assertGatewayPaymentNotProcessed, DuplicatePaymentError, InsufficientBalanceError } from '../utils/wallet.util.js';
 import { calculateCashback } from '../utils/cashback.util.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
+import { getVendorSubscriptionState } from '../utils/subscription.util.js';
+import { extractCustomerPhoneFromUpi } from '../utils/phone.util.js';
 import Transaction from '../models/Transaction.js';
 import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
+import Wallet from '../models/Wallet.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
+import { getIO } from '../socket/socket.js';
 
 /**
  * Handle incoming Razorpay Webhooks.
  * Validates HMAC SHA-256 signature against RAZORPAY_WEBHOOK_SECRET.
  * Process payment.captured (async recovery / idempotency) and payment.failed events.
+ * 
+ * Supports:
+ * 1. Vendor wallet recharge (notes.type === 'vendor_recharge')
+ * 2. In-app Customer online purchase (notes.vendorZeebacId && notes.customerId)
+ * 3. Direct counter QR UPI scans (PhonePe, Paytm, Google Pay, BHIM):
+ *    - Extracts customer phone from payment.contact or payment.vpa
+ *    - If customer registered: auto-credits cashback to Zeebac wallet & sends notification
+ *    - If customer not registered: logs payment for vendor with ₹0 cashback without debiting vendor
  */
 export const handleRazorpayWebhook = async (req, res) => {
   try {
@@ -43,9 +55,8 @@ export const handleRazorpayWebhook = async (req, res) => {
       const verifiedAmount = (payment.amount || 0) / 100; // paise to rupees
 
       const notes = payment.notes || {};
-      const vendorZeebacId = notes.vendorZeebacId;
-      const customerId = notes.customerId;
-      const paymentMethod = notes.paymentMethod || 'Online (Razorpay Webhook)';
+      const paymentMethod = notes.paymentMethod || 'UPI';
+      const utr = payment.acquirer_data?.rrn || payment.acquirer_data?.upi_transaction_id || payment.acquirer_data?.bank_transaction_id || notes.utr || null;
 
       if (!paymentId) {
         return res.status(400).json({ success: false, message: 'Missing payment ID' });
@@ -55,13 +66,17 @@ export const handleRazorpayWebhook = async (req, res) => {
       const isVendorRecharge = notes.type === 'vendor_recharge' || notes.purpose === 'vendor_wallet_recharge';
 
       const session = await mongoose.startSession();
+      let notificationsToSend = [];
+      let socketEventsToEmit = [];
+      let result = null;
+
       try {
-        let result = null;
         await session.withTransaction(async () => {
           // Idempotency check: Throws DuplicatePaymentError if already processed by client or previous webhook
           await assertGatewayPaymentNotProcessed(session, paymentId);
 
           if (isVendorRecharge && notes.vendorId) {
+            // Vendor wallet recharge
             const vendor = await Vendor.findById(notes.vendorId).session(session);
             if (!vendor) throw new Error(`Vendor ${notes.vendorId} not found`);
 
@@ -77,74 +92,266 @@ export const handleRazorpayWebhook = async (req, res) => {
             });
 
             result = { type: 'vendor_recharge', walletBalance: creditedWallet.balance };
-          } else if (vendorZeebacId && customerId) {
-            // Customer online purchase
-            const vendor = await Vendor.findOne({ status: 'Verified', zeebacId: vendorZeebacId }).session(session);
-            const customer = await User.findById(customerId).session(session);
+          } else {
+            // Customer Purchase (In-App or Counter QR Scan via PhonePe / Paytm / GPay)
+            const targetZeebacId = notes.vendorZeebacId || notes.tr || (payment.description && payment.description.match(/ZBV-[A-Z0-9_-]+/i)?.[0]);
 
-            if (!vendor || !customer) {
-              throw new Error(`Invalid vendor (${vendorZeebacId}) or customer (${customerId}) for payment`);
+            let vendor = null;
+            if (targetZeebacId) {
+              vendor = await Vendor.findOne({ status: 'Verified', zeebacId: targetZeebacId.toUpperCase() }).session(session);
+            }
+            if (!vendor && notes.vendorId && mongoose.Types.ObjectId.isValid(notes.vendorId)) {
+              vendor = await Vendor.findOne({ status: 'Verified', _id: notes.vendorId }).session(session);
+            }
+            if (!vendor && payment.vpa) {
+              vendor = await Vendor.findOne({ status: 'Verified', 'bankDetails.upiId': payment.vpa.toLowerCase() }).session(session);
             }
 
-            const cashbackAmount = calculateCashback(verifiedAmount, vendor.cashbackRate);
+            if (!vendor) {
+              logger.info(`[Razorpay Webhook] Payment ${paymentId} captured without matching verified vendor`);
+              result = { type: 'unassigned_payment', paymentId };
+              return;
+            }
 
-            // Deduct cashback from vendor wallet
-            await debitWallet({
-              session,
-              ownerId: vendor._id,
-              ownerType: 'Vendor',
-              amount: cashbackAmount,
-              category: 'cashback',
-              description: `Cashback paid to customer ${customer.name} (Webhook ${paymentId})`,
-              gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId },
-            });
+            // Customer Identification:
+            // 1. Direct customerId in notes (in-app flow)
+            // 2. Extracted phone from payment.contact or payment.vpa (PhonePe, Paytm, GPay)
+            let customer = null;
+            const extractedPhone = extractCustomerPhoneFromUpi(payment);
 
-            // Credit customer wallet with cashback
-            await creditWallet({
-              session,
-              ownerId: customer._id,
-              ownerType: 'User',
-              ownerZeebacId: customer.zeebacId,
-              amount: cashbackAmount,
-              category: 'cashback',
-              description: `Cashback earned at ${vendor.storeName} (Webhook ${paymentId})`,
-              gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId },
-            });
+            if (notes.customerId && mongoose.Types.ObjectId.isValid(notes.customerId)) {
+              customer = await User.findById(notes.customerId).session(session);
+            } else if (extractedPhone) {
+              customer = await User.findOne({ phone: extractedPhone, role: 'customer' }).session(session);
+            }
 
-              const validPaymentMethods = ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other'];
-              const safePaymentMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : 'Other';
+            const validPaymentMethods = ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other', 'Cash (POS Bill Scan)'];
+            const safePaymentMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : 'UPI';
+            const transactionId = `TX-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
 
-              // Create Transaction record
+            if (customer) {
+              // -------------------------------------------------------------
+              // CASE 1: Customer IS REGISTERED in ZeeBac -> Automatic Cashback
+              // -------------------------------------------------------------
+              const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' }).session(session);
+              const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+              const subState = getVendorSubscriptionState(vendor, vendorBalance);
+              const cashbackRate = vendor.cashbackRate || 0;
+              const cashbackAmount = calculateCashback(verifiedAmount, cashbackRate);
+
+              const canGiveCashback = !subState.cashbackBlocked && vendorBalance >= cashbackAmount && cashbackAmount > 0;
+
+              if (canGiveCashback) {
+                // Deduct cashback from vendor wallet
+                await debitWallet({
+                  session,
+                  ownerId: vendor._id,
+                  ownerType: 'Vendor',
+                  amount: cashbackAmount,
+                  category: 'cashback',
+                  description: `Cashback paid to customer ${customer.name || customer.phone} (Webhook ${paymentId})`,
+                  gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId },
+                });
+
+                // Credit customer wallet with cashback
+                await creditWallet({
+                  session,
+                  ownerId: customer._id,
+                  ownerType: 'User',
+                  ownerZeebacId: customer.zeebacId,
+                  amount: cashbackAmount,
+                  category: 'cashback',
+                  description: `Cashback earned at ${vendor.storeName} (Webhook ${paymentId})`,
+                  gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId },
+                });
+
+                // Create Approved Transaction
+                const [txn] = await Transaction.create([{
+                  transactionId,
+                  customerId: customer._id,
+                  customerZeebacId: customer.zeebacId,
+                  customerPhone: customer.phone,
+                  customerName: customer.name,
+                  vendorId: vendor._id,
+                  vendorZeebacId: vendor.zeebacId,
+                  vendorName: vendor.storeName,
+                  vendorCategory: vendor.category,
+                  amount: verifiedAmount,
+                  cashbackPercent: cashbackRate,
+                  cashbackAmount,
+                  type: 'qr_cashback',
+                  initiatedBy: 'customer',
+                  source: 'upi_qr_scan',
+                  status: 'Approved',
+                  paymentMethod: safePaymentMethod,
+                  gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId, utr },
+                }], { session });
+
+                // Trigger referral first purchase bonus
+                await claimFirstPurchaseReferralBonus({ session, customer });
+
+                // Queue Customer Notification
+                notificationsToSend.push({
+                  recipientId: customer._id,
+                  recipientType: 'customer',
+                  fcmTokens: customer.fcmTokens || [],
+                  type: 'credit',
+                  title: 'Cashback Received! 💸',
+                  message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+                  icon: 'account_balance_wallet',
+                  referenceId: txn._id,
+                  referenceType: 'transaction',
+                });
+
+                // Queue Vendor Notification
+                notificationsToSend.push({
+                  recipientId: vendor._id,
+                  recipientType: 'vendor',
+                  fcmTokens: vendor.fcmTokens || [],
+                  type: 'credit',
+                  title: 'Payment Received',
+                  message: `₹${verifiedAmount} payment received via UPI from ${customer.name || customer.phone}. ₹${cashbackAmount} cashback given.`,
+                  icon: 'payments',
+                  referenceId: txn._id,
+                  referenceType: 'transaction',
+                });
+
+                // Queue Real-time Socket Event
+                socketEventsToEmit.push({
+                  room: `user_${customer._id}`,
+                  event: 'wallet_updated',
+                  data: {
+                    balanceCredit: cashbackAmount,
+                    message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+                    transactionId,
+                  },
+                });
+
+                result = {
+                  type: 'customer_purchase',
+                  registered: true,
+                  transactionId,
+                  cashbackAmount,
+                  customerPhone: customer.phone,
+                };
+              } else {
+                // Customer registered, but cashback blocked (vendor wallet 0 or subscription expired)
+                logger.warn(`[Razorpay Webhook] Cashback blocked for payment ${paymentId}: ${subState.cashbackBlockedReason || 'insufficient balance'}`);
+
+                const [txn] = await Transaction.create([{
+                  transactionId,
+                  customerId: customer._id,
+                  customerZeebacId: customer.zeebacId,
+                  customerPhone: customer.phone,
+                  customerName: customer.name,
+                  vendorId: vendor._id,
+                  vendorZeebacId: vendor.zeebacId,
+                  vendorName: vendor.storeName,
+                  vendorCategory: vendor.category,
+                  amount: verifiedAmount,
+                  cashbackPercent: 0,
+                  cashbackAmount: 0,
+                  type: 'qr_cashback',
+                  initiatedBy: 'customer',
+                  source: 'upi_qr_scan',
+                  status: 'Approved',
+                  flagReason: subState.cashbackBlockedReason || 'Cashback blocked due to vendor subscription or balance',
+                  paymentMethod: safePaymentMethod,
+                  gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId, utr },
+                }], { session });
+
+                notificationsToSend.push({
+                  recipientId: vendor._id,
+                  recipientType: 'vendor',
+                  fcmTokens: vendor.fcmTokens || [],
+                  type: 'system',
+                  title: 'Cashback Blocked',
+                  message: `₹${verifiedAmount} payment received from ${customer.phone}, but cashback was blocked: ${subState.cashbackBlockedReason || 'Insufficient balance'}. Please recharge your wallet.`,
+                  icon: 'warning',
+                  referenceId: txn._id,
+                  referenceType: 'transaction',
+                });
+
+                result = {
+                  type: 'customer_purchase',
+                  registered: true,
+                  transactionId,
+                  cashbackAmount: 0,
+                  reason: subState.cashbackBlockedReason,
+                };
+              }
+            } else {
+              // -------------------------------------------------------------
+              // CASE 2: Customer NOT REGISTERED in ZeeBac
+              // Payment goes to vendor, but NO cashback credited or debited
+              // -------------------------------------------------------------
+              logger.info(`[Razorpay Webhook] Payment from unregistered customer (${extractedPhone || 'unknown'}) to vendor ${vendor.zeebacId}`);
+
+              const guestPhone = extractedPhone || 'Guest';
+              const guestName = extractedPhone ? `Guest (${extractedPhone})` : 'Guest Customer (Unregistered)';
+
               const [txn] = await Transaction.create([{
-                transactionId: `TX-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`,
-                customerId: customer._id,
-                customerZeebacId: customer.zeebacId,
-                customerPhone: customer.phone,
-                customerName: customer.name,
+                transactionId,
+                customerId: null,
+                customerZeebacId: null,
+                customerPhone: guestPhone,
+                customerName: guestName,
                 vendorId: vendor._id,
                 vendorZeebacId: vendor.zeebacId,
                 vendorName: vendor.storeName,
                 vendorCategory: vendor.category,
                 amount: verifiedAmount,
-                cashbackPercent: vendor.cashbackRate,
-                cashbackAmount,
+                cashbackPercent: 0,
+                cashbackAmount: 0,
                 type: 'qr_cashback',
                 initiatedBy: 'customer',
-                source: 'customer_request',
+                source: 'upi_qr_scan',
                 status: 'Approved',
                 paymentMethod: safePaymentMethod,
-                gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId },
+                gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId, utr },
               }], { session });
 
-            // Trigger referral reward
-            await claimFirstPurchaseReferralBonus({ session, customer });
+              // Notify vendor of payment from unregistered customer
+              notificationsToSend.push({
+                recipientId: vendor._id,
+                recipientType: 'vendor',
+                fcmTokens: vendor.fcmTokens || [],
+                type: 'credit',
+                title: 'Payment Received (Unregistered Customer)',
+                message: `₹${verifiedAmount} payment received via UPI from unregistered customer (${guestPhone}). No cashback debited.`,
+                icon: 'payments',
+                referenceId: txn._id,
+                referenceType: 'transaction',
+              });
 
-            result = { type: 'customer_purchase', transactionId: txn.transactionId, cashbackAmount };
-          } else {
-            logger.info(`[Razorpay Webhook] Payment ${paymentId} captured without actionable notes metadata`);
-            result = { type: 'unassigned_payment', paymentId };
+              result = {
+                type: 'customer_purchase',
+                registered: false,
+                transactionId,
+                cashbackAmount: 0,
+                customerPhone: guestPhone,
+              };
+            }
           }
         });
+
+        // 3. Post-Transaction Notification & Socket Broadcasts
+        for (const notif of notificationsToSend) {
+          try {
+            await sendNotification(notif);
+          } catch (err) {
+            logger.error(`[Razorpay Webhook] Notification failed: ${err.message}`);
+          }
+        }
+
+        try {
+          const io = getIO();
+          for (const ev of socketEventsToEmit) {
+            io.to(ev.room).emit(ev.event, ev.data);
+          }
+        } catch {
+          // Socket.io might not be initialized in certain environments (e.g. testing)
+        }
 
         logger.info(`[Razorpay Webhook] Successfully processed payment ${paymentId}`);
         return res.status(200).json({ success: true, message: 'Webhook payment processed successfully', data: result });
@@ -163,7 +370,7 @@ export const handleRazorpayWebhook = async (req, res) => {
       }
     }
 
-    // 3. Handle payment.failed
+    // 4. Handle payment.failed
     if (event === 'payment.failed') {
       const payment = payload?.payment?.entity;
       logger.warn(`[Razorpay Webhook] Payment failed: ID ${payment?.id}, Reason: ${payment?.error_description}`);

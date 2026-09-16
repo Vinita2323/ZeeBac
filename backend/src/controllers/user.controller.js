@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
 import Transaction from '../models/Transaction.js';
@@ -11,6 +12,7 @@ import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
+import { getIO } from '../socket/socket.js';
 import { checkAndNotifyFraud, notifyAdmins } from '../utils/adminNotification.js';
 import { calculateCashback } from '../utils/cashback.util.js';
 import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
@@ -30,9 +32,13 @@ import { signQrToken, verifyQrToken, looksLikeQrToken, CUSTOMER_QR_TTL_SECONDS }
 // ─── Get Customer Profile ───
 export const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-refreshToken -otp -otpExpiry');
+    const user = await User.findById(req.user.id).select('-refreshToken -otp -otpExpiry -security.securityPin');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.status(200).json({ success: true, data: user });
+    const userObj = user.toObject();
+    if (userObj.security) {
+      userObj.security.hasPin = !!(await User.findById(req.user.id).select('security.securityPin'))?.security?.securityPin;
+    }
+    res.status(200).json({ success: true, data: userObj });
   } catch (error) {
     logger.error(`getUserProfile error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -95,7 +101,17 @@ export const lookupVendorById = async (req, res) => {
     const raw = query.trim();
 
     let vendorFilter;
-    if (looksLikeQrToken(raw)) {
+    if (raw.toLowerCase().startsWith('upi://') || raw.includes('tr=') || raw.includes('pa=')) {
+      const trMatch = raw.match(/tr=([^&]+)/i);
+      const paMatch = raw.match(/pa=([^&]+)/i);
+      if (trMatch) {
+        vendorFilter = { status: 'Verified', zeebacId: decodeURIComponent(trMatch[1]).toUpperCase() };
+      } else if (paMatch) {
+        vendorFilter = { status: 'Verified', 'bankDetails.upiId': decodeURIComponent(paMatch[1]).toLowerCase() };
+      } else {
+        vendorFilter = { status: 'Verified', $or: [{ zeebacId: raw.toUpperCase() }, { phone: raw }] };
+      }
+    } else if (looksLikeQrToken(raw)) {
       let decoded;
       try {
         decoded = verifyQrToken(raw);
@@ -828,7 +844,7 @@ export const getNearbyVendors = async (req, res) => {
       }
     });
 
-    const vendors = await Vendor.find(query).select('storeName zeebacId category storeLogo profilePic address cashbackRate stats subscription shopType');
+    const vendors = await Vendor.find(query).select('storeName zeebacId category storeLogo profilePic address cashbackRate stats subscription shopType location');
 
     const visibleVendors = vendors
       .filter(vendor => {
@@ -1148,3 +1164,311 @@ export const processWalletPayment = async (req, res) => {
     session.endSession();
   }
 };
+
+/**
+ * Claim cashback using 12-digit UPI UTR / Reference ID / Transaction ID.
+ * Specifically handles the case when Google Pay or UPI apps hide customer phone number
+ * during counter QR scans.
+ *
+ * @route POST /api/user/transactions/claim-upi-utr
+ * @param {string} req.body.utr - 12-digit UPI reference ID, RRN, or gateway payment ID
+ */
+export const claimUpiCashbackByUtr = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const customerId = req.user.id;
+    const { utr } = req.body;
+
+    if (!utr || typeof utr !== 'string' || !utr.trim()) {
+      return res.status(400).json({ success: false, message: 'UPI Reference ID / UTR is required' });
+    }
+
+    const cleanUtr = utr.trim();
+
+    // 1. Find transaction matching utr, gatewayPaymentId, or transactionId
+    const tx = await Transaction.findOne({
+      $or: [
+        { 'gateway.utr': cleanUtr },
+        { 'gateway.gatewayPaymentId': cleanUtr },
+        { transactionId: cleanUtr },
+      ],
+    });
+
+    if (!tx) {
+      return res.status(404).json({
+        success: false,
+        message: 'No payment found matching this UPI Reference ID / UTR. Please ensure your payment to the store was completed.',
+      });
+    }
+
+    // 2. Duplicate claim validation
+    if (tx.customerId && tx.cashbackAmount > 0) {
+      if (tx.customerId.toString() === customerId.toString()) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already claimed cashback for this payment!',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: 'This UPI payment has already been claimed for cashback.',
+      });
+    }
+
+    // 3. Find customer and vendor
+    const customer = await User.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer account not found' });
+    }
+
+    const vendor = await Vendor.findById(tx.vendorId);
+    if (!vendor || vendor.status !== 'Verified') {
+      return res.status(400).json({ success: false, message: 'Store is not eligible for cashback' });
+    }
+
+    // 4. Check vendor subscription and wallet balance
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, vendorBalance);
+
+    const cashbackRate = vendor.cashbackRate || 0;
+    const cashbackAmount = calculateCashback(tx.amount, cashbackRate);
+
+    if (subState.cashbackBlocked || vendorBalance < cashbackAmount || cashbackAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: subState.cashbackBlockedReason || 'Vendor has insufficient cashback wallet balance. Please contact the store.',
+      });
+    }
+
+    let updatedTx = null;
+    let newCustomerBalance = 0;
+
+    await session.withTransaction(async () => {
+      // Debit vendor wallet for cashback
+      await debitWallet({
+        session,
+        ownerId: vendor._id,
+        ownerType: 'Vendor',
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `UPI UTR cashback paid to ${customer.name || customer.phone} (UTR: ${cleanUtr})`,
+        gateway: { gatewayName: 'Razorpay', gatewayOrderId: tx.gateway?.gatewayOrderId },
+      });
+
+      // Credit customer wallet for cashback
+      const creditedWallet = await creditWallet({
+        session,
+        ownerId: customer._id,
+        ownerType: 'User',
+        ownerZeebacId: customer.zeebacId,
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `Cashback earned at ${vendor.storeName} via UPI UTR Claim`,
+        gateway: { gatewayName: 'Razorpay', gatewayOrderId: tx.gateway?.gatewayOrderId, gatewayPaymentId: `${tx.gateway?.gatewayPaymentId || cleanUtr}_claim` },
+      });
+      newCustomerBalance = creditedWallet.balance;
+
+      // Update Transaction to link to this customer
+      tx.customerId = customer._id;
+      tx.customerZeebacId = customer.zeebacId;
+      tx.customerPhone = customer.phone;
+      tx.customerName = customer.name;
+      tx.cashbackAmount = cashbackAmount;
+      tx.cashbackPercent = cashbackRate;
+      tx.source = 'upi_utr_claim';
+      tx.status = 'Approved';
+      if (!tx.gateway?.utr) {
+        tx.gateway = tx.gateway || {};
+        tx.gateway.utr = cleanUtr;
+      }
+      await tx.save({ session });
+      updatedTx = tx;
+
+      // First purchase referral bonus
+      await claimFirstPurchaseReferralBonus({ session, customer });
+    });
+
+    // 5. Post-transaction notifications and socket events
+    try {
+      await sendNotification({
+        recipientId: customer._id,
+        recipientType: 'customer',
+        fcmTokens: customer.fcmTokens || [],
+        type: 'credit',
+        title: 'Cashback Claimed! 💸',
+        message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+        icon: 'account_balance_wallet',
+        referenceId: updatedTx._id,
+        referenceType: 'transaction',
+      });
+
+      await sendNotification({
+        recipientId: vendor._id,
+        recipientType: 'vendor',
+        fcmTokens: vendor.fcmTokens || [],
+        type: 'credit',
+        title: 'Cashback Claimed by Customer',
+        message: `Customer ${customer.name || customer.phone} claimed ₹${cashbackAmount} cashback for ₹${tx.amount} UPI payment (UTR: ${cleanUtr}).`,
+        icon: 'payments',
+        referenceId: updatedTx._id,
+        referenceType: 'transaction',
+      });
+    } catch (notifErr) {
+      logger.error(`[claimUpiCashbackByUtr] Notification error: ${notifErr.message}`);
+    }
+
+    try {
+      const io = getIO();
+      io.to(`user_${customer._id}`).emit('wallet_updated', {
+        balanceCredit: cashbackAmount,
+        newBalance: newCustomerBalance,
+        message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+        transactionId: updatedTx.transactionId,
+      });
+    } catch {
+      // socket might be uninitialized in test
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully claimed ₹${cashbackAmount} cashback from ${vendor.storeName}!`,
+      data: {
+        transactionId: updatedTx.transactionId,
+        amount: tx.amount,
+        cashbackEarned: cashbackAmount,
+        vendorName: vendor.storeName,
+        vendorZeebacId: vendor.zeebacId,
+        newWalletBalance: newCustomerBalance,
+      },
+    });
+  } catch (error) {
+    logger.error(`[claimUpiCashbackByUtr] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server Error claiming UPI cashback', error: error.message });
+  } finally {
+    session.endSession();
+  }
+};
+
+// ─── Security: Set or Update Security PIN ───
+export const setupSecurityPin = async (req, res) => {
+  try {
+    const { pin, currentPin } = req.body;
+    const cleanPin = String(pin || '').trim();
+
+    if (!cleanPin || cleanPin.length < 4 || cleanPin.length > 8) {
+      return res.status(400).json({ success: false, message: 'Security PIN must be between 4 and 8 digits' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // If a PIN is already set, require verification of the current PIN
+    if (user.security?.securityPin) {
+      if (!currentPin) {
+        return res.status(400).json({ success: false, message: 'Current PIN is required to set a new PIN' });
+      }
+      const isMatch = await bcrypt.compare(String(currentPin).trim(), user.security.securityPin);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Current PIN is incorrect' });
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPin = await bcrypt.hash(cleanPin, salt);
+
+    if (!user.security) {
+      user.security = {};
+    }
+    user.security.securityPin = hashedPin;
+    await user.save();
+
+    logger.info(`[Security] User ${user._id} configured Security PIN`);
+    return res.status(200).json({
+      success: true,
+      message: 'Security PIN set successfully',
+      data: {
+        hasPin: true,
+        biometricEnabled: !!user.security.biometricEnabled,
+      },
+    });
+  } catch (error) {
+    logger.error(`[setupSecurityPin] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Security: Toggle Biometric Authentication ───
+export const toggleBiometricSecurity = async (req, res) => {
+  try {
+    const { enabled, credentialId } = req.body;
+    const isEnabled = Boolean(enabled);
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (!user.security) {
+      user.security = {};
+    }
+
+    // Require a fallback PIN before enabling biometrics
+    if (isEnabled && !user.security.securityPin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please set up a Security PIN/Password first as a fallback before enabling biometrics.',
+        code: 'PIN_REQUIRED',
+      });
+    }
+
+    user.security.biometricEnabled = isEnabled;
+    if (credentialId) {
+      user.security.biometricCredentialId = String(credentialId);
+    }
+    await user.save();
+
+    logger.info(`[Security] User ${user._id} set biometricEnabled = ${isEnabled}`);
+    return res.status(200).json({
+      success: true,
+      message: isEnabled ? 'Biometric security enabled successfully' : 'Biometric security disabled',
+      data: {
+        biometricEnabled: user.security.biometricEnabled,
+        hasPin: !!user.security.securityPin,
+      },
+    });
+  } catch (error) {
+    logger.error(`[toggleBiometricSecurity] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Security: Verify Security PIN ───
+export const verifySecurityPin = async (req, res) => {
+  try {
+    const { pin } = req.body;
+    if (!pin) {
+      return res.status(400).json({ success: false, message: 'Security PIN is required' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (!user.security?.securityPin) {
+      return res.status(400).json({ success: false, message: 'No Security PIN is configured on this account' });
+    }
+
+    const isMatch = await bcrypt.compare(String(pin).trim(), user.security.securityPin);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Incorrect Security PIN / Password. Please try again.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'PIN verified successfully',
+    });
+  } catch (error) {
+    logger.error(`[verifySecurityPin] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
