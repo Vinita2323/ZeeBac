@@ -41,6 +41,7 @@ app.use((req, res, next) => {
 
 // Import routes
 import authRoutes from './routes/auth.routes.js';
+import { vendorLogin } from './controllers/auth.controller.js';
 import adminRoutes from './routes/admin.routes.js';
 import vendorRoutes from './routes/vendor.routes.js';
 import userRoutes from './routes/user.routes.js';
@@ -53,7 +54,7 @@ import fcmRoutes from './routes/fcm.routes.js';
 import storyRoutes from './routes/story.routes.js';
 
 app.use('/api/auth', authRoutes);
-app.use('/api/vendor-app', authRoutes); // Fallback alias for vendor auth endpoints
+app.post('/api/vendor-app/login', vendorLogin); // Direct fallback alias for legacy client route
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/user', userRoutes);
