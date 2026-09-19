@@ -6,6 +6,7 @@ import useAuthStore from '../../../store/useAuthStore';
 import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 
+
 export default function WalletScreen() {
   const navigate = useNavigate();
   const authBalance = useAuthStore((state) => state.walletBalance);
@@ -21,6 +22,7 @@ export default function WalletScreen() {
   const [utrError, setUtrError] = useState('');
   const [isClaimingUtr, setIsClaimingUtr] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
+
 
   // Fetch real wallet and activities
   useEffect(() => {

@@ -831,6 +831,7 @@ export default function ProfileScreen() {
         onClose={() => setShowLoanModal(false)}
       />
 
+
       <BottomNavBar />
     </div>
   );

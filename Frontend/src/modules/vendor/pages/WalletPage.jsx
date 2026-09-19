@@ -1026,7 +1026,6 @@ export default function WalletPage() {
           </div>
         </div>
       )}
-
       {/* Vendor Loan Modal */}
       <VendorLoanModal
         isOpen={showLoanModal}
