@@ -53,6 +53,7 @@ import fcmRoutes from './routes/fcm.routes.js';
 import storyRoutes from './routes/story.routes.js';
 
 app.use('/api/auth', authRoutes);
+app.use('/api/vendor-app', authRoutes); // Fallback alias for vendor auth endpoints
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/user', userRoutes);

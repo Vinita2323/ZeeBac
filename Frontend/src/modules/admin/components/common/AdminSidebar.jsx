@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthAPI, AdminAPI } from '../../../../services/api';
+import useAuthStore from '../../../../store/useAuthStore';
 
 export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileClose }) {
   const navigate = useNavigate();
@@ -25,18 +26,19 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
-    { label: 'Users', icon: 'person', path: '/admin/users' },
+    { label: 'Users', icon: 'group', path: '/admin/users' },
     { label: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
-    { label: 'Subscriptions', icon: 'card_membership', path: '/admin/subscriptions' },
+    { label: 'Subscription Plans', icon: 'card_membership', path: '/admin/subscriptions' },
     { label: 'Transactions', icon: 'receipt_long', path: '/admin/transactions' },
-    { label: 'Pending Payouts', icon: 'account_balance', path: '/admin/payouts' },
+    { label: 'Payout Requests', icon: 'payments', path: '/admin/payouts' },
     { label: 'Cashback Rules', icon: 'tune', path: '/admin/rules' },
+    { label: 'Platform Analytics', icon: 'analytics', path: '/admin/analytics' },
     { label: 'Wallet Monitor', icon: 'account_balance_wallet', path: '/admin/wallet' },
     { label: 'Fraud Detection', icon: 'security', path: '/admin/fraud' },
-    { label: 'Referrals', icon: 'hub', path: '/admin/referrals' },
-    { label: 'Rewards', icon: 'featured_play_list', path: '/admin/rewards' },
-    { label: 'Support', icon: 'support_agent', path: '/admin/support' },
-    { label: 'Analytics', icon: 'insights', path: '/admin/analytics' },
+    { label: 'Referral Program', icon: 'share', path: '/admin/referrals' },
+    { label: 'Rewards Manager', icon: 'military_tech', path: '/admin/rewards' },
+    { label: 'Support Tickets', icon: 'headset_mic', path: '/admin/support', badge: openTicketsCount > 0 ? openTicketsCount : null },
+    { label: 'Notifications', icon: 'campaign', path: '/admin/notifications' },
   ];
 
   const handleNavClick = (path) => {
@@ -50,16 +52,10 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     setShowLogoutConfirm(true);
   };
 
-  const executeLogout = async () => {
-    try {
-      await AuthAPI.logout();
-      navigate('/admin/login');
-    } catch (error) {
-      console.error('Logout failed', error);
-      // Fallback
-      localStorage.removeItem('zeebac_current_user');
-      navigate('/admin/login');
-    }
+  const executeLogout = () => {
+    setShowLogoutConfirm(false);
+    useAuthStore.getState().logout();
+    navigate('/admin/login', { replace: true });
   };
 
   return (
@@ -143,7 +139,9 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
       {/* Bottom Profile Area */}
       <div className={`p-4 border-t border-[#cbbedf] bg-[#dad0ed] flex ${isCollapsed ? 'justify-center' : ''}`}>
         <div 
-          className={`flex items-center gap-3 ${isCollapsed ? 'p-1' : 'p-2'} rounded-xl hover:bg-[#ccbfeb] transition-colors cursor-pointer w-full`}
+          onClick={isCollapsed ? handleLogoutClick : undefined}
+          title={isCollapsed ? "Click to Log Out" : undefined}
+          className={`flex items-center gap-3 ${isCollapsed ? 'p-1 justify-center' : 'p-2'} rounded-xl hover:bg-[#ccbfeb] transition-colors cursor-pointer w-full`}
         >
           <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold text-base flex-shrink-0 border border-red-500/20">
             <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
@@ -154,7 +152,12 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
                 <p className="font-title-md font-bold text-[13px] text-[#381a6c] truncate">Super Admin</p>
                 <p className="text-[11px] text-[#70549c] truncate">God Mode Active</p>
               </div>
-              <button onClick={handleLogoutClick} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-[#70549c] hover:text-red-600 transition-colors cursor-pointer">
+              <button 
+                type="button"
+                onClick={handleLogoutClick} 
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-[#70549c] hover:text-red-600 transition-colors cursor-pointer"
+                title="Log Out"
+              >
                 <span className="material-symbols-outlined text-[18px]">logout</span>
               </button>
             </>

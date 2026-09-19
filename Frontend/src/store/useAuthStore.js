@@ -96,35 +96,37 @@ const useAuthStore = create((set, get) => ({
     set({ accessToken: token });
   },
 
-  // Log out and clear all persisted session data
-  logout: async () => {
-    try {
-      const token = localStorage.getItem('zeebac_access_token');
-      if (token) {
-        const { apiClient } = await import('../services/api.js');
-        await apiClient.post('/auth/logout').catch(() => {});
-        const { disconnectSocket } = await import('../services/socket.js');
-        disconnectSocket(true);
-      }
-    } catch (e) {
-      console.warn('Backend logout silent failure:', e);
-    } finally {
-      localStorage.removeItem('zeebac_current_user');
-      localStorage.removeItem('zeebac_access_token');
-      localStorage.removeItem('zeebac_refresh_token');
-      localStorage.removeItem('vendor_transactions');
-      localStorage.removeItem('vendor_balance');
-      localStorage.removeItem('zeebac_wallet_balance');
-      localStorage.removeItem('zeebac_transactions');
-      localStorage.removeItem('user_profile');
-      localStorage.removeItem('cashback_requests');
+  // Log out and clear all persisted session data immediately
+  logout: () => {
+    const token = localStorage.getItem('zeebac_access_token');
 
-      set({
-        currentUser: null,
-        accessToken: null,
-        isAuthenticated: false,
-        walletBalance: 0,
-      });
+    // 1. Immediately wipe all local storage keys
+    localStorage.removeItem('zeebac_current_user');
+    localStorage.removeItem('zeebac_access_token');
+    localStorage.removeItem('zeebac_refresh_token');
+    localStorage.removeItem('vendor_transactions');
+    localStorage.removeItem('vendor_balance');
+    localStorage.removeItem('zeebac_wallet_balance');
+    localStorage.removeItem('zeebac_transactions');
+    localStorage.removeItem('user_profile');
+    localStorage.removeItem('cashback_requests');
+
+    // 2. Immediately reset store state
+    set({
+      currentUser: null,
+      accessToken: null,
+      isAuthenticated: false,
+      walletBalance: 0,
+    });
+
+    // 3. Fire-and-forget backend notification & socket disconnect in background
+    if (token) {
+      import('../services/api.js')
+        .then(({ apiClient }) => apiClient.post('/auth/logout').catch(() => {}))
+        .catch(() => {});
+      import('../services/socket.js')
+        .then(({ disconnectSocket }) => disconnectSocket(true))
+        .catch(() => {});
     }
   },
 

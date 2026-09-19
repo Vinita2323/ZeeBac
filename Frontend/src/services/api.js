@@ -72,7 +72,7 @@ export const AuthAPI = {
     return res.data; // { success, accessToken, refreshToken, user }
   },
   vendorLogin: async (data) => {
-    const res = await apiClient.post('/vendor-app/login', data);
+    const res = await apiClient.post('/auth/vendor-app/login', data);
     return res.data;
   },
   adminLogin: async (data) => {
@@ -99,8 +99,11 @@ export const AuthAPI = {
     return res.data;
   },
   logout: async () => {
-    await apiClient.post('/auth/logout');
-    useAuthStore.getState().logout();
+    try {
+      await apiClient.post('/auth/logout').catch(() => {});
+    } finally {
+      useAuthStore.getState().logout();
+    }
   },
   getMe: async () => {
     const res = await apiClient.get('/auth/me');

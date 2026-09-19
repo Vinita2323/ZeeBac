@@ -58,7 +58,7 @@ export default function ApplicationRejectedScreen() {
         </button>
 
         <button
-          onClick={() => { logout(); navigate('/vendor-app/login'); }}
+          onClick={() => { logout(); navigate('/vendor-app/login', { replace: true }); }}
           className="w-full h-11 rounded-xl border border-gray-200 text-gray-500 font-bold text-[13px] hover:bg-gray-50 transition-colors cursor-pointer"
         >
           Log Out

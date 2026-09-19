@@ -7,16 +7,10 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   const location = useLocation();
   const currentUser = useAuthStore((state) => state.currentUser) || {};
 
-  const handleLogout = async (e) => {
-    e.stopPropagation(); // prevent triggering the profile navigation
-    try {
-      await AuthAPI.logout();
-      navigate('/vendor-app/login');
-    } catch (error) {
-      console.error('Logout failed', error);
-      localStorage.removeItem('zeebac_current_user');
-      navigate('/vendor-app/login');
-    }
+  const handleLogout = (e) => {
+    if (e) e.stopPropagation();
+    useAuthStore.getState().logout();
+    navigate('/vendor-app/login', { replace: true });
   };
 
   const navItems = [
@@ -112,26 +106,42 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
       </nav>
 
       {/* Bottom Profile Area */}
-      <div className={`p-4 border-t border-outline-variant/10 bg-white/50 flex ${isCollapsed ? 'justify-center' : ''}`}>
+      <div className={`p-4 border-t border-outline-variant/10 bg-white/50 flex ${isCollapsed ? 'flex-col items-center gap-2' : ''}`}>
         <div
           onClick={() => handleNavClick('/vendor/profile')}
-          className={`flex items-center gap-3 ${isCollapsed ? 'p-1' : 'p-2'} rounded-xl hover:bg-surface-container-low transition-colors cursor-pointer w-full`}
+          className={`flex items-center gap-3 ${isCollapsed ? 'p-1 justify-center' : 'p-2'} rounded-xl hover:bg-surface-container-low transition-colors cursor-pointer ${isCollapsed ? '' : 'w-full'}`}
+          title="Vendor Profile"
         >
           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0">
-            N
+            {currentUser?.storeName ? currentUser.storeName.charAt(0).toUpperCase() : 'V'}
           </div>
           {!isCollapsed && (
             <>
               <div className="flex-1 text-left min-w-0">
                 <p className="font-title-md font-bold text-[13px] text-on-surface truncate">{currentUser?.storeName || 'Vendor Store'}</p>
-                <p className="text-[11px] text-on-surface-variant truncate">Premium Fashion</p>
+                <p className="text-[11px] text-on-surface-variant truncate">Vendor Account</p>
               </div>
-              <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors">
+              <button 
+                type="button"
+                onClick={handleLogout} 
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors cursor-pointer"
+                title="Log Out"
+              >
                 <span className="material-symbols-outlined text-[18px]">logout</span>
               </button>
             </>
           )}
         </div>
+        {isCollapsed && (
+          <button 
+            type="button"
+            onClick={handleLogout} 
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors cursor-pointer"
+            title="Log Out"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+          </button>
+        )}
       </div>
     </aside>
   );
