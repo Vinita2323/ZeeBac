@@ -654,7 +654,7 @@ export default function ProfileScreen() {
         <button 
           onClick={() => {
             logout();
-            navigate('/login', { replace: true });
+            window.location.replace('/login');
           }}
           className="w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"
         >

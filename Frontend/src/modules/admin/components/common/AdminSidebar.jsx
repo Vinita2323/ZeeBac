@@ -55,7 +55,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
   const executeLogout = () => {
     setShowLogoutConfirm(false);
     useAuthStore.getState().logout();
-    navigate('/admin/login', { replace: true });
+    window.location.replace('/admin/login');
   };
 
   return (
@@ -199,6 +199,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
           </div>
         </div>
       </div>,
+      document.body
     )}
     </>
   );

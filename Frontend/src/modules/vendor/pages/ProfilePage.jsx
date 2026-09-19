@@ -904,7 +904,7 @@ export default function ProfilePage() {
         <button 
           onClick={() => {
             logout();
-            navigate('/vendor-app/login', { replace: true });
+            window.location.replace('/vendor-app/login');
           }} 
           className="w-full py-4 bg-[#fff5f5] hover:bg-[#ffebeb] text-red-600 border border-red-100 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-sm mt-3"
         >

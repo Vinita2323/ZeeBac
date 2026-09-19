@@ -6,7 +6,7 @@ export default function VendorTopBar() {
 
   const handleLogout = () => {
     useAuthStore.getState().logout();
-    navigate('/vendor-app/login', { replace: true });
+    window.location.replace('/vendor-app/login');
   };
 
   return (

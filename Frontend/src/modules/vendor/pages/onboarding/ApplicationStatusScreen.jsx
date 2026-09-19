@@ -84,7 +84,7 @@ export default function ApplicationStatusScreen() {
         )}
 
         <button
-          onClick={() => { logout(); navigate('/vendor-app/login', { replace: true }); }}
+          onClick={() => { logout(); window.location.replace('/vendor-app/login'); }}
           className="w-full h-11 rounded-xl border border-gray-200 text-gray-500 font-bold text-[13px] hover:bg-gray-50 transition-colors cursor-pointer"
         >
           Log Out

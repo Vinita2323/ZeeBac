@@ -51,7 +51,7 @@ export default function AdminTopBar({ onMenuClick }) {
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     useAuthStore.getState().logout();
-    navigate('/admin/login', { replace: true });
+    window.location.replace('/admin/login');
   };
 
   return (
