@@ -15,6 +15,7 @@ import ScanQRScreen from './pages/ScanQRScreen';
 import FindVendorScreen from './pages/FindVendorScreen';
 import PayVendorScreen from './pages/PayVendorScreen';
 import ChatScreen from './pages/ChatScreen';
+import ApplyLoanScreen from './pages/ApplyLoanScreen';
 import ProtectedRoute from '../auth/components/ProtectedRoute';
 
 export default function UserRoutes() {
@@ -40,6 +41,7 @@ export default function UserRoutes() {
         <Route path="/scan" element={<ScanQRScreen />} />
         <Route path="/find-vendor" element={<FindVendorScreen />} />
         <Route path="/pay-vendor" element={<PayVendorScreen />} />
+        <Route path="/apply-loan" element={<ApplyLoanScreen />} />
       </Route>
     </Routes>
   );

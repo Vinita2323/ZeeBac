@@ -233,7 +233,7 @@ export default function ProfilePage() {
     <div className="animate-reveal text-left" style={{ fontFamily: "'Quicksand', sans-serif" }}>
       
       {/* Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/90 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-0">
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-0">
         <div className="flex items-center">
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
             <span className="material-symbols-outlined text-primary">arrow_back</span>
@@ -242,17 +242,17 @@ export default function ProfilePage() {
         </div>
         <button 
           onClick={handleEditSave}
-          className="flex items-center gap-1.5 px-4 py-1.5 border border-primary text-primary rounded-full font-bold text-[13px] hover:bg-primary/5 transition-all active:scale-[0.97] cursor-pointer"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 border border-primary text-primary rounded-full font-bold text-[12px] sm:text-[13px] hover:bg-primary/5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
         >
           <span className="material-symbols-outlined text-[16px]">{isEditing ? 'save' : 'edit'}</span>
-          {isEditing ? 'Save Profile' : 'Edit Profile'}
+          {isEditing ? 'Save' : 'Edit'}
         </button>
       </header>
 
       <div className="space-y-5 pt-0 pb-6">
 
         {/* Profile Card Banner */}
-        <div className="relative overflow-hidden -mx-container-margin px-container-margin py-6 text-white shadow-md bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] flex flex-col justify-between rounded-b-3xl">
+        <div className="relative overflow-hidden -mx-3 sm:-mx-4 md:mx-0 px-4 sm:px-6 py-6 text-white shadow-md bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] flex flex-col justify-between rounded-b-3xl">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl -mt-10 -mr-10 pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/20 rounded-full blur-xl -mb-10 -ml-10 pointer-events-none" />
           

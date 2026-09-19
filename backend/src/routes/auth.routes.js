@@ -14,7 +14,7 @@ router.post('/send-otp', otpLimiter, sendOtp);
 
 // Logins
 router.post('/customer/login', loginLimiter, customerLogin);
-router.post('/vendor/login', loginLimiter, vendorLogin);
+router.post('/vendor-app/login', loginLimiter, vendorLogin);
 router.post('/admin/login', adminLoginLimiter, adminLogin);
 
 // Signups

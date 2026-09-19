@@ -10,7 +10,10 @@ import Product from '../models/Product.js';
 import Referral from '../models/Referral.js';
 import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
+import OtpVerification from '../models/OtpVerification.js';
 import logger from '../utils/logger.js';
+import { sendOtpSms } from '../utils/sms.util.js';
+import { verifyOtpOnly } from './auth.controller.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import { checkAndNotifyFraud, notifyAdmins } from '../utils/adminNotification.js';
@@ -67,24 +70,109 @@ export const updateUserLocation = async (req, res) => {
   }
 };
 
-// ─── Update Linked Account ───
-export const updateLinkedAccount = async (req, res) => {
+// ─── 1. Send OTP for Customer Bank Account Linking / Updating ───
+export const sendUserBankOtp = async (req, res) => {
   try {
-    const { upiId, bankName, accNo } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
+    const phone = user.phone;
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'No registered mobile number found on your account. Please update your profile phone number first.',
+      });
+    }
+
+    const useDefaultOtp = process.env.USE_DEFAULT_OTP === 'true';
+    const otp = useDefaultOtp ? '1234' : Math.floor(1000 + Math.random() * 9000).toString();
+
+    const salt = await bcrypt.genSalt(10);
+    const otpHash = await bcrypt.hash(otp, salt);
+
+    await OtpVerification.deleteMany({ phone, purpose: 'bank_update', role: 'customer' });
+
+    await OtpVerification.create({
+      phone,
+      otpHash,
+      purpose: 'bank_update',
+      role: 'customer',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes validity
+    });
+
+    await sendOtpSms(phone, otp);
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    const lastDigits = cleanPhone.slice(-4) || 'XXXX';
+    const firstDigits = cleanPhone.slice(0, 2) || '';
+    const maskedPhone = `+91 ${firstDigits}******${lastDigits}`;
+
+    logger.info(`[sendUserBankOtp] Bank update OTP sent to user ${user._id} (${maskedPhone})`);
+
+    res.status(200).json({
+      success: true,
+      message: `OTP sent successfully to registered mobile number ${maskedPhone}`,
+      maskedPhone,
+    });
+  } catch (error) {
+    logger.error(`Error in sendUserBankOtp: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Failed to send OTP' });
+  }
+};
+
+// ─── 2. Verify OTP & Update Linked Account ───
+export const updateLinkedAccount = async (req, res) => {
+  try {
+    const { upiId, bankName, accNo, accountHolderName, ifscCode, otp } = req.body;
+
+    if (!bankName?.trim()) {
+      return res.status(400).json({ success: false, message: 'Receiving bank name is required' });
+    }
+    const cleanAcc = (accNo || '').toString().trim();
+    if (!cleanAcc || cleanAcc.length < 4) {
+      return res.status(400).json({ success: false, message: 'Valid bank account number is required' });
+    }
+    if (!otp?.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Verification OTP is required to link bank account' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (!user.phone) {
+      return res.status(400).json({ success: false, message: 'No registered mobile number found' });
+    }
+
+    // Verify OTP
+    try {
+      await verifyOtpOnly(user.phone, otp.toString().trim(), 'bank_update', 'customer');
+    } catch (otpErr) {
+      return res.status(400).json({ success: false, message: otpErr.message || 'Invalid or expired OTP' });
+    }
+
+    // Save Bank Details
+    const now = new Date();
     user.bankDetails = {
-      upiId: upiId || '',
-      bankName: bankName || '',
-      accountNumber: accNo || '',
+      accountHolderName: (accountHolderName || user.name || '').trim(),
+      bankName: bankName.trim(),
+      accountNumber: cleanAcc,
+      ifscCode: (ifscCode || '').toString().trim().toUpperCase(),
+      upiId: (upiId || '').toString().trim(),
+      isVerified: true,
+      verifiedAt: now,
     };
     await user.save();
 
-    res.status(200).json({ success: true, message: 'Linked account updated successfully', data: user.bankDetails });
+    logger.info(`[updateLinkedAccount] User ${user._id} successfully verified & linked bank account ending in ${cleanAcc.slice(-4)}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Bank account verified and linked successfully!',
+      data: user.bankDetails,
+    });
   } catch (error) {
     logger.error(`updateLinkedAccount error: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
   }
 };
 
@@ -626,7 +714,17 @@ export const getFavoriteVendors = async (req, res) => {
 // 1. Get Wallet and Recent Ledger
 export const getMyWallet = async (req, res) => {
   try {
-    const wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
+    let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
+    if (!wallet) {
+      wallet = await Wallet.create({
+        ownerId: req.user.id,
+        ownerType: 'User',
+        ownerZeebacId: req.user.zeebacId || 'USER-INIT',
+        balance: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
+      });
+    }
     const ledger = await WalletTransaction.find({ ownerId: req.user.id, ownerType: 'User' })
       .sort({ createdAt: -1 })
       .limit(50);

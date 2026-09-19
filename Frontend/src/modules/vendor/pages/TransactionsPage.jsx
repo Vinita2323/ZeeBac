@@ -23,6 +23,7 @@ export default function TransactionsPage() {
             id: t.transactionId,
             customer: t.customerName || t.customerPhone,
             amount: `₹${t.amount.toLocaleString()}`,
+            rawAmount: t.amount,
             time: new Date(t.timestamp).toLocaleString(),
             status: t.status,
             hasReceipt: t.hasReceipt,
@@ -38,6 +39,10 @@ export default function TransactionsPage() {
     };
     fetchTransactions();
   }, []);
+
+  const totalApprovedSales = transactions
+    .filter(t => t.status === 'Approved')
+    .reduce((sum, t) => sum + (t.rawAmount || 0), 0);
 
   const filteredTransactions = transactions.filter(t => {
     const matchesTab = activeTab === 'All' || t.status === activeTab;
@@ -57,15 +62,30 @@ export default function TransactionsPage() {
   return (
     <div className="animate-reveal text-left">
 
-      {/* Mobile Header — like user app sub-pages */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-2">
+      {/* Mobile Header */}
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Transactions</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">Store Sales & Bills</span>
       </header>
 
       <div className="space-y-3.5 pt-1">
+        {/* Total Store Sales Summary Card */}
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Total Store Sales (Revenue)</p>
+            <h2 className="text-2xl font-black font-display mt-0.5">₹{totalApprovedSales.toLocaleString('en-IN')}</h2>
+            <p className="text-[11px] text-emerald-100/90 mt-0.5">{transactions.filter(t => t.status === 'Approved').length} Approved Customer Orders</p>
+          </div>
+          <button 
+            onClick={() => navigate('/vendor/passbook')}
+            className="self-start sm:self-auto text-[11px] font-bold bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <span>Passbook</span>
+            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+          </button>
+        </div>
         {/* Search Bar */}
         <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>

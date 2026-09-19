@@ -277,10 +277,10 @@ export default function StorefrontPage() {
   };
 
   return (
-    <div className="animate-reveal text-left flex flex-col h-[calc(100vh-100px)] md:h-[calc(100vh-40px)]" style={{ fontFamily: "'Quicksand', sans-serif" }}>
+    <div className="animate-reveal text-left flex flex-col min-h-full pb-16" style={{ fontFamily: "'Quicksand', sans-serif" }}>
       
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
@@ -288,12 +288,12 @@ export default function StorefrontPage() {
       </header>
 
       {/* Internal Tabs */}
-      <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-[72px] md:top-0 z-30 -mx-container-margin px-container-margin md:mx-0 md:px-0">
+      <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-[57px] md:top-0 z-30 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
         {['catalog', 'media', 'promotions', 'stories'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-3.5 font-title-md text-[14px] capitalize cursor-pointer border-b-2 text-center whitespace-nowrap transition-all ${
+            className={`flex-1 py-3 sm:py-3.5 px-2 sm:px-3 font-title-md text-[13px] sm:text-[14px] capitalize cursor-pointer border-b-2 text-center whitespace-nowrap transition-all ${
               activeTab === tab 
                 ? 'border-primary text-primary font-bold' 
                 : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest'

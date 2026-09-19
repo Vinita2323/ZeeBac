@@ -18,6 +18,21 @@ export default function VendorScanCustomerScreen() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [cameraStatus, setCameraStatus] = useState('starting'); // starting | active | denied
+  const [recentCustomers, setRecentCustomers] = useState([]);
+
+  useEffect(() => {
+    const fetchRecents = async () => {
+      try {
+        const res = await VendorAPI.getVendorCustomers();
+        if (res.success && Array.isArray(res.data)) {
+          setRecentCustomers(res.data.slice(0, 4));
+        }
+      } catch (e) {
+        // silent
+      }
+    };
+    fetchRecents();
+  }, []);
 
   const lookupCustomer = async (searchQuery) => {
     try {
@@ -257,29 +272,29 @@ export default function VendorScanCustomerScreen() {
 
             {/* Recent Customers Quick Select */}
             <div className="mt-4 pt-3 border-t border-outline-variant/10">
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Recent</p>
-              {(() => {
-                const currentUser = JSON.parse(localStorage.getItem('zeebac_current_user') || '{}');
-                const txns = JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-                const myTxns = txns.filter(t => t.vendorId === currentUser.zeebacId).slice(0, 3);
-                if (myTxns.length === 0) return <p className="text-[11px] text-on-surface-variant/60">No recent transactions yet</p>;
-                return (
-                  <div className="flex gap-2 overflow-x-auto scroll-hide pb-1">
-                    {myTxns.map((txn, idx) => (
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Recent Customers</p>
+              {recentCustomers.length === 0 ? (
+                <p className="text-[11px] text-on-surface-variant/60">No recent transactions yet</p>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto scroll-hide pb-1">
+                  {recentCustomers.map((c, idx) => {
+                    const identifier = c.customerPhone || c.customerZeebacId || c._id;
+                    const name = c.customerName || c.customerPhone || 'Customer';
+                    return (
                       <button
-                        key={idx}
+                        key={c._id || idx}
                         onClick={() => {
-                          setQuery(txn.customerId);
-                          resolveCustomer(txn.customerId);
+                          setQuery(identifier);
+                          resolveCustomer(identifier);
                         }}
-                        className="px-3 py-1.5 bg-surface-container rounded-lg border border-outline-variant/10 text-[11px] font-bold text-on-surface hover:bg-secondary/10 whitespace-nowrap"
+                        className="px-3 py-1.5 bg-surface-container rounded-lg border border-outline-variant/10 text-[11px] font-bold text-on-surface hover:bg-secondary/10 whitespace-nowrap cursor-pointer transition-colors"
                       >
-                        {txn.customerName}
+                        {name}
                       </button>
-                    ))}
-                  </div>
-                );
-              })()}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

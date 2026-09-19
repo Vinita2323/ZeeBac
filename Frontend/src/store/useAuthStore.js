@@ -22,12 +22,22 @@ const useAuthStore = create((set, get) => ({
         const user = JSON.parse(userStr);
         const role = user.role || user.userType;
 
-        // Restore wallet balance based on role
+        // Restore wallet balance based on role (clean 0 default, purge stale mock values)
         let balance = 0;
         if (role === 'vendor') {
-          balance = parseFloat(localStorage.getItem('vendor_balance') || '24500');
+          const stored = localStorage.getItem('vendor_balance');
+          if (stored === '24500') {
+            localStorage.removeItem('vendor_balance');
+          } else if (stored !== null && !isNaN(parseFloat(stored))) {
+            balance = parseFloat(stored);
+          }
         } else {
-          balance = parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
+          const stored = localStorage.getItem('zeebac_wallet_balance');
+          if (stored === '1284.50' || stored === '1284.5') {
+            localStorage.removeItem('zeebac_wallet_balance');
+          } else if (stored !== null && !isNaN(parseFloat(stored))) {
+            balance = parseFloat(stored);
+          }
         }
 
         set({
@@ -36,6 +46,9 @@ const useAuthStore = create((set, get) => ({
           isAuthenticated: true,
           walletBalance: balance,
         });
+
+        // Silently sync real-time wallet balance from backend in background
+        get().fetchWalletBalance();
       }
     } catch (e) {
       console.error('Failed to hydrate auth store:', e);
@@ -52,9 +65,19 @@ const useAuthStore = create((set, get) => ({
 
     let balance = 0;
     if (role === 'vendor') {
-      balance = parseFloat(localStorage.getItem('vendor_balance') || '24500');
+      const stored = localStorage.getItem('vendor_balance');
+      if (stored === '24500') {
+        localStorage.removeItem('vendor_balance');
+      } else if (stored !== null && !isNaN(parseFloat(stored))) {
+        balance = parseFloat(stored);
+      }
     } else {
-      balance = parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
+      const stored = localStorage.getItem('zeebac_wallet_balance');
+      if (stored === '1284.50' || stored === '1284.5') {
+        localStorage.removeItem('zeebac_wallet_balance');
+      } else if (stored !== null && !isNaN(parseFloat(stored))) {
+        balance = parseFloat(stored);
+      }
     }
 
     set({
@@ -63,6 +86,9 @@ const useAuthStore = create((set, get) => ({
       isAuthenticated: true,
       walletBalance: balance,
     });
+
+    // Fetch live balance from backend immediately on login
+    get().fetchWalletBalance();
   },
 
   setAccessToken: (token) => {
@@ -104,16 +130,46 @@ const useAuthStore = create((set, get) => ({
 
   // Update wallet balance globally (all pages react instantly)
   updateBalance: (newBalance) => {
+    const numeric = typeof newBalance === 'number' && !isNaN(newBalance) ? newBalance : parseFloat(newBalance) || 0;
     const user = get().currentUser;
     const role = user?.role || user?.userType;
 
     if (role === 'vendor') {
-      localStorage.setItem('vendor_balance', String(newBalance));
+      localStorage.setItem('vendor_balance', String(numeric));
     } else {
-      localStorage.setItem('zeebac_wallet_balance', String(newBalance));
+      localStorage.setItem('zeebac_wallet_balance', String(numeric));
     }
 
-    set({ walletBalance: newBalance });
+    set({ walletBalance: numeric });
+  },
+
+  // Live query of wallet balance from backend MongoDB based on active user role
+  fetchWalletBalance: async () => {
+    try {
+      const user = get().currentUser;
+      if (!user) return 0;
+      const role = user?.role || user?.userType;
+      const { apiClient } = await import('../services/api.js');
+
+      if (role === 'vendor') {
+        const res = await apiClient.get('/vendor/wallet');
+        if (res.data?.success && res.data?.data?.wallet) {
+          const balance = Number(res.data.data.wallet.balance) || 0;
+          get().updateBalance(balance);
+          return balance;
+        }
+      } else {
+        const res = await apiClient.get('/user/wallet');
+        if (res.data?.success && res.data?.data?.wallet) {
+          const balance = Number(res.data.data.wallet.balance) || 0;
+          get().updateBalance(balance);
+          return balance;
+        }
+      }
+    } catch (e) {
+      // Gracefully retain existing state on network errors / offline
+    }
+    return get().walletBalance;
   },
 
   // Update profile fields without losing other data

@@ -34,10 +34,16 @@ const userSchema = new mongoose.Schema(
       facebook: String,
     },
     bankDetails: {
+      accountHolderName: String,
       upiId: String,
       bankName: String,
       accountNumber: String,
       ifscCode: String,
+      isVerified: {
+        type: Boolean,
+        default: false,
+      },
+      verifiedAt: Date,
     },
     preferences: {
       pushNotifications: { type: Boolean, default: true },

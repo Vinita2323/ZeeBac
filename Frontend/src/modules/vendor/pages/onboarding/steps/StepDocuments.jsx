@@ -40,13 +40,13 @@ export default function StepDocuments({ data, update, errors }) {
   };
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.9)', borderRadius: '24px', padding: '28px 24px', boxShadow: '0 20px 60px -12px rgba(22,8,47,0.14), 0 8px 24px rgba(96,0,218,0.07)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="w-full box-border bg-white/85 backdrop-blur-xl border border-white/90 rounded-3xl p-4 sm:p-7 shadow-xl flex flex-col gap-6">
       <div>
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">photo_library</span>
         </div>
-        <h1 className="text-[24px] font-black tracking-tight text-gray-900 leading-tight mb-1">Store info & documents</h1>
-        <p className="text-[13.5px] text-gray-500">Add your store visuals and the documents we need to verify your business.</p>
+        <h1 className="text-[22px] sm:text-[24px] font-black tracking-tight text-gray-900 leading-tight mb-1">Store info & documents</h1>
+        <p className="text-[13px] sm:text-[13.5px] text-gray-500">Add your store visuals and the documents we need to verify your business.</p>
       </div>
 
       {/* Store visuals */}

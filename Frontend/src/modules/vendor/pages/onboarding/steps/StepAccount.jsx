@@ -5,17 +5,6 @@ import FloatingInput from '../components/FloatingInput';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const card = {
-  width: '100%',
-  boxSizing: 'border-box',
-  background: 'rgba(255,255,255,0.85)',
-  backdropFilter: 'blur(24px)',
-  border: '1px solid rgba(255,255,255,0.9)',
-  borderRadius: '24px',
-  padding: '28px 24px',
-  boxShadow: '0 20px 60px -12px rgba(22,8,47,0.14), 0 8px 24px rgba(96,0,218,0.07)',
-};
-
 export default function StepAccount({ onComplete }) {
   const [phase, setPhase] = useState('form'); // 'form' | 'otp'
   const [name, setName] = useState('');
@@ -75,7 +64,7 @@ export default function StepAccount({ onComplete }) {
   };
 
   return (
-    <div style={card}>
+    <div className="w-full box-border bg-white/85 backdrop-blur-xl border border-white/90 rounded-3xl p-4 sm:p-7 shadow-xl">
       {/* Icon */}
       <div style={{
         width: '52px', height: '52px', borderRadius: '14px',

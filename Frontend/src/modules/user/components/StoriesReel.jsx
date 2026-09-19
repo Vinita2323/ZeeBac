@@ -112,24 +112,24 @@ export default function StoriesReel({ location }) {
                   onClick={() => handleOpenStory(idx)}
                   className="flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer group"
                 >
-                  {/* Story Ring (Instagram gradient if unseen, subtle slate if seen) */}
+                  {/* Story Ring (Authentic Instagram multi-color gradient if unseen, subtle slate if seen) */}
                   <div className="relative">
                     <div
-                      className={`w-[68px] h-[68px] rounded-full p-[2.5px] transition-transform active:scale-95 group-hover:scale-105 shadow-sm ${
+                      className={`w-[70px] h-[70px] rounded-full p-[2.5px] transition-all duration-200 active:scale-95 group-hover:scale-105 ${
                         hasUnseen
-                          ? 'bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] animate-gradient'
-                          : 'bg-slate-300'
+                          ? 'insta-story-ring'
+                          : 'insta-story-ring-seen'
                       }`}
                     >
-                      <div className="w-full h-full rounded-full bg-white p-[2px] overflow-hidden flex items-center justify-center">
+                      <div className="w-full h-full rounded-full bg-white p-[2px] overflow-hidden flex items-center justify-center shadow-inner">
                         {avatarUrl ? (
                           <img
                             src={avatarUrl}
                             alt={vendor?.storeName}
-                            className="w-full h-full rounded-full object-cover"
+                            className="w-full h-full rounded-full object-cover select-none"
                           />
                         ) : (
-                          <div className="w-full h-full rounded-full bg-primary/10 flex items-center justify-center font-black text-primary text-sm uppercase">
+                          <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center font-black text-primary text-sm uppercase">
                             {vendor?.storeName?.charAt(0) || 'V'}
                           </div>
                         )}

@@ -9,6 +9,7 @@ import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import SubscriptionPayment from '../models/SubscriptionPayment.js';
+import SupportTicket from '../models/SupportTicket.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
 import { debitWallet, creditWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
@@ -20,6 +21,7 @@ export const getDashboardStats = async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalVendors = await Vendor.countDocuments();
     const pendingVendors = await Vendor.countDocuments({ status: 'Pending' });
+    const openSupportTickets = await SupportTicket.countDocuments({ status: { $in: ['Open', 'In Progress'] } });
 
     const totalTransactions = await Transaction.countDocuments({ status: { $in: ['Approved', 'Success'] } });
     const revenueAggregation = await Transaction.aggregate([
@@ -34,6 +36,7 @@ export const getDashboardStats = async (req, res) => {
         totalUsers,
         totalVendors,
         pendingVendors,
+        openSupportTickets,
         totalTransactions,
         totalRevenue,
       },

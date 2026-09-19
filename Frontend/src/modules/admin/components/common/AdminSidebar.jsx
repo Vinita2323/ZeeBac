@@ -1,12 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AuthAPI } from '../../../../services/api';
+import { AuthAPI, AdminAPI } from '../../../../services/api';
 
 export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileClose }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [openTicketsCount, setOpenTicketsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchOpenTickets = async () => {
+      try {
+        const res = await AdminAPI.getDashboardStats();
+        if (res.success && res.data?.openSupportTickets) {
+          setOpenTicketsCount(res.data.openSupportTickets);
+        } else {
+          setOpenTicketsCount(0);
+        }
+      } catch (e) {}
+    };
+    fetchOpenTickets();
+  }, [location.pathname]);
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
@@ -95,7 +110,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
             <button
               key={item.label}
               onClick={() => handleNavClick(item.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+              className={`w-full relative flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                 isActive 
                   ? 'bg-white/50 backdrop-blur-md border-white/50 text-primary font-bold shadow-sm' 
                   : 'border-transparent text-[#4b3370] hover:bg-[#d8cced]/70 hover:text-[#25005b] font-medium'
@@ -111,6 +126,13 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
               {!isCollapsed && (
                 <span className={`font-title-md text-[13px] ${isActive ? 'font-bold' : 'font-medium'}`}>
                   {item.label}
+                </span>
+              )}
+              {item.label === 'Support' && openTicketsCount > 0 && (
+                <span className={`${
+                  isCollapsed ? 'absolute top-1 right-1' : 'ml-auto'
+                } bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm leading-none`}>
+                  {openTicketsCount}
                 </span>
               )}
             </button>

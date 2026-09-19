@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { VendorAPI } from '../../../services/api';
+import { VendorAPI, SupportAPI } from '../../../services/api';
 
 export default function SupportPage() {
   const navigate = useNavigate();
@@ -12,9 +12,28 @@ export default function SupportPage() {
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [faqs, setFaqs] = useState([]);
+  const [isLoadingFaqs, setIsLoadingFaqs] = useState(true);
+  const [activeFaq, setActiveFaq] = useState(null);
+
   useEffect(() => {
     fetchTickets();
+    fetchFaqs();
   }, []);
+
+  const fetchFaqs = async () => {
+    try {
+      setIsLoadingFaqs(true);
+      const res = await SupportAPI.getFaqs('vendor');
+      if (res.success) {
+        setFaqs(res.data || []);
+      }
+    } catch (err) {
+      console.warn("Failed to load vendor FAQs", err);
+    } finally {
+      setIsLoadingFaqs(false);
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -49,34 +68,17 @@ export default function SupportPage() {
     }
   };
 
-  const faqs = [
-    {
-      q: "How are cashback payouts settled?",
-      a: "Cashback amounts given to users are deducted from your Vendor Wallet. You must maintain sufficient float balance to approve cashback requests."
-    },
-    {
-      q: "How can I withdraw my wallet balance?",
-      a: "You can request a withdrawal to your linked bank account from the Wallet section. Withdrawals are processed within 24-48 hours."
-    },
-    {
-      q: "How to update my store location and details?",
-      a: "You can update your store location, operating hours, and description directly from the Profile page."
-    }
-  ];
-
-  const [activeFaq, setActiveFaq] = useState(null);
-
   return (
     <div className="animate-reveal pb-[100px] text-left">
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-lg">
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
         <span className="font-display text-title-md text-primary font-bold ml-1">Help & Support</span>
       </header>
 
-      <div className="space-y-6 pt-4">
+      <div className="space-y-6 pt-1">
         <div className="text-center space-y-2 pb-4 border-b border-outline-variant/10">
           <span className="material-symbols-outlined text-primary text-[48px] animate-bounce">contact_support</span>
           <h2 className="text-[20px] font-black text-on-surface font-display">Vendor Support</h2>
@@ -86,30 +88,52 @@ export default function SupportPage() {
         {/* FAQs */}
         <div className="space-y-3">
           <h3 className="font-bold text-[15px] text-on-surface">Frequently Asked Questions</h3>
-          {faqs.map((faq, index) => {
-            const isOpen = activeFaq === index;
-            return (
-              <div 
-                key={index} 
-                className="bg-white border border-outline-variant/10 rounded-2xl overflow-hidden shadow-sm"
-              >
-                <button
-                  onClick={() => setActiveFaq(isOpen ? null : index)}
-                  className="w-full p-4 flex justify-between items-center text-left font-bold text-[13px] text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
+          {isLoadingFaqs ? (
+            <div className="space-y-2 py-2">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="h-12 bg-white/70 animate-pulse rounded-2xl border border-outline-variant/10" />
+              ))}
+            </div>
+          ) : faqs.length === 0 ? (
+            <div className="text-center py-6 bg-white/60 rounded-2xl border border-dashed border-outline-variant/30">
+              <span className="material-symbols-outlined text-outline text-[32px]">help_outline</span>
+              <p className="text-[13px] font-bold text-on-surface mt-1">No FAQs available</p>
+            </div>
+          ) : (
+            faqs.map((faq, index) => {
+              const isOpen = activeFaq === index;
+              const questionText = faq.question || faq.q;
+              const answerText = faq.answer || faq.a;
+              return (
+                <div 
+                  key={faq._id || index} 
+                  className="bg-white border border-outline-variant/10 rounded-2xl overflow-hidden shadow-sm"
                 >
-                  <span>{faq.q}</span>
-                  <span className="material-symbols-outlined text-outline transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    keyboard_arrow_down
-                  </span>
-                </button>
-                {isOpen && (
-                  <div className="px-4 pb-4 text-[12px] text-on-surface-variant leading-relaxed animate-reveal">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  <button
+                    onClick={() => setActiveFaq(isOpen ? null : index)}
+                    className="w-full p-4 flex justify-between items-center text-left font-bold text-[13px] text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 pr-2">
+                      {faq.category && (
+                        <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100 shrink-0">
+                          {faq.category}
+                        </span>
+                      )}
+                      <span>{questionText}</span>
+                    </div>
+                    <span className="material-symbols-outlined text-outline transition-transform duration-200 shrink-0" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                      keyboard_arrow_down
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 text-[12px] text-on-surface-variant leading-relaxed animate-reveal border-t border-outline-variant/10 pt-2.5">
+                      {answerText}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Support Tickets */}

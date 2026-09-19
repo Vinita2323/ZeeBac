@@ -1,3 +1,4 @@
+
 @import "tailwindcss";
 
 @theme {
@@ -480,4 +481,25 @@ input:-webkit-autofill:active {
 .scroll-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Authentic Instagram Story Multi-Color Gradient Ring */
+.insta-story-ring {
+  background: linear-gradient(45deg, #feda75 0%, #fa7e1e 25%, #d62976 50%, #962fbf 75%, #4f5bd5 100%) !important;
+  background-size: 140% 140%;
+  animation: instaRingGlow 3s ease infinite alternate;
+}
+
+@keyframes instaRingGlow {
+  0% {
+    filter: drop-shadow(0 2px 5px rgba(214, 41, 118, 0.28));
+  }
+  100% {
+    filter: drop-shadow(0 3px 9px rgba(240, 148, 51, 0.42));
+  }
+}
+
+.insta-story-ring-seen {
+  background: #cbd5e1 !important;
+  filter: none !important;
 }

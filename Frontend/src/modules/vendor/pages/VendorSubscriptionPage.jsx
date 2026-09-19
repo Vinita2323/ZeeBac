@@ -273,11 +273,11 @@ export default function VendorSubscriptionPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-display text-[26px] font-black text-gray-900 tracking-tight">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <h1 className="font-display text-[22px] sm:text-[26px] font-black text-gray-900 tracking-tight">
               Store Subscription
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+            <span className="px-2.5 py-0.5 rounded-full text-[10.5px] sm:text-[11px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
               {isBrand ? 'Chain & Brand' : 'Independent Store'}
             </span>
           </div>
@@ -602,10 +602,10 @@ export default function VendorSubscriptionPage() {
 
       {/* ─── PAYMENT SELECTION MODAL ─── */}
       {paymentModalPlan && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-reveal border border-gray-100">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-reveal border border-gray-100 max-h-[92dvh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="p-6 bg-gradient-to-br from-[#16082f] via-[#2a0845] to-[#6000da] text-white relative">
+            <div className="p-4 sm:p-6 bg-gradient-to-br from-[#16082f] via-[#2a0845] to-[#6000da] text-white relative">
               <button
                 onClick={closePaymentModal}
                 disabled={isProcessingPayment}
@@ -639,7 +639,7 @@ export default function VendorSubscriptionPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-5 text-left">
+            <div className="p-4 sm:p-6 space-y-5 text-left">
               {modalError && (
                 <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[12.5px] font-semibold flex items-start gap-2">
                   <span className="material-symbols-outlined text-[18px] text-red-500 shrink-0">error</span>

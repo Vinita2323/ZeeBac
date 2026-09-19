@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AdminAPI } from '../../../services/api';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [revenueChart, setRevenueChart] = useState({ labels: [], amounts: [] });
@@ -28,36 +30,69 @@ export default function DashboardPage() {
   }, []);
 
   const stats = [
-    { label: 'Total Users', value: data?.totalUsers || 0, icon: 'groups', trend: 'Total registered customers', color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Total Vendors', value: data?.totalVendors || 0, icon: 'storefront', trend: `${data?.pendingVendors || 0} pending approval`, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-    { label: 'Total Revenue', value: `₹${data?.totalRevenue || 0}`, icon: 'payments', trend: 'Total volume processed', color: 'text-green-600', bg: 'bg-green-500/10' },
-    { label: 'Total Txns', value: data?.totalTransactions || 0, icon: 'receipt_long', trend: 'Total transactions', color: 'text-secondary', bg: 'bg-secondary/10' },
+    { label: 'Total Users', value: data?.totalUsers || 0, icon: 'groups', trend: 'Total registered customers', color: 'text-primary', bg: 'bg-primary/10', path: '/admin/users' },
+    { label: 'Total Vendors', value: data?.totalVendors || 0, icon: 'storefront', trend: `${data?.pendingVendors || 0} pending approval`, color: 'text-orange-500', bg: 'bg-orange-500/10', path: '/admin/vendors' },
+    { label: 'Support Tickets', value: data?.openSupportTickets || 0, icon: 'support_agent', trend: `${data?.openSupportTickets || 0} need attention`, color: data?.openSupportTickets > 0 ? 'text-amber-600' : 'text-purple-600', bg: data?.openSupportTickets > 0 ? 'bg-amber-500/10' : 'bg-purple-500/10', path: '/admin/support', isAlert: (data?.openSupportTickets || 0) > 0 },
+    { label: 'Total Revenue', value: `₹${(data?.totalRevenue || 0).toLocaleString()}`, icon: 'payments', trend: 'Total volume processed', color: 'text-green-600', bg: 'bg-green-500/10', path: '/admin/transactions' },
+    { label: 'Total Txns', value: data?.totalTransactions || 0, icon: 'receipt_long', trend: 'Total transactions', color: 'text-secondary', bg: 'bg-secondary/10', path: '/admin/transactions' },
   ];
 
   const pendingVendors = []; // We can fetch recent pending vendors if needed later
 
-
-
-
   return (
     <div className="space-y-6 animate-reveal text-left">
-      <div>
-        <h1 className="font-display text-[24px] font-black tracking-tight text-on-surface">Platform Overview</h1>
-        <p className="text-body-md text-on-surface-variant">Real-time metrics and system health</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h1 className="font-display text-[24px] font-black tracking-tight text-on-surface">Platform Overview</h1>
+          <p className="text-body-md text-on-surface-variant">Real-time metrics and system health</p>
+        </div>
       </div>
 
+      {/* Support Alert Banner if open tickets exist */}
+      {(data?.openSupportTickets || 0) > 0 && (
+        <div 
+          onClick={() => navigate('/admin/support')}
+          className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-amber-100/60 transition-colors shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+              <span className="material-symbols-outlined text-[20px] animate-pulse">support_agent</span>
+            </div>
+            <div>
+              <p className="text-[14px] font-bold text-amber-900 leading-snug">
+                {data.openSupportTickets} Support Ticket{data.openSupportTickets === 1 ? '' : 's'} Pending Response
+              </p>
+              <p className="text-[12px] text-amber-800/80">
+                Customers or merchants have submitted support inquiries that need admin review.
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-[12px] font-bold text-amber-900 bg-white px-3 py-1.5 rounded-xl border border-amber-200 shrink-0">
+            Open Support Panel
+            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </span>
+        </div>
+      )}
+
       {/* Top Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, idx) => (
-          <div key={idx} className="bg-white p-4 rounded-xl border border-outline-variant/5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md transition-shadow">
+          <div 
+            key={idx} 
+            onClick={() => stat.path && navigate(stat.path)}
+            className="bg-white p-4 rounded-xl border border-outline-variant/5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-primary/20 transition-all cursor-pointer"
+          >
             <div className="flex justify-between items-start mb-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.bg} ${stat.color}`}>
                 <span className="material-symbols-outlined text-[20px]">{stat.icon}</span>
               </div>
+              {stat.isAlert && (
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" title="Needs Attention"></span>
+              )}
             </div>
             <p className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{stat.label}</p>
             <h3 className="font-display text-[24px] font-bold text-on-surface leading-none mt-1 mb-1.5">{stat.value}</h3>
-            <p className={`text-[11px] font-medium ${stat.color === 'text-orange-500' ? 'text-orange-500 font-bold' : 'text-on-surface-variant'}`}>{stat.trend}</p>
+            <p className={`text-[11px] font-medium ${stat.isAlert ? 'text-amber-600 font-bold' : stat.color === 'text-orange-500' ? 'text-orange-500 font-bold' : 'text-on-surface-variant'}`}>{stat.trend}</p>
           </div>
         ))}
       </div>

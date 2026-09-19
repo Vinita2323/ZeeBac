@@ -40,7 +40,16 @@ import {
 import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
-import { getAllTickets, replyToTicket, closeTicket } from '../controllers/support.controller.js';
+import { 
+  getAllTickets, 
+  replyToTicket, 
+  closeTicket,
+  getAllAdminFaqs,
+  createFaq,
+  updateFaq,
+  deleteFaq,
+  toggleFaqStatus 
+} from '../controllers/support.controller.js';
 import { saveAdminFcmToken } from '../controllers/notification.controller.js';
 
 const router = express.Router();
@@ -59,6 +68,13 @@ router.post('/fcm-token', saveAdminFcmToken);
 router.get('/support/tickets', getAllTickets);
 router.put('/support/tickets/:id/reply', replyToTicket);
 router.put('/support/tickets/:id/close', closeTicket);
+
+// ─── FAQ Management ───
+router.get('/faqs', getAllAdminFaqs);
+router.post('/faqs', createFaq);
+router.put('/faqs/:id', updateFaq);
+router.delete('/faqs/:id', deleteFaq);
+router.patch('/faqs/:id/toggle', toggleFaqStatus);
 
 // ─── Vendor Management ───
 router.get('/vendors', getAllVendors);

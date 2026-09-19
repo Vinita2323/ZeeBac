@@ -7,6 +7,7 @@ import { generatePassbookPDF } from '../../../utils/exportUtils';
 export default function PassbookPage() {
   const navigate = useNavigate();
   const [dateFilter, setDateFilter] = useState('This Month');
+  const [typeFilter, setTypeFilter] = useState('All');
   const balance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser);
   
@@ -18,15 +19,20 @@ export default function PassbookPage() {
       try {
         const res = await VendorAPI.getWallet();
         if (res.success) {
+          if (res.data?.wallet) {
+            useAuthStore.getState().updateBalance(res.data.wallet.balance ?? 0);
+          }
           const formattedLedger = res.data.ledger.map(entry => ({
             id: entry._id,
             date: new Date(entry.timestamp).toLocaleDateString(),
             time: new Date(entry.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
             rawDate: new Date(entry.timestamp),
             desc: entry.description || entry.category,
+            category: entry.category,
             ref: entry.referenceId || entry._id.substring(0,8),
             type: entry.type === 'credit' ? 'Credit' : 'Debit',
             amount: `₹${entry.amount.toLocaleString()}`,
+            rawAmount: entry.amount,
             balance: `₹${entry.balanceAfter.toLocaleString()}`
           }));
           setLedgerEntries(formattedLedger);
@@ -56,35 +62,63 @@ export default function PassbookPage() {
 
     return ledgerEntries.filter(entry => {
       const d = entry.rawDate;
-      if (dateFilter === 'Today') return d >= startOfToday;
-      if (dateFilter === 'This Week') return d >= startOfWeek;
-      if (dateFilter === 'This Month') return d >= startOfMonth;
-      if (dateFilter === 'Last Month') return d >= startOfLastMonth && d <= endOfLastMonth;
-      return true; // All Time fallback
+      const matchesDate = 
+        dateFilter === 'Today' ? d >= startOfToday :
+        dateFilter === 'This Week' ? d >= startOfWeek :
+        dateFilter === 'This Month' ? d >= startOfMonth :
+        dateFilter === 'Last Month' ? d >= startOfLastMonth && d <= endOfLastMonth : true;
+
+      if (!matchesDate) return false;
+
+      if (typeFilter === 'Cashback') return entry.type === 'Debit' && (entry.category === 'cashback' || entry.desc.toLowerCase().includes('cashback'));
+      if (typeFilter === 'Recharge') return entry.category === 'settlement' || entry.desc.toLowerCase().includes('recharge');
+      if (typeFilter === 'Payments') return entry.category === 'payment_received' || entry.desc.toLowerCase().includes('payment received');
+
+      return true;
     });
-  }, [ledgerEntries, dateFilter]);
+  }, [ledgerEntries, dateFilter, typeFilter]);
 
   return (
     <div className="animate-reveal text-left">
       
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-lg">
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
         <div className="flex items-center">
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
             <span className="material-symbols-outlined text-primary">arrow_back</span>
           </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Passbook</span>
+          <span className="font-display text-title-md text-primary font-bold ml-1">Wallet Passbook</span>
         </div>
         <button 
           onClick={() => generatePassbookPDF(filteredLedger, currentUser?.storeName || currentUser?.name, dateFilter)}
-          className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-outline-variant/20 text-primary rounded-lg font-bold text-[12px] active:scale-[0.97] transition-all shadow-sm cursor-pointer"
+          className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-outline-variant/20 text-primary rounded-lg font-bold text-[12px] active:scale-[0.97] transition-all shadow-sm cursor-pointer shrink-0"
         >
           <span className="material-symbols-outlined text-[16px]">download</span>
           Export
         </button>
       </header>
 
-      <div className="space-y-6 pt-4">
+      <div className="space-y-4 pt-1">
+
+      {/* Sales & Revenue History Switcher Banner */}
+      <div 
+        onClick={() => navigate('/vendor/transactions')}
+        className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-primary/20 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 cursor-pointer active:scale-[0.99] transition-transform shadow-xs"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-on-surface leading-tight truncate">Looking for Store Sales / Revenue?</p>
+            <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">View customer bill transactions & gross sales history</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-primary text-[12px] font-bold shrink-0 self-start sm:self-auto">
+          <span>View Bills</span>
+          <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+        </div>
+      </div>
 
       {/* Summary Cards */}
       <div className="space-y-3">
@@ -94,19 +128,38 @@ export default function PassbookPage() {
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-        <h3 className="font-bold text-[14px] text-on-surface">History</h3>
-        <select 
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="bg-surface-container-low border border-outline-variant/10 text-on-surface text-[13px] font-bold rounded-xl px-3 py-2 outline-none focus:border-primary appearance-none"
-        >
-          <option>Today</option>
-          <option>This Week</option>
-          <option>This Month</option>
-          <option>Last Month</option>
-        </select>
+      {/* Filter Header */}
+      <div className="space-y-2 bg-white rounded-2xl p-4 border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-[14px] text-on-surface">Wallet Ledger</h3>
+          <select 
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="bg-surface-container-low border border-outline-variant/10 text-on-surface text-[12px] font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-primary appearance-none cursor-pointer"
+          >
+            <option>Today</option>
+            <option>This Week</option>
+            <option>This Month</option>
+            <option>Last Month</option>
+          </select>
+        </div>
+
+        {/* Category Pills */}
+        <div className="flex gap-1.5 overflow-x-auto scroll-hide pt-1">
+          {['All', 'Cashback', 'Recharge', 'Payments'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setTypeFilter(tab)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                typeFilter === tab
+                  ? 'bg-primary text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {tab === 'Cashback' ? 'Cashback Given (-₹)' : (tab === 'Recharge' ? 'Recharges (+₹)' : (tab === 'Payments' ? 'Payments (+₹)' : 'All Entries'))}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Ledger Entries */}

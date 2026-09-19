@@ -6,12 +6,14 @@ import { VendorAPI, PosAPI, API_BASE_URL } from '../../../services/api';
 import useQrCode from '../../../hooks/useQrCode';
 import { downloadImage } from '../../../utils/exportUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
+import VendorLoanModal from '../components/VendorLoanModal';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
   const [showPosModal, setShowPosModal] = useState(false);
   const [showStoriesModal, setShowStoriesModal] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
   const [posAmount, setPosAmount] = useState('1590');
   const [generatedPosBill, setGeneratedPosBill] = useState(null);
   const [isGeneratingPos, setIsGeneratingPos] = useState(false);
@@ -78,9 +80,9 @@ export default function DashboardPage() {
   }, [currentUser.cashbackRate]);
 
   const stats = [
-    { label: 'Total Revenue', value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: 'All time', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/passbook' },
+    { label: 'Total Revenue', value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: 'All time', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/transactions' },
     { label: 'Cashback Given', value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString() || 0}` : '₹0', icon: 'savings', trend: 'All time', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/passbook' },
-    { label: 'Total TXNs', value: dashboardData ? dashboardData.data?.totalTransactions || 0 : '0', icon: 'sync_alt', trend: 'All time', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/passbook' },
+    { label: 'Total TXNs', value: dashboardData ? dashboardData.data?.totalTransactions || 0 : '0', icon: 'sync_alt', trend: 'All time', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/transactions' },
     { label: 'Customers', value: dashboardData ? dashboardData.data?.totalCustomers || 0 : '0', icon: 'groups', trend: 'Unique', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
   ];
 
@@ -264,7 +266,7 @@ export default function DashboardPage() {
                   Cashback is currently blocked for customers. Recharge your cashback wallet to enable cashback distribution.
                 </p>
                 <button
-                  onClick={() => navigate('/vendor/passbook')}
+                  onClick={() => navigate('/vendor/wallet')}
                   className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[14px]">add_circle</span>
@@ -305,43 +307,43 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-3 gap-2 mx-auto w-full">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mx-auto w-full">
         <button
           onClick={() => navigate('/vendor/scan-customer')}
-          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer text-center"
         >
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
             <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
           </div>
-          <p className="text-[11px] font-extrabold leading-tight">Scan Customer</p>
-          <p className="text-[8px] text-white/70">Log Cash</p>
+          <p className="text-[10.5px] sm:text-[11px] font-extrabold leading-tight">Scan Customer</p>
+          <p className="text-[7.5px] sm:text-[8px] text-white/70">Log Cash</p>
         </button>
 
         <button
           onClick={() => setShowQRModal(true)}
-          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer text-center"
         >
           <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-1">
             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
-          <p className="text-[11px] font-extrabold leading-tight">Store QR</p>
-          <p className="text-[8px] text-on-surface-variant">Counter QR</p>
+          <p className="text-[10.5px] sm:text-[11px] font-extrabold leading-tight">Store QR</p>
+          <p className="text-[7.5px] sm:text-[8px] text-on-surface-variant">Counter QR</p>
         </button>
 
         <button
           onClick={() => setShowPosModal(true)}
-          className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-gradient-to-br from-[#16082f] via-[#3b0764] to-[#6000da] text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-[#16082f] via-[#3b0764] to-[#6000da] text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
         >
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
             <span className="material-symbols-outlined text-[16px]">receipt_long</span>
           </div>
-          <p className="text-[11px] font-extrabold leading-tight">POS Bill</p>
-          <p className="text-[8px] text-white/80">Flow 2 Simulator</p>
+          <p className="text-[10.5px] sm:text-[11px] font-extrabold leading-tight">POS Bill</p>
+          <p className="text-[7.5px] sm:text-[8px] text-white/80">Flow 2 Simulator</p>
         </button>
       </div>
 
-      {/* Stats Grid - 2x2 Compact */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Stats Grid - 2x2 Compact on mobile, 4 columns on desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
         {stats.map((stat, index) => (
           <div
             key={index}
@@ -362,6 +364,30 @@ export default function DashboardPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Merchant Business Loan Banner */}
+      <div 
+        onClick={() => setShowLoanModal(true)}
+        className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white rounded-2xl p-4 shadow-md hover:shadow-lg cursor-pointer transition-all active:scale-[0.99] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 relative overflow-hidden"
+      >
+        <div className="flex items-center gap-3.5 relative z-10 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
+            <span className="material-symbols-outlined text-[24px]">payments</span>
+          </div>
+          <div className="text-left min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">Coming Soon</span>
+              <span className="text-[11px] font-bold text-indigo-200">Merchant Capital</span>
+            </div>
+            <p className="text-[13px] font-black text-white leading-tight mt-1 truncate">Apply for Business Loan up to ₹25L</p>
+            <p className="text-[10.5px] text-indigo-200/90 leading-tight mt-0.5">0% Property Collateral • Auto daily micro-deduction from sales</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-3.5 py-1.5 rounded-xl font-black text-[11px] shadow-sm shrink-0 self-start sm:self-auto relative z-10 transition-colors">
+          <span>Apply</span>
+          <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+        </div>
       </div>
 
       {/* Action Required (Pending Approvals) - Preserved for Phase 4 */}
@@ -491,8 +517,8 @@ export default function DashboardPage() {
 
       {/* QR Modal */}
       {showQRModal && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
-          <div className="bg-white w-full max-w-[320px] rounded-3xl p-6 shadow-2xl relative mx-auto">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
+          <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto">
             <button
               onClick={() => setShowQRModal(false)}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
@@ -545,8 +571,8 @@ export default function DashboardPage() {
 
       {/* POS Bill Simulator Modal */}
       {showPosModal && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
-          <div className="bg-white w-full max-w-[340px] rounded-3xl p-6 shadow-2xl relative mx-auto text-left">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
+          <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto text-left">
             <button
               onClick={() => { setShowPosModal(false); setGeneratedPosBill(null); }}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
@@ -626,6 +652,12 @@ export default function DashboardPage() {
       <StoreStoriesModal
         isOpen={showStoriesModal}
         onClose={() => setShowStoriesModal(false)}
+      />
+
+      {/* Vendor Loan Modal */}
+      <VendorLoanModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
       />
 
     </div>

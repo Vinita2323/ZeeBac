@@ -21,20 +21,28 @@ const serviceAccountPath = join(__dirname, 'serviceAccountKey.json');
 
 let firebaseInitialized = false;
 
-if (existsSync(serviceAccountPath)) {
-  try {
-    const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+try {
+  let serviceAccount = null;
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    serviceAccount = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
+      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+      : process.env.FIREBASE_SERVICE_ACCOUNT;
+  } else if (existsSync(serviceAccountPath)) {
+    serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+  }
+
+  if (serviceAccount) {
     initializeApp({
       credential: cert(serviceAccount),
     });
     firebaseInitialized = true;
     logger.info('Firebase Admin initialized successfully');
-  } catch (error) {
-    logger.error(`Firebase Admin init error: ${error.message}`);
+  } else {
+    logger.warn('Firebase Admin: serviceAccountKey.json or FIREBASE_SERVICE_ACCOUNT env not found. Push notifications will be disabled.');
+    logger.warn('Provide FIREBASE_SERVICE_ACCOUNT in .env or download serviceAccountKey.json from Firebase Console.');
   }
-} else {
-  logger.warn('Firebase Admin: serviceAccountKey.json not found. Push notifications will be disabled.');
-  logger.warn('Download from: Firebase Console → Project Settings → Service Accounts → Generate new private key');
+} catch (error) {
+  logger.error(`Firebase Admin init error: ${error.message}`);
 }
 
 export { firebaseInitialized };

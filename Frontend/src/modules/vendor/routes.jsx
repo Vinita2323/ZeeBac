@@ -19,6 +19,7 @@ import StorefrontPage from './pages/StorefrontPage';
 import RequestsPage from './pages/RequestsPage';
 import SupportPage from './pages/SupportPage';
 import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
+import VendorLoanPage from './pages/VendorLoanPage';
 
 export default function VendorRoutes() {
   const status = useAuthStore((s) => s.currentUser?.status);
@@ -59,6 +60,7 @@ export default function VendorRoutes() {
             <Route path="requests" element={<RequestsPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
             <Route path="support" element={<SupportPage />} />
+            <Route path="apply-loan" element={<VendorLoanPage />} />
           </Routes>
         </VendorLayout>
       } />

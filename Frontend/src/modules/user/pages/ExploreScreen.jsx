@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
+import StoriesReel from '../components/StoriesReel';
 import { calculateDistance } from '../../../utils/distance';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -195,9 +196,11 @@ export default function ExploreScreen() {
       </header>
 
       {/* Main Content body */}
-      <main className="flex-grow app-container px-container-margin py-lg relative text-left">
+      <main className="flex-grow app-container px-container-margin py-lg relative text-left space-y-4">
 
-        
+        {/* 24-Hour Store Stories Reel */}
+        <StoriesReel location={location} />
+
         {showMap ? (
           /* Interactive Leaflet Map representation */
           <div className="w-full h-[450px] rounded-3xl overflow-hidden relative shadow-lg animate-reveal border border-outline-variant/20">

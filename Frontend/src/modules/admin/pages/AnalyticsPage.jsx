@@ -130,7 +130,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Peak Activity Heatmap (Mocked) */}
+        {/* Peak Activity Heatmap (Live Backend Matrix) */}
         <div className="bg-white rounded-xl border border-outline-variant/5 p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-x-auto">
           <h3 className="font-title-md font-bold text-on-surface mb-2">Peak Activity Hours</h3>
           <p className="text-body-sm text-on-surface-variant mb-6">Darker squares indicate higher transaction volume.</p>

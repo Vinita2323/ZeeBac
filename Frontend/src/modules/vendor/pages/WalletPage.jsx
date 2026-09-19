@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
+import VendorLoanModal from '../components/VendorLoanModal';
 
 export default function WalletPage() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function WalletPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
   const [addAmount, setAmount] = useState(''); // Used for both add and withdraw
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -320,7 +322,7 @@ export default function WalletPage() {
     <>
       <div className="animate-reveal text-left pb-20">
         {/* Mobile Header */}
-        <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm mb-2">
+        <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
           <button
             onClick={() => navigate(-1)}
             className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer"
@@ -372,10 +374,10 @@ export default function WalletPage() {
               </div>
 
               {/* Quick Actions */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="py-2.5 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer"
+                  className="py-2.5 px-1 sm:px-2 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">add_circle</span>
                   Add Funds
@@ -383,7 +385,7 @@ export default function WalletPage() {
 
                 <button
                   onClick={() => setShowWithdrawModal(true)}
-                  className="py-2.5 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer"
+                  className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">account_balance</span>
                   Withdraw
@@ -391,7 +393,7 @@ export default function WalletPage() {
 
                 <button
                   onClick={() => navigate('/vendor/passbook')}
-                  className="py-2.5 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer"
+                  className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">receipt_long</span>
                   Ledger
@@ -472,6 +474,30 @@ export default function WalletPage() {
                 </span>
                 <span>{bankDetails?.accountNumber ? 'Update Bank Account' : 'Add Bank Account'}</span>
               </button>
+            </div>
+          </div>
+
+          {/* Merchant Working Capital Banner */}
+          <div 
+            onClick={() => setShowLoanModal(true)}
+            className="bg-gradient-to-r from-slate-950 via-indigo-950 to-purple-950 text-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:shadow-lg transition-all active:scale-[0.99] border border-indigo-900/50 max-w-4xl"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
+                <span className="material-symbols-outlined text-[22px]">payments</span>
+              </div>
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[9px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">Coming Soon</span>
+                  <span className="text-[11px] font-bold text-indigo-200">Merchant Capital</span>
+                </div>
+                <p className="text-[13px] font-bold text-white mt-0.5 leading-tight truncate">Need Working Capital? Apply for Business Loan (Up to ₹25L)</p>
+                <p className="text-[11px] text-indigo-200/80 mt-0.5 leading-tight">0% Property Collateral • Auto daily micro-deduction from sales</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3.5 py-1.5 rounded-xl font-bold text-xs shrink-0 self-start sm:self-auto transition-colors">
+              <span>Apply</span>
+              <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
             </div>
           </div>
 
@@ -570,9 +596,9 @@ export default function WalletPage() {
 
       {/* ─── ADD FUNDS MODAL ─── */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-reveal">
+        <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowAddModal(false)} />
-          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-display text-[22px] font-black text-on-surface">Add Funds</h3>
               <button
@@ -632,9 +658,9 @@ export default function WalletPage() {
 
       {/* ─── WITHDRAW FUNDS MODAL ─── */}
       {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-reveal">
+        <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowWithdrawModal(false)} />
-          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display text-[22px] font-black text-on-surface">Withdraw Funds</h3>
               <button
@@ -764,9 +790,9 @@ export default function WalletPage() {
 
       {/* ─── ADD / UPDATE BANK ACCOUNT MODAL WITH OTP VERIFICATION ─── */}
       {showBankModal && (
-        <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-reveal">
+        <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isBankLoading && setShowBankModal(false)} />
-          <div className="relative bg-white w-full max-w-[440px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white w-full max-w-[440px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-4 border-b border-gray-100 mb-4">
               <div className="flex items-center gap-2.5">
@@ -1000,6 +1026,12 @@ export default function WalletPage() {
           </div>
         </div>
       )}
+
+      {/* Vendor Loan Modal */}
+      <VendorLoanModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
+      />
     </>
   );
 }

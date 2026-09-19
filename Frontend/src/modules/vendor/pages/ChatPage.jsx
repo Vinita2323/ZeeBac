@@ -280,9 +280,9 @@ export default function ChatPage() {
 
   if (selectedChat && activeChatData) {
     return (
-      <div className="flex flex-col h-screen bg-slate-50 text-left animate-reveal" style={{ fontFamily: "'Quicksand', sans-serif" }}>
+      <div className="flex flex-col h-[100dvh] -mx-3 sm:-mx-4 md:mx-0 -my-3 sm:-my-4 md:my-0 bg-slate-50 text-left animate-reveal" style={{ fontFamily: "'Quicksand', sans-serif" }}>
         {/* Chat Room Header */}
-        <header className="sticky top-0 z-50 bg-white px-4 py-3 border-b border-outline-variant/10 shadow-sm flex items-center gap-3">
+        <header className="sticky top-0 z-50 bg-white px-3 sm:px-4 py-2.5 sm:py-3 border-b border-outline-variant/10 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <button 
             onClick={() => setSelectedChat(null)} 
             className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer"
@@ -446,7 +446,7 @@ export default function ChatPage() {
   return (
     <div className="animate-reveal text-left" style={{ fontFamily: "'Quicksand', sans-serif" }}>
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/70 backdrop-blur-md -mx-container-margin px-container-margin py-md flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-2">
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
         <div className="flex items-center">
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
             <span className="material-symbols-outlined text-primary">arrow_back</span>

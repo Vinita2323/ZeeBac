@@ -6,7 +6,6 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
 import NotificationPanel from '../components/common/NotificationPanel';
 import useNotifications from '../../../hooks/useNotifications';
-import StoriesReel from '../components/StoriesReel';
 
 export default function HomeScreen() {
   const navigate = useNavigate();
@@ -122,8 +121,7 @@ export default function HomeScreen() {
           </div>
         </div>
 
-        {/* 24-Hour Store Stories Reel (Instagram Style - 10km Nearby Stores) */}
-        <StoriesReel location={location} />
+
 
         {/* Balance chip */}
         <div

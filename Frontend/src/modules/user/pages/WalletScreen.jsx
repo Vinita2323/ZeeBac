@@ -4,6 +4,7 @@ import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { verifyBiometricCredential } from '../../../utils/biometric.util';
+import LoanComingSoonModal from '../components/LoanComingSoonModal';
 
 export default function WalletScreen() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function WalletScreen() {
   const [utrInput, setUtrInput] = useState('');
   const [utrError, setUtrError] = useState('');
   const [isClaimingUtr, setIsClaimingUtr] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
 
   // Fetch real wallet and activities
   useEffect(() => {
@@ -100,6 +102,24 @@ export default function WalletScreen() {
     }
   };
 
+  if (subView === 'recharge') {
+    return (
+      <RechargeSubView 
+        balance={balance} 
+        currentUser={currentUser} 
+        onBack={() => setSubView(null)} 
+        setBalance={setBalance}
+        onRechargeSuccess={(newBal, newTx) => {
+          setBalance(newBal);
+          useAuthStore.getState().updateBalance(newBal);
+          if (newTx) {
+            setActivities(prev => [newTx, ...prev]);
+          }
+        }}
+      />
+    );
+  }
+
   if (subView === 'cashout') {
     return <CashoutSubView balance={balance} currentUser={currentUser} withdrawals={withdrawals} onBack={() => setSubView(null)} setBalance={setBalance} />;
   }
@@ -135,35 +155,95 @@ export default function WalletScreen() {
             <h2 className="text-[44px] font-display font-black text-primary leading-none">₹{balance.toFixed(2)}</h2>
           </div>
 
-          {/* Quick buttons */}
-          <div className="grid grid-cols-3 gap-sm pt-sm border-t border-outline-variant/10">
+          {/* Quick buttons (4 Actions: Recharge, Cashout, Perks, History) */}
+          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-outline-variant/10">
             <button 
-              onClick={() => navigate('/passbook')}
-              className="flex flex-col items-center gap-xs cursor-pointer hover:opacity-85 active:scale-95"
+              onClick={() => setSubView('recharge')}
+              className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
             >
-              <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined text-[20px]">history</span>
+              <div className="w-11 h-11 bg-purple-100 rounded-full flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+                <span className="material-symbols-outlined text-[20px]">phone_android</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant">History</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Recharge</span>
             </button>
             <button 
               onClick={() => setSubView('cashout')}
-              className="flex flex-col items-center gap-xs cursor-pointer hover:opacity-85 active:scale-95"
+              className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
             >
-              <div className="w-11 h-11 bg-secondary/10 rounded-full flex items-center justify-center text-secondary">
+              <div className="w-11 h-11 bg-secondary/10 rounded-full flex items-center justify-center text-secondary group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">account_balance</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant">Cashout</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">Cashout</span>
             </button>
             <button 
               onClick={() => setSubView('perks')}
-              className="flex flex-col items-center gap-xs cursor-pointer hover:opacity-85 active:scale-95"
+              className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
             >
-              <div className="w-11 h-11 bg-green-500/10 rounded-full flex items-center justify-center text-green-600">
+              <div className="w-11 h-11 bg-green-500/10 rounded-full flex items-center justify-center text-green-600 group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">stars</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant">Perks</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">Perks</span>
             </button>
+            <button 
+              onClick={() => navigate('/passbook')}
+              className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
+            >
+              <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+                <span className="material-symbols-outlined text-[20px]">history</span>
+              </div>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">History</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Recharge with Wallet Balance Banner */}
+        <div 
+          onClick={() => setSubView('recharge')}
+          className="bg-gradient-to-r from-[#6000da] via-[#7c3aed] to-[#9333ea] text-white rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg hover:shadow-purple-500/25 transition-all active:scale-[0.99] shadow-md relative overflow-hidden"
+        >
+          <div className="flex items-center gap-3.5 relative z-10">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-inner">
+              <span className="material-symbols-outlined text-[24px]">phonelink_ring</span>
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full">New</span>
+                <span className="text-[11px] font-semibold text-white/80">Mobile Recharge</span>
+              </div>
+              <p className="text-[14px] font-extrabold text-white leading-snug mt-0.5">Pay with Rewards Balance</p>
+              <p className="text-[11px] text-white/80 leading-tight">Instant Jio, Airtel, Vi & BSNL top-ups</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 relative z-10 bg-white/15 px-3 py-2 rounded-xl text-[12px] font-bold shrink-0">
+            <span>Recharge</span>
+            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </div>
+          <span className="material-symbols-outlined absolute -right-3 -bottom-4 text-white/10 text-[95px] pointer-events-none select-none">
+            phone_iphone
+          </span>
+        </div>
+
+        {/* Instant Personal Loan Banner */}
+        <div 
+          onClick={() => setShowLoanModal(true)}
+          className="bg-gradient-to-r from-[#1e1b4b] via-[#312e81] to-[#4338ca] text-white rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition-all active:scale-[0.99] shadow-md relative overflow-hidden"
+        >
+          <div className="flex items-center gap-3.5 relative z-10">
+            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
+              <span className="material-symbols-outlined text-[24px]">payments</span>
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-300/30 px-2 py-0.5 rounded-full">Coming Soon</span>
+                <span className="text-[11px] font-bold text-indigo-200">Instant Credit</span>
+              </div>
+              <p className="text-[14px] font-extrabold text-white leading-snug mt-0.5">Need Instant Cash? Apply Loan</p>
+              <p className="text-[11px] text-indigo-200/90 leading-tight">Get up to ₹5,00,000 • 100% paperless instant disbursal</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-3 py-1.5 rounded-xl font-black text-[11px] shadow-sm shrink-0 relative z-10 transition-colors">
+            <span>Apply</span>
+            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
           </div>
         </div>
 
@@ -311,6 +391,12 @@ export default function WalletScreen() {
         )}
 
       </main>
+
+      {/* Loan Coming Soon Modal */}
+      <LoanComingSoonModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
+      />
 
       {/* Shared Bottom NavBar */}
       <BottomNavBar />
@@ -928,6 +1014,640 @@ function PerksSubView({ balance, activities, onBack }) {
         )}
 
       </main>
+    </div>
+  );
+}
+
+// ─── SUBVIEW 3: MOBILE RECHARGE (WALLET BALANCE) ───
+function RechargeSubView({ balance, currentUser, onBack, setBalance, onRechargeSuccess }) {
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [operator, setOperator] = useState('Jio');
+  const [circle, setCircle] = useState('Delhi NCR');
+  const [plans, setPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [customAmount, setCustomAmount] = useState('');
+  const [activeTab, setActiveTab] = useState('All');
+  const [isLoadingPlans, setIsLoadingPlans] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [receipt, setReceipt] = useState(null);
+
+  // Security Auth Modal State
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [authMode, setAuthMode] = useState('biometric');
+  const [authPin, setAuthPin] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isVerifyingSecurity, setIsVerifyingSecurity] = useState(false);
+
+  const isSecurityProtected = !!currentUser?.security?.hasPin || !!currentUser?.security?.biometricEnabled;
+
+  const OPERATORS = [
+    { name: 'Jio', bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-500', badge: 'True 5G' },
+    { name: 'Airtel', bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-500', badge: 'Airtel 5G Plus' },
+    { name: 'Vi', bg: 'bg-amber-600', text: 'text-amber-600', border: 'border-amber-500', badge: 'Hero Unlimited' },
+    { name: 'BSNL', bg: 'bg-sky-600', text: 'text-sky-600', border: 'border-sky-500', badge: 'Best Value' },
+  ];
+
+  const CIRCLES = [
+    'Delhi NCR', 'Mumbai', 'Maharashtra & Goa', 'UP East', 'UP West',
+    'Karnataka', 'Tamil Nadu', 'Punjab', 'Rajasthan', 'Kolkata', 'Gujarat'
+  ];
+
+  // Fetch plans when operator or circle changes
+  useEffect(() => {
+    const fetchPlans = async () => {
+      setIsLoadingPlans(true);
+      try {
+        const res = await UserAPI.getRechargePlans(operator, circle);
+        if (res.success) {
+          setPlans(res.data);
+          if (!selectedPlan && res.data.length > 0) {
+            setSelectedPlan(res.data.find(p => p.amount === 239) || res.data[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load recharge plans', err);
+      } finally {
+        setIsLoadingPlans(false);
+      }
+    };
+    fetchPlans();
+  }, [operator, circle]);
+
+  // Current amount to pay (either selected plan or custom amount)
+  const currentAmount = customAmount ? parseFloat(customAmount) : (selectedPlan ? selectedPlan.amount : 0);
+  const isBalanceSufficient = balance >= currentAmount && currentAmount > 0;
+  const isNumberValid = mobileNumber.length === 10 && /^[6-9]\d{9}$/.test(mobileNumber);
+
+  // Filter plans by category tab
+  const filteredPlans = activeTab === 'All' 
+    ? plans 
+    : plans.filter(p => p.category.toLowerCase().includes(activeTab.toLowerCase()));
+
+  // Quick fill user's registered phone
+  const handleUseMyNumber = () => {
+    if (currentUser?.phone) {
+      const clean = currentUser.phone.replace(/\D/g, '').slice(-10);
+      if (clean.length === 10) {
+        setMobileNumber(clean);
+        setErrorMsg('');
+      }
+    }
+  };
+
+  const executeRecharge = async () => {
+    setIsProcessing(true);
+    setErrorMsg('');
+    try {
+      const payload = {
+        mobileNumber,
+        operator,
+        circle,
+        amount: currentAmount,
+        planDetails: selectedPlan ? {
+          planName: `${operator} ₹${selectedPlan.amount}`,
+          validity: selectedPlan.validity,
+          data: selectedPlan.data,
+          talktime: selectedPlan.talktime,
+          description: selectedPlan.description,
+        } : {
+          planName: `${operator} ₹${currentAmount}`,
+          description: `Custom Top-up recharge of ₹${currentAmount}`,
+        },
+      };
+
+      const res = await UserAPI.processMobileRecharge(payload);
+      if (res.success) {
+        const newBal = res.data.newBalance;
+        setBalance(newBal);
+        
+        const newTx = {
+          id: res.data.recharge._id,
+          name: `Mobile Recharge - ${operator} (${mobileNumber})`,
+          time: new Date().toLocaleString(),
+          amount: `-₹${currentAmount.toFixed(2)}`,
+          status: 'Debited',
+          icon: 'phone_android',
+          utr: res.data.recharge.operatorRefNumber,
+        };
+
+        if (onRechargeSuccess) {
+          onRechargeSuccess(newBal, newTx);
+        }
+
+        setReceipt(res.data.recharge);
+      } else {
+        setErrorMsg(res.message || 'Recharge failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Recharge error:', err);
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to complete recharge.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRechargeClick = async () => {
+    if (!isNumberValid) {
+      setErrorMsg('Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)');
+      return;
+    }
+    if (!currentAmount || currentAmount < 1) {
+      setErrorMsg('Please select a valid recharge plan or enter an amount');
+      return;
+    }
+    if (!isBalanceSufficient) {
+      setErrorMsg(`Insufficient wallet balance. You have ₹${balance.toFixed(2)}, need ₹${currentAmount.toFixed(2)}.`);
+      return;
+    }
+
+    // Check Security Protection
+    if (isSecurityProtected) {
+      setAuthPin('');
+      setAuthError('');
+      if (currentUser?.security?.biometricEnabled) {
+        setAuthMode('biometric');
+        setShowSecurityModal(true);
+        setTimeout(async () => {
+          try {
+            setIsVerifyingSecurity(true);
+            const bioRes = await verifyBiometricCredential(currentUser?.security?.biometricCredentialId);
+            if (bioRes.success) {
+              setShowSecurityModal(false);
+              await executeRecharge();
+            } else {
+              setAuthError(bioRes.error || 'Biometric validation failed. Please enter your PIN.');
+              setAuthMode('pin');
+            }
+          } catch (e) {
+            setAuthError('Biometric verification failed. Please enter your PIN.');
+            setAuthMode('pin');
+          } finally {
+            setIsVerifyingSecurity(false);
+          }
+        }, 200);
+      } else {
+        setAuthMode('pin');
+        setShowSecurityModal(true);
+      }
+    } else {
+      await executeRecharge();
+    }
+  };
+
+  const handleVerifyPinAndRecharge = async (e) => {
+    e.preventDefault();
+    if (!authPin.trim()) return;
+
+    setIsVerifyingSecurity(true);
+    setAuthError('');
+    try {
+      const res = await UserAPI.verifySecurityPin(authPin.trim());
+      if (res.success) {
+        setShowSecurityModal(false);
+        await executeRecharge();
+      } else {
+        setAuthError(res.message || 'Incorrect PIN. Try again.');
+      }
+    } catch (err) {
+      setAuthError(err.response?.data?.message || err.message || 'Incorrect Security PIN.');
+    } finally {
+      setIsVerifyingSecurity(false);
+    }
+  };
+
+  // ─── Success Receipt View ───
+  if (receipt) {
+    return (
+      <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
+        <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center justify-between border-b border-outline-variant/10 shadow-sm">
+          <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer">
+            <span className="material-symbols-outlined text-primary">arrow_back</span>
+          </button>
+          <span className="font-display text-title-md text-primary font-bold">Recharge Receipt</span>
+          <div className="w-10"></div>
+        </header>
+
+        <main className="flex-grow flex items-center justify-center px-container-margin py-xl">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-xl border border-outline-variant/20 text-center space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Animated Success Icon */}
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+              <span className="material-symbols-outlined text-3xl">check_circle</span>
+            </div>
+
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Payment Completed
+              </span>
+              <h2 className="text-2xl font-black text-on-surface mt-1.5">Recharge Successful!</h2>
+              <p className="text-xs text-on-surface-variant mt-0.5">Paid directly from your cashback wallet</p>
+            </div>
+
+            {/* Receipt Summary Card */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-left space-y-2.5 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Recharge Amount</span>
+                <span className="text-lg font-black text-primary font-display">₹{receipt.amount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Mobile Number</span>
+                <span className="font-mono font-bold text-slate-800">+91 {receipt.mobileNumber}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Operator & Circle</span>
+                <span className="font-semibold text-slate-800">{receipt.operator} • {receipt.circle}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Reference ID</span>
+                <span className="font-mono font-semibold text-primary text-[11px]">{receipt.operatorRefNumber}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <span className="text-slate-500">New Wallet Balance</span>
+                <span className="font-bold text-emerald-700 font-mono">₹{balance.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => {
+                  setReceipt(null);
+                  setSelectedPlan(null);
+                  setCustomAmount('');
+                }}
+                className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-sm shadow-md active:scale-98 transition-transform cursor-pointer"
+              >
+                Recharge Another Number
+              </button>
+              <button
+                onClick={onBack}
+                className="w-full h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Back to Wallet
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button 
+              onClick={onBack}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-bold ml-1">Mobile Recharge</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-200 text-primary px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+            <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+            <span>₹{balance.toFixed(2)}</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow app-container px-container-margin py-lg space-y-5 text-left">
+        {/* Error banner */}
+        {errorMsg && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+            <span className="material-symbols-outlined text-base shrink-0">error</span>
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* 1. Mobile Number Input Card */}
+        <div className="bg-white rounded-2xl p-4 border border-outline-variant/30 shadow-sm space-y-2.5">
+          <div className="flex justify-between items-center">
+            <label className="text-caption font-bold uppercase tracking-wider text-on-surface-variant">
+              Mobile Number
+            </label>
+            {currentUser?.phone && (
+              <button 
+                type="button"
+                onClick={handleUseMyNumber}
+                className="text-[11px] text-primary font-bold hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-xs">person</span>
+                Use My Number
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center bg-slate-50 border border-outline-variant/40 rounded-xl px-3 h-12 focus-within:bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+            <span className="text-sm font-bold text-slate-500 mr-2 border-r border-slate-300 pr-2">+91</span>
+            <input 
+              type="tel"
+              maxLength={10}
+              value={mobileNumber}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setMobileNumber(val);
+                setErrorMsg('');
+              }}
+              placeholder="Enter 10-digit mobile number"
+              className="w-full bg-transparent outline-none font-mono font-bold text-base text-on-surface tracking-wider placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400"
+            />
+            {mobileNumber.length === 10 && (
+              <span className="material-symbols-outlined text-emerald-600 text-lg">check_circle</span>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Operator & Circle Selector */}
+        <div className="bg-white rounded-2xl p-4 border border-outline-variant/30 shadow-sm space-y-3">
+          <label className="text-caption font-bold uppercase tracking-wider text-on-surface-variant block">
+            Select Telecom Operator
+          </label>
+
+          <div className="grid grid-cols-4 gap-2">
+            {OPERATORS.map((op) => {
+              const isSelected = operator === op.name;
+              return (
+                <button
+                  key={op.name}
+                  type="button"
+                  onClick={() => {
+                    setOperator(op.name);
+                    setSelectedPlan(null);
+                    setCustomAmount('');
+                  }}
+                  className={`py-2.5 px-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all border cursor-pointer ${
+                    isSelected 
+                      ? `${op.border} bg-purple-50/70 ring-2 ring-primary/25 shadow-sm` 
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  <span className={`w-8 h-8 rounded-full ${op.bg} text-white flex items-center justify-center font-black text-xs shadow-sm`}>
+                    {op.name.charAt(0)}
+                  </span>
+                  <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-slate-800'}`}>
+                    {op.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Circle Selector */}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-xs text-slate-500 font-medium">Telecom Circle</span>
+            <select
+              value={circle}
+              onChange={(e) => setCircle(e.target.value)}
+              className="text-xs font-bold text-primary bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
+            >
+              {CIRCLES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* 3. Plans Selector Tabs */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-caption font-bold uppercase tracking-wider text-on-surface-variant">
+              Select Recharge Plan
+            </label>
+            <span className="text-[11px] text-slate-500 font-medium">{filteredPlans.length} plans available</span>
+          </div>
+
+          {/* Category Tabs */}
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {['All', 'Popular', 'Unlimited', 'Data Add-on', 'Top-up'].map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                  activeTab === tab
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Amount Field */}
+          <div className="bg-white rounded-xl p-3 border border-outline-variant/30 flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-slate-700 shrink-0">Custom Amount (₹)</span>
+            <div className="relative flex-grow max-w-[140px]">
+              <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">₹</span>
+              <input 
+                type="number"
+                min="1"
+                value={customAmount}
+                onChange={(e) => {
+                  setCustomAmount(e.target.value);
+                  if (e.target.value) setSelectedPlan(null);
+                  setErrorMsg('');
+                }}
+                placeholder="Enter amount"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 text-xs font-bold outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* Plans Grid */}
+          {isLoadingPlans ? (
+            <div className="space-y-2 py-4 text-center">
+              <span className="inline-block w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span>
+              <p className="text-xs text-slate-500">Fetching {operator} plans...</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+              {filteredPlans.map((plan) => {
+                const isSelected = selectedPlan?.id === plan.id && !customAmount;
+                const canAfford = balance >= plan.amount;
+                return (
+                  <div
+                    key={plan.id}
+                    onClick={() => {
+                      setSelectedPlan(plan);
+                      setCustomAmount('');
+                      setErrorMsg('');
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer text-left relative ${
+                      isSelected
+                        ? 'bg-purple-50/80 border-primary ring-2 ring-primary/20 shadow-sm'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <span className="font-display font-black text-xl text-primary">₹{plan.amount}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                          {plan.validity}
+                        </span>
+                        {plan.data !== 'NA' && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                            {plan.data}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {!canAfford && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                            Low Balance
+                          </span>
+                        )}
+                        <span className={`material-symbols-outlined text-lg ${isSelected ? 'text-primary' : 'text-slate-300'}`}>
+                          {isSelected ? 'check_circle' : 'radio_button_unchecked'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-600 font-medium mt-1.5 line-clamp-2">
+                      {plan.description}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 4. Payment Breakdown & Confirmation */}
+        <div className="bg-white rounded-2xl p-4 border border-outline-variant/30 shadow-sm space-y-3">
+          <h4 className="text-caption font-bold uppercase tracking-wider text-on-surface-variant">
+            Payment Summary
+          </h4>
+
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between items-center text-slate-600">
+              <span>Recharge Pack</span>
+              <span className="font-bold text-slate-900">₹{currentAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-slate-600">
+              <span>Current Rewards Balance</span>
+              <span className="font-mono font-semibold text-primary">₹{balance.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100 font-bold">
+              <span>Remaining Balance After Recharge</span>
+              <span className={`font-mono ${isBalanceSufficient ? 'text-emerald-700' : 'text-rose-600'}`}>
+                {isBalanceSufficient 
+                  ? `₹${(balance - currentAmount).toFixed(2)}`
+                  : 'Insufficient Funds'}
+              </span>
+            </div>
+          </div>
+
+          {!isBalanceSufficient && currentAmount > 0 && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-amber-600 shrink-0">warning</span>
+              <span>
+                Your reward balance is short by ₹{(currentAmount - balance).toFixed(2)}. Earn more cashback by shopping at partner stores!
+              </span>
+            </div>
+          )}
+
+          {/* Submit Action Button */}
+          <button
+            type="button"
+            onClick={handleRechargeClick}
+            disabled={!isNumberValid || !currentAmount || !isBalanceSufficient || isProcessing}
+            className={`w-full h-13 rounded-xl font-title-md flex items-center justify-center gap-2 shadow-lg transition-all ${
+              isNumberValid && currentAmount > 0 && isBalanceSufficient && !isProcessing
+                ? 'btn-primary-gradient text-white active:scale-98 cursor-pointer shadow-primary/25'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+            }`}
+          >
+            {isProcessing ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span>Processing Recharge...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-xl">bolt</span>
+                <span>Pay ₹{currentAmount > 0 ? currentAmount.toFixed(0) : '0'} with Rewards</span>
+              </>
+            )}
+          </button>
+        </div>
+      </main>
+
+      {/* ─── SECURITY PIN / BIOMETRIC AUTH MODAL ─── */}
+      {showSecurityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-purple-100 text-primary flex items-center justify-center mx-auto mb-3 shadow-inner">
+              <span className="material-symbols-outlined text-2xl">
+                {authMode === 'biometric' ? 'fingerprint' : 'lock'}
+              </span>
+            </div>
+
+            <h3 className="font-display font-black text-lg text-on-surface">
+              {authMode === 'biometric' ? 'Biometric Authentication' : 'Enter Security PIN'}
+            </h3>
+            <p className="text-caption text-on-surface-variant mt-1">
+              Confirm mobile recharge of <span className="font-bold text-primary">₹{currentAmount}</span> for <span className="font-bold font-mono">{mobileNumber}</span>
+            </p>
+
+            {authError && (
+              <div className="text-rose-600 text-xs font-semibold bg-rose-50 border border-rose-100 py-1.5 px-3 rounded-lg my-3">
+                {authError}
+              </div>
+            )}
+
+            {authMode === 'pin' ? (
+              <form onSubmit={handleVerifyPinAndRecharge} className="space-y-4 my-4">
+                <input
+                  type="password"
+                  maxLength={6}
+                  autoFocus
+                  value={authPin}
+                  onChange={(e) => {
+                    setAuthPin(e.target.value.replace(/\D/g, ''));
+                    setAuthError('');
+                  }}
+                  placeholder="Enter PIN"
+                  className="w-full h-12 text-center font-mono font-black text-2xl bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-primary outline-none tracking-widest"
+                />
+                <button
+                  type="submit"
+                  disabled={authPin.length < 4 || isVerifyingSecurity}
+                  className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-sm shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isVerifyingSecurity ? 'Verifying PIN...' : 'Confirm Recharge'}
+                </button>
+              </form>
+            ) : (
+              <div className="py-4 space-y-3">
+                <p className="text-xs text-slate-500">Scan your fingerprint or face to authorize payment</p>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('pin')}
+                  className="text-xs text-primary font-bold hover:underline cursor-pointer"
+                >
+                  Switch to PIN
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowSecurityModal(false);
+                setAuthError('');
+              }}
+              className="mt-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

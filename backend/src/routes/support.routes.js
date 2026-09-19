@@ -1,12 +1,14 @@
 import express from 'express';
-import { createTicket, getUserTickets } from '../controllers/support.controller.js';
-import { protect } from '../middlewares/auth.middleware.js';
+import { createTicket, getUserTickets, getPublicFaqs } from '../controllers/support.controller.js';
+import { protect, optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-router.use(protect); // Need to be logged in to create or view tickets
+// Public / User FAQs
+router.get('/faqs', optionalAuth, getPublicFaqs);
 
-router.post('/', createTicket);
-router.get('/', getUserTickets);
+// Protected Ticket Routes
+router.post('/', protect, createTicket);
+router.get('/', protect, getUserTickets);
 
 export default router;

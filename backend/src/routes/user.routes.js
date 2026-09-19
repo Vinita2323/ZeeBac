@@ -2,6 +2,7 @@ import express from 'express';
 import { 
   getUserProfile, 
   updateUserLocation, 
+  sendUserBankOtp,
   updateLinkedAccount,
   lookupVendorById, 
   createCustomerTransaction,
@@ -36,7 +37,9 @@ import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
 import { getVendorReviews, createReview, deleteReview } from '../controllers/review.controller.js';
 import { getMyReferrals } from '../controllers/referral.controller.js';
+import { getRechargePlans, processMobileRecharge, getMyRecharges } from '../controllers/recharge.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
+import { otpLimiter } from '../middlewares/rateLimit.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
 const router = express.Router();
@@ -45,9 +48,15 @@ const router = express.Router();
 router.use(protect);
 router.use(requireRole('customer'));
 
-// Profile
+// Profile & Bank Linking
 router.get('/me', getUserProfile);
+router.post('/bank-account/send-otp', otpLimiter, sendUserBankOtp);
 router.put('/me/linked-account', updateLinkedAccount);
+
+// Mobile Recharge (Wallet Balance)
+router.get('/recharge/plans', getRechargePlans);
+router.post('/recharge/process', processMobileRecharge);
+router.get('/recharge/history', getMyRecharges);
 
 // Location
 router.put('/location', updateUserLocation);

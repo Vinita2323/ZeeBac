@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserAPI } from '../../../services/api';
+import { UserAPI, SupportAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { shareContent, downloadImage } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
 import { isBiometricSupported, registerBiometricCredential } from '../../../utils/biometric.util';
+import LoanComingSoonModal from '../components/LoanComingSoonModal';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function ProfileScreen() {
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const [subView, setSubView] = useState(null); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
+  const [showLoanModal, setShowLoanModal] = useState(false);
   
   // Profile state
   const [profile, setProfile] = useState({
@@ -50,9 +52,12 @@ export default function ProfileScreen() {
 
   // Linked Accounts State
   const [paymentDetails, setPaymentDetails] = useState({
+    accountHolderName: currentUser?.bankDetails?.accountHolderName || currentUser?.name || '',
     upiId: currentUser?.bankDetails?.upiId || '',
     bankName: currentUser?.bankDetails?.bankName || '',
-    accNo: currentUser?.bankDetails?.accountNumber || ''
+    accNo: currentUser?.bankDetails?.accountNumber || '',
+    ifscCode: currentUser?.bankDetails?.ifscCode || '',
+    isVerified: !!currentUser?.bankDetails?.isVerified,
   });
 
   // Local Storage integration for persistence
@@ -66,9 +71,12 @@ export default function ProfileScreen() {
       });
       if (currentUser.bankDetails) {
         setPaymentDetails({
+          accountHolderName: currentUser.bankDetails.accountHolderName || currentUser.name || '',
           upiId: currentUser.bankDetails.upiId || '',
           bankName: currentUser.bankDetails.bankName || '',
-          accNo: currentUser.bankDetails.accountNumber || ''
+          accNo: currentUser.bankDetails.accountNumber || '',
+          ifscCode: currentUser.bankDetails.ifscCode || '',
+          isVerified: !!currentUser.bankDetails.isVerified,
         });
       }
     }
@@ -250,12 +258,25 @@ export default function ProfileScreen() {
     try {
       const res = await UserAPI.updateLinkedAccount(newDetails);
       if (res.success) {
-        setPaymentDetails(newDetails);
-        setSubView(null);
+        const updated = {
+          accountHolderName: res.data?.accountHolderName || newDetails.accountHolderName,
+          bankName: res.data?.bankName || newDetails.bankName,
+          accNo: res.data?.accountNumber || newDetails.accNo,
+          upiId: res.data?.upiId || newDetails.upiId,
+          ifscCode: res.data?.ifscCode || newDetails.ifscCode,
+          isVerified: true,
+        };
+        setPaymentDetails(updated);
+        updateProfileStore({
+          bankDetails: res.data || updated,
+        });
+        return { success: true, message: res.message || 'Bank account verified and linked successfully!' };
       }
+      return { success: false, message: res.message || 'Verification failed' };
     } catch (error) {
       console.error("Failed to update linked account", error);
-      alert("Failed to update account. Please try again.");
+      const msg = error.response?.data?.message || error.message || "Failed to update account. Please try again.";
+      return { success: false, message: msg };
     }
   };
 
@@ -275,6 +296,8 @@ export default function ProfileScreen() {
     return (
       <LinkedAccountsSubView 
         initialPayments={paymentDetails} 
+        userPhone={currentUser?.phone || profile.phone}
+        userName={currentUser?.name || profile.name}
         onSave={handleSavePaymentDetails} 
         onBack={() => setSubView(null)} 
       />
@@ -416,23 +439,35 @@ export default function ProfileScreen() {
           </div>
         </div>
 
+        {/* Instant Personal Loan Showcase Card */}
+        <div 
+          onClick={() => setShowLoanModal(true)}
+          className="bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#7c3aed] text-white rounded-2xl p-4 shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-between relative overflow-hidden"
+        >
+          <div className="flex items-center gap-3.5 relative z-10">
+            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 flex-shrink-0 border border-white/10">
+              <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400/25 text-amber-300 border border-amber-300/40 px-2 py-0.5 rounded-full">Coming Soon</span>
+                <span className="text-[11px] font-bold text-purple-200">Zeebac Credit</span>
+              </div>
+              <p className="text-[14px] font-extrabold text-white leading-tight mt-1">Apply for Personal Loan up to ₹5L</p>
+              <p className="text-[10.5px] text-purple-200/90 font-medium mt-0.5">100% Paperless • Zero Collateral • 5 Min Disbursal</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-3 py-1.5 rounded-xl font-black text-[11px] shadow-sm whitespace-nowrap relative z-10 transition-colors shrink-0">
+            <span>Apply</span>
+            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+          </div>
+        </div>
+
         {/* Settings Group 1: General Options */}
         <div className="space-y-sm">
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Accounts & History</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
-            <div 
-              onClick={() => navigate('/passbook')}
-              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
-            >
-              <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">history</span>
-                <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Cashback History</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">View details and check receipt audits</p>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-            </div>
+        
 
             <div 
               onClick={() => setSubView('linked-accounts')}
@@ -441,7 +476,7 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">account_balance</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Cashout Accounts</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">Withdrawal Accounts</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">Manage linked bank details & UPI</p>
                 </div>
               </div>
@@ -450,13 +485,30 @@ export default function ProfileScreen() {
 
             <div 
               onClick={() => navigate('/wallet')}
-              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">wallet</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Rewards Wallet</p>
                   <p className="font-caption text-[11px] text-on-surface-variant">Check balance status & perks list</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+            </div>
+
+            <div 
+              onClick={() => setShowLoanModal(true)}
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[#7c3aed]">payments</span>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-title-md text-on-surface font-bold text-body-sm">Apply for Personal Loan</p>
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-amber-400/20 text-amber-700 border border-amber-300/40">Coming Soon</span>
+                  </div>
+                  <p className="font-caption text-[11px] text-on-surface-variant">Instant collateral-free cash up to ₹5,00,000</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
@@ -773,6 +825,12 @@ export default function ProfileScreen() {
         </div>
       )}
 
+      {/* Loan Coming Soon Modal */}
+      <LoanComingSoonModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
+      />
+
       <BottomNavBar />
     </div>
   );
@@ -859,23 +917,173 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
   );
 }
 
-// SUBPAGE 2: LINKED ACCOUNTS COMPONENT
-function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
-  const [upiId, setUpiId] = useState(initialPayments.upiId);
-  const [bankName, setBankName] = useState(initialPayments.bankName);
-  const [accNo, setAccNo] = useState(initialPayments.accNo);
+// SUBPAGE 2: LINKED ACCOUNTS COMPONENT WITH REGISTERED MOBILE OTP VERIFICATION
+function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, onBack }) {
+  const [accountHolderName, setAccountHolderName] = useState(initialPayments.accountHolderName || userName || '');
+  const [bankName, setBankName] = useState(initialPayments.bankName || '');
+  const [accNo, setAccNo] = useState(initialPayments.accNo || '');
+  const [ifscCode, setIfscCode] = useState(initialPayments.ifscCode || '');
+  const [upiId, setUpiId] = useState(initialPayments.upiId || '');
+  const [isVerified, setIsVerified] = useState(!!initialPayments.isVerified);
 
-  const isValid = upiId.trim().includes('@') && bankName.trim().length > 3 && accNo.trim().length >= 4;
+  // OTP Modal & Verification States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [maskedPhone, setMaskedPhone] = useState('');
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [resendTimer, setResendTimer] = useState(30);
+  const [toastMessage, setToastMessage] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const otpInputRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+
+  // Resend Countdown Timer
+  useEffect(() => {
+    let interval = null;
+    if (showOtpModal && resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showOtpModal, resendTimer]);
+
+  const isValid = bankName.trim().length >= 3 && accNo.trim().length >= 4;
+
+  // Step 1: Initiate OTP send to registered mobile
+  const handleInitiateOtp = async (e) => {
+    if (e) e.preventDefault();
     if (!isValid) return;
-    onSave({ upiId, bankName, accNo });
+
+    setOtpError('');
+    setIsSendingOtp(true);
+    try {
+      const res = await UserAPI.sendBankOtp();
+      if (res.success) {
+        setMaskedPhone(res.maskedPhone || userPhone || 'registered mobile number');
+        setOtpDigits(['', '', '', '']);
+        setResendTimer(30);
+        setShowOtpModal(true);
+        setTimeout(() => {
+          otpInputRefs[0]?.current?.focus();
+        }, 150);
+      } else {
+        alert(res.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (err) {
+      console.error('Failed to send bank OTP:', err);
+      const msg = err.response?.data?.message || err.message || 'Failed to send OTP';
+      alert(msg);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // Resend OTP handler
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || isSendingOtp) return;
+    setOtpError('');
+    setIsSendingOtp(true);
+    try {
+      const res = await UserAPI.sendBankOtp();
+      if (res.success) {
+        setResendTimer(30);
+        setOtpDigits(['', '', '', '']);
+        setToastMessage('New OTP sent successfully!');
+        setTimeout(() => setToastMessage(''), 3000);
+        otpInputRefs[0]?.current?.focus();
+      }
+    } catch (err) {
+      setOtpError(err.response?.data?.message || 'Failed to resend OTP');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // Handle single-digit OTP input with auto-advance & paste support
+  const handleOtpChange = (index, value) => {
+    // Check if pasted multiple digits
+    if (value.length > 1) {
+      const digits = value.replace(/\D/g, '').slice(0, 4).split('');
+      const newOtp = ['', '', '', ''];
+      digits.forEach((d, i) => {
+        newOtp[i] = d;
+      });
+      setOtpDigits(newOtp);
+      const nextIndex = Math.min(digits.length, 3);
+      otpInputRefs[nextIndex]?.current?.focus();
+      return;
+    }
+
+    const clean = value.replace(/\D/g, '');
+    const newDigits = [...otpDigits];
+    newDigits[index] = clean;
+    setOtpDigits(newDigits);
+    setOtpError('');
+
+    if (clean && index < 3) {
+      otpInputRefs[index + 1]?.current?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpInputRefs[index - 1]?.current?.focus();
+    }
+  };
+
+  // Step 2: Confirm OTP & Link Account
+  const handleConfirmOtp = async () => {
+    const otp = otpDigits.join('');
+    if (otp.length < 4) {
+      setOtpError('Please enter all 4 digits of the OTP');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setOtpError('');
+
+    try {
+      const payload = {
+        accountHolderName: accountHolderName.trim() || userName,
+        bankName: bankName.trim(),
+        accNo: accNo.trim(),
+        ifscCode: ifscCode.trim().toUpperCase(),
+        upiId: upiId.trim(),
+        otp,
+      };
+
+      const result = await onSave(payload);
+      if (result?.success) {
+        setIsVerified(true);
+        setShowOtpModal(false);
+        setToastMessage('✅ Bank account verified and linked successfully!');
+        setTimeout(() => setToastMessage(''), 4500);
+      } else {
+        setOtpError(result?.message || 'Invalid OTP. Please try again.');
+      }
+    } catch (err) {
+      setOtpError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
   };
 
   return (
-    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg relative">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] max-w-sm w-[90%] bg-emerald-700 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-semibold animate-in fade-in slide-in-from-top-4">
+          <span className="material-symbols-outlined text-emerald-200">verified</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Top Header */}
+      <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
         <div className="app-container flex items-center justify-between">
           <div className="flex items-center gap-xs">
             <button 
@@ -886,69 +1094,276 @@ function LinkedAccountsSubView({ initialPayments, onSave, onBack }) {
             </button>
             <span className="font-display text-title-md text-primary ml-2">Linked Accounts</span>
           </div>
+          {isVerified && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+              <span className="material-symbols-outlined text-xs">verified_user</span>
+              Verified
+            </span>
+          )}
         </div>
       </header>
 
-      <main className="flex-grow app-container px-container-margin py-xl flex flex-col justify-between text-left">
-        <form onSubmit={handleSubmit} className="space-y-md flex-grow">
-          <div className="bg-gradient-to-br from-[#7c3aed] to-[#a855f7] text-white p-5 rounded-3xl shadow-lg shadow-primary/25 relative overflow-hidden mb-lg">
-            <span className="material-symbols-outlined absolute right-6 top-6 text-white/10 text-[80px] pointer-events-none select-none">account_balance_wallet</span>
-            <div className="space-y-sm">
-              <span className="text-[10px] text-white/60 tracking-widest uppercase">DEFAULT RECEIVING BANK</span>
-              <h3 className="text-body-lg font-black">{bankName}</h3>
-              <p className="font-label-mono text-body-sm tracking-widest pt-1">{accNo.startsWith('•') ? accNo : `•••• •••• ${accNo.slice(-4)}`}</p>
-              <div className="pt-2 border-t border-white/10 flex justify-between items-center text-[11px] text-white/80">
-                <span>UPI ID: {upiId}</span>
-                <span className="bg-green-500 text-white font-bold px-2 py-0.5 rounded-full uppercase scale-90">Linked</span>
+      <main className="flex-grow app-container px-container-margin py-xl flex flex-col justify-between text-left pb-8">
+        <form onSubmit={handleInitiateOtp} className="space-y-4 flex-grow">
+          {/* Card Preview */}
+          <div className="bg-gradient-to-br from-[#6000da] via-[#7c3aed] to-[#a855f7] text-white p-5 rounded-3xl shadow-xl shadow-primary/20 relative overflow-hidden mb-5">
+            <span className="material-symbols-outlined absolute right-4 -bottom-4 text-white/10 text-[110px] pointer-events-none select-none">
+              account_balance
+            </span>
+            <div className="space-y-2 relative z-10">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-white/70 tracking-widest uppercase font-semibold">
+                  PRIMARY RECEIVING BANK
+                </span>
+                {isVerified ? (
+                  <span className="bg-emerald-400/90 text-emerald-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                    <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                    Verified
+                  </span>
+                ) : (
+                  <span className="bg-amber-400 text-amber-950 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-0.5">
+                    <span className="material-symbols-outlined text-[12px]">schedule</span>
+                    Unverified
+                  </span>
+                )}
               </div>
+
+              <div>
+                <h3 className="text-title-md font-black tracking-tight">{bankName || 'Your Bank Name'}</h3>
+                <p className="text-caption text-white/80 font-medium">{accountHolderName || userName || 'Account Holder'}</p>
+              </div>
+
+              <div className="pt-2 border-t border-white/15 flex justify-between items-end text-body-sm">
+                <div>
+                  <span className="text-[9px] text-white/60 uppercase block tracking-wider">Account Number</span>
+                  <p className="font-label-mono tracking-widest font-bold">
+                    {accNo ? (accNo.length > 4 ? `•••• •••• ${accNo.slice(-4)}` : accNo) : '•••• •••• ••••'}
+                  </p>
+                </div>
+                {ifscCode && (
+                  <div className="text-right">
+                    <span className="text-[9px] text-white/60 uppercase block tracking-wider">IFSC</span>
+                    <p className="font-label-mono text-xs font-semibold">{ifscCode}</p>
+                  </div>
+                )}
+              </div>
+
+              {upiId && (
+                <div className="pt-1.5 border-t border-white/10 text-[11px] text-white/90 flex items-center gap-1">
+                  <span className="text-white/60">UPI:</span>
+                  <span className="font-mono font-medium">{upiId}</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div>
-            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">UPI Address (VPA)</label>
-            <input 
-              autoFocus
-              type="text"
-              value={upiId}
-              onChange={(e) => setUpiId(e.target.value)}
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
-            />
+          {/* Form Fields */}
+          <div className="space-y-3.5 bg-white p-5 rounded-2xl border border-outline-variant/30 shadow-sm">
+            <h4 className="text-body-sm font-bold text-on-surface flex items-center gap-1.5 mb-1">
+              <span className="material-symbols-outlined text-primary text-base">lock</span>
+              Bank Account Details
+            </h4>
+
+            <div>
+              <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
+                Account Holder Name
+              </label>
+              <input 
+                type="text"
+                value={accountHolderName}
+                onChange={(e) => setAccountHolderName(e.target.value)}
+                placeholder="Name as registered with bank"
+                className="w-full h-[48px] px-3.5 bg-slate-50 border border-outline-variant/40 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-sm transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
+                Receiving Bank Name *
+              </label>
+              <input 
+                type="text"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="e.g. State Bank of India, HDFC, ICICI"
+                className="w-full h-[48px] px-3.5 bg-slate-50 border border-outline-variant/40 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-sm transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
+                Bank Account Number *
+              </label>
+              <input 
+                type="text"
+                value={accNo}
+                onChange={(e) => setAccNo(e.target.value.replace(/\s+/g, ''))}
+                placeholder="Enter complete bank account number"
+                className="w-full h-[48px] px-3.5 bg-slate-50 border border-outline-variant/40 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-sm font-mono transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
+                Bank IFSC Code
+              </label>
+              <input 
+                type="text"
+                value={ifscCode}
+                onChange={(e) => setIfscCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                placeholder="e.g. SBIN0001234 / HDFC0000123"
+                maxLength={11}
+                className="w-full h-[48px] px-3.5 bg-slate-50 border border-outline-variant/40 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-sm font-mono uppercase transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
+                UPI ID / VPA (Optional)
+              </label>
+              <input 
+                type="text"
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                placeholder="e.g. yourname@okhdfcbank"
+                className="w-full h-[48px] px-3.5 bg-slate-50 border border-outline-variant/40 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-sm transition-all"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Receiving Bank Name</label>
-            <input 
-              type="text"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Bank Account Number</label>
-            <input 
-              type="text"
-              value={accNo}
-              onChange={(e) => setAccNo(e.target.value)}
-              placeholder="Enter last 4 digits or full account"
-              className="w-full h-[52px] px-md bg-white border border-outline-variant/40 rounded-xl focus:ring-2 focus:ring-[#7c3aed] focus:border-[#7c3aed] outline-none text-body-lg transition-all"
-            />
+          {/* OTP Security Notice */}
+          <div className="bg-purple-50/80 border border-purple-100 rounded-xl p-3 flex items-start gap-2.5 text-[11px] text-purple-900">
+            <span className="material-symbols-outlined text-purple-600 text-lg flex-shrink-0 mt-0.5">security</span>
+            <div>
+              <p className="font-bold">Registered Mobile Verification Required</p>
+              <p className="text-purple-700/90 mt-0.5">
+                To protect your cashout withdrawals, linking or modifying your bank account requires a one-time OTP sent to your registered number ({userPhone || 'account number'}).
+              </p>
+            </div>
           </div>
         </form>
 
-        <button 
-          onClick={handleSubmit}
-          disabled={!isValid}
-          className={`w-full h-14 rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg transition-transform duration-100 ${
-            isValid
-              ? 'btn-primary-gradient text-white active:scale-95 cursor-pointer'
-              : 'bg-outline-variant/60 text-on-surface/40 cursor-not-allowed opacity-50'
-          }`}
-        >
-          Update Linked Account
-        </button>
+        {/* Submit Button */}
+        <div className="mt-6">
+          <button 
+            type="button"
+            onClick={handleInitiateOtp}
+            disabled={!isValid || isSendingOtp}
+            className={`w-full h-14 rounded-2xl font-title-md flex items-center justify-center gap-2 shadow-lg transition-all duration-200 ${
+              isValid && !isSendingOtp
+                ? 'btn-primary-gradient text-white active:scale-98 cursor-pointer shadow-primary/30'
+                : 'bg-outline-variant/60 text-on-surface/40 cursor-not-allowed opacity-50'
+            }`}
+          >
+            {isSendingOtp ? (
+              <>
+                <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span>Sending OTP...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-xl">phonelink_lock</span>
+                <span>Verify with Mobile OTP</span>
+              </>
+            )}
+          </button>
+        </div>
       </main>
+
+      {/* ─── OTP VERIFICATION MODAL ─── */}
+      {showOtpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 relative text-center animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button 
+              onClick={() => {
+                setShowOtpModal(false);
+                setOtpError('');
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+
+            {/* Icon */}
+            <div className="w-14 h-14 rounded-2xl bg-purple-100 text-primary flex items-center justify-center mx-auto mb-3.5 shadow-inner">
+              <span className="material-symbols-outlined text-2xl">verified_user</span>
+            </div>
+
+            <h3 className="font-display font-black text-lg text-on-surface">
+              Verify Bank Linking
+            </h3>
+            <p className="text-caption text-on-surface-variant mt-1 px-2">
+              Enter the 4-digit code sent to your registered mobile number:
+            </p>
+            <p className="font-mono font-bold text-sm text-primary mt-0.5">
+              {maskedPhone}
+            </p>
+
+            {/* 4 Digit OTP Input */}
+            <div className="flex justify-center gap-3 my-5">
+              {otpDigits.map((digit, idx) => (
+                <input 
+                  key={idx}
+                  ref={otpInputRefs[idx]}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                  className="w-12 h-14 text-center font-mono font-black text-2xl bg-slate-50 border-2 border-outline-variant/40 rounded-xl focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                />
+              ))}
+            </div>
+
+            {/* Error Message */}
+            {otpError && (
+              <div className="text-rose-600 text-xs font-semibold bg-rose-50 border border-rose-100 py-1.5 px-3 rounded-lg mb-3">
+                {otpError}
+              </div>
+            )}
+
+            {/* Resend OTP */}
+            <div className="text-xs text-on-surface-variant mb-5">
+              {resendTimer > 0 ? (
+                <span>Resend OTP in <span className="font-bold font-mono text-primary">{resendTimer}s</span></span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={isSendingOtp}
+                  className="text-primary font-bold hover:underline cursor-pointer"
+                >
+                  {isSendingOtp ? 'Sending...' : 'Resend OTP via SMS'}
+                </button>
+              )}
+            </div>
+
+            {/* Confirm Button */}
+            <button
+              type="button"
+              onClick={handleConfirmOtp}
+              disabled={otpDigits.join('').length < 4 || isVerifyingOtp}
+              className={`w-full h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all ${
+                otpDigits.join('').length === 4 && !isVerifyingOtp
+                  ? 'btn-primary-gradient text-white active:scale-95 cursor-pointer shadow-primary/25'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {isVerifyingOtp ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                'Confirm & Link Account'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -999,26 +1414,34 @@ function SupportSubView({ onBack }) {
       setIsSubmitting(false);
     }
   };
-  const faqs = [
-    {
-      q: "How does Zeebac Cashback audit work?",
-      a: "When you upload a bill receipt, it is sent to the respective partner merchant for verification. Once audited (usually in 2-4 hours), the calculated cashback reward is instantly credited to your Zeebac Wallet balance."
-    },
-    {
-      q: "When can I cash out my rewards?",
-      a: "You can cash out your reward balance directly to your linked bank account or UPI ID. Go to Wallet -> Cashout, choose your transfer method, and verify with your biometric or PIN. Deposits typically take 5-10 minutes."
-    },
-    {
-      q: "Why was my cashback request rejected?",
-      a: "Rejections generally happen if: (1) The receipt is blurry or unreadable, (2) The payment method does not match, (3) The invoice has already been claimed. You can resubmit requests with better images directly."
-    },
-    {
-      q: "What is the maximum cashback rate?",
-      a: "Each merchant has a specific cashback rate (e.g. up to 15% at Noir Concept Store). You can review all current partner stores, their rates, and distance under the 'Explore' tab."
-    }
-  ];
-
+  const [faqs, setFaqs] = useState([]);
+  const [isLoadingFaqs, setIsLoadingFaqs] = useState(true);
+  const [faqCategory, setFaqCategory] = useState('All');
+  const [faqSearch, setFaqSearch] = useState('');
   const [activeFaq, setActiveFaq] = useState(null);
+
+  const fetchFaqs = useCallback(async (cat = faqCategory, search = faqSearch) => {
+    try {
+      setIsLoadingFaqs(true);
+      const res = await SupportAPI.getFaqs('customer', cat, search);
+      if (res.success) {
+        setFaqs(res.data || []);
+      }
+    } catch (error) {
+      console.warn("Failed to load FAQs", error);
+    } finally {
+      setIsLoadingFaqs(false);
+    }
+  }, [faqCategory, faqSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchFaqs(faqCategory, faqSearch);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [faqCategory, faqSearch, fetchFaqs]);
+
+  const categories = ['All', 'Cashback', 'Wallet', 'Security', 'General'];
 
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
@@ -1040,31 +1463,92 @@ function SupportSubView({ onBack }) {
             <p className="text-body-sm text-on-surface-variant">Quick answers to common questions about Zeebac rewards.</p>
           </div>
 
+          {/* Search Bar */}
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+            <input 
+              type="text"
+              value={faqSearch}
+              onChange={(e) => setFaqSearch(e.target.value)}
+              placeholder="Search help topics or keywords..."
+              className="w-full pl-9 pr-9 py-2.5 bg-white border border-outline-variant/30 rounded-xl text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary shadow-sm"
+            />
+            {faqSearch && (
+              <button 
+                onClick={() => setFaqSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface text-[18px]"
+              >
+                close
+              </button>
+            )}
+          </div>
+
+          {/* Category Chips */}
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFaqCategory(cat)}
+                className={`px-3 py-1 rounded-full text-[12px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                  faqCategory === cat 
+                    ? 'bg-primary text-white shadow-sm' 
+                    : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* FAQ Accordions */}
           <div className="space-y-sm">
-            {faqs.map((faq, index) => {
-              const isOpen = activeFaq === index;
-              return (
-                <div 
-                  key={index} 
-                  className="bg-white border border-outline-variant/30 rounded-2xl overflow-hidden shadow-sm"
-                >
-                  <button
-                    onClick={() => setActiveFaq(isOpen ? null : index)}
-                    className="w-full p-md flex justify-between items-center text-left font-bold text-body-sm text-on-surface hover:bg-surface-container-low transition-colors"
+            {isLoadingFaqs ? (
+              <div className="space-y-2 py-4">
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="h-14 bg-white/60 animate-pulse rounded-2xl border border-outline-variant/20" />
+                ))}
+              </div>
+            ) : faqs.length === 0 ? (
+              <div className="text-center py-8 bg-white/50 rounded-2xl border border-dashed border-outline-variant/40">
+                <span className="material-symbols-outlined text-outline text-[36px]">help_outline</span>
+                <p className="text-body-sm font-bold text-on-surface mt-2">No matching questions found</p>
+                <p className="text-[12px] text-on-surface-variant mt-0.5">Try a different search term or select another category.</p>
+              </div>
+            ) : (
+              faqs.map((faq, index) => {
+                const isOpen = activeFaq === index;
+                const questionText = faq.question || faq.q;
+                const answerText = faq.answer || faq.a;
+                return (
+                  <div 
+                    key={faq._id || index} 
+                    className="bg-white border border-outline-variant/30 rounded-2xl overflow-hidden shadow-sm transition-all"
                   >
-                    <span>{faq.q}</span>
-                    <span className="material-symbols-outlined text-outline transition-transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                      keyboard_arrow_down
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div className="px-md pb-md text-[13px] text-on-surface-variant leading-relaxed animate-reveal">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    <button
+                      onClick={() => setActiveFaq(isOpen ? null : index)}
+                      className="w-full p-md flex justify-between items-center text-left font-bold text-body-sm text-on-surface hover:bg-surface-container-low transition-colors"
+                    >
+                      <div className="flex items-center gap-2 pr-2">
+                        {faq.category && (
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100 shrink-0">
+                            {faq.category}
+                          </span>
+                        )}
+                        <span>{questionText}</span>
+                      </div>
+                      <span className="material-symbols-outlined text-outline transition-transform duration-200 shrink-0" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                        keyboard_arrow_down
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="px-md pb-md text-[13px] text-on-surface-variant leading-relaxed animate-reveal border-t border-outline-variant/10 pt-2.5">
+                        {answerText}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="pt-xl">

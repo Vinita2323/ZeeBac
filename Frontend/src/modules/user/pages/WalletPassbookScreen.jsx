@@ -84,6 +84,9 @@ export default function WalletPassbookScreen() {
           // The wallet ledger represents wallet specific events like crediting/debiting
           // which directly affect the wallet balance.
           setRequests(walletRes.data.ledger || []);
+          if (walletRes.data?.wallet) {
+            useAuthStore.getState().updateBalance(walletRes.data.wallet.balance ?? 0);
+          }
         }
       } catch (err) {
         console.error('Failed to load passbook', err);

@@ -382,10 +382,11 @@ export const getVendorCustomers = async (req, res) => {
   try {
     const vendorId = req.user.id;
     const mongoose = (await import('mongoose')).default;
+    const vendorObjectId = new mongoose.Types.ObjectId(vendorId);
     
     // Find all customers who have transacted with this vendor
     const customersAggr = await Transaction.aggregate([
-      { $match: { vendorId: new mongoose.Types.ObjectId(vendorId) } },
+      { $match: { vendorId: vendorObjectId } },
       {
         $group: {
           _id: "$customerId",
@@ -397,6 +398,36 @@ export const getVendorCustomers = async (req, res) => {
           customerZeebacId: { $first: "$customerZeebacId" }
         }
       },
+      {
+        $lookup: {
+          from: 'reviews',
+          let: { custId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$vendorId", vendorObjectId] },
+                    { $eq: ["$customerId", "$$custId"] },
+                    { $eq: ["$isVisible", true] }
+                  ]
+                }
+              }
+            },
+            { $project: { rating: 1 } },
+            { $limit: 1 }
+          ],
+          as: 'customerReview'
+        }
+      },
+      {
+        $addFields: {
+          reviewRating: {
+            $ifNull: [{ $arrayElemAt: ["$customerReview.rating", 0] }, 0]
+          }
+        }
+      },
+      { $project: { customerReview: 0 } },
       { $sort: { lastTransactionDate: -1 } }
     ]);
 

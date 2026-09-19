@@ -1,7 +1,5 @@
 // ─── API Service Layer ──────────────────────────────────────────────────────
-// Centralized mock API functions. 
-// When the Node.js/MongoDB backend is ready, replace the mock returns
-// with real axios/fetch calls. No component code needs to change.
+// Production API Client configured with Axios, JWT Interceptors & Token Refresh
 // ─────────────────────────────────────────────────────────────────────────────
 
 import axios from 'axios';
@@ -62,8 +60,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Simulates network delay (remove when connecting to real backend)
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ── Auth Service (REAL BACKEND INTEGRATION) ──
 export const AuthAPI = {
@@ -76,7 +72,7 @@ export const AuthAPI = {
     return res.data; // { success, accessToken, refreshToken, user }
   },
   vendorLogin: async (data) => {
-    const res = await apiClient.post('/auth/vendor/login', data);
+    const res = await apiClient.post('/vendor-app/login', data);
     return res.data;
   },
   adminLogin: async (data) => {
@@ -110,44 +106,6 @@ export const AuthAPI = {
     const res = await apiClient.get('/auth/me');
     return res.data;
   }
-};
-
-// ── Wallet Service ──
-export const walletService = {
-  // Mock get balance — will become: axios.get('/api/wallet/balance')
-  getBalance: async (role) => {
-    await delay(100);
-    if (role === 'vendor') {
-      return parseFloat(localStorage.getItem('vendor_balance') || '24500');
-    }
-    return parseFloat(localStorage.getItem('zeebac_wallet_balance') || '1284.50');
-  },
-
-  // Mock get transactions — will become: axios.get('/api/wallet/transactions')
-  getTransactions: async (role) => {
-    await delay(100);
-    if (role === 'vendor') {
-      return JSON.parse(localStorage.getItem('vendor_transactions') || '[]');
-    }
-    return JSON.parse(localStorage.getItem('zeebac_transactions') || '[]');
-  },
-};
-
-// ── Transaction Service ──
-export const transactionService = {
-  // Mock log purchase — will become: axios.post('/api/transactions', data)
-  logPurchase: async (transactionData) => {
-    await delay(300);
-    const key = transactionData.role === 'vendor' ? 'vendor_transactions' : 'zeebac_transactions';
-    const existing = JSON.parse(localStorage.getItem(key) || '[]');
-    const newTx = {
-      id: `TX-${Date.now().toString(36).toUpperCase()}`,
-      ...transactionData,
-      timestamp: new Date().toISOString(),
-    };
-    localStorage.setItem(key, JSON.stringify([newTx, ...existing]));
-    return newTx;
-  },
 };
 
 // ── Admin Service ──
@@ -264,16 +222,46 @@ export const AdminAPI = {
     return res.data;
   },
   // Phase G: Support Tickets
-  getAllTickets: async (status = 'All') => {
-    const res = await apiClient.get(`/admin/support/tickets?status=${status}`);
+  getAllTickets: async (status = 'All', userType = 'All', search = '') => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (userType) params.append('userType', userType);
+    if (search) params.append('search', search);
+    const res = await apiClient.get(`/admin/support/tickets?${params.toString()}`);
     return res.data;
   },
-  replyToTicket: async (id, replyMessage) => {
-    const res = await apiClient.put(`/admin/support/tickets/${id}/reply`, { replyMessage });
+  replyToTicket: async (id, replyMessage, status = 'Resolved') => {
+    const res = await apiClient.put(`/admin/support/tickets/${id}/reply`, { replyMessage, status });
     return res.data;
   },
   closeTicket: async (id) => {
     const res = await apiClient.put(`/admin/support/tickets/${id}/close`);
+    return res.data;
+  },
+  // FAQ Management
+  getFaqs: async (target = 'all', category = 'All', status = 'all', search = '') => {
+    const params = new URLSearchParams();
+    if (target && target !== 'all') params.append('target', target);
+    if (category && category !== 'All') params.append('category', category);
+    if (status && status !== 'all') params.append('status', status);
+    if (search) params.append('search', search);
+    const res = await apiClient.get(`/admin/faqs?${params.toString()}`);
+    return res.data;
+  },
+  createFaq: async (faqData) => {
+    const res = await apiClient.post('/admin/faqs', faqData);
+    return res.data;
+  },
+  updateFaq: async (id, faqData) => {
+    const res = await apiClient.put(`/admin/faqs/${id}`, faqData);
+    return res.data;
+  },
+  deleteFaq: async (id) => {
+    const res = await apiClient.delete(`/admin/faqs/${id}`);
+    return res.data;
+  },
+  toggleFaq: async (id) => {
+    const res = await apiClient.patch(`/admin/faqs/${id}/toggle`);
     return res.data;
   },
   // Phase H: Peak Activity Heatmap
@@ -479,11 +467,11 @@ export const VendorAPI = {
     return res.data;
   },
   requestWithdrawal: async (amount) => { const res = await apiClient.post('/vendor/wallet/withdraw', { amount }); return res.data; },
-  
+
   // Reviews
   getMyReviews: async () => { const res = await apiClient.get('/vendor/reviews'); return res.data; },
   replyToReview: async (reviewId, text) => { const res = await apiClient.post(`/vendor/reviews/${reviewId}/reply`, { text }); return res.data; },
-  
+
   // Support
   createSupportTicket: async (subject, message) => {
     const res = await apiClient.post('/vendor/support', { subject, message });
@@ -555,6 +543,10 @@ export const UserAPI = {
   },
   updateLocation: async (data) => {
     const res = await apiClient.put('/user/location', data);
+    return res.data;
+  },
+  sendBankOtp: async () => {
+    const res = await apiClient.post('/user/bank-account/send-otp');
     return res.data;
   },
   updateLinkedAccount: async (data) => {
@@ -653,6 +645,19 @@ export const UserAPI = {
   },
   getUserWithdrawals: async () => {
     const res = await apiClient.get('/user/wallet/withdrawals');
+    return res.data;
+  },
+  // Mobile Recharge (Wallet Balance)
+  getRechargePlans: async (operator = 'Jio', circle = 'Delhi NCR') => {
+    const res = await apiClient.get(`/user/recharge/plans?operator=${encodeURIComponent(operator)}&circle=${encodeURIComponent(circle)}`);
+    return res.data;
+  },
+  processMobileRecharge: async (data) => {
+    const res = await apiClient.post('/user/recharge/process', data);
+    return res.data;
+  },
+  getMyRecharges: async () => {
+    const res = await apiClient.get('/user/recharge/history');
     return res.data;
   },
   // Security: PIN & Biometrics
@@ -824,6 +829,18 @@ export const StoryAPI = {
   },
   deleteStory: async (storyId) => {
     const res = await apiClient.delete(`/stories/${storyId}`);
+    return res.data;
+  },
+};
+
+// ── Support & FAQ Service ──
+export const SupportAPI = {
+  getFaqs: async (target = 'all', category = 'All', search = '') => {
+    const params = new URLSearchParams();
+    if (target && target !== 'all') params.append('target', target);
+    if (category && category !== 'All') params.append('category', category);
+    if (search) params.append('search', search);
+    const res = await apiClient.get(`/support/faqs?${params.toString()}`);
     return res.data;
   },
 };
