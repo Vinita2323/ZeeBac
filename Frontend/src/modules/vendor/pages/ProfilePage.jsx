@@ -5,11 +5,15 @@ import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
 import { downloadImage, shareContent } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
+import VendorLoanModal from '../components/VendorLoanModal';
+import VendorPayLaterModal from '../components/VendorPayLaterModal';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const logout = useAuthStore((state) => state.logout);
@@ -314,6 +318,63 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Business Growth & Credit Section */}
+        <div className="space-y-3 px-1">
+          <h3 className="font-display text-[15px] font-black text-on-surface">Store Credit & Growth</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Shop & Pay Later (Credit Limit Upto ₹25,000) */}
+            <div
+              onClick={() => setShowPayLaterModal(true)}
+              className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#2e1065] text-white rounded-2xl p-3.5 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.98] border border-indigo-900/30 flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
+                  <span className="material-symbols-outlined text-[20px]">credit_score</span>
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
+                    <span className="text-[9.5px] font-bold text-indigo-200">Store BNPL Credit</span>
+                  </div>
+                  <p className="text-[12.5px] font-black text-white leading-tight">Shop & Pay Later</p>
+                  <p className="text-[9.5px] text-indigo-200/80 leading-tight mt-0.5 truncate">Credit limit up to ₹25,000 based on PAN & CIBIL</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2.5 py-1.5 rounded-xl font-black text-[10px] shadow-xs shrink-0 transition-colors">
+                <span>View</span>
+                <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+              </div>
+            </div>
+
+            {/* Merchant Business Loan (Up to ₹25L) */}
+            <div
+              onClick={() => setShowLoanModal(true)}
+              className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white rounded-2xl p-3.5 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.98] border border-indigo-900/30 flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
+                  <span className="material-symbols-outlined text-[20px]">payments</span>
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
+                    <span className="text-[9.5px] font-bold text-indigo-200">Merchant Capital</span>
+                  </div>
+                  <p className="text-[12.5px] font-black text-white leading-tight">Apply for Business Loan</p>
+                  <p className="text-[9.5px] text-indigo-200/80 leading-tight mt-0.5 truncate">Up to ₹25L collateral-free • Auto daily sales deductions</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2.5 py-1.5 rounded-xl font-black text-[10px] shadow-xs shrink-0 transition-colors">
+                <span>Apply</span>
+                <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-t-2 border-blue-100/60 my-1.5" />
 
         {/* Business Information Section */}
         <div className="space-y-4 px-1">
@@ -1231,6 +1292,18 @@ export default function ProfilePage() {
         </div>,
         document.body
       )}
+
+      {/* Vendor Loan Modal */}
+      <VendorLoanModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
+      />
+
+      {/* Vendor Pay Later Modal */}
+      <VendorPayLaterModal
+        isOpen={showPayLaterModal}
+        onClose={() => setShowPayLaterModal(false)}
+      />
 
     </div>
   );

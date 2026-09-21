@@ -6,13 +6,46 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
 import NotificationPanel from '../components/common/NotificationPanel';
 import useNotifications from '../../../hooks/useNotifications';
-import StoriesReel from '../components/StoriesReel';
+import ShopAndPayLaterModal from '../components/ShopAndPayLaterModal';
+import LoanComingSoonModal from '../components/LoanComingSoonModal';
 
 export default function HomeScreen() {
   const navigate = useNavigate();
   const bellRef = useRef(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { unreadCount } = useNotifications();
+
+  // Modals & image 2 services states
+  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showUtrModal, setShowUtrModal] = useState(false);
+  const [utrInput, setUtrInput] = useState('');
+  const [utrError, setUtrError] = useState('');
+  const [utrSuccess, setUtrSuccess] = useState('');
+  const [isClaimingUtr, setIsClaimingUtr] = useState(false);
+
+  const handleClaimUtr = async () => {
+    if (!utrInput.trim() || isClaimingUtr) return;
+    setIsClaimingUtr(true);
+    setUtrError('');
+    setUtrSuccess('');
+    try {
+      const res = await UserAPI.claimUpiCashback(utrInput.trim());
+      if (res.success) {
+        setUtrSuccess(res.message || 'Cashback claimed successfully!');
+        setTimeout(() => {
+          setShowUtrModal(false);
+          setUtrSuccess('');
+          setUtrInput('');
+          navigate('/wallet');
+        }, 1200);
+      }
+    } catch (err) {
+      setUtrError(err.response?.data?.message || err.message || 'No payment found matching this UPI UTR.');
+    } finally {
+      setIsClaimingUtr(false);
+    }
+  };
 
   const handleVendorClick = (vendor) => {
     navigate('/vendor-detail', { state: { vendor } });
@@ -122,9 +155,6 @@ export default function HomeScreen() {
           </div>
         </div>
 
-        {/* 24-Hour Store Stories Reel (Instagram Style - 10km Nearby Stores) */}
-        <StoriesReel location={location} />
-
         {/* Balance chip */}
         <div
           onClick={() => navigate('/wallet')}
@@ -143,28 +173,62 @@ export default function HomeScreen() {
         </div>
 
         {/* Quick Actions Row */}
-        <div className="grid grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
           {[
-            { label: 'Scan & Pay', icon: 'qr_code_scanner', path: '/scan', bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', iconColor: 'text-white' },
-            { label: 'Upload Bill', icon: 'receipt_long', path: '/request-cashback', bg: 'from-[#260060] to-[#7000ff]', iconColor: 'text-white' },
-            { label: 'Find Vendor', icon: 'storefront', path: '/find-vendor', bg: 'from-[#16082f] to-[#4c00b0]', iconColor: 'text-white' },
-            { label: 'History', icon: 'history', path: '/passbook', bg: 'from-[#3b0764] to-[#6000da]', iconColor: 'text-white' },
+            { label: 'Scan & Pay', icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            { label: 'Upload Bill', icon: 'receipt_long', onClick: () => navigate('/request-cashback'), bg: 'from-[#260060] to-[#7000ff]' },
+            { label: 'Find Vendor', icon: 'storefront', onClick: () => navigate('/find-vendor'), bg: 'from-[#16082f] to-[#4c00b0]' },
+            { label: 'Shop & Pay Later', icon: 'credit_score', onClick: () => setShowPayLaterModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: 'Soon' },
           ].map((action) => (
             <button
               key={action.label}
-              onClick={() => navigate(action.path)}
-              className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-white/80 hover:bg-white border border-white/80 shadow-sm hover:shadow-md transition-all active:scale-[0.94] cursor-pointer"
+              onClick={action.onClick}
+              className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-2xl bg-white/80 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
             >
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center shadow-sm`}>
-                <span className={`material-symbols-outlined text-[19px] ${action.iconColor}`}>{action.icon}</span>
+              {action.badge && (
+                <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] sm:text-[8px] uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
+                  {action.badge}
+                </span>
+              )}
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
+                <span className="material-symbols-outlined text-[19px]">{action.icon}</span>
               </div>
-              <span className="text-[10px] font-bold text-on-surface-variant text-center leading-tight">{action.label}</span>
+              <span className="text-[9px] sm:text-[10px] font-bold text-on-surface-variant text-center leading-[1.15] h-[26px] sm:h-[28px] flex items-center justify-center px-0.5">
+                {action.label}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Secondary Quick Actions Row - Exact same UI style as above */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+          {[
+            { label: 'Claim by UTR', icon: 'receipt_long', onClick: () => { setShowUtrModal(true); setUtrError(''); setUtrSuccess(''); setUtrInput(''); }, bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            { label: 'Mobile Recharge', icon: 'phonelink_ring', onClick: () => navigate('/wallet', { state: { subView: 'recharge' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            { label: 'Personal Loan', icon: 'payments', onClick: () => setShowLoanModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: 'Soon' },
+          ].map((action) => (
+            <button
+              key={action.label}
+              onClick={action.onClick}
+              className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-2xl bg-white/80 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
+            >
+              {action.badge && (
+                <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] sm:text-[8px] uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
+                  {action.badge}
+                </span>
+              )}
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
+                <span className="material-symbols-outlined text-[19px]">{action.icon}</span>
+              </div>
+              <span className="text-[9px] sm:text-[10px] font-bold text-on-surface-variant text-center leading-[1.15] h-[26px] sm:h-[28px] flex items-center justify-center px-0.5">
+                {action.label}
+              </span>
             </button>
           ))}
         </div>
 
         {/* Upload Bill Banner (Flow 1 Banner) */}
-        <div 
+        {/* <div 
           onClick={() => navigate('/request-cashback')}
           className="bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] rounded-2xl p-4 text-white shadow-md cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-between"
         >
@@ -180,7 +244,7 @@ export default function HomeScreen() {
           <button className="px-3.5 py-2 bg-white text-[#6000da] rounded-xl font-extrabold text-[11px] shadow-sm hover:bg-white/90 whitespace-nowrap">
             Upload
           </button>
-        </div>
+        </div> */}
 
         {/* Recently Visited */}
         {recentVendors.length > 0 && (
@@ -274,6 +338,87 @@ export default function HomeScreen() {
         </div>
 
       </main>
+
+      {/* Shop & Pay Later Modal */}
+      <ShopAndPayLaterModal
+        isOpen={showPayLaterModal}
+        onClose={() => setShowPayLaterModal(false)}
+      />
+
+      {/* Personal Loan Modal (Coming Soon) */}
+      <LoanComingSoonModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
+      />
+
+      {/* UTR Claim Modal */}
+      {showUtrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-scale-up relative">
+            <button
+              onClick={() => setShowUtrModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[26px]">receipt_long</span>
+              </div>
+              <div>
+                <h3 className="font-display font-black text-[17px] text-on-surface leading-tight">Claim by UTR</h3>
+                <p className="text-[11px] text-on-surface-variant">Instant 12-Digit UPI Claim</p>
+              </div>
+            </div>
+
+            <p className="text-[12px] text-on-surface-variant leading-relaxed">
+              If Google Pay, PhonePe, or Paytm didn't send your phone number, enter your 12-digit UPI Reference / UTR number from your payment receipt to claim cashback:
+            </p>
+
+            <div className="space-y-3">
+              <input
+                autoFocus
+                type="text"
+                value={utrInput}
+                onChange={(e) => { setUtrInput(e.target.value.trim()); setUtrError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleClaimUtr()}
+                placeholder="e.g. 425512345678"
+                className="w-full h-12 px-4 bg-slate-100 rounded-xl outline-none border-2 border-transparent focus:border-primary text-[15px] font-bold text-on-surface tracking-wider"
+              />
+
+              {utrError && (
+                <p className="text-red-500 text-[11px] font-medium flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  {utrError}
+                </p>
+              )}
+
+              {utrSuccess && (
+                <p className="text-emerald-600 text-[12px] font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                  {utrSuccess}
+                </p>
+              )}
+
+              <button
+                onClick={handleClaimUtr}
+                disabled={!utrInput.trim() || isClaimingUtr}
+                className="w-full py-3 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isClaimingUtr ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">redeem</span>
+                    Verify & Claim Cashback
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shared Bottom NavBar */}
       <BottomNavBar />

@@ -7,6 +7,7 @@ import useQrCode from '../../../hooks/useQrCode';
 import { downloadImage } from '../../../utils/exportUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
+import VendorPayLaterModal from '../components/VendorPayLaterModal';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -14,9 +15,11 @@ export default function DashboardPage() {
   const [showPosModal, setShowPosModal] = useState(false);
   const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
   const [posAmount, setPosAmount] = useState('1590');
   const [generatedPosBill, setGeneratedPosBill] = useState(null);
   const [isGeneratingPos, setIsGeneratingPos] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -27,12 +30,13 @@ export default function DashboardPage() {
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
 
-  // Signed + short-lived, rendered locally — only fetched once the modal is
-  // actually open, not on every dashboard visit.
-  const fetchQrToken = useCallback(() => VendorAPI.getQrToken(), []);
-  const { qrImageUrl, isLoading: qrLoading } = useQrCode(fetchQrToken, showQRModal);
-
-  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  // Check for openPayLater query param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('openPayLater') === 'true') {
+      setShowPayLaterModal(true);
+    }
+  }, []);
   const cashbackRate = currentUser?.cashbackRate ?? dashboardData?.data?.cashbackRate ?? 5;
 
   useEffect(() => {
@@ -307,7 +311,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mx-auto w-full">
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mx-auto w-full">
         <button
           onClick={() => navigate('/vendor/scan-customer')}
           className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -315,8 +319,8 @@ export default function DashboardPage() {
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
             <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
           </div>
-          <p className="text-[10.5px] sm:text-[11px] font-extrabold leading-tight">Scan Customer</p>
-          <p className="text-[7.5px] sm:text-[8px] text-white/70">Log Cash</p>
+          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Scan Customer</p>
+          <p className="text-[7px] sm:text-[8px] text-white/70">Log Cash</p>
         </button>
 
         <button
@@ -326,8 +330,8 @@ export default function DashboardPage() {
           <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-1">
             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
-          <p className="text-[10.5px] sm:text-[11px] font-extrabold leading-tight">Store QR</p>
-          <p className="text-[7.5px] sm:text-[8px] text-on-surface-variant">Counter QR</p>
+          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Store QR</p>
+          <p className="text-[7px] sm:text-[8px] text-on-surface-variant">Counter QR</p>
         </button>
 
         <button
@@ -337,8 +341,22 @@ export default function DashboardPage() {
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
             <span className="material-symbols-outlined text-[16px]">receipt_long</span>
           </div>
-          <p className="text-[10.5px] sm:text-[11px] font-extrabold leading-tight">POS Bill</p>
-          <p className="text-[7.5px] sm:text-[8px] text-white/80">Flow 2 Simulator</p>
+          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">POS Bill</p>
+          <p className="text-[7px] sm:text-[8px] text-white/80">Flow 2</p>
+        </button>
+
+        <button
+          onClick={() => setShowPayLaterModal(true)}
+          className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white shadow-xs hover:shadow-sm active:scale-[0.98] transition-all cursor-pointer text-center"
+        >
+          <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] sm:text-[7.5px] uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
+            Soon
+          </span>
+          <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center mb-1 text-amber-300">
+            <span className="material-symbols-outlined text-[16px]">credit_score</span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight text-amber-300">Pay Later</p>
+          <p className="text-[7px] sm:text-[8px] text-indigo-200">Upto ₹25k</p>
         </button>
       </div>
 
@@ -359,34 +377,62 @@ export default function DashboardPage() {
               </span>
             </div>
             <div>
-              <p className="text-on-surface-variant text-[11px] font-medium mb-0.5">{stat.label}</p>
+              <p className="text-[10px] sm:text-[11px] font-semibold text-on-surface-variant leading-tight mb-1">{stat.label}</p>
               <h3 className="text-[20px] font-black text-on-surface leading-none tracking-tight">{stat.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Vendor Shop & Pay Later Banner (Upto ₹25,000 Credit Limit) */}
+      <div 
+        onClick={() => setShowPayLaterModal(true)}
+        className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#2e1065] text-white rounded-2xl p-3 sm:p-4 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] border border-indigo-900/30 relative overflow-hidden"
+      >
+        <div className="flex items-center justify-between gap-2 sm:gap-4 relative z-10">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 backdrop-blur-xs flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
+              <span className="material-symbols-outlined text-[19px] sm:text-[22px]">credit_score</span>
+            </div>
+            <div className="text-left min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
+                <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Store Working Capital</span>
+              </div>
+              <p className="text-[12px] sm:text-[13.5px] font-black text-white leading-tight">Shop & Pay Later • Credit Limit Up to ₹25,000</p>
+              <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">Maintain 30 days store transactions to unlock limit based on PAN & CIBIL score</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2 sm:px-3.5 py-1.5 rounded-xl font-black text-[9.5px] sm:text-[11px] shadow-xs shrink-0 transition-colors">
+            <span className="whitespace-nowrap">Check Limit</span>
+            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
+          </div>
+        </div>
+      </div>
+
       {/* Merchant Business Loan Banner */}
       <div 
         onClick={() => setShowLoanModal(true)}
-        className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white rounded-2xl p-4 shadow-md hover:shadow-lg cursor-pointer transition-all active:scale-[0.99] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 relative overflow-hidden"
+        className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white rounded-2xl p-3 sm:p-4 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] relative overflow-hidden border border-indigo-900/30"
       >
-        <div className="flex items-center gap-3.5 relative z-10 min-w-0">
-          <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-            <span className="material-symbols-outlined text-[24px]">payments</span>
-          </div>
-          <div className="text-left min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">Coming Soon</span>
-              <span className="text-[11px] font-bold text-indigo-200">Merchant Capital</span>
+        <div className="flex items-center justify-between gap-2 sm:gap-4 relative z-10">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
+              <span className="material-symbols-outlined text-[19px] sm:text-[22px]">payments</span>
             </div>
-            <p className="text-[13px] font-black text-white leading-tight mt-1 truncate">Apply for Business Loan up to ₹25L</p>
-            <p className="text-[10.5px] text-indigo-200/90 leading-tight mt-0.5">0% Property Collateral • Auto daily micro-deduction from sales</p>
+            <div className="text-left min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
+                <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Merchant Capital</span>
+              </div>
+              <p className="text-[12px] sm:text-[13.5px] font-black text-white leading-tight">Apply for Business Loan up to ₹25L</p>
+              <p className="text-[9px] sm:text-[10px] text-indigo-200/90 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">0% Property Collateral • Auto daily micro-deduction from sales</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-3.5 py-1.5 rounded-xl font-black text-[11px] shadow-sm shrink-0 self-start sm:self-auto relative z-10 transition-colors">
-          <span>Apply</span>
-          <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+          <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2 sm:px-3.5 py-1.5 rounded-xl font-black text-[9.5px] sm:text-[11px] shadow-xs shrink-0 transition-colors">
+            <span className="whitespace-nowrap">Apply</span>
+            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
+          </div>
         </div>
       </div>
 
@@ -658,6 +704,12 @@ export default function DashboardPage() {
       <VendorLoanModal
         isOpen={showLoanModal}
         onClose={() => setShowLoanModal(false)}
+      />
+
+      {/* Vendor Shop & Pay Later Modal (Credit limit up to ₹25,000) */}
+      <VendorPayLaterModal
+        isOpen={showPayLaterModal}
+        onClose={() => setShowPayLaterModal(false)}
       />
 
     </div>

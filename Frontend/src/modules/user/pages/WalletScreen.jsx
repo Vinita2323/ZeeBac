@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
@@ -9,19 +9,26 @@ import LoanComingSoonModal from '../components/LoanComingSoonModal';
 
 export default function WalletScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const authBalance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   
   const [balance, setBalance] = useState(0);
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [subView, setSubView] = useState(null); // 'cashout' | 'perks'
+  const [subView, setSubView] = useState(location.state?.subView || null); // 'cashout' | 'perks' | 'recharge'
   const [withdrawals, setWithdrawals] = useState([]);
   const [showUtrModal, setShowUtrModal] = useState(false);
   const [utrInput, setUtrInput] = useState('');
   const [utrError, setUtrError] = useState('');
   const [isClaimingUtr, setIsClaimingUtr] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.subView) {
+      setSubView(location.state.subView);
+    }
+  }, [location.state]);
 
 
   // Fetch real wallet and activities
@@ -157,17 +164,8 @@ export default function WalletScreen() {
             <h2 className="text-[44px] font-display font-black text-primary leading-none">₹{balance.toFixed(2)}</h2>
           </div>
 
-          {/* Quick buttons (4 Actions: Recharge, Cashout, Perks, History) */}
-          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-outline-variant/10">
-            <button 
-              onClick={() => setSubView('recharge')}
-              className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
-            >
-              <div className="w-11 h-11 bg-purple-100 rounded-full flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
-                <span className="material-symbols-outlined text-[20px]">phone_android</span>
-              </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Recharge</span>
-            </button>
+          {/* Quick buttons (Withdrawal & Perks + History) */}
+          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-outline-variant/10">
             <button 
               onClick={() => setSubView('cashout')}
               className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
@@ -175,7 +173,7 @@ export default function WalletScreen() {
               <div className="w-11 h-11 bg-secondary/10 rounded-full flex items-center justify-center text-secondary group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">account_balance</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">Cashout</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Withdrawal</span>
             </button>
             <button 
               onClick={() => setSubView('perks')}
@@ -184,7 +182,7 @@ export default function WalletScreen() {
               <div className="w-11 h-11 bg-green-500/10 rounded-full flex items-center justify-center text-green-600 group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">stars</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">Perks</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Perks</span>
             </button>
             <button 
               onClick={() => navigate('/passbook')}
@@ -196,76 +194,6 @@ export default function WalletScreen() {
               <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">History</span>
             </button>
           </div>
-        </div>
-
-        {/* Mobile Recharge with Wallet Balance Banner */}
-        <div 
-          onClick={() => setSubView('recharge')}
-          className="bg-gradient-to-r from-[#6000da] via-[#7c3aed] to-[#9333ea] text-white rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg hover:shadow-purple-500/25 transition-all active:scale-[0.99] shadow-md relative overflow-hidden"
-        >
-          <div className="flex items-center gap-3.5 relative z-10">
-            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-inner">
-              <span className="material-symbols-outlined text-[24px]">phonelink_ring</span>
-            </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full">New</span>
-                <span className="text-[11px] font-semibold text-white/80">Mobile Recharge</span>
-              </div>
-              <p className="text-[14px] font-extrabold text-white leading-snug mt-0.5">Pay with Rewards Balance</p>
-              <p className="text-[11px] text-white/80 leading-tight">Instant Jio, Airtel, Vi & BSNL top-ups</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 relative z-10 bg-white/15 px-3 py-2 rounded-xl text-[12px] font-bold shrink-0">
-            <span>Recharge</span>
-            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-          </div>
-          <span className="material-symbols-outlined absolute -right-3 -bottom-4 text-white/10 text-[95px] pointer-events-none select-none">
-            phone_iphone
-          </span>
-        </div>
-
-        {/* Instant Personal Loan Banner */}
-        <div 
-          onClick={() => setShowLoanModal(true)}
-          className="bg-gradient-to-r from-[#1e1b4b] via-[#312e81] to-[#4338ca] text-white rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition-all active:scale-[0.99] shadow-md relative overflow-hidden"
-        >
-          <div className="flex items-center gap-3.5 relative z-10">
-            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
-              <span className="material-symbols-outlined text-[24px]">payments</span>
-            </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-300/30 px-2 py-0.5 rounded-full">Coming Soon</span>
-                <span className="text-[11px] font-bold text-indigo-200">Instant Credit</span>
-              </div>
-              <p className="text-[14px] font-extrabold text-white leading-snug mt-0.5">Need Instant Cash? Apply Loan</p>
-              <p className="text-[11px] text-indigo-200/90 leading-tight">Get up to ₹5,00,000 • 100% paperless instant disbursal</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-3 py-1.5 rounded-xl font-black text-[11px] shadow-sm shrink-0 relative z-10 transition-colors">
-            <span>Apply</span>
-            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-          </div>
-        </div>
-
-        {/* Paid via GPay / UPI Claim Banner */}
-        <div className="bg-gradient-to-r from-purple-50 via-white to-teal-50 border border-primary/20 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[22px]">receipt_long</span>
-            </div>
-            <div>
-              <p className="text-[13px] font-bold text-on-surface leading-tight">Paid via GPay / UPI?</p>
-              <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Claim cashback using 12-digit UPI UTR</p>
-            </div>
-          </div>
-          <button
-            onClick={() => { setShowUtrModal(true); setUtrError(''); setUtrInput(''); }}
-            className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold rounded-xl active:scale-95 transition-transform shrink-0 cursor-pointer shadow-sm"
-          >
-            Claim Now
-          </button>
         </div>
 
         {/* Cashback Requests History Link Banner */}

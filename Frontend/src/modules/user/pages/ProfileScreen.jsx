@@ -439,30 +439,6 @@ export default function ProfileScreen() {
           </div>
         </div>
 
-        {/* Instant Personal Loan Showcase Card */}
-        <div 
-          onClick={() => setShowLoanModal(true)}
-          className="bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#7c3aed] text-white rounded-2xl p-4 shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-between relative overflow-hidden"
-        >
-          <div className="flex items-center gap-3.5 relative z-10">
-            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 flex-shrink-0 border border-white/10">
-              <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
-            </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-400/25 text-amber-300 border border-amber-300/40 px-2 py-0.5 rounded-full">Coming Soon</span>
-                <span className="text-[11px] font-bold text-purple-200">Zeebac Credit</span>
-              </div>
-              <p className="text-[14px] font-extrabold text-white leading-tight mt-1">Apply for Personal Loan up to ₹5L</p>
-              <p className="text-[10.5px] text-purple-200/90 font-medium mt-0.5">100% Paperless • Zero Collateral • 5 Min Disbursal</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-3 py-1.5 rounded-xl font-black text-[11px] shadow-sm whitespace-nowrap relative z-10 transition-colors shrink-0">
-            <span>Apply</span>
-            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-          </div>
-        </div>
-
         {/* Settings Group 1: General Options */}
         <div className="space-y-sm">
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Accounts & History</h3>
@@ -485,30 +461,13 @@ export default function ProfileScreen() {
 
             <div 
               onClick={() => navigate('/wallet')}
-              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
             >
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">wallet</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Rewards Wallet</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Check balance status & perks list</p>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-            </div>
-
-            <div 
-              onClick={() => setShowLoanModal(true)}
-              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
-            >
-              <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">payments</span>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-title-md text-on-surface font-bold text-body-sm">Apply for Personal Loan</p>
-                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-amber-400/20 text-amber-700 border border-amber-300/40">Coming Soon</span>
-                  </div>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Instant collateral-free cash up to ₹5,00,000</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">Check balance status, withdrawal & perks</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>

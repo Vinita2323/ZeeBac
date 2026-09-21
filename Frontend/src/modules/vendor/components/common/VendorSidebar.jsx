@@ -17,6 +17,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
     { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },
+    { label: 'Shop & Pay Later', icon: 'credit_score', path: '/vendor?openPayLater=true', badge: '₹25k' },
     { label: 'Apply Loan', icon: 'payments', path: '/vendor/apply-loan', badge: 'Soon' },
     { label: 'Chat', icon: 'chat', path: '/vendor/chat' },
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },
@@ -67,10 +68,12 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
       {/* Navigation Links */}
       <nav className={`flex-1 overflow-y-auto py-6 ${isCollapsed ? 'px-3' : 'px-4'} space-y-1 scroll-hide`}>
         {navItems.map((item) => {
-          // Exact match for dashboard, prefix match for others
-          const isActive = item.path === '/vendor'
-            ? location.pathname === '/vendor' || location.pathname === '/vendor/'
-            : location.pathname.startsWith(item.path);
+          const hasQuery = item.path.includes('?');
+          const isActive = hasQuery
+            ? (location.pathname + location.search) === item.path
+            : item.path === '/vendor'
+              ? (location.pathname === '/vendor' || location.pathname === '/vendor/') && !location.search.includes('openPayLater')
+              : location.pathname.startsWith(item.path);
 
           return (
             <button

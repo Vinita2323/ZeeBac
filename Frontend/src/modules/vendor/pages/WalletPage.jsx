@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
 import VendorLoanModal from '../components/VendorLoanModal';
+import VendorPayLaterModal from '../components/VendorPayLaterModal';
 
 export default function WalletPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function WalletPage() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
   const [addAmount, setAmount] = useState(''); // Used for both add and withdraw
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -477,27 +479,55 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* Merchant Working Capital Banner */}
+          {/* Merchant Working Capital Banner (Coming Soon) */}
           <div 
             onClick={() => setShowLoanModal(true)}
-            className="bg-gradient-to-r from-slate-950 via-indigo-950 to-purple-950 text-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:shadow-lg transition-all active:scale-[0.99] border border-indigo-900/50 max-w-4xl"
+            className="bg-gradient-to-r from-slate-950 via-indigo-950 to-purple-950 text-white rounded-2xl p-3 sm:p-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] border border-indigo-900/50 max-w-4xl"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-                <span className="material-symbols-outlined text-[22px]">payments</span>
-              </div>
-              <div className="text-left min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[9px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">Coming Soon</span>
-                  <span className="text-[11px] font-bold text-indigo-200">Merchant Capital</span>
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
+              <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
+                  <span className="material-symbols-outlined text-[19px] sm:text-[22px]">payments</span>
                 </div>
-                <p className="text-[13px] font-bold text-white mt-0.5 leading-tight truncate">Need Working Capital? Apply for Business Loan (Up to ₹25L)</p>
-                <p className="text-[11px] text-indigo-200/80 mt-0.5 leading-tight">0% Property Collateral • Auto daily micro-deduction from sales</p>
+                <div className="text-left min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className="text-[8px] sm:text-[8.5px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
+                    <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Merchant Capital</span>
+                  </div>
+                  <p className="text-[12px] sm:text-[13.5px] font-bold text-white leading-tight">Need Working Capital? Apply for Business Loan (Up to ₹25L)</p>
+                  <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">0% Property Collateral • Auto daily micro-deduction from sales</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-[9.5px] sm:text-xs shrink-0 transition-colors">
+                <span className="whitespace-nowrap">Apply</span>
+                <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
               </div>
             </div>
-            <div className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3.5 py-1.5 rounded-xl font-bold text-xs shrink-0 self-start sm:self-auto transition-colors">
-              <span>Apply</span>
-              <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+          </div>
+
+          {/* Vendor Shop & Pay Later Banner (Upto ₹25,000 Credit Limit) */}
+          <div 
+            onClick={() => setShowPayLaterModal(true)}
+            className="bg-gradient-to-r from-slate-950 via-purple-950 to-indigo-950 text-white rounded-2xl p-3 sm:p-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] border border-indigo-900/50 max-w-4xl"
+          >
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
+              <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
+                  <span className="material-symbols-outlined text-[19px] sm:text-[22px]">credit_score</span>
+                </div>
+                <div className="text-left min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className="text-[8px] sm:text-[8.5px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
+                    <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Store Working Capital</span>
+                  </div>
+                  <p className="text-[12px] sm:text-[13.5px] font-bold text-white leading-tight">Shop & Pay Later • Credit Limit Up to ₹25,000</p>
+                  <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">Maintain 30 days store transactions to unlock limit based on PAN & CIBIL score</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-[9.5px] sm:text-xs shrink-0 transition-colors">
+                <span className="whitespace-nowrap">Check Limit</span>
+                <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
+              </div>
             </div>
           </div>
 
@@ -1030,6 +1060,11 @@ export default function WalletPage() {
       <VendorLoanModal
         isOpen={showLoanModal}
         onClose={() => setShowLoanModal(false)}
+      />
+      {/* Vendor Pay Later Modal */}
+      <VendorPayLaterModal
+        isOpen={showPayLaterModal}
+        onClose={() => setShowPayLaterModal(false)}
       />
     </>
   );
