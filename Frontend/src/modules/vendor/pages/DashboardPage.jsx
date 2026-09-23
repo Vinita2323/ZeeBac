@@ -339,10 +339,10 @@ export default function DashboardPage() {
           className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-[#16082f] via-[#3b0764] to-[#6000da] text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
         >
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
-            <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">POS Bill</p>
-          <p className="text-[7px] sm:text-[8px] text-white/80">Flow 2</p>
+          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Cash QR</p>
+          <p className="text-[7px] sm:text-[8px] text-amber-300 font-bold">&gt; ₹1,000 Instant</p>
         </button>
 
         <button
@@ -628,40 +628,71 @@ export default function DashboardPage() {
 
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-[24px]">receipt_long</span>
+                <span className="material-symbols-outlined text-[24px]">qr_code_2</span>
               </div>
               <div>
-                <h3 className="font-display font-extrabold text-[16px] text-on-surface leading-tight">POS Printed Bill Generator</h3>
-                <p className="text-[11px] text-on-surface-variant font-medium">Flow 2: Cash Payment with POS</p>
+                <h3 className="font-display font-extrabold text-[16px] text-on-surface leading-tight">Cash Bill Barcode (&gt; ₹1,000)</h3>
+                <p className="text-[11px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-full inline-block mt-0.5">Instant Withdrawable Cashback</p>
               </div>
             </div>
 
             {!generatedPosBill ? (
               <div className="space-y-4 pt-1">
+                <p className="text-[12px] text-on-surface-variant leading-snug">
+                  Enter cash bill amount above ₹1,000 to generate a one-time barcode. Customer scans it with ZeeBac to earn instant withdrawable cashback.
+                </p>
+
                 <div>
                   <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
-                    Bill Purchase Amount (₹)
+                    Cash Bill Amount (₹)
                   </label>
                   <input
                     type="number"
                     value={posAmount}
                     onChange={(e) => setPosAmount(e.target.value)}
-                    placeholder="1590"
+                    placeholder="1500"
                     className="w-full h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-[#6000da] text-[18px] font-black text-on-surface"
                   />
                 </div>
+
+                {/* Quick amount chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[1200, 1500, 2000, 3000, 5000].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setPosAmount(String(val))}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                        posAmount === String(val)
+                          ? 'bg-[#6000da] text-white shadow-xs'
+                          : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                      }`}
+                    >
+                      ₹{val.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-2.5 text-[11px] text-purple-900 flex justify-between items-center">
+                  <span>Customer Cashback ({cashbackRate}%):</span>
+                  <span className="font-black text-purple-700 text-[13px]">
+                    ₹{((parseFloat(posAmount) || 0) * (cashbackRate / 100)).toFixed(2)}
+                  </span>
+                </div>
+
                 <button
                   onClick={handleGeneratePosBill}
-                  disabled={isGeneratingPos || !posAmount}
-                  className="w-full h-12 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-extrabold text-[14px] rounded-xl shadow-md hover:from-[#16082f] hover:to-[#4c00b0] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  disabled={isGeneratingPos || !posAmount || parseFloat(posAmount) <= 0}
+                  className="w-full h-12 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-extrabold text-[14px] rounded-xl shadow-md hover:from-[#16082f] hover:to-[#4c00b0] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {isGeneratingPos ? 'Generating Bill Signal...' : 'Print Bill & Generate QR'}
+                  {isGeneratingPos ? 'Generating One-Time Barcode...' : 'Generate Cash QR Barcode'}
                 </button>
               </div>
             ) : (
               <div className="bg-[#6000da]/5 border border-[#6000da]/20 rounded-2xl p-4 text-center space-y-3">
                 <div className="bg-white border-2 border-dashed border-[#6000da]/30 rounded-xl p-4 shadow-sm flex flex-col items-center">
-                  <span className="text-[10px] text-[#6000da] font-extrabold uppercase tracking-widest block mb-2">PRINTED BILL QR CODE</span>
+                  <span className="text-[10px] text-[#6000da] font-extrabold uppercase tracking-widest block mb-1">ONE-TIME USABLE CASH QR</span>
+                  <span className="text-[10px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-full mb-2">⚡ Instant Withdrawable</span>
                   
                   {/* Scannable Visual QR Code Image */}
                   <div className="w-44 h-44 bg-white border-2 border-[#6000da]/20 rounded-2xl p-2.5 shadow-inner flex items-center justify-center mb-2">
@@ -672,14 +703,16 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  <div className="text-[18px] font-black tracking-widest text-[#16082f] bg-[#6000da]/10 py-1.5 px-4 rounded-lg my-1 select-all w-full">
+                  <div className="text-[18px] font-black tracking-widest text-[#16082f] bg-[#6000da]/10 py-1.5 px-4 rounded-lg my-1 select-all w-full font-mono">
                     {generatedPosBill.billCode}
                   </div>
-                  <p className="text-[14px] font-bold text-on-surface mt-1">Amount: ₹{generatedPosBill.amount}</p>
-                  <p className="text-[11px] text-[#6000da] font-medium">Cashback Rate: {generatedPosBill.cashbackRate}%</p>
+                  <div className="flex justify-between w-full text-[12px] font-bold text-on-surface mt-2 px-1">
+                    <span>Bill: ₹{generatedPosBill.amount}</span>
+                    <span className="text-green-600 font-black">Cashback: ₹{((generatedPosBill.amount * (generatedPosBill.cashbackRate / 100))).toFixed(2)}</span>
+                  </div>
                 </div>
                 <p className="text-[11px] text-on-surface-variant leading-tight">
-                  Scan this QR code using camera in Customer App's <b>Scan & Pay</b> or enter the bill code!
+                  Ask customer to scan this QR code with <b>Scan & Pay</b> in ZeeBac App to gain instant withdrawable cashback!
                 </p>
                 <button
                   onClick={() => setGeneratedPosBill(null)}

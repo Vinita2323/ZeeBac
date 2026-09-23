@@ -70,9 +70,33 @@ const cashbackRequestSchema = new mongoose.Schema({
     enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Other'],
     default: 'Cash',
   },
+  // 3-digit verification code sent to vendor for instant customer auto-approval
+  verificationCode: {
+    type: String,
+    trim: true,
+  },
+  verificationExpiresAt: {
+    type: Date,
+  },
+  // Vendor hold mechanism for doubtful cash requests
+  isHeld: {
+    type: Boolean,
+    default: false,
+  },
+  holdReason: {
+    type: String,
+    trim: true,
+  },
+  heldAt: {
+    type: Date,
+  },
+  // 24-hour withdrawal lock timestamp for cash-claim cashback
+  lockedUntil: {
+    type: Date,
+  },
   status: {
     type: String,
-    enum: ['Pending', 'Approved', 'Rejected'],
+    enum: ['Pending', 'Approved', 'Rejected', 'Held'],
     default: 'Pending'
   }
 }, {

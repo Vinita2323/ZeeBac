@@ -59,10 +59,16 @@ const transactionSchema = new mongoose.Schema(
     
     status: {
       type: String,
-      enum: ['Pending', 'Approved', 'Flagged', 'Rejected', 'Refunded'],
+      enum: ['Pending', 'Approved', 'Flagged', 'Rejected', 'Refunded', 'Held'],
       default: 'Pending',
     },
     flagReason: String,
+    isHeld: {
+      type: Boolean,
+      default: false,
+    },
+    holdReason: String,
+    heldAt: Date,
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'AdminUser',

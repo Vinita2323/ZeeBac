@@ -26,8 +26,13 @@ import { getStoreVisibilityQuery, getVendorSubscriptionState } from '../utils/su
 import {
   assertWithinDailyRequestLimit,
   assertNoRecentDuplicateRequest,
+  assertCashRequestAllowed,
   DailyLimitExceededError,
   DuplicateRequestError,
+  CashLimitExceededError,
+  CashLocationRequiredError,
+  CashLocationOutOfRangeError,
+  CashDailyShopLimitError,
   HIGH_VALUE_THRESHOLD,
 } from '../utils/cashbackRequestLimits.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, CUSTOMER_QR_TTL_SECONDS } from '../utils/qr.util.js';
@@ -257,11 +262,14 @@ export const getMyQrToken = async (req, res) => {
 // any verified vendor's public zeebacId and drain their wallet on demand.
 // This now creates a CashbackRequest (the same model/approval pipeline
 // already used for receipt claims) so a vendor has to confirm the payment
-// actually happened before any cashback moves. See respondToCashbackRequest
-// for the approval step and where the money actually changes hands.
+// A customer declaring "I paid cash" used to move real money instantly with
+// no vendor confirmation of any kind — any logged-in customer could submit
+// any verified vendor's public zeebacId and drain their wallet on demand.
+// This now creates a CashbackRequest with a 3-digit verification code sent to
+// the vendor so the customer can enter it for auto-approval.
 export const createCustomerTransaction = async (req, res) => {
   try {
-    const { vendorZeebacId, amount, paymentMethod } = req.body;
+    const { vendorZeebacId, amount, paymentMethod, latitude, longitude } = req.body;
 
     if (!vendorZeebacId || !amount || amount < 1) {
       return res.status(400).json({ success: false, message: 'vendorZeebacId and amount (>=1) required' });
@@ -298,6 +306,23 @@ export const createCustomerTransaction = async (req, res) => {
     await assertWithinDailyRequestLimit(customer._id);
     await assertNoRecentDuplicateRequest(customer._id, vendor._id, parseFloat(amount));
 
+    // Zero-Fraud Cash Mode Restrictions:
+    // 1. Max ₹1,000 limit
+    // 2. Daily max 3 cash requests per shop
+    // 3. Nearby location check (within 300m)
+    let geoResult = { distanceFromVendorMeters: null };
+    const isCashPayment = !paymentMethod || paymentMethod === 'Cash';
+    if (isCashPayment) {
+      geoResult = await assertCashRequestAllowed({
+        customerId: customer._id,
+        vendor,
+        amount,
+        latitude,
+        longitude,
+        haversineDistanceMeters,
+      });
+    }
+
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
 
     if ((vendorWallet?.balance || 0) < cashbackAmount) {
@@ -307,6 +332,17 @@ export const createCustomerTransaction = async (req, res) => {
       });
     }
 
+    // Generate 3-digit verification code for cash requests
+    const verificationCode = String(Math.floor(100 + Math.random() * 900));
+    const verificationExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins validity
+
+    let location = undefined;
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      location = { type: 'Point', coordinates: [lng, lat] };
+    }
+
     const request = await CashbackRequest.create({
       customerId: customer._id,
       vendorId: vendor._id,
@@ -314,6 +350,10 @@ export const createCustomerTransaction = async (req, res) => {
       requestType: 'cash_claim',
       paymentMethod: paymentMethod || 'Cash',
       status: 'Pending',
+      verificationCode,
+      verificationExpiresAt,
+      location,
+      distanceFromVendorMeters: geoResult.distanceFromVendorMeters,
     });
 
     sendNotification({
@@ -321,16 +361,34 @@ export const createCustomerTransaction = async (req, res) => {
       recipientType: 'vendor',
       fcmTokens: vendor.fcmTokens || [],
       type: 'approval',
-      title: '📝 New Cashback Request!',
-      message: `${customer.name || customer.phone} says they paid ₹${amount} in cash. Approve to send ₹${cashbackAmount} cashback.`,
-      icon: 'receipt',
+      title: `🔑 Cash Cashback Request: ₹${cashbackAmount}`,
+      message: `${customer.name || customer.phone} requested ₹${cashbackAmount} cashback on ₹${amount} cash. Share Code: ${verificationCode} with customer to auto-approve.`,
+      icon: 'pin',
       referenceId: request._id,
       referenceType: 'cashback_request',
+      data: {
+        requestId: request._id.toString(),
+        verificationCode,
+        amount: String(amount),
+        cashbackAmount: String(cashbackAmount),
+      },
     });
+
+    try {
+      getIO()?.to(`vendor_${vendor._id}`).emit('new_cash_request', {
+        requestId: request._id,
+        customerName: customer.name || customer.phone,
+        amount: parseFloat(amount),
+        cashbackAmount,
+        verificationCode,
+      });
+    } catch (socketErr) {
+      logger.warn(`Socket emit error for vendor ${vendor._id}: ${socketErr.message}`);
+    }
 
     res.status(201).json({
       success: true,
-      message: 'Sent to the vendor for approval. You will be notified once they confirm.',
+      message: 'Request sent to vendor! Ask the vendor for the 3-digit verification code to auto-approve.',
       data: {
         requestId: request._id,
         amount: request.amount,
@@ -340,11 +398,211 @@ export const createCustomerTransaction = async (req, res) => {
       },
     });
   } catch (error) {
-    if (error instanceof DailyLimitExceededError || error instanceof DuplicateRequestError) {
+    if (
+      error instanceof DailyLimitExceededError ||
+      error instanceof DuplicateRequestError ||
+      error instanceof CashDailyShopLimitError
+    ) {
       return res.status(429).json({ success: false, message: error.message });
+    }
+    if (
+      error instanceof CashLimitExceededError ||
+      error instanceof CashLocationRequiredError ||
+      error instanceof CashLocationOutOfRangeError
+    ) {
+      return res.status(400).json({ success: false, message: error.message });
     }
     logger.error(`createCustomerTransaction error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// Customer enters the 3-digit verification code received from the vendor for instant auto-approval
+export const verifyCashbackRequestCode = async (req, res) => {
+  const { id } = req.params;
+  const { code } = req.body;
+
+  if (!code || !code.toString().trim()) {
+    return res.status(400).json({ success: false, message: '3-digit verification code is required' });
+  }
+
+  const cleanCode = code.toString().trim();
+  const session = await mongoose.startSession();
+
+  try {
+    const request = await CashbackRequest.findOne({
+      _id: id,
+      customerId: req.user.id,
+      status: 'Pending',
+    }).populate('vendorId').populate('customerId');
+
+    if (!request) {
+      const existing = await CashbackRequest.findOne({ _id: id, customerId: req.user.id });
+      if (existing && existing.status === 'Approved') {
+        return res.status(400).json({ success: false, message: 'This request has already been approved' });
+      }
+      return res.status(404).json({ success: false, message: 'Pending cashback request not found' });
+    }
+
+    if (request.verificationCode !== cleanCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification code. Please ask the vendor for the 3-digit code.',
+      });
+    }
+
+    if (request.verificationExpiresAt && request.verificationExpiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired. Please submit a new request.',
+      });
+    }
+
+    const vendor = request.vendorId;
+    const customer = request.customerId;
+
+    // Check vendor wallet & subscription
+    const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
+    const subState = getVendorSubscriptionState(vendor, vendorBalance);
+
+    if (!subState.isSubActive) {
+      return res.status(400).json({ success: false, message: 'Cashback blocked due to vendor subscription expiry' });
+    }
+
+    const cashbackAmount = calculateCashback(request.amount, vendor.cashbackRate);
+
+    if (vendorBalance < cashbackAmount) {
+      return res.status(400).json({ success: false, message: 'Vendor wallet balance is too low for this cashback payout' });
+    }
+
+    const lockedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24-hr withdrawal lock
+    const transactionId = `TX-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    let txn = null;
+    let referralAward = null;
+    let customerNewBalance = 0;
+
+    await session.withTransaction(async () => {
+      // 1. Mark request as Approved
+      request.status = 'Approved';
+      request.lockedUntil = lockedUntil;
+      await request.save({ session });
+
+      // 2. Create Transaction Ledger Entry
+      const createdTx = await Transaction.create([{
+        transactionId,
+        customerId: customer._id,
+        customerZeebacId: customer.zeebacId,
+        customerPhone: customer.phone,
+        customerName: customer.name,
+        vendorId: vendor._id,
+        vendorZeebacId: vendor.zeebacId,
+        vendorName: vendor.storeName,
+        vendorPhone: vendor.phone,
+        vendorCategory: vendor.category,
+        type: 'receipt_claim',
+        initiatedBy: 'customer',
+        source: 'customer_request',
+        amount: parseFloat(request.amount),
+        cashbackPercent: vendor.cashbackRate,
+        cashbackAmount,
+        paymentMethod: 'Cash',
+        status: 'Approved',
+        hasReceipt: false,
+      }], { session });
+      txn = createdTx[0];
+
+      // 3. Debit Vendor Wallet
+      await debitWallet({
+        session,
+        ownerId: vendor._id,
+        ownerType: 'Vendor',
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `Approved cash cashback for ${customer.name || customer.phone} (Code Verified)`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+      });
+
+      // 4. Credit Customer Wallet with 24-hr lock
+      const walletRes = await creditWallet({
+        session,
+        ownerId: customer._id,
+        ownerType: 'User',
+        ownerZeebacId: customer.zeebacId,
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `Cashback approved from ${vendor.storeName} (Cash Payment)`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+        lockedUntil,
+      });
+      customerNewBalance = walletRes.balance;
+
+      // 5. Update vendor total revenue stats
+      await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(request.amount) } }, { session });
+
+      // 6. Referral reward check
+      referralAward = await claimFirstPurchaseReferralBonus({ session, customer });
+    });
+
+    // Notify Customer
+    sendNotification({
+      recipientId: customer._id,
+      recipientType: 'customer',
+      fcmTokens: customer.fcmTokens || [],
+      type: 'credit',
+      title: '✅ Cashback Approved!',
+      message: `₹${cashbackAmount} cashback from ${vendor.storeName} credited! (Locked for 24h from bank withdrawal)`,
+      icon: 'check_circle',
+      referenceId: txn._id,
+      referenceType: 'transaction',
+    });
+
+    // Notify Vendor
+    sendNotification({
+      recipientId: vendor._id,
+      recipientType: 'vendor',
+      fcmTokens: vendor.fcmTokens || [],
+      type: 'system',
+      title: '🎉 Cash Cashback Verified',
+      message: `${customer.name || customer.phone}'s ₹${cashbackAmount} cashback auto-approved via 3-digit code.`,
+      icon: 'verified',
+      referenceId: txn._id,
+      referenceType: 'transaction',
+    });
+
+    if (referralAward) {
+      sendNotification({
+        recipientId: referralAward.referrerId,
+        recipientType: 'customer',
+        fcmTokens: referralAward.referrerFcmTokens,
+        type: 'referral',
+        title: '🎊 Referral Bonus Credited!',
+        message: `₹${referralAward.rewardAmount} added to your wallet for referring ${customer.name || customer.phone}!`,
+        icon: 'group_add',
+        referenceId: referralAward.referralId,
+        referenceType: 'Referral',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cashback approved successfully! Locked for 24 hours for withdrawal safety.',
+      data: {
+        requestId: request._id,
+        cashbackAmount,
+        lockedUntil,
+        status: 'Approved',
+        transactionId: txn.transactionId,
+        newWalletBalance: customerNewBalance,
+      }
+    });
+  } catch (error) {
+    logger.error(`verifyCashbackRequestCode error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -725,10 +983,29 @@ export const getMyWallet = async (req, res) => {
         totalWithdrawn: 0,
       });
     }
+
+    // Active locked cashback calculation (24-hour withdrawal lock or vendor hold)
+    const activeLocked = await WalletTransaction.find({
+      ownerId: req.user.id,
+      ownerType: { $in: ['User', 'customer', 'user', 'Customer'] },
+      type: 'credit',
+      $or: [
+        { lockedUntil: { $gt: new Date() } },
+        { isHeld: true },
+      ],
+    });
+    const lockedBalance = activeLocked.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const withdrawableBalance = Math.max(0, (wallet.balance || 0) - lockedBalance);
+
     const ledger = await WalletTransaction.find({ ownerId: req.user.id, ownerType: 'User' })
       .sort({ createdAt: -1 })
       .limit(50);
-    res.status(200).json({ success: true, data: { wallet, ledger } });
+
+    const walletData = wallet.toObject();
+    walletData.lockedBalance = lockedBalance;
+    walletData.withdrawableBalance = withdrawableBalance;
+
+    res.status(200).json({ success: true, data: { wallet: walletData, ledger } });
   } catch (error) {
     logger.error(`getMyWallet error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -1016,6 +1293,31 @@ export const requestWithdrawal = async (req, res) => {
     let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
     if (!wallet || wallet.balance < reqAmount) {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+    }
+
+    // Active locked cashback check (24h lock or vendor hold)
+    const activeLocked = await WalletTransaction.find({
+      ownerId: req.user.id,
+      ownerType: { $in: ['User', 'customer', 'user', 'Customer'] },
+      type: 'credit',
+      $or: [
+        { lockedUntil: { $gt: new Date() } },
+        { isHeld: true },
+      ],
+    });
+    const lockedBalance = activeLocked.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const withdrawableBalance = Math.max(0, (wallet.balance || 0) - lockedBalance);
+
+    if (reqAmount > withdrawableBalance) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient withdrawable balance. ₹${lockedBalance} is locked under 24-hour verification or hold. Available for withdrawal: ₹${withdrawableBalance}.`,
+        data: {
+          totalBalance: wallet.balance,
+          lockedBalance,
+          withdrawableBalance,
+        },
+      });
     }
 
     const feeAmount = Math.round(((reqAmount * commissionPercent) / 100) * 100) / 100;

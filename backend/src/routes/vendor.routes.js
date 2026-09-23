@@ -18,6 +18,8 @@ import {
   requestWithdrawal,
   getPendingRequests,
   respondToCashbackRequest,
+  holdCashbackTransaction,
+  unholdCashbackTransaction,
   saveApplicationDraft,
   submitApplication,
   resubmitApplication,
@@ -111,6 +113,8 @@ router.post('/bank-account/verify', requireApprovedVendor, verifyAndSaveVendorBa
 // Cashback Requests (Phase 4 Approvals)
 router.get('/requests/pending', requireApprovedVendor, getPendingRequests);
 router.post('/requests/:id/respond', requireApprovedVendor, respondToCashbackRequest);
+router.post('/requests/:id/hold', requireApprovedVendor, holdCashbackTransaction);
+router.post('/requests/:id/unhold', requireApprovedVendor, unholdCashbackTransaction);
 
 // Reviews (Phase 7)
 router.get('/reviews', requireApprovedVendor, getVendorReviews);

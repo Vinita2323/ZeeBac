@@ -452,6 +452,18 @@ export const VendorAPI = {
     const res = await apiClient.post(`/vendor/requests/${requestId}/respond`, { action });
     return res.data;
   },
+  holdRequest: async (requestId, reason) => {
+    const res = await apiClient.post(`/vendor/requests/${requestId}/hold`, { reason });
+    return res.data;
+  },
+  unholdRequest: async (requestId) => {
+    const res = await apiClient.post(`/vendor/requests/${requestId}/unhold`);
+    return res.data;
+  },
+  generatePosBill: async (data) => {
+    const res = await apiClient.post('/pos/create-bill', data);
+    return res.data;
+  },
   createRazorpayOrder: async (amount) => {
     const res = await apiClient.post('/vendor/wallet/create-order', { amount });
     return res.data;
@@ -582,6 +594,11 @@ export const UserAPI = {
   // POS Flow: Claim printed bill QR (ZEEBAC-89214)
   claimPosBill: async (billCode) => {
     const res = await apiClient.post('/pos/claim', { billCode });
+    return res.data;
+  },
+  // Cash claim OTP verification flow
+  verifyCashbackRequestCode: async (requestId, code) => {
+    const res = await apiClient.post(`/user/cashback-requests/${requestId}/verify-code`, { code });
     return res.data;
   },
   // UPI Flow: Claim cashback via 12-digit UPI Reference ID / UTR (e.g. GPay)

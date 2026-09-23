@@ -19,6 +19,7 @@ import {
   createCashbackRequest,
   getMyCashbackRequests,
   getCashbackRequestById,
+  verifyCashbackRequestCode,
   getVendorProducts,
   getNearbyVendors,
   getRecentVendors,
@@ -112,6 +113,7 @@ router.post('/pay-via-wallet', processWalletPayment);
 router.post('/cashback-requests', upload.single('billImg'), createCashbackRequest);
 router.get('/cashback-requests', getMyCashbackRequests);
 router.get('/cashback-requests/:id', getCashbackRequestById);
+router.post('/cashback-requests/:id/verify-code', verifyCashbackRequestCode);
 
 // Referrals (Phase 8)
 router.get('/referrals', getMyReferrals);

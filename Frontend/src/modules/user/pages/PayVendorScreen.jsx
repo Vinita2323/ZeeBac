@@ -45,22 +45,33 @@ export default function PayVendorScreen() {
   const cashbackRate = vendor.cashbackRate || 10;
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
-  const isValid = purchaseAmount >= 1 && (paymentMethod !== 'Wallet' || purchaseAmount <= walletBalance);
+  const isCashOverLimit = paymentMethod === 'Cash' && purchaseAmount > 1000;
+  const isValid = purchaseAmount >= 1 && !isCashOverLimit && (paymentMethod !== 'Wallet' || purchaseAmount <= walletBalance);
+
+  const getCurrentLocation = () =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve({ latitude: null, longitude: null });
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve({ latitude: null, longitude: null }),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    });
 
   const handleConfirm = async () => {
     if (!isValid || processing) return;
     setProcessing(true);
     
-    // --- CASH FLOW (Direct API) ---
-    // A cash payment can't be verified by Zeebac itself, so this now sends
-    // the vendor a request to confirm it happened instead of crediting
-    // cashback instantly — previously any logged-in customer could claim to
-    // have paid any vendor in cash and get paid out with no vendor consent
-    // at all.
+    // --- CASH FLOW (Direct API with Zero-Fraud Verification Code) ---
     if (paymentMethod === 'Cash') {
       try {
+        const coords = await getCurrentLocation();
         const res = await UserAPI.createTransaction({
-          vendorZeebacId: vendor.zeebacId, amount: parseFloat(amount), paymentMethod
+          vendorZeebacId: vendor.zeebacId,
+          amount: parseFloat(amount),
+          paymentMethod,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
         });
         if (res.success) handlePendingApproval(res.data);
       } catch (err) {
@@ -254,14 +265,29 @@ export default function PayVendorScreen() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-green-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>savings</span>
-                  <span className="text-[13px] font-bold text-green-800">{paymentMethod === 'Cash' ? "You'll earn (once approved)" : "You'll earn"}</span>
+                  <span className="text-[13px] font-bold text-green-800">{paymentMethod === 'Cash' ? "You'll earn (once code verified)" : "You'll earn"}</span>
                 </div>
                 <span className="text-[20px] font-black text-green-600">₹{cashbackAmount.toFixed(2)}</span>
               </div>
               <p className="text-[10px] text-green-600/70 mt-1 text-right">
                 {cashbackRate}% of ₹{purchaseAmount.toLocaleString()}
-                {paymentMethod === 'Cash' && ' — the vendor needs to confirm this payment first'}
+                {paymentMethod === 'Cash' && ' — verify vendor 3-digit code for instant approval'}
               </p>
+            </div>
+          )}
+
+          {/* Cash > 1000 Warning Banner */}
+          {isCashOverLimit && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 w-full max-w-[340px] text-left animate-reveal shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-amber-600 text-[24px] flex-shrink-0 mt-0.5">verified_user</span>
+                <div>
+                  <h4 className="font-bold text-[14px] text-amber-950 leading-tight">Cash Request Limit: ₹1,000</h4>
+                  <p className="text-[11px] text-amber-900/80 mt-1 leading-normal font-medium">
+                    Self cash requests are capped at ₹1,000. For bills above ₹1,000, <strong>ask the shopkeeper to generate a one-time bill barcode from their vendor app</strong> to get instant withdrawable cashback!
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

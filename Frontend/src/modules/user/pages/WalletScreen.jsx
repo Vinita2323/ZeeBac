@@ -14,6 +14,8 @@ export default function WalletScreen() {
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   
   const [balance, setBalance] = useState(0);
+  const [lockedBalance, setLockedBalance] = useState(0);
+  const [withdrawableBalance, setWithdrawableBalance] = useState(0);
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [subView, setSubView] = useState(location.state?.subView || null); // 'cashout' | 'perks' | 'recharge'
@@ -38,8 +40,12 @@ export default function WalletScreen() {
         const res = await UserAPI.getMyWallet();
         if (res.success) {
           const realBalance = res.data.wallet?.balance || 0;
+          const realLocked = res.data.lockedBalance || 0;
+          const realWithdrawable = res.data.withdrawableBalance !== undefined ? res.data.withdrawableBalance : Math.max(0, realBalance - realLocked);
           useAuthStore.getState().updateBalance(realBalance);
           setBalance(realBalance);
+          setLockedBalance(realLocked);
+          setWithdrawableBalance(realWithdrawable);
 
           // Animate balance
           let start = Math.max(0, realBalance - 100);
@@ -130,7 +136,18 @@ export default function WalletScreen() {
   }
 
   if (subView === 'cashout') {
-    return <CashoutSubView balance={balance} currentUser={currentUser} withdrawals={withdrawals} onBack={() => setSubView(null)} setBalance={setBalance} />;
+    return (
+      <CashoutSubView 
+        balance={balance} 
+        lockedBalance={lockedBalance}
+        withdrawableBalance={withdrawableBalance}
+        currentUser={currentUser} 
+        withdrawals={withdrawals} 
+        onBack={() => setSubView(null)} 
+        setBalance={setBalance}
+        setWithdrawableBalance={setWithdrawableBalance}
+      />
+    );
   }
 
   if (subView === 'perks') {
@@ -162,6 +179,12 @@ export default function WalletScreen() {
           <div className="space-y-sm">
             <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-widest leading-none">Total Cashback Reward</p>
             <h2 className="text-[44px] font-display font-black text-primary leading-none">₹{balance.toFixed(2)}</h2>
+            {lockedBalance > 0 && (
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-[11px] font-bold">
+                <span className="material-symbols-outlined text-[14px]">lock_clock</span>
+                <span>₹{lockedBalance.toFixed(2)} locked (24-hr) · Withdrawable: ₹{withdrawableBalance.toFixed(2)}</span>
+              </div>
+            )}
           </div>
 
           {/* Quick buttons (Withdrawal & Perks + History) */}
@@ -335,7 +358,16 @@ export default function WalletScreen() {
 }
 
 // ─── Phase A: Cashout SubView ───
-function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance }) {
+function CashoutSubView({ 
+  balance, 
+  lockedBalance = 0, 
+  withdrawableBalance = balance, 
+  currentUser, 
+  withdrawals, 
+  onBack, 
+  setBalance, 
+  setWithdrawableBalance 
+}) {
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState(null); // { success, isAuto, amount, message }
@@ -360,8 +392,12 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
       setErrorMsg('Minimum withdrawal amount is ₹50');
       return false;
     }
-    if (numAmount > balance) {
-      setErrorMsg('Insufficient wallet balance');
+    if (numAmount > withdrawableBalance) {
+      if (lockedBalance > 0) {
+        setErrorMsg(`₹${lockedBalance.toFixed(2)} is locked under 24-hour verification or vendor hold. Max available to withdraw is ₹${withdrawableBalance.toFixed(2)}`);
+      } else {
+        setErrorMsg('Insufficient withdrawable balance');
+      }
       return false;
     }
     if (!hasBank) {
@@ -378,7 +414,10 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
       const res = await UserAPI.requestWithdrawal(numAmount);
       if (res.success) {
         const isAuto = numAmount <= AUTO_LIMIT;
-        setBalance(prev => prev - numAmount);
+        setBalance(prev => Math.max(0, prev - numAmount));
+        if (setWithdrawableBalance) {
+          setWithdrawableBalance(prev => Math.max(0, prev - numAmount));
+        }
         setResult({ success: true, isAuto, amount: numAmount });
       } else {
         setErrorMsg(res.message || 'Something went wrong, please try again');
@@ -522,8 +561,28 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
         {/* Balance Card */}
         <div className="bg-white border border-outline-variant/30 rounded-3xl p-lg shadow-sm text-center">
           <p className="font-label-mono text-[12px] text-on-surface-variant tracking-wider">AVAILABLE FOR CASHOUT</p>
-          <h2 className="text-[40px] font-display font-black text-primary mt-2">₹{balance.toFixed(2)}</h2>
+          <h2 className="text-[40px] font-display font-black text-primary mt-2">₹{withdrawableBalance.toFixed(2)}</h2>
+          {lockedBalance > 0 && (
+            <p className="text-[12px] text-on-surface-variant font-medium pt-1">
+              Total Wallet Balance: ₹{balance.toFixed(2)}
+            </p>
+          )}
         </div>
+
+        {/* 24-hr Security Lock Banner */}
+        {lockedBalance > 0 && (
+          <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-3 text-left">
+            <span className="material-symbols-outlined text-amber-700 text-[20px] mt-0.5 flex-shrink-0">lock_clock</span>
+            <div>
+              <p className="text-[12px] font-bold text-amber-900">
+                ₹{lockedBalance.toFixed(2)} Under 24-Hour Security Lock
+              </p>
+              <p className="text-[11px] text-amber-800/90 mt-0.5 leading-snug">
+                Cashback earned from cash requests is locked for 24 hours to prevent fraud or abuse. Once 24 hours elapse, it automatically becomes withdrawable.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Admin Review Info Banner */}
         <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-3 flex items-start gap-2.5">
@@ -547,8 +606,8 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
               className="w-full h-16 pl-10 pr-24 bg-white border border-outline-variant/30 rounded-2xl text-title-lg font-bold text-on-surface focus:outline-none focus:border-primary/50 shadow-inner"
             />
             <button 
-              onClick={() => setAmount(balance)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-primary/10 text-primary text-label-sm font-bold rounded-lg active:scale-95"
+              onClick={() => setAmount(String(withdrawableBalance))}
+              className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-primary/10 text-primary text-label-sm font-bold rounded-lg active:scale-95 cursor-pointer"
             >
               MAX
             </button>
@@ -604,7 +663,7 @@ function CashoutSubView({ balance, currentUser, withdrawals, onBack, setBalance 
         {/* Submit Button */}
         <button 
           onClick={handleWithdrawClick}
-          disabled={!hasBank || isProcessing || !amount || parseFloat(amount) < 50 || parseFloat(amount) > balance}
+          disabled={!hasBank || isProcessing || !amount || parseFloat(amount) < 50 || parseFloat(amount) > withdrawableBalance}
           className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:active:scale-100 cursor-pointer"
         >
           {isProcessing ? (

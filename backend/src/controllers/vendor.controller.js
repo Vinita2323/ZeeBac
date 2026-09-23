@@ -995,7 +995,7 @@ export const getPendingRequests = async (req, res) => {
   try {
     const requests = await CashbackRequest.find({
       vendorId: req.user.id,
-      status: 'Pending'
+      status: { $in: ['Pending', 'Held'] }
     }).populate('customerId', 'name phone').sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: requests });
@@ -1022,7 +1022,7 @@ export const respondToCashbackRequest = async (req, res) => {
     // for exactly one caller; a second concurrent call gets `claimed === null`
     // and a clean "already processed" response instead of a second payout.
     const claimed = await CashbackRequest.findOneAndUpdate(
-      { _id: id, vendorId: req.user.id, status: 'Pending' },
+      { _id: id, vendorId: req.user.id, status: { $in: ['Pending', 'Held'] } },
       { status: action === 'Approve' ? 'Approved' : 'Rejected' },
       { returnDocument: 'before' }
     ).populate('customerId');
@@ -1060,9 +1060,14 @@ export const respondToCashbackRequest = async (req, res) => {
 
     let txn;
     let referralAward = null;
+    const lockedUntil = claimed.paymentMethod === 'Cash' ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
 
     try {
       await session.withTransaction(async () => {
+        if (lockedUntil) {
+          await CashbackRequest.updateOne({ _id: id }, { lockedUntil }, { session });
+        }
+
         const created = await Transaction.create([{
           transactionId, customerId: customer._id, customerZeebacId: customer.zeebacId,
           customerPhone: customer.phone, customerName: customer.name,
@@ -1088,6 +1093,7 @@ export const respondToCashbackRequest = async (req, res) => {
           amount: cashbackAmount, category: 'cashback',
           description: `Cashback approved from ${vendor.storeName}`,
           referenceId: txn._id, referenceType: 'Transaction',
+          lockedUntil,
         });
 
         await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } }, { session });
@@ -1107,7 +1113,7 @@ export const respondToCashbackRequest = async (req, res) => {
       fcmTokens: customer.fcmTokens || [],
       type: 'credit',
       title: '✅ Cashback Request Approved!',
-      message: `₹${cashbackAmount} cashback from ${vendor.storeName} has been approved. Wallet balance updated!`,
+      message: `₹${cashbackAmount} cashback from ${vendor.storeName} has been approved.${lockedUntil ? ' (Locked for 24h from bank withdrawal)' : ''}`,
       icon: 'check_circle',
       referenceId: txn._id,
       referenceType: 'Transaction',
@@ -1136,6 +1142,142 @@ export const respondToCashbackRequest = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   } finally {
     session.endSession();
+  }
+};
+
+// Vendor puts a cash transaction / cashback request on hold (blocks customer from withdrawing)
+export const holdCashbackTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const request = await CashbackRequest.findOne({ _id: id, vendorId: req.user.id });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Cashback request not found' });
+    }
+
+    const holdReason = reason ? reason.trim() : 'Vendor flagged transaction for verification';
+    const now = new Date();
+
+    request.isHeld = true;
+    request.holdReason = holdReason;
+    request.heldAt = now;
+    request.status = 'Held';
+    await request.save();
+
+    // Freeze associated wallet credit transaction
+    await WalletTransaction.updateMany(
+      {
+        $or: [
+          { referenceId: request._id },
+          { ownerId: request.customerId, description: { $regex: new RegExp(req.user.storeName || 'Cashback', 'i') } }
+        ],
+        type: 'credit',
+      },
+      {
+        $set: {
+          isHeld: true,
+          holdReason,
+          heldAt: now,
+          heldBy: req.user.id,
+        }
+      }
+    );
+
+    // Update Transaction if already created
+    await Transaction.updateMany(
+      {
+        $or: [
+          { customerId: request.customerId, vendorId: req.user.id, amount: request.amount }
+        ]
+      },
+      {
+        $set: {
+          isHeld: true,
+          holdReason,
+          heldAt: now,
+          status: 'Held',
+        }
+      }
+    );
+
+    sendNotification({
+      recipientId: request.customerId,
+      recipientType: 'customer',
+      type: 'system',
+      title: '⚠️ Cashback Put On Hold',
+      message: `Cashback from ${req.user.storeName || 'the vendor'} has been placed on hold: "${holdReason}". Bank withdrawal is frozen until reviewed.`,
+      icon: 'pause_circle',
+      referenceId: request._id,
+      referenceType: 'cashback_request',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction successfully put on hold. Withdrawal is blocked for the customer.',
+      data: request,
+    });
+  } catch (error) {
+    logger.error(`holdCashbackTransaction error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
+// Vendor releases hold on a cash transaction
+export const unholdCashbackTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await CashbackRequest.findOne({ _id: id, vendorId: req.user.id });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Cashback request not found' });
+    }
+
+    request.isHeld = false;
+    request.status = 'Approved';
+    await request.save();
+
+    await WalletTransaction.updateMany(
+      {
+        $or: [
+          { referenceId: request._id },
+          { ownerId: request.customerId, isHeld: true, heldBy: req.user.id }
+        ],
+      },
+      {
+        $set: { isHeld: false }
+      }
+    );
+
+    await Transaction.updateMany(
+      {
+        customerId: request.customerId,
+        vendorId: req.user.id,
+        isHeld: true,
+      },
+      {
+        $set: { isHeld: false, status: 'Approved' }
+      }
+    );
+
+    sendNotification({
+      recipientId: request.customerId,
+      recipientType: 'customer',
+      type: 'credit',
+      title: '✅ Hold Released on Cashback',
+      message: `The hold on your cashback from ${req.user.storeName || 'the vendor'} has been released.`,
+      icon: 'check_circle',
+      referenceId: request._id,
+      referenceType: 'cashback_request',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Hold has been released successfully.',
+      data: request,
+    });
+  } catch (error) {
+    logger.error(`unholdCashbackTransaction error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
   }
 };
 

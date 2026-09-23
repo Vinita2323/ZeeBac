@@ -31,7 +31,9 @@ export const debitWallet = async ({
   referenceId, referenceType, gateway = {},
 }) => {
   const normalizedType = (ownerType || 'vendor').toLowerCase();
-  const ownerTypeQuery = { $in: [normalizedType, normalizedType.toUpperCase(), normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)] };
+  const ownerTypeQuery = (normalizedType === 'user' || normalizedType === 'customer')
+    ? { $in: ['User', 'user', 'Customer', 'customer'] }
+    : { $in: [normalizedType, normalizedType.toUpperCase(), normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)] };
   const resolvedOwnerType = normalizedType === 'admin' ? 'Admin' : (normalizedType === 'vendor' ? 'Vendor' : 'User');
 
   // Ensure wallet exists (if missing, auto-initialize vendor with ₹25,000, admin with ₹500,000, user with ₹1,000)
@@ -81,10 +83,12 @@ export const debitWallet = async ({
 // Mongoose session.
 export const creditWallet = async ({
   session, ownerId, ownerType, ownerZeebacId, amount, category, description,
-  referenceId, referenceType, gateway = {},
+  referenceId, referenceType, gateway = {}, lockedUntil = null,
 }) => {
   const normalizedType = (ownerType || 'customer').toLowerCase();
-  const ownerTypeQuery = { $in: [normalizedType, normalizedType.toUpperCase(), normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)] };
+  const ownerTypeQuery = (normalizedType === 'user' || normalizedType === 'customer')
+    ? { $in: ['User', 'user', 'Customer', 'customer'] }
+    : { $in: [normalizedType, normalizedType.toUpperCase(), normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)] };
   const resolvedOwnerType = normalizedType === 'admin' ? 'Admin' : (normalizedType === 'vendor' ? 'Vendor' : 'User');
 
   const wallet = await Wallet.findOneAndUpdate(
@@ -107,6 +111,7 @@ export const creditWallet = async ({
     referenceId,
     referenceType,
     description,
+    lockedUntil,
     ...gateway,
   }], { session });
 

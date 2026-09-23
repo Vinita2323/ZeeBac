@@ -43,6 +43,40 @@ export default function RequestsPage() {
     }
   };
 
+  const handleHold = async (requestId) => {
+    const reason = prompt('Please enter the reason for placing this cashback on hold:', 'Verification pending');
+    if (reason === null) return;
+    setIsProcessing(true);
+    try {
+      const res = await VendorAPI.holdRequest(requestId, reason);
+      if (res.success) {
+        setPendingRequests(prev =>
+          prev.map(r => r._id === requestId ? { ...r, isHeld: true, holdReason: reason, status: 'Held' } : r)
+        );
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to place request on hold');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUnhold = async (requestId) => {
+    setIsProcessing(true);
+    try {
+      const res = await VendorAPI.unholdRequest(requestId);
+      if (res.success) {
+        setPendingRequests(prev =>
+          prev.map(r => r._id === requestId ? { ...r, isHeld: false, status: 'Approved' } : r)
+        );
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to release hold');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="animate-reveal text-left">
       <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
@@ -90,9 +124,48 @@ export default function RequestsPage() {
                   <p className="font-black text-[16px] text-on-surface">₹{req.amount?.toLocaleString()}</p>
                 </div>
                 <div className="flex justify-between items-center mt-1">
-                  <p className="text-[12px] text-on-surface-variant font-medium">{new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> Request</p>
-                  <p className="text-[11px] text-green-600 font-black">Estimated CB: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}</p>
+                  <p className="text-[12px] text-on-surface-variant font-medium">
+                    {new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}
+                  </p>
+                  <p className="text-[12px] text-green-600 font-black">
+                    Cashback to Pay: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
+                  </p>
                 </div>
+
+                {/* 3-Digit Verification Code for Cash Requests */}
+                {req.verificationCode && req.status === 'Pending' && (
+                  <div className="mt-3 bg-primary/10 border-2 border-primary/20 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-[22px]">pin</span>
+                      <div>
+                        <p className="text-[12px] font-bold text-on-surface">3-Digit Customer Code</p>
+                        <p className="text-[10px] text-on-surface-variant">Tell this code to customer to auto-approve</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[22px] font-mono font-black text-primary tracking-widest bg-white px-3 py-1 rounded-lg border border-primary/30 shadow-inner">
+                        {req.verificationCode}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hold Status Badge */}
+                {req.isHeld && (
+                  <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-red-700 text-[11px] font-bold">
+                      <span className="material-symbols-outlined text-[16px]">pause_circle</span>
+                      <span>On Hold: {req.holdReason || 'Flagged for verification'}</span>
+                    </div>
+                    <button
+                      disabled={isProcessing}
+                      onClick={() => handleUnhold(req._id)}
+                      className="text-[11px] font-bold text-primary bg-white border border-primary/30 px-2.5 py-1 rounded-lg hover:bg-primary/5 active:scale-95 cursor-pointer"
+                    >
+                      Release Hold
+                    </button>
+                  </div>
+                )}
 
                 {req.billImageUrl && (
                   <div
@@ -107,18 +180,28 @@ export default function RequestsPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 mt-4">
+                <div className="flex items-center gap-2 mt-4">
                   <button 
                     disabled={isProcessing}
                     onClick={() => handleRequestAction(req._id, 'Reject')}
-                    className="flex-1 h-10 rounded-xl bg-red-50 text-red-600 font-bold text-[13px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-red-100"
+                    className="flex-1 h-10 rounded-xl bg-red-50 text-red-600 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-red-100"
                   >
                     Reject
                   </button>
+                  {!req.isHeld && (
+                    <button 
+                      disabled={isProcessing}
+                      onClick={() => handleHold(req._id)}
+                      className="px-3 h-10 rounded-xl bg-amber-50 text-amber-700 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-amber-100 border border-amber-200/60"
+                      title="Hold transaction if you have any doubt"
+                    >
+                      Hold
+                    </button>
+                  )}
                   <button 
                     disabled={isProcessing}
                     onClick={() => handleRequestAction(req._id, 'Approve')}
-                    className="flex-1 h-10 rounded-xl bg-primary text-white font-bold text-[13px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-primary/90 hover:shadow-md"
+                    className="flex-1 h-10 rounded-xl bg-primary text-white font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-primary/90 hover:shadow-md"
                   >
                     Approve
                   </button>

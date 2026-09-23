@@ -85,6 +85,29 @@ const walletTransactionSchema = new mongoose.Schema(
     vendorName: {
       type: String,
     },
+    // 24-hour withdrawal lock timestamp (e.g. for cash-claim cashback)
+    lockedUntil: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    // Vendor hold mechanism
+    isHeld: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    holdReason: {
+      type: String,
+      trim: true,
+    },
+    heldAt: {
+      type: Date,
+    },
+    heldBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vendor',
+    },
     timestamp: {
       type: Date,
       default: Date.now,
