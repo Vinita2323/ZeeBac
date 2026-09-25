@@ -5,6 +5,7 @@ import { AuthAPI } from '../../../services/api';
 export default function AuthLoginScreen({ role = 'customer' }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
+  const [isNotFound, setIsNotFound] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const isVendor = role === 'vendor';
@@ -14,6 +15,7 @@ export default function AuthLoginScreen({ role = 'customer' }) {
     if (value.length <= 10) {
       setMobileNumber(value);
       setError('');
+      setIsNotFound(false);
     }
   };
 
@@ -23,19 +25,27 @@ export default function AuthLoginScreen({ role = 'customer' }) {
     e.preventDefault();
     if (!isFormValid) {
       setError('Please enter a valid 10-digit mobile number.');
+      setIsNotFound(false);
       return;
     }
 
     try {
       setIsLoading(true);
       setError('');
+      setIsNotFound(false);
       await AuthAPI.sendOtp({ phone: mobileNumber, purpose: 'login', role });
 
       navigate(isVendor ? '/vendor-app/verify-otp' : '/verify-otp', {
         state: { mobileNumber, flow: 'login', role }
       });
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send OTP. Please try again.');
+      const status = err.response?.status;
+      const msg = err.response?.data?.message || 'Failed to send OTP. Please try again.';
+      if (status === 404 || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('please register')) {
+        setIsNotFound(true);
+      } else {
+        setError(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -96,9 +106,28 @@ export default function AuthLoginScreen({ role = 'customer' }) {
                 Vendor Partner Portal
               </span>
             ) : (
-              <p className="text-slate-500 text-[13px] font-semibold">Welcome back! Sign in with your phone number.</p>
+              <p className="text-slate-500 text-[13px] font-semibold">Welcome! Sign in with your mobile number.</p>
             )}
           </div>
+
+          {/* Quick Tab Switcher for Customer App */}
+          {!isVendor && (
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                className="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-purple-700 shadow-xs cursor-default"
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/signup', { state: { phone: mobileNumber } })}
+                className="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-purple-700 transition-colors cursor-pointer"
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
 
           {/* Unified Single-Border Mobile Input Form */}
           <form className="space-y-5" onSubmit={handleContinue}>
@@ -127,6 +156,27 @@ export default function AuthLoginScreen({ role = 'customer' }) {
                 />
               </div>
             </div>
+
+            {/* Unregistered User 1-Tap Banner */}
+            {isNotFound && !isVendor && (
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl space-y-2.5 animate-reveal">
+                <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
+                  <span className="material-symbols-outlined text-purple-600 text-[18px]">person_add</span>
+                  <span>New to Zeebac? Account not registered</span>
+                </div>
+                <p className="text-[12px] text-purple-700 leading-relaxed">
+                  No account was found for <span className="font-bold">+91 {mobileNumber}</span>. Create your customer account in seconds to start earning instant cashback!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/signup', { state: { phone: mobileNumber } })}
+                  className="w-full py-2.5 px-4 bg-purple-700 hover:bg-purple-800 active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <span>Sign Up with +91 {mobileNumber}</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-semibold flex items-center gap-2 animate-reveal">
@@ -165,7 +215,7 @@ export default function AuthLoginScreen({ role = 'customer' }) {
             </div>
 
             <button
-              onClick={() => navigate(isVendor ? '/vendor-app/signup' : '/signup')}
+              onClick={() => navigate(isVendor ? '/vendor-app/signup' : '/signup', { state: { phone: mobileNumber } })}
               className="w-full h-12 rounded-xl font-bold text-xs text-purple-700 bg-purple-50 hover:bg-purple-100/80 border border-purple-200/60 transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
             >
               <span className="material-symbols-outlined text-lg">{isVendor ? 'store' : 'person_add'}</span>
