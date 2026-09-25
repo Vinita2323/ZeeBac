@@ -33,6 +33,9 @@ import {
   getVendorBankAccount,
   sendVendorBankOtp,
   verifyAndSaveVendorBankAccount,
+  setupSecurityPin,
+  toggleBiometricSecurity,
+  verifySecurityPin,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -51,6 +54,11 @@ router.use(requireRole('vendor'));
 // Profile Routes — open regardless of approval status
 router.get('/me', getProfile);
 router.put('/me', updateProfile);
+
+// Biometric & PIN Security
+router.post('/security/setup-pin', setupSecurityPin);
+router.post('/security/toggle-biometric', toggleBiometricSecurity);
+router.post('/security/verify-pin', verifySecurityPin);
 
 // Vendor Onboarding — open regardless of approval status (this IS the approval flow)
 router.patch('/application/draft', upload.fields(APPLICATION_UPLOAD_FIELDS), saveApplicationDraft);

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL, ChatAPI } from '../../../../services/api';
+import MediaLightboxModal from '../MediaLightboxModal';
 
 export default function OverviewTab({ vendor }) {
   const navigate = useNavigate();
   const [highlights, setHighlights] = useState([]);
   const [promotions, setPromotions] = useState([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [selectedHighlightIndex, setSelectedHighlightIndex] = useState(0);
 
   useEffect(() => {
     const fetchHighlights = async () => {
@@ -131,10 +134,28 @@ export default function OverviewTab({ vendor }) {
           <h3 className="font-display text-title-md font-extrabold text-on-surface">Store Highlights</h3>
         </div>
         <div className="flex overflow-x-auto hide-scrollbar gap-3 pb-2 -mx-container-margin px-container-margin">
-          {highlights.length > 0 ? highlights.map(item => (
-            <div key={item._id} className="min-w-[140px] bg-white rounded-2xl overflow-hidden border border-outline-variant/10 shadow-sm flex-shrink-0 flex flex-col">
+          {highlights.length > 0 ? highlights.map((item, idx) => (
+            <div
+              key={item._id}
+              onClick={() => {
+                if (item.image) {
+                  setSelectedHighlightIndex(idx);
+                  setLightboxOpen(true);
+                }
+              }}
+              className={`min-w-[140px] bg-white rounded-2xl overflow-hidden border border-outline-variant/10 shadow-sm flex-shrink-0 flex flex-col ${item.image ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+            >
               {item.image ? (
-                <img src={item.image.startsWith('http') ? item.image : `${API_BASE_URL}${item.image}`} alt={item.name} className="w-full h-[140px] object-cover" />
+                <div className="relative w-full h-[140px] overflow-hidden group">
+                  <img
+                    src={item.image.startsWith('http') ? item.image : `${API_BASE_URL}${item.image}`}
+                    alt={item.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-[20px] drop-shadow">zoom_in</span>
+                  </div>
+                </div>
               ) : (
                 <div className="w-full h-[140px] bg-surface-variant flex items-center justify-center">
                   <span className="material-symbols-outlined text-outline text-[40px]">inventory_2</span>
@@ -165,15 +186,68 @@ export default function OverviewTab({ vendor }) {
         </div>
       </div>
 
-      <div className="pt-2">
+      {/* Highlighted Store Help & Support for Customers */}
+      <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-primary/5 border-2 border-emerald-500/30 rounded-2xl p-4 shadow-sm space-y-3 text-left">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-[#25D366] text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+              <span className="material-symbols-outlined text-[22px]">support_agent</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-display text-[14px] font-black text-on-surface">Store Help &amp; Support</h4>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">24x7</span>
+              </div>
+              <p className="text-[11px] text-on-surface-variant font-medium">Need help with payments, cashbacks, or store queries?</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <a
+            href={`https://wa.me/919111966732?text=${encodeURIComponent(`Hello Zeebac Support, I need help regarding store: ${vendor?.storeName || 'Vendor'}`)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="py-2.5 px-3 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[12px] font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+          >
+            <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+            </svg>
+            <span>WhatsApp Chat</span>
+          </a>
+          <a
+            href="tel:+919111966732"
+            className="py-2.5 px-3 bg-white hover:bg-surface-container-low border border-outline-variant/30 text-on-surface rounded-xl text-[12px] font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[18px] text-primary">phone_in_talk</span>
+            <span>Call Helpline</span>
+          </a>
+        </div>
+      </div>
+
+      <div className="pt-1">
         <button
           onClick={handleMessageVendor}
           className="w-full h-12 bg-primary/10 text-primary font-title-md font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/20 transition-colors active:scale-[0.98]"
         >
           <span className="material-symbols-outlined text-[20px]">chat</span>
-          Message Shop
+          Message Shop Directly
         </button>
       </div>
+
+      {/* Lightbox Modal for Highlights */}
+      {lightboxOpen && highlights.length > 0 && (
+        <MediaLightboxModal
+          isOpen={lightboxOpen}
+          mediaItems={highlights.map(h => ({
+            url: h.image,
+            caption: `${h.name} - ₹${h.price}`,
+            title: h.name,
+          }))}
+          initialIndex={selectedHighlightIndex}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }

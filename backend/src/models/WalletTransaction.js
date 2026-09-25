@@ -76,6 +76,26 @@ const walletTransactionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    withdrawalFee: {
+      type: Number,
+      default: 0,
+    },
+    platformFee: {
+      type: Number,
+      default: 0,
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+    },
+    feePercent: {
+      type: Number,
+      default: 2,
+    },
+    gstPercent: {
+      type: Number,
+      default: 18,
+    },
     netPayout: {
       type: Number,
     },

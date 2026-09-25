@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { UserAPI, API_BASE_URL } from '../../../../services/api';
+import MediaLightboxModal from '../MediaLightboxModal';
 
 export default function ShopTab({ vendor }) {
   const [promotions, setPromotions] = useState([]);
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [selectedProductIndex, setSelectedProductIndex] = useState(0);
 
   useEffect(() => {
     const fetchShopData = async () => {
@@ -66,18 +69,37 @@ export default function ShopTab({ vendor }) {
           </div>
         ) : products.length > 0 ? (
           <div className="grid grid-cols-2 gap-md">
-            {products.map((product) => (
+            {products.map((product, idx) => (
               <div key={product._id} className="group">
-                <div className="aspect-[4/5] rounded-2xl overflow-hidden mb-2 relative">
+                <div
+                  onClick={() => {
+                    if (product.image) {
+                      setSelectedProductIndex(idx);
+                      setLightboxOpen(true);
+                    }
+                  }}
+                  className={`aspect-[4/5] rounded-2xl overflow-hidden mb-2 relative ${product.image ? 'cursor-pointer' : ''}`}
+                >
                   {product.image ? (
-                    <img src={product.image.startsWith('http') ? product.image : `${API_BASE_URL}${product.image}`} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <>
+                      <img
+                        src={product.image.startsWith('http') ? product.image : `${API_BASE_URL}${product.image}`}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <div className="w-9 h-9 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white">
+                          <span className="material-symbols-outlined text-[20px]">zoom_in</span>
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <div className="w-full h-full bg-surface-variant flex items-center justify-center">
                       <span className="material-symbols-outlined text-outline text-[40px]">inventory_2</span>
                     </div>
                   )}
                   {product.stock <= 5 && product.stock > 0 && (
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                       Only {product.stock} left
                     </div>
                   )}
@@ -109,6 +131,20 @@ export default function ShopTab({ vendor }) {
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal for Products */}
+      {lightboxOpen && products.length > 0 && (
+        <MediaLightboxModal
+          isOpen={lightboxOpen}
+          mediaItems={products.map(p => ({
+            url: p.image,
+            caption: `${p.name} - ₹${p.price}`,
+            title: p.name,
+          }))}
+          initialIndex={selectedProductIndex}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
 
     </div>
   );

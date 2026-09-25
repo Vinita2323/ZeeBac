@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
+import { playCustomerCashbackCreditedVoice, playNotificationChime } from '../../../utils/voiceUtils';
 
 const TIMELINE_STEPS = [
   "Draft",
@@ -34,6 +35,11 @@ export default function RequestDetailsScreen() {
           status: 'Approved',
           lockedUntil: res.data.lockedUntil,
         }));
+
+        // Audio chime and voice note: "{amount} cashback credited"
+        playNotificationChime('success');
+        const cbAmount = res.data?.cashbackAmount || request?.cashbackAmount || 15;
+        playCustomerCashbackCreditedVoice(cbAmount);
       }
     } catch (err) {
       setVerifyError(err.response?.data?.message || 'Verification failed. Please check the 3-digit code.');

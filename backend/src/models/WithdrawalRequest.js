@@ -10,6 +10,33 @@ const withdrawalRequestSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  withdrawalFee: {
+    type: Number,
+    default: 5,
+  },
+  platformFee: {
+    type: Number,
+    default: 0,
+  },
+  gstAmount: {
+    type: Number,
+    default: 0,
+  },
+  feeAmount: {
+    type: Number,
+    default: 0,
+  },
+  netPayout: {
+    type: Number,
+  },
+  feePercent: {
+    type: Number,
+    default: 2,
+  },
+  gstPercent: {
+    type: Number,
+    default: 18,
+  },
   status: {
     type: String,
     enum: ['Pending', 'Approved', 'Rejected'],

@@ -1,5 +1,6 @@
 import StorefrontMedia from '../models/StorefrontMedia.js';
 import Promotion from '../models/Promotion.js';
+import Vendor from '../models/Vendor.js';
 import logger from '../utils/logger.js';
 
 // ─── MEDIA ──────────────────────────────────────────────────────────────────
@@ -65,8 +66,45 @@ export const deleteMedia = async (req, res) => {
 // GET vendor media for public (user viewing store page)
 export const getVendorMedia = async (req, res) => {
   try {
-    const media = await StorefrontMedia.find({ vendorId: req.params.vendorId, isActive: true })
+    let media = await StorefrontMedia.find({ vendorId: req.params.vendorId, isActive: true })
       .sort({ sortOrder: 1, createdAt: -1 });
+
+    if (!media || media.length === 0) {
+      const vendor = await Vendor.findById(req.params.vendorId).select('storeImages storeCoverImage storeLogo profilePic storeName');
+      if (vendor) {
+        const fallback = [];
+        if (vendor.storeImages && vendor.storeImages.length > 0) {
+          vendor.storeImages.forEach((img, idx) => {
+            if (img) fallback.push({
+              _id: `v-img-${idx}`,
+              type: 'image',
+              url: img,
+              caption: `${vendor.storeName || 'Store'} Photo ${idx + 1}`
+            });
+          });
+        }
+        if (vendor.storeCoverImage) {
+          fallback.push({
+            _id: 'v-cover',
+            type: 'image',
+            url: vendor.storeCoverImage,
+            caption: `${vendor.storeName || 'Store'} Cover`
+          });
+        }
+        if (vendor.storeLogo || vendor.profilePic) {
+          fallback.push({
+            _id: 'v-logo',
+            type: 'image',
+            url: vendor.storeLogo || vendor.profilePic,
+            caption: `${vendor.storeName || 'Store'} Logo`
+          });
+        }
+        if (fallback.length > 0) {
+          return res.status(200).json({ success: true, data: fallback });
+        }
+      }
+    }
+
     res.status(200).json({ success: true, data: media });
   } catch (err) {
     logger.error(`getVendorMedia error: ${err.message}`);

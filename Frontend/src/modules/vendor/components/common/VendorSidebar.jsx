@@ -1,11 +1,13 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
+import useLanguageStore from '../../../../store/useLanguageStore';
 
 export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const { t } = useLanguageStore();
 
   const handleLogout = (e) => {
     if (e) e.stopPropagation();
@@ -27,6 +29,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Profile', icon: 'person', path: '/vendor/profile' },
     { label: 'Ratings', icon: 'star_rate', path: '/vendor/ratings' },
     { label: 'Notifications', icon: 'notifications', path: '/vendor/notifications' },
+    { label: 'Help & Support', icon: 'support_agent', path: '/vendor/support', badge: '24x7', isHighlight: true },
   ];
 
   const handleNavClick = (path) => {
@@ -66,7 +69,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
       </div>
 
       {/* Navigation Links */}
-      <nav className={`flex-1 overflow-y-auto py-6 ${isCollapsed ? 'px-3' : 'px-4'} space-y-1 scroll-hide`}>
+      <nav className={`flex-1 overflow-y-auto py-4 ${isCollapsed ? 'px-3' : 'px-4'} space-y-1 scroll-hide`}>
         {navItems.map((item) => {
           const hasQuery = item.path.includes('?');
           const isActive = hasQuery
@@ -74,31 +77,38 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
             : item.path === '/vendor'
               ? (location.pathname === '/vendor' || location.pathname === '/vendor/') && !location.search.includes('openPayLater')
               : location.pathname.startsWith(item.path);
+          const isHighlight = item.isHighlight;
 
           return (
             <button
               key={item.label}
               onClick={() => handleNavClick(item.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-lg transition-all duration-200 cursor-pointer ${isActive
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${isActive
                   ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                  : 'text-on-surface-variant hover:bg-primary/5 hover:text-primary'
+                  : isHighlight
+                    ? 'bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/5 text-emerald-800 border border-emerald-500/30 hover:bg-emerald-500/20 font-bold'
+                    : 'text-on-surface-variant hover:bg-primary/5 hover:text-primary'
                 }`}
               title={isCollapsed ? item.label : undefined}
             >
               <span
-                className="material-symbols-outlined text-[20px]"
+                className={`material-symbols-outlined text-[20px] ${!isActive && isHighlight ? 'text-[#25D366]' : ''}`}
                 style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
               >
                 {item.icon}
               </span>
               {!isCollapsed && (
-                <span className={`font-title-md text-[14px] ${isActive ? 'font-bold' : 'font-medium'}`}>
-                  {item.label}
+                <span className={`font-title-md text-[14px] ${isActive || isHighlight ? 'font-bold' : 'font-medium'}`}>
+                  {t(item.label)}
                 </span>
               )}
               {!isCollapsed && item.badge && (
-                <span className={`ml-auto text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-amber-400/20 text-amber-600 border border-amber-300/40'
+                <span className={`ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                  isActive 
+                    ? 'bg-white/20 text-white' 
+                    : isHighlight
+                      ? 'bg-emerald-600 text-white animate-pulse shadow-sm'
+                      : 'bg-amber-400/20 text-amber-600 border border-amber-300/40'
                 }`}>
                   {item.badge}
                 </span>
@@ -107,6 +117,39 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
           );
         })}
       </nav>
+
+      {/* 24x7 Quick Help Box (Visible when sidebar not collapsed) */}
+      {!isCollapsed && (
+        <div className="mx-3 mb-2 p-3 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-teal-500/5 to-primary/5 border border-emerald-500/30 text-left shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Support Desk</span>
+            </div>
+            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800">24x7 Help</span>
+          </div>
+          <p className="text-[11.5px] font-extrabold text-on-surface leading-tight">Need Help with your Store?</p>
+          <div className="flex items-center gap-1.5 mt-2">
+            <a
+              href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20partner%20store%20and%20need%20assistance."
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 py-1.5 px-2 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[11px] font-black flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all"
+            >
+              <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+              </svg>
+              <span>WhatsApp</span>
+            </a>
+            <button
+              onClick={() => handleNavClick('/vendor/support')}
+              className="py-1.5 px-2.5 bg-white hover:bg-surface-container-low border border-outline-variant/30 text-primary rounded-xl text-[11px] font-black shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              Helpdesk
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Profile Area */}
       <div className={`p-4 border-t border-outline-variant/10 bg-white/50 flex ${isCollapsed ? 'flex-col items-center gap-2' : ''}`}>

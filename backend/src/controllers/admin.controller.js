@@ -30,6 +30,46 @@ export const getDashboardStats = async (req, res) => {
     ]);
     const totalRevenue = revenueAggregation.length > 0 ? revenueAggregation[0].total : 0;
 
+    // Platform fee collected from User Cashouts
+    const userFeeAgg = await WalletTransaction.aggregate([
+      { $match: { category: 'cashout', status: { $in: ['Pending', 'Success'] } } },
+      { $group: { _id: null, totalFee: { $sum: '$feeAmount' } } }
+    ]);
+    const userFees = userFeeAgg[0]?.totalFee || 0;
+
+    // Platform fee from Vendor Withdrawals
+    const vendorFeeAgg = await mongoose.model('WithdrawalRequest').aggregate([
+      { $match: { status: { $in: ['Pending', 'Approved'] } } },
+      { $group: { _id: null, totalFee: { $sum: '$feeAmount' }, totalAmount: { $sum: '$amount' } } }
+    ]);
+    const vendorFees = vendorFeeAgg[0]?.totalFee || Math.round(((vendorFeeAgg[0]?.totalAmount || 0) * 0.02) * 100) / 100;
+
+    const totalPlatformFees = Math.round((userFees + vendorFees) * 100) / 100;
+    const totalPlatformBaseFee = Math.round((totalPlatformFees / 1.18) * 100) / 100;
+    const totalWithdrawalGST = Math.round((totalPlatformFees - totalPlatformBaseFee) * 100) / 100;
+
+    // Vendor Subscription Payments
+    const subAgg = await SubscriptionPayment.aggregate([
+      { $match: { paymentStatus: 'SUCCESS' } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]);
+    const totalSubscriptionRevenue = subAgg[0]?.total || 0;
+    const totalSubscriptionCount = subAgg[0]?.count || 0;
+    const totalSubscriptionBase = Math.round((totalSubscriptionRevenue / 1.18) * 100) / 100;
+    const totalSubscriptionGST = Math.round((totalSubscriptionRevenue - totalSubscriptionBase) * 100) / 100;
+
+    // Pending Payouts
+    const pendingUsers = await WalletTransaction.countDocuments({ category: 'cashout', status: 'Pending', ownerType: 'User' });
+    const pendingVendorsPayouts = await mongoose.model('WithdrawalRequest').countDocuments({ status: 'Pending' });
+    const totalPendingPayouts = pendingUsers + pendingVendorsPayouts;
+
+    // Total GST across platform (Fees + Subscriptions)
+    const totalGSTCollected = Math.round((totalWithdrawalGST + totalSubscriptionGST) * 100) / 100;
+    // Total Net Platform Earnings (Excluding GST)
+    const totalNetPlatformRevenue = Math.round((totalPlatformBaseFee + totalSubscriptionBase) * 100) / 100;
+    // Total Gross Inflow to Platform (Fees + Subscriptions)
+    const totalGrossPlatformIncome = Math.round((totalPlatformFees + totalSubscriptionRevenue) * 100) / 100;
+
     res.status(200).json({
       success: true,
       data: {
@@ -39,6 +79,19 @@ export const getDashboardStats = async (req, res) => {
         openSupportTickets,
         totalTransactions,
         totalRevenue,
+        totalPlatformFees,
+        totalPlatformBaseFee,
+        totalWithdrawalGST,
+        totalSubscriptionRevenue,
+        totalSubscriptionCount,
+        totalSubscriptionBase,
+        totalSubscriptionGST,
+        totalGSTCollected,
+        totalNetPlatformRevenue,
+        totalGrossPlatformIncome,
+        totalPendingPayouts,
+        pendingUsersPayouts: pendingUsers,
+        pendingVendorsPayouts,
       },
     });
   } catch (error) {
@@ -826,9 +879,12 @@ export const updateRewardConfig = async (req, res) => {
     const {
       milestoneInterval, minScratchReward, maxScratchReward, isActive,
       referralReward, userMinWithdrawalAmount, userMaxWithdrawalAmount, userWithdrawalCommissionPercent,
+      vendorWithdrawalCommissionPercent, withdrawalFixedFee, withdrawalGstPercent, enableWithdrawalGst,
       independentStoreMonthlyPrice, independentStoreYearlyPrice,
       brandMonthlyPrice, brandYearlyPrice,
     } = req.body;
+
+    if (withdrawalFixedFee !== undefined) config.withdrawalFixedFee = Number(withdrawalFixedFee);
 
     if (milestoneInterval !== undefined) config.milestoneInterval = Number(milestoneInterval);
     if (minScratchReward !== undefined) config.minScratchReward = Number(minScratchReward);
@@ -837,6 +893,9 @@ export const updateRewardConfig = async (req, res) => {
     if (userMinWithdrawalAmount !== undefined) config.userMinWithdrawalAmount = Number(userMinWithdrawalAmount);
     if (userMaxWithdrawalAmount !== undefined) config.userMaxWithdrawalAmount = Number(userMaxWithdrawalAmount);
     if (userWithdrawalCommissionPercent !== undefined) config.userWithdrawalCommissionPercent = Number(userWithdrawalCommissionPercent);
+    if (vendorWithdrawalCommissionPercent !== undefined) config.vendorWithdrawalCommissionPercent = Number(vendorWithdrawalCommissionPercent);
+    if (withdrawalGstPercent !== undefined) config.withdrawalGstPercent = Number(withdrawalGstPercent);
+    if (enableWithdrawalGst !== undefined) config.enableWithdrawalGst = Boolean(enableWithdrawalGst);
     if (independentStoreMonthlyPrice !== undefined) config.independentStoreMonthlyPrice = Number(independentStoreMonthlyPrice);
     if (independentStoreYearlyPrice !== undefined) config.independentStoreYearlyPrice = Number(independentStoreYearlyPrice);
     if (brandMonthlyPrice !== undefined) config.brandMonthlyPrice = Number(brandMonthlyPrice);
@@ -904,11 +963,49 @@ export const getPendingPayouts = async (req, res) => {
       status: 'Pending'
     }).populate('vendorId', 'storeName ownerName phone bankDetails zeebacId').sort({ createdAt: -1 });
 
+    const normalizedUsers = userWithdrawals.map((tx) => {
+      const doc = tx.toObject();
+      const fixedFee = doc.withdrawalFee !== undefined ? doc.withdrawalFee : 5;
+      const platFee = doc.platformFee || Math.round((doc.amount * 0.02) * 100) / 100;
+      const fee = doc.feeAmount || Math.round((fixedFee + platFee) * 100) / 100;
+      const baseFee = Math.round((fee / 1.18) * 100) / 100;
+      const gst = doc.gstAmount || Math.round((fee - baseFee) * 100) / 100;
+      const net = doc.netPayout || Math.max(0, Math.round((doc.amount - fee) * 100) / 100);
+      return {
+        ...doc,
+        withdrawalFee: fixedFee,
+        feeAmount: fee,
+        platformFee: platFee,
+        baseFee,
+        gstAmount: gst,
+        netPayout: net,
+      };
+    });
+
+    const normalizedVendors = vendorWithdrawals.map((w) => {
+      const doc = w.toObject();
+      const fixedFee = doc.withdrawalFee !== undefined ? doc.withdrawalFee : 5;
+      const platFee = doc.platformFee || Math.round((doc.amount * 0.02) * 100) / 100;
+      const fee = doc.feeAmount || Math.round((fixedFee + platFee) * 100) / 100;
+      const baseFee = Math.round((fee / 1.18) * 100) / 100;
+      const gst = doc.gstAmount || Math.round((fee - baseFee) * 100) / 100;
+      const net = doc.netPayout || Math.max(0, Math.round((doc.amount - fee) * 100) / 100);
+      return {
+        ...doc,
+        withdrawalFee: fixedFee,
+        feeAmount: fee,
+        platformFee: platFee,
+        baseFee,
+        gstAmount: gst,
+        netPayout: net,
+      };
+    });
+
     res.status(200).json({
       success: true,
       data: {
-        users: userWithdrawals,
-        vendors: vendorWithdrawals
+        users: normalizedUsers,
+        vendors: normalizedVendors
       }
     });
   } catch (error) {
@@ -1163,6 +1260,15 @@ export const getAdminSubscriptionPlans = async (req, res) => {
     });
     const expiredVendors = await Vendor.countDocuments({ 'subscription.status': 'EXPIRED' });
 
+    const subRevenueAgg = await SubscriptionPayment.aggregate([
+      { $match: { paymentStatus: 'SUCCESS' } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]);
+    const totalSubscriptionRevenue = subRevenueAgg[0]?.total || 0;
+    const totalSubscriptionCount = subRevenueAgg[0]?.count || 0;
+    const totalSubscriptionBase = Math.round((totalSubscriptionRevenue / 1.18) * 100) / 100;
+    const totalSubscriptionGST = Math.round((totalSubscriptionRevenue - totalSubscriptionBase) * 100) / 100;
+
     res.status(200).json({
       success: true,
       data: {
@@ -1174,6 +1280,10 @@ export const getAdminSubscriptionPlans = async (req, res) => {
           yearlySubscribers,
           monthlySubscribers: oneMonthSubscribers, // backwards compatibility
           expiredVendors,
+          totalSubscriptionRevenue,
+          totalSubscriptionCount,
+          totalSubscriptionBase,
+          totalSubscriptionGST,
         },
       },
     });
@@ -1348,7 +1458,7 @@ export const getAdminSubscriptionPayments = async (req, res) => {
       query.paymentMethod = req.query.paymentMethod;
     }
 
-    const [payments, total] = await Promise.all([
+    const [payments, total, totalRevenueAgg] = await Promise.all([
       SubscriptionPayment.find(query)
         .populate('vendorId', 'storeName zeebacId phone ownerName shopType')
         .populate('planId', 'name planType')
@@ -1356,15 +1466,41 @@ export const getAdminSubscriptionPayments = async (req, res) => {
         .skip(skip)
         .limit(limit),
       SubscriptionPayment.countDocuments(query),
+      SubscriptionPayment.aggregate([
+        { $match: { ...query, paymentStatus: 'SUCCESS' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ])
     ]);
+
+    const totalRevenue = totalRevenueAgg[0]?.total || 0;
+    const totalBaseRevenue = Math.round((totalRevenue / 1.18) * 100) / 100;
+    const totalGST = Math.round((totalRevenue - totalBaseRevenue) * 100) / 100;
+
+    const formattedPayments = payments.map((p) => {
+      const doc = p.toObject();
+      const gross = doc.amount || 0;
+      const base = doc.baseAmount || Math.round((gross / 1.18) * 100) / 100;
+      const gst = doc.gstAmount || Math.round((gross - base) * 100) / 100;
+      return {
+        ...doc,
+        baseAmount: base,
+        gstAmount: gst,
+        gstPercent: doc.gstPercent || 18,
+      };
+    });
 
     res.status(200).json({
       success: true,
       data: {
-        payments,
+        payments: formattedPayments,
         total,
         page,
         pages: Math.ceil(total / limit) || 1,
+        summary: {
+          totalRevenue,
+          totalBaseRevenue,
+          totalGST,
+        },
       },
     });
   } catch (error) {

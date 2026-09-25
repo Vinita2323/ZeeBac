@@ -4,16 +4,19 @@ import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { generatePassbookPDF } from '../../../utils/exportUtils';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function WalletPassbookScreen() {
   const navigate = useNavigate();
   const authBalance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const { t } = useLanguageStore();
 
-  const [activeTab, setActiveTab] = useState('Transactions'); // 'Transactions' or 'Cashback Audits'
+  const [activeTab, setActiveTab] = useState('Transactions'); // 'Transactions' (All) or 'Cashback' (Gained only)
   
-  const [transactions, setTransactions] = useState([]);
-  const [requests, setRequests] = useState([]);
+  const [allTransactions, setAllTransactions] = useState([]);
+  const [cashbackTransactions, setCashbackTransactions] = useState([]);
+  const [totalEarned, setTotalEarned] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   // Search & Filter State
@@ -21,30 +24,6 @@ export default function WalletPassbookScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState('All'); // 'All', 'Credited', 'Debited'
-
-  // Computed Filtered Data
-  const getFilteredTransactions = () => {
-    return transactions.filter(t => {
-      if (t.id === 'dummy') return true;
-      const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            t.tag.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter = filterType === 'All' || t.type === filterType;
-      return matchesSearch && matchesFilter;
-    });
-  };
-
-  const getFilteredRequests = () => {
-    return requests.filter(req => {
-      const name = req.description || req.vendorName || 'Wallet Entry';
-      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
-      const typeStr = req.type === 'credit' ? 'Credited' : 'Debited';
-      const matchesFilter = filterType === 'All' || typeStr === filterType;
-      return matchesSearch && matchesFilter;
-    });
-  };
-
-  const filteredTransactions = getFilteredTransactions();
-  const filteredRequests = getFilteredRequests();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,39 +34,124 @@ export default function WalletPassbookScreen() {
           UserAPI.getMyTransactions()
         ]);
 
-        // Format for "Transactions" tab
-        if (txnRes.success) {
-          const formatted = txnRes.data.map(t => {
-            const isCredit = !!t.cashbackAmount;
-            const displayAmount = isCredit ? `+₹${t.cashbackAmount.toFixed(2)}` : `-₹${t.amount.toFixed(2)}`;
-            const tagText = isCredit ? 'Cashback' : 'Payment';
-            const tagIcon = isCredit ? 'redeem' : 'payments';
+        const combined = [];
+        const seenIds = new Set();
 
-            return {
-              id: t._id,
-              name: t.vendorName || "ZeeBac Partner",
-              time: new Date(t.createdAt).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, month: 'short', day: 'numeric' }),
-              amount: displayAmount,
-              type: isCredit ? "Credited" : "Debited",
-              tag: tagText,
-              tagIcon: tagIcon,
-              icon: "storefront",
-              from: "ZeeBac Wallet"
-            };
-          });
-
-          setTransactions(formatted);
-        }
-
-        // Format for "Cashback Audits" tab (wallet ledger)
-        if (walletRes.success) {
-          // The wallet ledger represents wallet specific events like crediting/debiting
-          // which directly affect the wallet balance.
-          setRequests(walletRes.data.ledger || []);
-          if (walletRes.data?.wallet) {
+        // 1. Process Wallet Ledger (contains all money movements: cashback, withdrawals, perks, etc.)
+        if (walletRes.success && walletRes.data) {
+          const ledgerItems = walletRes.data.ledger || [];
+          if (walletRes.data.wallet) {
             useAuthStore.getState().updateBalance(walletRes.data.wallet.balance ?? 0);
+            setTotalEarned(walletRes.data.wallet.totalEarned ?? 0);
           }
+
+          ledgerItems.forEach((entry) => {
+            const desc = (entry.description || '').toLowerCase();
+            const isCredit = entry.type === 'credit';
+            const amountVal = Math.abs(Number(entry.amount) || 0);
+
+            let category = 'other';
+            let tag = isCredit ? 'Credit' : 'Debit';
+            let tagIcon = isCredit ? 'arrow_downward' : 'arrow_upward';
+            let icon = 'account_balance_wallet';
+            let name = entry.description || (isCredit ? 'Cashback Received' : 'Wallet Debit');
+            let isCashback = false;
+
+            if (desc.includes('cashback') || entry.metadata?.type === 'cashback' || desc.includes('cash claim')) {
+              category = 'cashback';
+              isCashback = true;
+              tag = 'Cashback Gained';
+              tagIcon = 'redeem';
+              icon = 'redeem';
+              name = entry.vendorName || entry.description || 'Cashback Gained';
+            } else if (desc.includes('withdraw') || entry.metadata?.type === 'withdrawal') {
+              category = 'withdrawal';
+              tag = 'Withdrawal';
+              tagIcon = 'account_balance';
+              icon = 'account_balance';
+              name = entry.description || 'Bank / UPI Withdrawal';
+            } else if (desc.includes('referral') || desc.includes('perk') || desc.includes('bonus') || desc.includes('reward')) {
+              category = 'perk';
+              tag = 'Perk / Reward';
+              tagIcon = 'card_giftcard';
+              icon = 'card_giftcard';
+              name = entry.description || 'Referral Perk / Reward';
+            } else {
+              category = isCredit ? 'credit' : 'payment';
+              tag = isCredit ? 'Credit' : 'Payment';
+              tagIcon = isCredit ? 'arrow_downward' : 'shopping_bag';
+              icon = isCredit ? 'payments' : 'storefront';
+              name = entry.description || 'Wallet Transaction';
+            }
+
+            const item = {
+              id: entry._id || `ledger-${Math.random()}`,
+              name,
+              rawAmount: amountVal,
+              amount: isCredit ? `+₹${amountVal.toFixed(2)}` : `-₹${amountVal.toFixed(2)}`,
+              time: new Date(entry.createdAt || entry.timestamp || Date.now()).toLocaleString('en-US', {
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true,
+                month: 'short',
+                day: 'numeric'
+              }),
+              rawDate: new Date(entry.createdAt || entry.timestamp || Date.now()).getTime(),
+              type: isCredit ? 'Credited' : 'Debited',
+              category,
+              isCashback,
+              tag,
+              tagIcon,
+              icon,
+              status: entry.status || 'Completed',
+              refId: entry.transactionId || entry._id
+            };
+
+            seenIds.add(item.id);
+            if (entry.metadata?.transactionId) seenIds.add(entry.metadata.transactionId);
+            combined.push(item);
+          });
         }
+
+        // 2. Process Store Transactions (if any transaction is distinct from ledger)
+        if (txnRes.success && Array.isArray(txnRes.data)) {
+          txnRes.data.forEach((t) => {
+            if (seenIds.has(t._id)) return;
+            seenIds.add(t._id);
+
+            const hasCashback = Number(t.cashbackAmount) > 0;
+            const amountVal = hasCashback ? Number(t.cashbackAmount) : Number(t.amount);
+
+            combined.push({
+              id: t._id,
+              name: t.vendorName || 'ZeeBac Partner Store',
+              rawAmount: amountVal,
+              amount: hasCashback ? `+₹${amountVal.toFixed(2)}` : `-₹${amountVal.toFixed(2)}`,
+              time: new Date(t.createdAt || Date.now()).toLocaleString('en-US', {
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true,
+                month: 'short',
+                day: 'numeric'
+              }),
+              rawDate: new Date(t.createdAt || Date.now()).getTime(),
+              type: hasCashback ? 'Credited' : 'Debited',
+              category: hasCashback ? 'cashback' : 'payment',
+              isCashback: hasCashback,
+              tag: hasCashback ? 'Cashback Gained' : 'Store Payment',
+              tagIcon: hasCashback ? 'redeem' : 'storefront',
+              icon: hasCashback ? 'redeem' : 'storefront',
+              status: t.status || 'Completed',
+              refId: t.billNumber || t._id
+            });
+          });
+        }
+
+        // Sort descending by date
+        combined.sort((a, b) => b.rawDate - a.rawDate);
+
+        setAllTransactions(combined);
+        setCashbackTransactions(combined.filter((item) => item.isCashback));
       } catch (err) {
         console.error('Failed to load passbook', err);
       } finally {
@@ -97,87 +161,89 @@ export default function WalletPassbookScreen() {
     fetchData();
   }, [currentUser]);
 
+  // Active list based on selected Tab
+  // 1. Transactions: ALL transactions (gained cashback, withdrawal, perks, payments)
+  // 2. Cashback: ONLY gained cashback
+  const currentList = activeTab === 'Transactions' ? allTransactions : cashbackTransactions;
+
+  const filteredItems = currentList.filter((t) => {
+    const matchesSearch =
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.tag.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterType === 'All' || t.type === filterType;
+    return matchesSearch && matchesFilter;
+  });
+
   const handleExport = () => {
     if (activeTab === 'Transactions') {
-      const exportData = transactions.filter(t => t.id !== 'dummy').map(t => ({
+      const exportData = allTransactions.map((t) => ({
         date: t.time,
         title: t.name,
         type: t.type === 'Credited' ? 'credit' : 'debit',
         amount: t.amount,
-        status: 'Completed'
+        status: t.status || 'Completed'
       }));
       if (exportData.length === 0) return alert('No transactions to export');
-      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'Transactions');
+      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'All Transactions');
     } else {
-      const exportData = requests.map(req => ({
-        date: new Date(req.createdAt || req.timestamp).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, month: 'short', day: 'numeric' }),
-        title: req.description || req.vendorName || 'Wallet Entry',
-        type: req.type || 'credit',
-        amount: `₹${req.amount.toFixed ? req.amount.toFixed(2) : req.amount}`,
-        status: req.status || 'Completed'
+      const exportData = cashbackTransactions.map((t) => ({
+        date: t.time,
+        title: t.name,
+        type: 'credit',
+        amount: t.amount,
+        status: t.status || 'Completed'
       }));
       if (exportData.length === 0) return alert('No cashback history to export');
-      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'Cashback History');
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Approved':
-      case 'Completed':
-      case 'Success':
-        return <span className="bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Completed</span>;
-      case 'Rejected':
-      case 'Failed':
-        return <span className="bg-red-100 text-red-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Failed</span>;
-      default:
-        return <span className="bg-amber-100 text-amber-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase">Pending</span>;
+      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'Gained Cashback History');
     }
   };
 
   return (
     <div className="bg-white text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
-      
       {/* Top Gradient Area */}
       <div className="bg-white pt-3 pb-3 px-container-margin border-b border-outline-variant/10">
         <div className="app-container">
           {/* Header */}
           <header className="flex items-center gap-2 mb-3">
-            <button 
+            <button
               onClick={() => navigate(-1)}
               className="w-8 h-8 flex items-center justify-center text-on-surface active:scale-95 transition-transform cursor-pointer"
             >
               <span className="material-symbols-outlined text-[22px]">arrow_back</span>
             </button>
-            <h1 className="font-display text-title-md text-primary font-bold tracking-tight">Balance & History</h1>
+            <h1 className="font-display text-title-md text-primary font-bold tracking-tight">
+              {t('Balance & History', 'Balance & History')}
+            </h1>
           </header>
 
           {/* Your Accounts Section */}
           <div className="space-y-2">
-            <h2 className="text-[12px] uppercase tracking-wider text-on-surface-variant font-bold px-1">Your Accounts</h2>
-            
+            <h2 className="text-[12px] uppercase tracking-wider text-on-surface-variant font-bold px-1">
+              {t('Your Accounts', 'Your Accounts')}
+            </h2>
+
             {/* Horizontal scroll for cards */}
             <div className="flex gap-3 overflow-x-auto pb-1 scroll-hide">
-              
               {/* ZeeBac Wallet Card */}
               <div className="min-w-[220px] bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] rounded-[14px] p-3 text-white shadow-md shadow-primary/20 relative overflow-hidden flex flex-col justify-between h-[96px]">
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-bold text-xs tracking-wide">ZeeBac Wallet</h3>
-                    <p className="text-[9px] text-white/80 mt-0.5">A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}</p>
+                    <p className="text-[9px] text-white/80 mt-0.5">
+                      A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}
+                    </p>
                   </div>
                   <div className="w-5.5 h-5.5 bg-white/20 rounded-full flex items-center justify-center shadow-inner">
                     <span className="material-symbols-outlined text-white text-[12px]">account_balance_wallet</span>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => navigate('/wallet')}
-                  className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98]"
+                  className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98] cursor-pointer"
                 >
                   Check Balance
                 </button>
               </div>
-
             </div>
           </div>
         </div>
@@ -185,11 +251,10 @@ export default function WalletPassbookScreen() {
 
       {/* Main content */}
       <main className="flex-grow app-container px-container-margin pt-3 text-left space-y-3">
-
         {/* Upload Receipt CTA */}
-        <button 
+        <button
           onClick={() => navigate('/request-cashback')}
-          className="w-full flex items-center gap-3 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/15 rounded-xl px-4 py-3 active:scale-[0.98] transition-all group"
+          className="w-full flex items-center gap-3 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/15 rounded-xl px-4 py-3 active:scale-[0.98] transition-all group cursor-pointer"
         >
           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
             <span className="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
@@ -200,14 +265,22 @@ export default function WalletPassbookScreen() {
           </div>
           <span className="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
         </button>
-        
+
         {/* Payment History Header */}
         <div className="flex items-center justify-between px-1">
-          <h2 className="font-display text-[15px] text-[#1A202C] font-black tracking-tight">Payment History</h2>
+          <h2 className="font-display text-[15px] text-[#1A202C] font-black tracking-tight">
+            {t('Payment History', 'Payment History')}
+          </h2>
           <div className="flex items-center gap-3.5 text-[#4A5568]">
-            <button onClick={() => setShowSearch(!showSearch)} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">search</span></button>
-            <button onClick={() => setShowFilter(!showFilter)} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">tune</span></button>
-            <button onClick={handleExport} className="active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">download</span></button>
+            <button onClick={() => setShowSearch(!showSearch)} className="active:scale-95 transition-transform cursor-pointer">
+              <span className="material-symbols-outlined text-[20px]">search</span>
+            </button>
+            <button onClick={() => setShowFilter(!showFilter)} className="active:scale-95 transition-transform cursor-pointer">
+              <span className="material-symbols-outlined text-[20px]">tune</span>
+            </button>
+            <button onClick={handleExport} className="active:scale-95 transition-transform cursor-pointer">
+              <span className="material-symbols-outlined text-[20px]">download</span>
+            </button>
           </div>
         </div>
 
@@ -215,16 +288,18 @@ export default function WalletPassbookScreen() {
         {showSearch && (
           <div className="mx-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-2">
             <span className="material-symbols-outlined text-gray-400 text-[18px]">search</span>
-            <input 
-              type="text" 
-              placeholder="Search by name or category..." 
+            <input
+              type="text"
+              placeholder="Search by name, cashback or tag..."
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-transparent border-none outline-none flex-1 text-[13px] text-gray-800 placeholder-gray-400"
               autoFocus
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')}><span className="material-symbols-outlined text-gray-400 text-[16px]">close</span></button>
+              <button onClick={() => setSearchQuery('')} className="cursor-pointer">
+                <span className="material-symbols-outlined text-gray-400 text-[16px]">close</span>
+              </button>
             )}
           </div>
         )}
@@ -232,31 +307,62 @@ export default function WalletPassbookScreen() {
         {/* Filter Chips */}
         {showFilter && (
           <div className="mx-1 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {['All', 'Credited', 'Debited'].map(type => (
-              <button 
+            {['All', 'Credited', 'Debited'].map((type) => (
+              <button
                 key={type}
                 onClick={() => setFilterType(type)}
-                className={`px-3 py-1 text-[11px] font-bold rounded-full border whitespace-nowrap transition-colors ${filterType === type ? 'bg-[#1A202C] text-white border-[#1A202C]' : 'bg-white text-gray-600 border-gray-200'}`}
+                className={`px-3 py-1 text-[11px] font-bold rounded-full border whitespace-nowrap transition-colors cursor-pointer ${
+                  filterType === type
+                    ? 'bg-[#1A202C] text-white border-[#1A202C]'
+                    : 'bg-white text-gray-600 border-gray-200'
+                }`}
               >
-                {type}
+                {t(type, type)}
               </button>
             ))}
           </div>
         )}
 
-        {/* Tab Toggle for ZeeBac logic */}
-        <div className="bg-surface-variant/30 p-0.5 rounded-lg flex mx-1 mt-1">
-          <button 
-            onClick={() => setActiveTab('Transactions')}
-            className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all ${activeTab === 'Transactions' ? 'bg-white text-[#1A202C] shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+        {/* Tab Toggle: Transactions (All) vs Cashback (Gained Only) */}
+        <div className="bg-surface-variant/30 p-1 rounded-xl flex mx-1 mt-1 gap-1 border border-outline-variant/15">
+          <button
+            onClick={() => {
+              setActiveTab('Transactions');
+              setFilterType('All');
+            }}
+            className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'Transactions'
+                ? 'bg-white text-on-surface shadow-sm font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
           >
-            Transactions
+            <span className="material-symbols-outlined text-[16px]">sync_alt</span>
+            <span>{t('All Transactions', 'Transactions')}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === 'Transactions' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {allTransactions.length}
+            </span>
           </button>
-          <button 
-            onClick={() => setActiveTab('Cashback')}
-            className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all ${activeTab === 'Cashback' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+
+          <button
+            onClick={() => {
+              setActiveTab('Cashback');
+              setFilterType('All');
+            }}
+            className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'Cashback'
+                ? 'bg-white text-emerald-700 shadow-sm font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
           >
-            Cashback History
+            <span className="material-symbols-outlined text-[16px] text-emerald-600">redeem</span>
+            <span>{t('Gained Cashback', 'Cashback')}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === 'Cashback' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {cashbackTransactions.length}
+            </span>
           </button>
         </div>
 
@@ -264,91 +370,136 @@ export default function WalletPassbookScreen() {
           <div className="flex justify-center items-center h-40">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
           </div>
-        ) : activeTab === 'Transactions' ? (
+        ) : (
           <div className="mt-2">
-            {/* Month Header */}
-            <div className="bg-primary/5 flex justify-between items-center py-1.5 px-2.5 rounded-lg mx-1 mb-1.5">
-               <span className="font-bold text-primary text-[12px]">Recent Activity</span>
-               <div className="flex items-center gap-1.5">
-                 <div className="text-right">
-                   <p className="text-[8.5px] text-on-surface-variant leading-tight">Current Balance</p>
-                   <p className="font-bold text-primary text-[11px]">₹{authBalance.toFixed(2)}</p>
-                 </div>
-                 <div className="w-4.5 h-4.5 bg-white rounded-full flex items-center justify-center shadow-sm">
-                   <span className="material-symbols-outlined text-primary text-[12px]">chevron_right</span>
-                 </div>
-               </div>
-            </div>
+            {/* Header Banner for Active Tab */}
+            {activeTab === 'Transactions' ? (
+              <div className="bg-primary/5 flex justify-between items-center py-2 px-3 rounded-xl mx-1 mb-2 border border-primary/10">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[18px]">history</span>
+                  <span className="font-bold text-primary text-[12.5px]">{t('All Activity (Cashback, Withdrawal, Perks)', 'All Activity')}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-on-surface-variant leading-tight">{t('Current Balance', 'Current Balance')}</p>
+                  <p className="font-black text-primary text-[12px]">₹{authBalance.toFixed(2)}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-emerald-500/10 flex justify-between items-center py-2 px-3 rounded-xl mx-1 mb-2 border border-emerald-500/20">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-700 text-[18px]">verified</span>
+                  <span className="font-black text-emerald-800 text-[12.5px]">{t('Gained Cashback Only', 'Gained Cashback Only')}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-emerald-800/80 leading-tight">{t('Total Cashback Earned', 'Total Earned')}</p>
+                  <p className="font-black text-emerald-700 text-[12px]">₹{totalEarned.toFixed(2)}</p>
+                </div>
+              </div>
+            )}
 
-            <div className="space-y-0">
-              {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((tx, idx) => (
-                  <div key={tx.id} className={`py-2 px-1 flex items-center gap-2.5 ${idx !== filteredTransactions.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                    {/* Circular Avatar */}
-                    <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'Credited' ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
-                      <span className="material-symbols-outlined text-[16px]">{tx.icon}</span>
-                    </div>
-                    
-                    {/* Center Details */}
-                    <div className="flex-grow min-w-0 space-y-0.5">
-                      <h4 className="font-bold text-on-surface text-[12.5px] leading-tight truncate">{tx.name}</h4>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-on-surface-variant text-[9.5px]">{tx.time}</p>
-                        {/* Tag Pill */}
-                        <div className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full ${tx.type === 'Credited' ? 'bg-green-50 text-green-750' : 'bg-primary/5 text-primary'}`}>
-                          <span className="material-symbols-outlined text-[8px]">{tx.tagIcon}</span>
-                          <span className="font-black text-[8px] uppercase tracking-wide">{tx.tag}</span>
+            {/* Transaction List */}
+            <div className="space-y-1">
+              {filteredItems.length > 0 ? (
+                filteredItems.map((tx, idx) => {
+                  const isCredit = tx.type === 'Credited';
+                  const isCashback = tx.isCashback;
+                  const isWithdrawal = tx.category === 'withdrawal';
+                  const isPerk = tx.category === 'perk';
+
+                  return (
+                    <div
+                      key={tx.id}
+                      className={`py-2.5 px-2 rounded-xl hover:bg-surface-container-low/40 transition-colors flex items-center gap-3 ${
+                        idx !== filteredItems.length - 1 ? 'border-b border-gray-100' : ''
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-xs ${
+                          isCashback
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            : isWithdrawal
+                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                            : isPerk
+                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                            : isCredit
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-primary/10 text-primary'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">{tx.icon}</span>
+                      </div>
+
+                      {/* Center Details */}
+                      <div className="flex-grow min-w-0 space-y-0.5">
+                        <h4 className="font-bold text-on-surface text-[13px] leading-tight truncate">{tx.name}</h4>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <p className="text-on-surface-variant text-[10px]">{tx.time}</p>
+
+                          {/* Tag Pill */}
+                          <div
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              isCashback
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isWithdrawal
+                                ? 'bg-rose-100 text-rose-800'
+                                : isPerk
+                                ? 'bg-purple-100 text-purple-800'
+                                : isCredit
+                                ? 'bg-green-50 text-green-800'
+                                : 'bg-primary/5 text-primary'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[10px]">{tx.tagIcon}</span>
+                            <span>{t(tx.tag, tx.tag)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Right Amount */}
-                    <div className="text-right shrink-0">
-                      <p className={`font-display font-black text-[12.5px] ${tx.type === 'Credited' ? 'text-green-600' : 'text-on-surface'}`}>{tx.amount}</p>
-                      <p className="text-[8.5px] text-on-surface-variant flex items-center justify-end gap-0.5 mt-0.5">
-                        From <span className="w-2.5 h-2.5 bg-primary rounded-full flex items-center justify-center text-white text-[7px] font-bold">Z</span>
-                      </p>
+                      {/* Right Amount */}
+                      <div className="text-right shrink-0">
+                        <p
+                          className={`font-mono font-black text-[13.5px] ${
+                            isCashback
+                              ? 'text-emerald-600'
+                              : isWithdrawal
+                              ? 'text-rose-600'
+                              : isCredit
+                              ? 'text-green-600'
+                              : 'text-on-surface'
+                          }`}
+                        >
+                          {tx.amount}
+                        </p>
+                        <p className="text-[9px] text-on-surface-variant flex items-center justify-end gap-1 mt-0.5 font-medium">
+                          {tx.status === 'Completed' ? (
+                            <span className="text-green-600 font-bold">Success</span>
+                          ) : (
+                            <span>{tx.status}</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="py-10 text-center space-y-2 opacity-60">
-                  <span className="material-symbols-outlined text-[32px]">history</span>
-                  <p className="text-sm font-bold">No transactions found</p>
+                <div className="py-12 text-center space-y-2 opacity-60">
+                  <span className="material-symbols-outlined text-[36px]">
+                    {activeTab === 'Cashback' ? 'savings' : 'history'}
+                  </span>
+                  <p className="text-sm font-bold">
+                    {activeTab === 'Cashback'
+                      ? 'No gained cashback found'
+                      : 'No transactions found'}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {activeTab === 'Cashback'
+                      ? 'Shop at partner stores or scan receipts to earn instant cashback!'
+                      : 'Your wallet transactions and withdrawals will show here.'}
+                  </p>
                 </div>
               )}
             </div>
-          </div>
-        ) : (
-          <div className="space-y-3 mt-4 mx-1">
-            {filteredRequests.length > 0 ? (
-              filteredRequests.map((req) => (
-                <div key={req._id || req.id} className="bg-white border border-outline-variant/30 rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-title-md font-bold text-on-surface">{req.description || req.vendorName || 'Wallet Entry'}</p>
-                      <p className="text-caption text-on-surface-variant flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px]">schedule</span>
-                        {new Date(req.createdAt || req.timestamp).toLocaleString()}
-                      </p>
-                    </div>
-                    {getStatusBadge(req.status || 'Completed')}
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-2 border-t border-outline-variant/10 mt-1">
-                    <p className="text-caption text-on-surface-variant">Amount: <span className="font-bold text-on-surface">₹{req.amount}</span></p>
-                    <p className="text-caption text-on-surface-variant flex items-center gap-1">
-                      Ref: <span className="font-mono text-[10px] bg-surface-container px-1 py-0.5 rounded">{req.transactionId?.slice(-6) || req.id?.slice(0,6) || 'XXXXXX'}</span>
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="py-10 text-center space-y-2 opacity-60">
-                <span className="material-symbols-outlined text-[32px]">receipt_long</span>
-                <p className="text-sm font-bold">No audits found</p>
-              </div>
-            )}
           </div>
         )}
       </main>

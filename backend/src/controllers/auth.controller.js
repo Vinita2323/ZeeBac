@@ -232,7 +232,8 @@ export const refreshAccessToken = async (req, res) => {
     }
 
     // Issue new access token
-    const payload = { id: account._id, role: account.role, zeebacId: account.zeebacId };
+    const userRole = account.role || decoded.role || (account.storeName ? 'vendor' : 'customer');
+    const payload = { id: account._id, role: userRole, zeebacId: account.zeebacId };
     const newAccessToken = generateAccessToken(payload);
 
     logger.info(`[refreshAccessToken] Token refreshed for ID: ${account._id}`);
@@ -281,7 +282,9 @@ export const getMe = async (req, res) => {
     }
 
     if (!data) return res.status(404).json({ message: 'User not found' });
-    res.status(200).json({ success: true, data });
+    const userObj = data.toObject ? data.toObject() : { ...data };
+    userObj.role = userObj.role || role || (userObj.storeName ? 'vendor' : 'customer');
+    res.status(200).json({ success: true, data: userObj });
   } catch (error) {
     logger.error(`[getMe] Error: ${error.message}`);
     res.status(500).json({ success: false, message: error.message });

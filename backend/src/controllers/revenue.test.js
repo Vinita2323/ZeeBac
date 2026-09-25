@@ -95,8 +95,8 @@ describe('Phase 6 Revenue Model & User Withdrawal Limits', () => {
     const txn = await WalletTransaction.findOne({ ownerId: user._id, category: 'cashout' });
     expect(txn).toBeTruthy();
     expect(txn.amount).toBe(300);
-    expect(txn.feeAmount).toBe(6); // 2% of 300
-    expect(txn.netPayout).toBe(294); // 300 - 6
+    expect(txn.feeAmount).toBe(11); // 5 withdrawal fee + 2% platform fee of 300 (6) = 11
+    expect(txn.netPayout).toBe(289); // 300 - 11
   });
 
   it('blocks customer cashback requests if vendor subscription is EXPIRED', async () => {

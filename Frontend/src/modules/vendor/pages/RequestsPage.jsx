@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, API_BASE_URL } from '../../../services/api';
+import { getSocket } from '../../../services/socket';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function RequestsPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [pendingRequests, setPendingRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -26,6 +29,55 @@ export default function RequestsPage() {
       }
     };
     fetchRequests();
+
+    const socket = getSocket();
+    if (socket) {
+      const handleNewRequest = (data) => {
+        setPendingRequests((prev) => {
+          if (prev.some((r) => r._id === data.requestId)) return prev;
+          return [
+            {
+              _id: data.requestId,
+              customerId: { name: data.customerName },
+              amount: data.amount,
+              cashbackAmount: data.cashbackAmount,
+              paymentMethod: 'Cash',
+              verificationCode: data.verificationCode,
+              status: 'Pending',
+              createdAt: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        });
+      };
+
+      const handleVerified = (data) => {
+        setPendingRequests((prev) =>
+          prev.map((r) =>
+            r._id === data.requestId || r.verificationCode === data.verificationCode
+              ? { ...r, status: 'Approved' }
+              : r
+          )
+        );
+        setTimeout(() => {
+          setPendingRequests((prev) =>
+            prev.filter(
+              (r) =>
+                r._id !== data.requestId &&
+                r.verificationCode !== data.verificationCode
+            )
+          );
+        }, 3500);
+      };
+
+      socket.on('new_cash_request', handleNewRequest);
+      socket.on('cash_request_verified', handleVerified);
+
+      return () => {
+        socket.off('new_cash_request', handleNewRequest);
+        socket.off('cash_request_verified', handleVerified);
+      };
+    }
   }, []);
 
   const handleRequestAction = async (requestId, action) => {
@@ -83,13 +135,13 @@ export default function RequestsPage() {
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-[20px] text-primary">arrow_back</span>
         </button>
-        <h1 className="ml-2 font-display text-[18px] font-black text-on-surface leading-none tracking-tight">Pending Requests</h1>
+        <h1 className="ml-2 font-display text-[18px] font-black text-on-surface leading-none tracking-tight">{t('Pending Requests')}</h1>
       </header>
 
       <div className="hidden md:flex justify-between items-end mb-6">
         <div>
-          <h1 className="font-display text-[24px] font-black text-on-surface leading-none tracking-tight">Pending Requests</h1>
-          <p className="text-on-surface-variant text-[12px] font-bold mt-1">Review and approve cashback claims</p>
+          <h1 className="font-display text-[24px] font-black text-on-surface leading-none tracking-tight">{t('Pending Requests')}</h1>
+          <p className="text-on-surface-variant text-[12px] font-bold mt-1">{t('Review and approve cashback claims', 'कैशबैक दावों की समीक्षा करें और स्वीकृत करें')}</p>
         </div>
       </div>
 
@@ -105,50 +157,128 @@ export default function RequestsPage() {
             <p className="text-on-surface-variant text-[13px]">No pending requests require your attention.</p>
           </div>
         ) : (
-          pendingRequests.map(req => (
-            <div key={req._id} className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-4 flex gap-3 items-start">
-              <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-600 font-black text-[18px] border border-orange-100 flex-shrink-0">
-                {req.customerId?.name?.charAt(0) || 'C'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-[15px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
-                    {req.billNumber && (
-                      <p className="text-[12px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[14px]">tag</span>
-                        <span>Bill No: <span className="bg-primary/10 px-1.5 py-0.5 rounded font-mono">{req.billNumber}</span></span>
-                      </p>
-                    )}
-                  </div>
-                  <p className="font-black text-[16px] text-on-surface">₹{req.amount?.toLocaleString()}</p>
-                </div>
-                <div className="flex justify-between items-center mt-1">
-                  <p className="text-[12px] text-on-surface-variant font-medium">
-                    {new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}
-                  </p>
-                  <p className="text-[12px] text-green-600 font-black">
-                    Cashback to Pay: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
-                  </p>
+          pendingRequests.map(req => {
+            const isCashOtp = !!req.verificationCode;
+            const isPendingCashOtp = isCashOtp && req.status === 'Pending';
+            const isApproved = req.status === 'Approved';
+
+            return (
+              <div 
+                key={req._id} 
+                className={`rounded-2xl border transition-all p-4 flex gap-3 items-start ${
+                  isPendingCashOtp 
+                    ? 'bg-gradient-to-br from-red-50/95 via-white to-rose-50/80 border-2 border-red-500 shadow-lg ring-2 ring-red-400/20' 
+                    : isApproved
+                    ? 'bg-gradient-to-br from-emerald-50/95 via-white to-green-50/80 border-2 border-emerald-500 shadow-md ring-2 ring-emerald-400/20'
+                    : 'bg-white border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]'
+                }`}
+              >
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-[18px] border flex-shrink-0 shadow-xs ${
+                  isPendingCashOtp 
+                    ? 'bg-red-600 text-white border-red-700 animate-pulse' 
+                    : isApproved
+                    ? 'bg-emerald-600 text-white border-emerald-700'
+                    : 'bg-orange-50 text-orange-600 border-orange-100'
+                }`}>
+                  {isPendingCashOtp ? (
+                    <span className="material-symbols-outlined text-[24px]">pin</span>
+                  ) : isApproved ? (
+                    <span className="material-symbols-outlined text-[24px]">verified</span>
+                  ) : (
+                    req.customerId?.name?.charAt(0) || 'C'
+                  )}
                 </div>
 
-                {/* 3-Digit Verification Code for Cash Requests */}
-                {req.verificationCode && req.status === 'Pending' && (
-                  <div className="mt-3 bg-primary/10 border-2 border-primary/20 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-[22px]">pin</span>
-                      <div>
-                        <p className="text-[12px] font-bold text-on-surface">3-Digit Customer Code</p>
-                        <p className="text-[10px] text-on-surface-variant">Tell this code to customer to auto-approve</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[22px] font-mono font-black text-primary tracking-widest bg-white px-3 py-1 rounded-lg border border-primary/30 shadow-inner">
-                        {req.verificationCode}
+                <div className="flex-1 min-w-0">
+                  {/* Top status indicator for cash OTP mode */}
+                  {isPendingCashOtp && (
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-red-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-red-600 text-white flex items-center gap-1 shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                        Cash Mode • OTP Required
+                      </span>
+                      <span className="text-[11px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-md">
+                        Share Code to Approve
                       </span>
                     </div>
+                  )}
+
+                  {isApproved && (
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-emerald-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-emerald-600 text-white flex items-center gap-1 shadow-xs">
+                        <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                        Cashback Successful
+                      </span>
+                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                        Verified via OTP
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-black text-[15px] text-on-surface truncate">
+                        {req.customerId?.name || req.customerId?.phone}
+                      </h4>
+                      {req.billNumber && (
+                        <p className="text-[12px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">tag</span>
+                          <span>Bill No: <span className="bg-primary/10 px-1.5 py-0.5 rounded font-mono">{req.billNumber}</span></span>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <span className={`text-[10px] font-black uppercase block ${isPendingCashOtp ? 'text-red-700' : 'text-on-surface-variant'}`}>
+                        {t('Bill Amount')}
+                      </span>
+                      <p className={`font-mono font-black text-[17px] leading-tight ${
+                        isPendingCashOtp 
+                          ? 'text-red-700 bg-red-100/90 px-2.5 py-0.5 rounded-lg border border-red-300 inline-block' 
+                          : 'text-on-surface'
+                      }`}>
+                        ₹{req.amount?.toLocaleString()}
+                      </p>
+                    </div>
                   </div>
-                )}
+
+                  <div className="flex justify-between items-center mt-2 flex-wrap gap-1">
+                    <p className="text-[12px] text-on-surface-variant font-medium">
+                      {new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}
+                    </p>
+                    <div className={`px-2.5 py-0.5 rounded-lg font-black text-[12px] ${
+                      isPendingCashOtp 
+                        ? 'bg-red-600 text-white shadow-xs' 
+                        : isApproved
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-green-700 bg-green-50 border border-green-200'
+                    }`}>
+                      Cashback: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
+                    </div>
+                  </div>
+
+                  {/* Highlighted 3-Digit Verification Code for Cash Requests */}
+                  {req.verificationCode && req.status === 'Pending' && (
+                    <div className="mt-3 bg-red-500/10 border-2 border-red-500 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-inner">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center font-black shadow-sm">
+                          <span className="material-symbols-outlined text-[22px]">pin</span>
+                        </div>
+                        <div>
+                          <span className="inline-block px-2 py-0.5 bg-red-600 text-white text-[9.5px] font-black uppercase tracking-wider rounded-md mb-0.5">
+                            {t('Customer OTP Code')}
+                          </span>
+                          <p className="text-[13px] font-black text-red-950 leading-tight">{t('Tell this code to customer')}</p>
+                          <p className="text-[11px] font-semibold text-red-700">{t('Auto-approves cashback upon entry')}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[28px] font-mono font-black text-red-700 tracking-[0.25em] bg-white px-5 py-1.5 rounded-xl border-2 border-red-500 shadow-md select-all">
+                          {req.verificationCode}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                 {/* Hold Status Badge */}
                 {req.isHeld && (
@@ -174,7 +304,7 @@ export default function RequestsPage() {
                   >
                     <div className="flex items-center gap-2 text-on-surface-variant">
                       <span className="material-symbols-outlined text-[16px]">receipt_long</span>
-                      <span className="text-[11px] font-bold uppercase tracking-wider">View Attached Receipt</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider">{t('View Attached Receipt')}</span>
                     </div>
                     <span className="material-symbols-outlined text-[18px] text-primary">visibility</span>
                   </div>
@@ -186,7 +316,7 @@ export default function RequestsPage() {
                     onClick={() => handleRequestAction(req._id, 'Reject')}
                     className="flex-1 h-10 rounded-xl bg-red-50 text-red-600 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-red-100"
                   >
-                    Reject
+                    {t('Reject')}
                   </button>
                   {!req.isHeld && (
                     <button 
@@ -195,7 +325,7 @@ export default function RequestsPage() {
                       className="px-3 h-10 rounded-xl bg-amber-50 text-amber-700 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-amber-100 border border-amber-200/60"
                       title="Hold transaction if you have any doubt"
                     >
-                      Hold
+                      {t('Hold')}
                     </button>
                   )}
                   <button 
@@ -203,14 +333,15 @@ export default function RequestsPage() {
                     onClick={() => handleRequestAction(req._id, 'Approve')}
                     className="flex-1 h-10 rounded-xl bg-primary text-white font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer hover:bg-primary/90 hover:shadow-md"
                   >
-                    Approve
+                    {t('Approve')}
                   </button>
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          );
+        })
+      )}
+    </div>
 
       {/* Receipt Modal */}
       {viewReceiptUrl && (

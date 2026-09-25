@@ -7,9 +7,14 @@ import { downloadImage, shareContent } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
+import useLanguageStore from '../../../store/useLanguageStore';
+import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
+import { isBiometricSupported, registerBiometricCredential } from '../../../utils/biometric.util';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const { language } = useLanguageStore();
+  const [showLangModal, setShowLangModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showLoanModal, setShowLoanModal] = useState(false);
@@ -18,6 +23,131 @@ export default function ProfilePage() {
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
+
+  // Biometric & Security PIN States
+  const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
+  const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '', currentPin: '' });
+  const [pinError, setPinError] = useState('');
+  const [isSubmittingPin, setIsSubmittingPin] = useState(false);
+  const [securityToast, setSecurityToast] = useState('');
+
+  useEffect(() => {
+    if (currentUser?.security) {
+      setBiometrics(!!currentUser.security.biometricEnabled);
+    }
+  }, [currentUser]);
+
+  const enrollBiometrics = async () => {
+    try {
+      const supported = await isBiometricSupported();
+      if (!supported) {
+        await VendorAPI.toggleBiometricSecurity(true);
+        updateProfileStore({ security: { ...currentUser?.security, biometricEnabled: true } });
+        setBiometrics(true);
+        setSecurityToast('Device does not have biometric hardware. Protected with your Security PIN.');
+        setTimeout(() => setSecurityToast(''), 4500);
+        return;
+      }
+
+      const bioRes = await registerBiometricCredential(currentUser);
+      if (bioRes.success) {
+        await VendorAPI.toggleBiometricSecurity(true, bioRes.credentialId);
+        updateProfileStore({
+          security: {
+            ...currentUser?.security,
+            biometricEnabled: true,
+            biometricCredentialId: bioRes.credentialId,
+          }
+        });
+        setBiometrics(true);
+        setSecurityToast('✅ Biometric security enabled! Store cashouts and funds are now protected.');
+        setTimeout(() => setSecurityToast(''), 4000);
+      } else {
+        setSecurityToast(bioRes.error || 'Biometric registration cancelled.');
+        setBiometrics(false);
+        setTimeout(() => setSecurityToast(''), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+      setSecurityToast('Failed to setup biometrics.');
+      setBiometrics(false);
+      setTimeout(() => setSecurityToast(''), 4000);
+    }
+  };
+
+  const handleToggleBiometrics = async (e) => {
+    const shouldEnable = e.target.checked;
+    setSecurityToast('');
+
+    if (shouldEnable) {
+      // If vendor hasn't configured a backup PIN yet, prompt PIN setup first
+      if (!currentUser?.security?.hasPin) {
+        setPinMode('setup');
+        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
+        setPinError('');
+        setShowPinModal(true);
+        return;
+      }
+      await enrollBiometrics();
+    } else {
+      try {
+        const res = await VendorAPI.toggleBiometricSecurity(false);
+        if (res.success) {
+          updateProfileStore({ security: { ...currentUser?.security, biometricEnabled: false } });
+          setBiometrics(false);
+          setSecurityToast('Biometric security disabled.');
+          setTimeout(() => setSecurityToast(''), 3500);
+        }
+      } catch (err) {
+        console.error('Failed to disable biometrics', err);
+      }
+    }
+  };
+
+  const handleSavePin = async (e) => {
+    e.preventDefault();
+    setPinError('');
+    if (!pinForm.pin || pinForm.pin.length < 4 || pinForm.pin.length > 8) {
+      setPinError('PIN must be 4 to 8 digits.');
+      return;
+    }
+    if (pinForm.pin !== pinForm.confirmPin) {
+      setPinError('PINs do not match.');
+      return;
+    }
+    if (pinMode === 'change' && !pinForm.currentPin) {
+      setPinError('Current PIN is required.');
+      return;
+    }
+
+    setIsSubmittingPin(true);
+    try {
+      const res = await VendorAPI.setupSecurityPin(pinForm.pin, pinForm.currentPin || null);
+      if (res.success) {
+        updateProfileStore({
+          security: {
+            ...currentUser?.security,
+            hasPin: true,
+          }
+        });
+        setShowPinModal(false);
+        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
+
+        if (pinMode === 'setup') {
+          await enrollBiometrics();
+        } else {
+          setSecurityToast('✅ Security PIN updated successfully.');
+          setTimeout(() => setSecurityToast(''), 3500);
+        }
+      }
+    } catch (err) {
+      setPinError(err.response?.data?.message || err.message || 'Failed to set PIN.');
+    } finally {
+      setIsSubmittingPin(false);
+    }
+  };
 
   const [vendorData, setVendorData] = useState(null);
   const [stats, setStats] = useState({
@@ -102,6 +232,9 @@ export default function ProfilePage() {
       try {
         const res = await VendorAPI.getProfile();
         setVendorData(res.data);
+        if (res.data?.security) {
+          updateProfileStore({ security: res.data.security });
+        }
         
         let cleanedFullAddress = res.data.address?.fullAddress || '';
         if (cleanedFullAddress) {
@@ -943,8 +1076,124 @@ export default function ProfilePage() {
 
         <hr className="border-t-2 border-blue-100/60 my-1.5" />
 
+        {/* Biometric Security & PIN Protection */}
+        <div className="bg-white border border-outline-variant/10 rounded-2xl p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-primary flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[22px]">fingerprint</span>
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-display text-[14px] font-black text-on-surface">Biometric Security</h4>
+                  {biometrics && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-on-surface-variant font-medium">Protect withdrawals &amp; store funds with Fingerprint, Face ID or PIN</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input 
+                type="checkbox" 
+                checked={biometrics} 
+                onChange={handleToggleBiometrics} 
+                className="sr-only peer" 
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          {/* Security Toast */}
+          {securityToast && (
+            <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200/60 text-[11px] font-medium text-purple-900 flex items-center gap-2 animate-reveal text-left">
+              <span className="material-symbols-outlined text-[16px] text-primary shrink-0">info</span>
+              <span>{securityToast}</span>
+            </div>
+          )}
+
+          {/* Backup PIN Manager */}
+          <div className="flex items-center justify-between pl-1 pr-1 text-[11px] border-t border-outline-variant/10 pt-2.5">
+            <span className="text-on-surface-variant font-medium">
+              Backup Security PIN: <strong className="text-on-surface">{currentUser?.security?.hasPin ? 'Configured ✅' : 'Not Set'}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setPinMode(currentUser?.security?.hasPin ? 'change' : 'setup');
+                setPinForm({ pin: '', confirmPin: '', currentPin: '' });
+                setPinError('');
+                setShowPinModal(true);
+              }}
+              className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">key</span>
+              {currentUser?.security?.hasPin ? 'Change PIN' : 'Set PIN'}
+            </button>
+          </div>
+        </div>
+
+        {/* App Language Selector (Hindi & English) */}
+        <div 
+          onClick={() => setShowLangModal(true)}
+          className="bg-white border border-outline-variant/10 rounded-2xl p-4 flex items-center justify-between shadow-sm cursor-pointer hover:bg-surface-container-low active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-[22px]">translate</span>
+            </div>
+            <div className="text-left">
+              <h4 className="font-display text-[14px] font-black text-on-surface">App Language</h4>
+              <p className="text-[11px] text-on-surface-variant font-medium">Currently available in English &amp; Hindi</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-[12px] font-bold text-primary">
+            <span>{language === 'hi' ? 'हिन्दी' : 'English'}</span>
+            <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+          </div>
+        </div>
+
+        {/* Highlighted Help & Support Card */}
+        <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-primary/5 border-2 border-emerald-500/30 rounded-3xl p-4 shadow-sm space-y-3 text-left relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-[#25D366] text-white flex items-center justify-center shadow-md shadow-emerald-500/30 flex-shrink-0">
+                <span className="material-symbols-outlined text-[24px]">support_agent</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h4 className="font-display text-[15px] font-black text-on-surface">Help &amp; Support</h4>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">24x7 Active</span>
+                </div>
+                <p className="text-[11.5px] text-on-surface-variant font-medium mt-0.5">Direct WhatsApp, Helpline &amp; FAQs</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <a
+              href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20merchant%20partner%20and%20need%20assistance."
+              target="_blank"
+              rel="noreferrer"
+              className="py-2.5 px-3 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+            >
+              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+              </svg>
+              <span>WhatsApp Chat</span>
+            </a>
+            <button
+              onClick={() => navigate('/vendor/support')}
+              className="py-2.5 px-3 bg-white hover:bg-surface-container-low border border-outline-variant/30 text-primary rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <span>Help &amp; FAQs</span>
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+
         {/* Footer Actions Grid */}
-        <div className="grid grid-cols-2 gap-2 text-center pt-2">
+        <div className="grid grid-cols-2 gap-2 text-center pt-1">
           <button 
             onClick={handleShareStore} 
             className="flex flex-col items-center justify-center py-2.5 bg-white rounded-xl border border-outline-variant/10 shadow-sm hover:bg-surface-container-low active:scale-95 transition-all cursor-pointer"
@@ -954,10 +1203,10 @@ export default function ProfilePage() {
           </button>
           <button 
             onClick={() => navigate('/vendor/support')} 
-            className="flex flex-col items-center justify-center py-2.5 bg-white rounded-xl border border-outline-variant/10 shadow-sm hover:bg-surface-container-low active:scale-95 transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center py-2.5 bg-emerald-50/60 rounded-xl border border-emerald-300/60 shadow-sm hover:bg-emerald-100/60 active:scale-95 transition-all cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px] text-primary">support_agent</span>
-            <span className="text-[9px] font-bold text-on-surface-variant mt-1">Support</span>
+            <span className="material-symbols-outlined text-[18px] text-emerald-600">support_agent</span>
+            <span className="text-[9px] font-black text-emerald-800 mt-1">Help &amp; Support</span>
           </button>
         </div>
 
@@ -1237,18 +1486,20 @@ export default function ProfilePage() {
               </button>
 
               <a 
-                href="https://wa.me/919111966732"
+                href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20merchant%20partner%20and%20need%20assistance."
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => setSupportModalOpen(false)}
                 className="w-full p-3.5 bg-white border border-outline-variant/15 hover:bg-surface-container-low active:scale-[0.98] transition-all rounded-2xl flex items-center gap-3 cursor-pointer text-left shadow-sm block"
               >
-                <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>call</span>
+                <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-[#25D366] flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 fill-[#25D366]" viewBox="0 0 24 24">
+                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+                  </svg>
                 </div>
                 <div>
                   <p className="text-[12.5px] font-black text-on-surface">WhatsApp Support</p>
-                  <p className="text-[10px] text-on-surface-variant/70">Connect with us on WhatsApp</p>
+                  <p className="text-[10px] text-emerald-600 font-semibold">+91 91119 66732 · Direct Chat</p>
                 </div>
               </a>
 
@@ -1305,6 +1556,123 @@ export default function ProfilePage() {
         onClose={() => setShowPayLaterModal(false)}
       />
 
+      {/* Security PIN Setup / Change Modal */}
+      {showPinModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-reveal">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-left border border-gray-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[24px]">key</span>
+                </div>
+                <div>
+                  <h3 className="font-display font-extrabold text-[16px] text-on-surface">
+                    {pinMode === 'setup' ? 'Set Security PIN' : 'Change Security PIN'}
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">Backup for Biometrics &amp; Cashouts</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowPinModal(false); setPinError(''); }}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p className="text-[12px] text-on-surface-variant leading-relaxed">
+              {pinMode === 'setup'
+                ? 'Create a 4 to 8 digit Security PIN. You can use this PIN to withdraw wallet funds if your fingerprint or Face ID is unavailable.'
+                : 'Enter your current PIN and choose a new 4 to 8 digit Security PIN.'}
+            </p>
+
+            <form onSubmit={handleSavePin} className="space-y-3">
+              {pinMode === 'change' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Current PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    required
+                    value={pinForm.currentPin}
+                    onChange={(e) => setPinForm({ ...pinForm, currentPin: e.target.value.replace(/\D/g, '') })}
+                    placeholder="Enter current PIN"
+                    className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  {pinMode === 'setup' ? 'Create PIN (4-8 digits)' : 'New PIN (4-8 digits)'}
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  required
+                  value={pinForm.pin}
+                  onChange={(e) => setPinForm({ ...pinForm, pin: e.target.value.replace(/\D/g, '') })}
+                  placeholder="e.g. 1234"
+                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Confirm PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  required
+                  value={pinForm.confirmPin}
+                  onChange={(e) => setPinForm({ ...pinForm, confirmPin: e.target.value.replace(/\D/g, '') })}
+                  placeholder="Re-enter PIN"
+                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
+                />
+              </div>
+
+              {pinError && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">error</span>
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(false)}
+                  className="flex-1 h-11 rounded-xl border border-outline-variant/30 font-bold text-[13px] text-on-surface-variant hover:bg-gray-50 active:scale-95 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPin || !pinForm.pin || !pinForm.confirmPin}
+                  className="flex-1 h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-md hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {isSubmittingPin ? (
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    pinMode === 'setup' ? 'Save & Continue' : 'Update PIN'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Language Selector Modal */}
+      <LanguageSelectorModal
+        isOpen={showLangModal}
+        onClose={() => setShowLangModal(false)}
+      />
+
     </div>
   );
 }
@@ -1314,7 +1682,25 @@ export default function ProfilePage() {
 // mid-render. Signed + short-lived token, rendered locally instead of via
 // the third-party image API this used to call.
 function VendorStoreQrCard({ zeebacId }) {
-  const fetchQrToken = useCallback(() => VendorAPI.getQrToken(), []);
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const fetchQrToken = useCallback(async () => {
+    try {
+      const res = await VendorAPI.getQrToken();
+      if (res && res.data) return res;
+      throw new Error('No QR token received');
+    } catch (err) {
+      console.warn('Vendor QR token API failed, using store fallback:', err);
+      const payeeVpa = currentUser?.bankDetails?.upiId || `${currentUser?.phone || 'vendor'}@upi`;
+      const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(currentUser?.storeName || 'ZeeBac Store')}&tr=${zeebacId}&tn=Zeebac%20Cashback&cu=INR`;
+      return {
+        data: {
+          token: `zeebac://vendor/${zeebacId}`,
+          upiUri,
+          expiresIn: 3600,
+        },
+      };
+    }
+  }, [currentUser?.bankDetails?.upiId, currentUser?.phone, currentUser?.storeName, zeebacId]);
   const { qrImageUrl, isLoading } = useQrCode(fetchQrToken);
 
   return (

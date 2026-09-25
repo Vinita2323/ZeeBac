@@ -4,13 +4,16 @@ import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, PosAPI, API_BASE_URL } from '../../../services/api';
 import useQrCode from '../../../hooks/useQrCode';
-import { downloadImage } from '../../../utils/exportUtils';
+import { downloadImage, shareContent } from '../../../utils/exportUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
+import { getSocket } from '../../../services/socket';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [showQRModal, setShowQRModal] = useState(false);
   const [showPosModal, setShowPosModal] = useState(false);
   const [showStoriesModal, setShowStoriesModal] = useState(false);
@@ -29,6 +32,33 @@ export default function DashboardPage() {
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
+
+  const fetchQrToken = useCallback(async () => {
+    try {
+      const res = await VendorAPI.getQrToken();
+      if (res && res.data) return res;
+      throw new Error('No QR token received');
+    } catch (err) {
+      console.warn('Vendor QR token API failed, using store fallback:', err);
+      const payeeVpa = currentUser?.bankDetails?.upiId || `${currentUser?.phone || 'vendor'}@upi`;
+      const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(currentUser?.storeName || 'ZeeBac Store')}&tr=${zeebacId}&tn=Zeebac%20Cashback&cu=INR`;
+      return {
+        data: {
+          token: `zeebac://vendor/${zeebacId}`,
+          upiUri,
+          expiresIn: 3600,
+        },
+      };
+    }
+  }, [currentUser?.bankDetails?.upiId, currentUser?.phone, currentUser?.storeName, zeebacId]);
+
+  const { qrImageUrl, isLoading: qrLoading, refresh: refreshQr } = useQrCode(fetchQrToken, true);
+
+  useEffect(() => {
+    if (showQRModal && !qrImageUrl && !qrLoading) {
+      refreshQr();
+    }
+  }, [showQRModal, qrImageUrl, qrLoading, refreshQr]);
 
   // Check for openPayLater query param
   useEffect(() => {
@@ -83,11 +113,46 @@ export default function DashboardPage() {
     fetchStats();
   }, [currentUser.cashbackRate]);
 
+  // Real-time socket sync for new incoming cash requests with OTP
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewCashRequest = (data) => {
+      setPendingRequests(prev => {
+        if (prev.some(r => r._id === data.requestId)) return prev;
+        const newReq = {
+          _id: data.requestId,
+          amount: data.amount,
+          cashbackAmount: data.cashbackAmount,
+          verificationCode: data.verificationCode,
+          customerId: { name: data.customerName },
+          paymentMethod: data.paymentMethod || 'Cash',
+          status: 'Pending',
+          createdAt: new Date().toISOString()
+        };
+        return [newReq, ...prev];
+      });
+    };
+
+    const handleCashVerified = (data) => {
+      setPendingRequests(prev => prev.filter(r => r._id !== data.requestId));
+    };
+
+    socket.on('new_cash_request', handleNewCashRequest);
+    socket.on('cash_request_verified', handleCashVerified);
+
+    return () => {
+      socket.off('new_cash_request', handleNewCashRequest);
+      socket.off('cash_request_verified', handleCashVerified);
+    };
+  }, []);
+
   const stats = [
-    { label: 'Total Revenue', value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: 'All time', color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/transactions' },
-    { label: 'Cashback Given', value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString() || 0}` : '₹0', icon: 'savings', trend: 'All time', color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/passbook' },
-    { label: 'Total TXNs', value: dashboardData ? dashboardData.data?.totalTransactions || 0 : '0', icon: 'sync_alt', trend: 'All time', color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/transactions' },
-    { label: 'Customers', value: dashboardData ? dashboardData.data?.totalCustomers || 0 : '0', icon: 'groups', trend: 'Unique', color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
+    { label: t('Total Revenue'), value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: t('All time'), color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/transactions' },
+    { label: t('Cashback Given'), value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString() || 0}` : '₹0', icon: 'savings', trend: t('All time'), color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/passbook' },
+    { label: t('Total TXNs'), value: dashboardData ? dashboardData.data?.totalTransactions || 0 : '0', icon: 'sync_alt', trend: t('All time'), color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/transactions' },
+    { label: t('Customers'), value: dashboardData ? dashboardData.data?.totalCustomers || 0 : '0', icon: 'groups', trend: t('Unique'), color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
   ];
 
   const handleRequestAction = async (requestId, action) => {
@@ -129,10 +194,45 @@ export default function DashboardPage() {
       {/* Top Section: Greeting */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Welcome back</p>
+          <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Welcome back')}</p>
           <h1 className="font-display text-[18px] font-black text-on-surface leading-none tracking-tight">
             {currentUser?.storeName || 'Vendor Store'}
           </h1>
+        </div>
+      </div>
+
+      {/* Highlighted Merchant Support Bar */}
+      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-primary/5 border border-emerald-500/25 rounded-2xl px-4 py-3 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-sm">
+            <span className="material-symbols-outlined text-[18px]">support_agent</span>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-[12.5px] text-on-surface truncate">Merchant Help &amp; Support</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-white text-[8.5px] font-black uppercase tracking-wider animate-pulse hidden xs:inline">24x7</span>
+            </div>
+            <p className="text-[10.5px] text-on-surface-variant font-medium truncate">Chat on WhatsApp or reach support desk</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20partner%20store%20and%20need%20assistance."
+            target="_blank"
+            rel="noreferrer"
+            className="px-2.5 py-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[11px] font-black flex items-center gap-1 shadow-xs active:scale-95 transition-all"
+          >
+            <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
+              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+            </svg>
+            <span className="hidden sm:inline">WhatsApp</span>
+          </a>
+          <button
+            onClick={() => navigate('/vendor/support')}
+            className="px-2.5 py-1.5 bg-white border border-outline-variant/20 hover:bg-surface-container-low text-primary rounded-xl text-[11px] font-black active:scale-95 transition-all cursor-pointer"
+          >
+            Helpdesk
+          </button>
         </div>
       </div>
 
@@ -292,8 +392,8 @@ export default function DashboardPage() {
           </div>
           <div>
             <h3 className="font-bold text-xs text-on-surface flex items-center gap-1.5">
-              <span>24h Store Stories</span>
-             
+              <span>Add Story</span>
+
             </h3>
             <p className="text-[11px] text-on-surface-variant mt-0.5">
               Post daily deals & photos to nearby customers
@@ -341,7 +441,7 @@ export default function DashboardPage() {
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
             <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Cash QR</p>
+          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Accept Cash</p>
           <p className="text-[7px] sm:text-[8px] text-amber-300 font-bold">&gt; ₹1,000 Instant</p>
         </button>
 
@@ -436,82 +536,159 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Action Required (Pending Approvals) - Preserved for Phase 4 */}
+      {/* Action Required (Pending Approvals) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-[16px] font-extrabold text-on-surface">Action Required</h3>
+          <h3 className="font-display text-[16px] font-extrabold text-on-surface">{t('Action Required')}</h3>
           <button
             onClick={() => navigate('/vendor/requests')}
             className="text-[12px] text-primary font-bold cursor-pointer hover:underline"
           >
-            View All
+            {t('View All')}
           </button>
         </div>
 
         <div className="space-y-3">
           {pendingRequests.length === 0 ? (
-            <p className="text-[12px] text-on-surface-variant text-center py-4">No pending requests</p>
-          ) : pendingRequests.slice(0, 3).map(req => (
-            <div key={req._id} className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-3 flex gap-3 items-start">
-              <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center text-orange-600 font-bold border border-orange-100 flex-shrink-0">
-                {req.customerId?.name?.charAt(0) || 'C'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-[14px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
-                    {req.billNumber && (
-                      <p className="text-[11px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px]">tag</span>
-                        <span>Bill No: <span className="bg-primary/10 px-1 py-0.2 rounded font-mono">{req.billNumber}</span></span>
-                      </p>
-                    )}
-                  </div>
-                  <p className="font-black text-[14px] text-on-surface">₹{req.amount?.toLocaleString()}</p>
-                </div>
-                <div className="flex justify-between items-center mt-0.5">
-                  <p className="text-[11px] text-on-surface-variant">{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> Request</p>
-                  <p className="text-[10px] text-green-600 font-bold">Estimated CB: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}</p>
-                </div>
+            <p className="text-[12px] text-on-surface-variant text-center py-4">{t('No pending requests')}</p>
+          ) : pendingRequests.slice(0, 3).map(req => {
+            const isPendingCashOtp = !!(req.verificationCode && req.status === 'Pending');
+            const isApproved = req.status === 'Approved';
 
-                {req.billImageUrl && (
-                  <div
-                    onClick={() => setViewReceiptUrl(req.billImageUrl)}
-                    className="mt-2.5 flex items-center justify-between bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-1.5 cursor-pointer active:scale-[0.98] transition-transform"
-                  >
-                    <div className="flex items-center gap-1.5 text-on-surface-variant">
-                      <span className="material-symbols-outlined text-[14px]">receipt_long</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider">View Attached Receipt</span>
+            return (
+              <div 
+                key={req._id} 
+                className={`rounded-2xl transition-all duration-300 p-3.5 flex flex-col gap-2.5 ${
+                  isPendingCashOtp
+                    ? 'bg-gradient-to-br from-red-50/95 via-white to-rose-50/80 border-2 border-red-500 ring-2 ring-red-400/20 shadow-md'
+                    : isApproved
+                    ? 'bg-emerald-50/95 border-2 border-emerald-500 shadow-sm'
+                    : 'bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]'
+                }`}
+              >
+                <div className="flex gap-3 items-start">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border flex-shrink-0 ${
+                    isPendingCashOtp 
+                      ? 'bg-red-500 text-white border-red-600 shadow-sm' 
+                      : isApproved
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                      : 'bg-orange-50 text-orange-600 border-orange-100'
+                  }`}>
+                    {req.customerId?.name?.charAt(0) || 'C'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-bold text-[14px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
+                          {isPendingCashOtp && (
+                            <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">
+                              Cash OTP
+                            </span>
+                          )}
+                          {isApproved && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider">
+                              Verified
+                            </span>
+                          )}
+                        </div>
+                        {req.billNumber && (
+                          <p className="text-[11px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">tag</span>
+                            <span>Bill No: <span className="bg-primary/10 px-1 py-0.2 rounded font-mono">{req.billNumber}</span></span>
+                          </p>
+                        )}
+                      </div>
+                      
+                      {/* Highlighted Amount */}
+                      <div className="text-right">
+                        <span className={`text-[9px] font-black uppercase block ${
+                          isPendingCashOtp ? 'text-red-700' : isApproved ? 'text-emerald-700' : 'text-on-surface-variant'
+                        }`}>
+                          {t('Bill Amount')}
+                        </span>
+                        <p className={`font-mono font-black text-[15px] ${
+                          isPendingCashOtp
+                            ? 'text-red-700 bg-red-100/90 px-2 py-0.5 rounded-lg border border-red-300 inline-block'
+                            : isApproved
+                            ? 'text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-300 inline-block'
+                            : 'text-on-surface'
+                        }`}>
+                          ₹{req.amount?.toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                    <span className="material-symbols-outlined text-[16px] text-primary">visibility</span>
-                  </div>
-                )}
 
-                <div className="flex items-center gap-2 mt-3">
-                  <button
-                    disabled={isProcessing}
-                    onClick={() => handleRequestAction(req._id, 'Reject')}
-                    className="flex-1 h-8 rounded-lg bg-red-50 text-red-600 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    disabled={isProcessing}
-                    onClick={() => handleRequestAction(req._id, 'Approve')}
-                    className="flex-1 h-8 rounded-lg bg-primary text-white font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
-                  >
-                    Approve
-                  </button>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-[11px] text-on-surface-variant">{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        isPendingCashOtp 
+                          ? 'bg-red-600 text-white' 
+                          : isApproved 
+                          ? 'bg-emerald-600 text-white' 
+                          : 'text-green-600 bg-green-50'
+                      }`}>
+                        CB: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
+                      </span>
+                    </div>
+
+                    {/* Highlighted OTP Container */}
+                    {req.verificationCode && req.status === 'Pending' && (
+                      <div className="mt-2.5 bg-red-500/10 border-2 border-red-500 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
+                        <div>
+                          <span className="inline-block px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-black uppercase rounded mb-0.5">
+                            {t('Customer OTP Code')}
+                          </span>
+                          <p className="text-[11px] font-bold text-red-950">{t('Tell code to customer')}</p>
+                        </div>
+                        <span className="text-[22px] font-mono font-black text-red-700 tracking-[0.2em] bg-white px-3 py-1 rounded-lg border-2 border-red-500 shadow-sm select-all">
+                          {req.verificationCode}
+                        </span>
+                      </div>
+                    )}
+
+                    {req.billImageUrl && (
+                      <div
+                        onClick={() => setViewReceiptUrl(req.billImageUrl)}
+                        className="mt-2.5 flex items-center justify-between bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-1.5 cursor-pointer active:scale-[0.98] transition-transform"
+                      >
+                        <div className="flex items-center gap-1.5 text-on-surface-variant">
+                          <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider">View Attached Receipt</span>
+                        </div>
+                        <span className="material-symbols-outlined text-[16px] text-primary">visibility</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        disabled={isProcessing}
+                        onClick={() => handleRequestAction(req._id, 'Reject')}
+                        className="flex-1 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
+                      >
+                        {t('Reject')}
+                      </button>
+                      <button
+                        disabled={isProcessing}
+                        onClick={() => handleRequestAction(req._id, 'Approve')}
+                        className={`flex-1 h-8 rounded-lg font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer text-white ${
+                          isPendingCashOtp ? 'bg-red-600 hover:bg-red-700' : 'bg-primary'
+                        }`}
+                      >
+                        {t('Approve')}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* Recent Activity */}
       <div className="space-y-3">
-        <h3 className="font-display text-[16px] font-extrabold text-on-surface">Recent Activity</h3>
+        <h3 className="font-display text-[16px] font-extrabold text-on-surface">{t('Recent Activity')}</h3>
 
         <div className="space-y-3">
           {recentTransactions.map(tx => (
@@ -588,27 +765,51 @@ export default function DashboardPage() {
                 <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary">ZeeBac</span>
               </div>
 
-              <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-5 w-56 h-56 flex items-center justify-center shadow-inner mb-4">
+              <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-4 w-56 h-56 flex flex-col items-center justify-center shadow-inner mb-3 relative overflow-hidden">
                 {qrImageUrl ? (
                   <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
+                ) : qrLoading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-3 border-secondary/30 border-t-secondary rounded-full animate-spin" />
+                    <span className="text-[11px] font-medium text-on-surface-variant">Generating QR...</span>
+                  </div>
                 ) : (
-                  <div className={`w-8 h-8 border-2 border-secondary/30 border-t-secondary rounded-full ${qrLoading ? 'animate-spin' : ''}`} />
+                  <div className="flex flex-col items-center gap-2 text-center p-2">
+                    <span className="material-symbols-outlined text-red-500 text-[26px]">error</span>
+                    <span className="text-[11px] text-red-600 font-medium">Failed to load QR</span>
+                    <button
+                      onClick={refreshQr}
+                      className="px-3 py-1 bg-secondary text-white text-[11px] font-bold rounded-lg shadow-sm hover:bg-secondary/90 transition-all cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 )}
               </div>
 
-              <div className="bg-surface-container py-1.5 px-4 rounded-full flex items-center gap-2 mb-4">
-                <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Store ID:</span>
-                <span className="text-[13px] font-black tracking-widest text-on-surface">{zeebacId}</span>
+              <div className="bg-surface-container py-1 px-3.5 rounded-full flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Store ID:</span>
+                <span className="text-[12px] font-black tracking-widest text-on-surface">{zeebacId}</span>
               </div>
 
-              <button
-                onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_Counter_QR_${zeebacId}.png`)}
-                disabled={!qrImageUrl}
-                className="w-full py-2.5 px-4 bg-primary text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="material-symbols-outlined text-[16px]">download</span>
-                Download Counter QR
-              </button>
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_Counter_QR_${zeebacId}.png`)}
+                  disabled={!qrImageUrl}
+                  className="flex-1 py-2.5 px-3 bg-primary text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  Download
+                </button>
+                <button
+                  onClick={() => qrImageUrl && shareContent(qrImageUrl, `${currentUser?.storeName || 'ZeeBac Store'} QR`, `Pay at ${currentUser?.storeName || 'my store'} (${zeebacId}) to earn instant cashback!`)}
+                  disabled={!qrImageUrl}
+                  className="flex-1 py-2.5 px-3 bg-white text-primary border-2 border-primary rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">share</span>
+                  Share
+                </button>
+              </div>
             </div>
           </div>
         </div>,

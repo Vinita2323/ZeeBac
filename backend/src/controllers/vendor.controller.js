@@ -26,6 +26,7 @@ import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentEr
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } from '../utils/qr.util.js';
+import { getIO } from '../socket/socket.js';
 
 const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancelledCheque', 'panCard', 'additionalDoc'];
 
@@ -255,6 +256,13 @@ export const getProfile = async (req, res) => {
     vendorObj.walletBalance = balance;
     vendorObj.subscriptionState = subscriptionState;
 
+    if (vendorObj.security) {
+      vendorObj.security.hasPin = Boolean(vendorObj.security.securityPin);
+      delete vendorObj.security.securityPin;
+    } else {
+      vendorObj.security = { biometricEnabled: false, hasPin: false, biometricCredentialId: null };
+    }
+
     res.status(200).json({ success: true, data: vendorObj });
   } catch (error) {
     logger.error(`Error in vendor getProfile: ${error.message}`);
@@ -467,6 +475,18 @@ export const requestWithdrawal = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance for withdrawal' });
     }
 
+    const config = (await RewardConfig.findOne()) || {};
+    const withdrawalFixedFee = config.withdrawalFixedFee !== undefined ? Number(config.withdrawalFixedFee) : 5;
+    const commissionPercent = config.vendorWithdrawalCommissionPercent ?? 2;
+    const gstPercent = config.withdrawalGstPercent ?? 18;
+
+    const platformFee = Math.round(((amount * commissionPercent) / 100) * 100) / 100;
+    const withdrawalFee = withdrawalFixedFee;
+    const feeAmount = Math.round((withdrawalFee + platformFee) * 100) / 100;
+    const baseFee = Math.round((feeAmount / (1 + gstPercent / 100)) * 100) / 100;
+    const gstAmount = Math.round((feeAmount - baseFee) * 100) / 100;
+    const netPayout = Math.max(0, Math.round((amount - feeAmount) * 100) / 100);
+
     // Snapshot the verified bank details at the time of withdrawal
     const bankSnapshot = {
       accountHolderName: vendor.bankDetails?.accountHolderName || vendor.ownerName || vendor.storeName || '',
@@ -480,10 +500,17 @@ export const requestWithdrawal = async (req, res) => {
 
     // Deduct from balance
     wallet.balance -= amount;
-    // Let's create the withdrawal request record with bankDetailsSnapshot
+    // Let's create the withdrawal request record with bankDetailsSnapshot and fee breakdown
     const withdrawalReq = await WithdrawalRequest.create({
       vendorId: vendor._id,
       amount,
+      withdrawalFee,
+      platformFee,
+      gstAmount,
+      feeAmount,
+      feePercent: commissionPercent,
+      gstPercent,
+      netPayout,
       status: 'Pending',
       bankDetailsSnapshot: bankSnapshot,
     });
@@ -499,6 +526,13 @@ export const requestWithdrawal = async (req, res) => {
       type: 'debit',
       category: 'withdrawal',
       amount: amount,
+      withdrawalFee,
+      platformFee,
+      gstAmount,
+      feeAmount,
+      feePercent: commissionPercent,
+      gstPercent,
+      netPayout,
       balanceAfter: wallet.balance,
       referenceId: withdrawalReq._id,
       referenceType: 'WithdrawalRequest',
@@ -511,10 +545,22 @@ export const requestWithdrawal = async (req, res) => {
     await notifyAdmins(
       'PAYOUT_REQUEST',
       'New Payout Request',
-      `Vendor "${vendor.storeName}" requested a withdrawal of ₹${amount} to ${bankSnapshot.bankName} (${maskedAcc}).`
+      `Vendor "${vendor.storeName}" requested a withdrawal of ₹${amount} (Net: ₹${netPayout}, Fee: ₹${feeAmount} incl. ₹${withdrawalFee} withdrawal fee & ₹${platformFee} platform fee) to ${bankSnapshot.bankName} (${maskedAcc}).`
     );
 
-    res.status(201).json({ success: true, message: 'Withdrawal request submitted successfully', data: withdrawalReq });
+    res.status(201).json({ 
+      success: true, 
+      message: 'Withdrawal request submitted successfully', 
+      data: {
+        ...withdrawalReq.toObject(),
+        grossAmount: amount,
+        withdrawalFee,
+        platformFee,
+        gstAmount,
+        feeAmount,
+        netPayout,
+      } 
+    });
   } catch (error) {
     logger.error(`Error in requestWithdrawal: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
@@ -1117,7 +1163,24 @@ export const respondToCashbackRequest = async (req, res) => {
       icon: 'check_circle',
       referenceId: txn._id,
       referenceType: 'Transaction',
+      data: {
+        cashbackAmount: String(cashbackAmount),
+        amount: String(amount),
+        vendorName: vendor.storeName,
+      },
     });
+
+    try {
+      getIO()?.to(`customer_${customer._id}`).emit('cashback_approved', {
+        requestId: id,
+        cashbackAmount,
+        amount: parseFloat(amount),
+        vendorName: vendor.storeName,
+        transactionId: txn.transactionId,
+      });
+    } catch (socketErr) {
+      logger.warn(`Socket emit error on manual approval: ${socketErr.message}`);
+    }
 
     if (referralAward) {
       sendNotification({
@@ -1383,6 +1446,9 @@ export const createSubscriptionRazorpayOrder = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to create Razorpay order' });
     }
 
+    const baseAmount = Math.round((planInfo.price / 1.18) * 100) / 100;
+    const gstAmount = Math.round((planInfo.price - baseAmount) * 100) / 100;
+
     // Create pending payment record
     await SubscriptionPayment.create({
       vendorId: vendor._id,
@@ -1390,6 +1456,9 @@ export const createSubscriptionRazorpayOrder = async (req, res) => {
       planType: planInfo.planType,
       shopType: planInfo.shopType,
       amount: planInfo.price,
+      baseAmount,
+      gstAmount,
+      gstPercent: 18,
       paymentMethod: 'RAZORPAY',
       paymentStatus: 'PENDING',
       razorpayOrderId: order.id,
@@ -1496,9 +1565,15 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
     };
     await vendor.save();
 
+    const baseAmount = Math.round((planInfo.price / 1.18) * 100) / 100;
+    const gstAmount = Math.round((planInfo.price - baseAmount) * 100) / 100;
+
     // Update payment record
     if (payment) {
       payment.paymentStatus = 'SUCCESS';
+      payment.baseAmount = baseAmount;
+      payment.gstAmount = gstAmount;
+      payment.gstPercent = 18;
       payment.razorpayPaymentId = razorpay_payment_id;
       payment.razorpaySignature = razorpay_signature;
       payment.bonusDaysApplied = bonusDays;
@@ -1511,6 +1586,9 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
         planType: planInfo.planType,
         shopType: vendor.shopType,
         amount: planInfo.price,
+        baseAmount,
+        gstAmount,
+        gstPercent: 18,
         paymentMethod: 'RAZORPAY',
         paymentStatus: 'SUCCESS',
         razorpayOrderId: razorpay_order_id,
@@ -1606,6 +1684,9 @@ export const paySubscriptionFromWallet = async (req, res) => {
     const transactionId = `SUB-WLT-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
     let newDates;
 
+    const baseAmount = Math.round((planInfo.price / 1.18) * 100) / 100;
+    const gstAmount = Math.round((planInfo.price - baseAmount) * 100) / 100;
+
     await session.withTransaction(async () => {
       // 1. Create subscription payment transaction record
       const [createdSubPayment] = await SubscriptionPayment.create(
@@ -1616,6 +1697,9 @@ export const paySubscriptionFromWallet = async (req, res) => {
             planType: planInfo.planType,
             shopType: vendor.shopType,
             amount: planInfo.price,
+            baseAmount,
+            gstAmount,
+            gstPercent: 18,
             paymentMethod: 'WALLET',
             paymentStatus: 'SUCCESS',
             transactionId,
@@ -1838,6 +1922,127 @@ export const verifyAndSaveVendorBankAccount = async (req, res) => {
   } catch (error) {
     logger.error(`Error in verifyAndSaveVendorBankAccount: ${error.message}`);
     res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
+// ─── Vendor Security: Set or Update Security PIN ───
+export const setupSecurityPin = async (req, res) => {
+  try {
+    const { pin, currentPin } = req.body;
+    const cleanPin = String(pin || '').trim();
+
+    if (!cleanPin || cleanPin.length < 4 || cleanPin.length > 8) {
+      return res.status(400).json({ success: false, message: 'Security PIN must be between 4 and 8 digits' });
+    }
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    // If a PIN is already set, require verification of current PIN
+    if (vendor.security?.securityPin) {
+      if (!currentPin) {
+        return res.status(400).json({ success: false, message: 'Current PIN is required to set a new PIN' });
+      }
+      const isMatch = await bcrypt.compare(String(currentPin).trim(), vendor.security.securityPin);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Current PIN is incorrect' });
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPin = await bcrypt.hash(cleanPin, salt);
+
+    if (!vendor.security) {
+      vendor.security = {};
+    }
+    vendor.security.securityPin = hashedPin;
+    await vendor.save();
+
+    logger.info(`[Vendor Security] Vendor ${vendor._id} configured Security PIN`);
+    return res.status(200).json({
+      success: true,
+      message: 'Security PIN set successfully',
+      data: {
+        hasPin: true,
+        biometricEnabled: !!vendor.security.biometricEnabled,
+      },
+    });
+  } catch (error) {
+    logger.error(`[Vendor setupSecurityPin] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Vendor Security: Toggle Biometric Authentication ───
+export const toggleBiometricSecurity = async (req, res) => {
+  try {
+    const { enabled, credentialId } = req.body;
+    const isEnabled = Boolean(enabled);
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    if (!vendor.security) {
+      vendor.security = {};
+    }
+
+    // Require fallback PIN before enabling biometrics
+    if (isEnabled && !vendor.security.securityPin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please set up a Security PIN first as a fallback before enabling biometrics.',
+        code: 'PIN_REQUIRED',
+      });
+    }
+
+    vendor.security.biometricEnabled = isEnabled;
+    if (credentialId) {
+      vendor.security.biometricCredentialId = String(credentialId);
+    }
+    await vendor.save();
+
+    logger.info(`[Vendor Security] Vendor ${vendor._id} set biometricEnabled = ${isEnabled}`);
+    return res.status(200).json({
+      success: true,
+      message: isEnabled ? 'Biometric security enabled successfully' : 'Biometric security disabled',
+      data: {
+        biometricEnabled: vendor.security.biometricEnabled,
+        hasPin: !!vendor.security.securityPin,
+      },
+    });
+  } catch (error) {
+    logger.error(`[Vendor toggleBiometricSecurity] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Vendor Security: Verify Security PIN ───
+export const verifySecurityPin = async (req, res) => {
+  try {
+    const { pin } = req.body;
+    if (!pin) {
+      return res.status(400).json({ success: false, message: 'Security PIN is required' });
+    }
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    if (!vendor.security?.securityPin) {
+      return res.status(400).json({ success: false, message: 'No Security PIN is configured on this account' });
+    }
+
+    const isMatch = await bcrypt.compare(String(pin).trim(), vendor.security.securityPin);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Incorrect Security PIN. Please try again.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'PIN verified successfully',
+    });
+  } catch (error) {
+    logger.error(`[Vendor verifySecurityPin] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

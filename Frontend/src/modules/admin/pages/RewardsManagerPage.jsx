@@ -239,15 +239,60 @@ export default function RewardsManagerPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-on-surface-variant mb-2">Withdrawal Fee (%)</label>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Customer Fee (%)</label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="0.1"
+                  min="0"
+                  max="100"
                   value={rules.userWithdrawalCommissionPercent ?? 2}
                   onChange={(e) => setRules({ ...rules, userWithdrawalCommissionPercent: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50"
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-purple-700"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Vendor Fee (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={rules.vendorWithdrawalCommissionPercent ?? 2}
+                  onChange={(e) => setRules({ ...rules, vendorWithdrawalCommissionPercent: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-indigo-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">GST Rate (%)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="28"
+                  value={rules.withdrawalGstPercent ?? 18}
+                  onChange={(e) => setRules({ ...rules, withdrawalGstPercent: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-blue-700"
+                />
+              </div>
+            </div>
+
+            {/* GST Breakdown Display Option */}
+            <div className="mt-4 pt-4 border-t border-outline-variant/15 flex items-center justify-between">
+              <div>
+                <p className="text-[13.5px] font-bold text-gray-800">Show 18% GST Breakdown to Users & Vendors</p>
+                <p className="text-[12px] text-gray-500">
+                  When enabled, receipts show Base Platform Fee + 18% GST. If disabled, fee shows as a clean all-inclusive convenience fee.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(rules.enableWithdrawalGst)}
+                  onChange={(e) => setRules({ ...rules, enableWithdrawalGst: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
             </div>
           </div>
 

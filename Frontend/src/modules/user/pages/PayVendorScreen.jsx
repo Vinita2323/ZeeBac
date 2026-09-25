@@ -13,7 +13,7 @@ export default function PayVendorScreen() {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const updateBalance = useAuthStore((state) => state.updateBalance);
   const walletBalance = useAuthStore((state) => state.walletBalance);
-  const currentUser = useAuthStore((state) => state.user);
+  const currentUser = useAuthStore((state) => state.currentUser);
 
   if (!vendor) {
     return (
@@ -136,8 +136,9 @@ export default function PayVendorScreen() {
         },
         prefill: { 
           name: currentUser?.name || "Customer", 
-          contact: currentUser?.phone || "9999999999",
-          email: currentUser?.email || "customer@zeebac.com"
+          contact: currentUser?.phone ? String(currentUser.phone).replace(/\D/g, '').slice(-10) : "",
+          email: currentUser?.email || "",
+          method: paymentMethod?.toLowerCase() === 'upi' ? 'upi' : undefined
         },
         theme: { color: "#7c3aed" }
       };

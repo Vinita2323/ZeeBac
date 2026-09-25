@@ -418,7 +418,31 @@ function CashoutSubView({
         if (setWithdrawableBalance) {
           setWithdrawableBalance(prev => Math.max(0, prev - numAmount));
         }
-        setResult({ success: true, isAuto, amount: numAmount });
+        const grossAmount = numAmount;
+        const withdrawalFixedFee = 5;
+        const platformFeePercent = 2;
+        const platformFeeAmount = Math.round(((grossAmount * platformFeePercent) / 100) * 100) / 100;
+        const totalFee = res.data?.feeAmount ?? Math.round((withdrawalFixedFee + platformFeeAmount) * 100) / 100;
+        const baseFee = Math.round((totalFee / 1.18) * 100) / 100;
+        const gstAmount = res.data?.gstAmount ?? Math.round((totalFee - baseFee) * 100) / 100;
+        const netPayout = res.data?.netPayout ?? Math.max(0, Math.round((grossAmount - totalFee) * 100) / 100);
+
+        setResult({ 
+          success: true, 
+          isAuto, 
+          amount: numAmount,
+          grossAmount,
+          withdrawalFee: res.data?.withdrawalFee ?? withdrawalFixedFee,
+          platformFee: res.data?.platformFee ?? platformFeeAmount,
+          feeAmount: totalFee,
+          baseFee,
+          gstAmount,
+          netPayout,
+          bankName: bankDetails?.bankName,
+          accountNumber: bankDetails?.accountNumber,
+          upiId: bankDetails?.upiId,
+          referenceId: res.data?._id || `WTH-${Date.now()}`
+        });
       } else {
         setErrorMsg(res.message || 'Something went wrong, please try again');
       }
@@ -515,25 +539,73 @@ function CashoutSubView({
               <h2 className="font-display text-[22px] font-black text-on-surface">
                 {result.isAuto ? '✅ Withdrawal Successful!' : '⏳ Request Submitted!'}
               </h2>
-              <p className="text-on-surface-variant text-[14px] mt-2 leading-relaxed">
+              <p className="text-on-surface-variant text-[13px] mt-1.5 leading-relaxed">
                 {result.isAuto
-                  ? `₹${result.amount.toFixed(2)} will be transferred to your bank account within 1-2 hours.`
-                  : `Withdrawal request for ₹${result.amount.toFixed(2)} received. Withdrawals above ₹5,000 are subject to Admin review — it will be processed in 24-48 hours.`
+                  ? `₹${(result.netPayout ?? result.amount).toFixed(2)} will be transferred to your bank account within 1-2 hours.`
+                  : `Your request has been received. Withdrawals are verified by Admin and processed within 24-48 hours.`
                 }
               </p>
             </div>
 
-            {/* Amount Badge */}
-            <div className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-[18px] bg-orange-50 text-orange-700">
-              <span className="material-symbols-outlined text-[20px]">
-                pending
-              </span>
-              ₹{result.amount.toFixed(2)} — Pending Review
+            {/* Itemized Receipt Card */}
+            <div className="bg-white border border-outline-variant/30 rounded-2xl p-4 text-left space-y-2.5 shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                <span>Receipt Summary</span>
+                <span className="font-mono text-purple-700">{result.referenceId ? String(result.referenceId).slice(-8) : 'PROCESSED'}</span>
+              </div>
+
+              <div className="space-y-1.5 text-[12.5px]">
+                <div className="flex justify-between text-gray-600">
+                  <span>Gross Cashout:</span>
+                  <span className="font-bold text-gray-900 font-mono">₹{(result.grossAmount ?? result.amount).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>Withdrawal Fee:</span>
+                  <span className="font-mono text-gray-800 font-semibold">₹{(result.withdrawalFee ?? 5).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>Platform Fee (2%):</span>
+                  <span className="font-mono text-gray-800 font-semibold">₹{(result.platformFee ?? 0).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>GST (18% on Fee):</span>
+                  <span className="font-mono text-gray-800">₹{(result.gstAmount ?? 0).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-gray-100">
+                  <span>Total Fee Deduction:</span>
+                  <span className="font-mono">-₹{(result.feeAmount ?? 0).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t border-purple-200">
+                  <span className="font-black text-gray-900 text-[13.5px]">Net Bank Transfer:</span>
+                  <span className="font-black font-mono text-[19px] text-emerald-600">
+                    ₹{(result.netPayout ?? result.amount).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Destination Account */}
+              <div className="bg-purple-50/60 rounded-xl p-2.5 border border-purple-100/70 text-[11.5px] space-y-1 mt-2">
+                <div className="flex items-center gap-1.5 text-purple-900 font-bold">
+                  <span className="material-symbols-outlined text-[15px] text-purple-600">account_balance</span>
+                  <span>Destination Account</span>
+                </div>
+                <div className="text-gray-600 pl-5">
+                  <p className="font-semibold text-gray-800">{result.bankName || 'Verified Bank'}</p>
+                  <p className="font-mono text-[11px] text-gray-500">
+                    {result.accountNumber ? `A/C: •••• ${result.accountNumber.slice(-4)}` : result.upiId || 'Direct Bank Transfer'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <button
               onClick={onBack}
-              className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95"
+              className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined">arrow_back</span>
               Back to Wallet
@@ -632,6 +704,72 @@ function CashoutSubView({
           )}
 
           <p className="text-[11px] text-on-surface-variant/80 ml-2">Min ₹50 · Auto-approve up to ₹5,000</p>
+
+          {/* Live Fee & GST Breakdown Card */}
+          {parseFloat(amount) > 0 && (() => {
+            const numVal = parseFloat(amount);
+            const withdrawalFixedFee = 5;
+            const platformFeeAmount = Math.round(((numVal * 0.02)) * 100) / 100;
+            const totalFee = Math.round((withdrawalFixedFee + platformFeeAmount) * 100) / 100;
+            const baseFee = Math.round((totalFee / 1.18) * 100) / 100;
+            const gstAmount = Math.round((totalFee - baseFee) * 100) / 100;
+            const netPayout = Math.max(0, Math.round((numVal - totalFee) * 100) / 100);
+
+            return (
+              <div className="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/80 border border-purple-200/80 rounded-2xl p-4 text-left space-y-2.5 shadow-sm mt-3">
+                <div className="flex items-center justify-between text-[11px] font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-purple-100">
+                  <span className="flex items-center gap-1 text-purple-900">
+                    <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
+                    Cashout Breakdown
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-700 border border-purple-200">
+                    18% GST Compliant
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-[13px] text-gray-700">
+                  <span>Requested Amount:</span>
+                  <span className="font-bold text-gray-900 font-mono">₹{numVal.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-[13px] text-gray-700">
+                  <span>Withdrawal Fee:</span>
+                  <span className="font-bold text-rose-600 font-mono">-₹{withdrawalFixedFee.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-[13px] text-gray-700">
+                  <span>Platform Fee (2%):</span>
+                  <span className="font-bold text-rose-600 font-mono">-₹{platformFeeAmount.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-[13px] text-rose-600 font-bold pt-1 border-t border-purple-100">
+                  <span>Total Fee Deduction:</span>
+                  <span className="font-mono font-bold">-₹{totalFee.toFixed(2)}</span>
+                </div>
+
+                <div className="bg-purple-50/60 rounded-xl p-2.5 space-y-1 text-[11.5px] text-gray-600 border border-purple-100/70">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Base Fee:</span>
+                    <span className="font-mono font-semibold text-gray-800">₹{baseFee.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">GST @ 18% on Fee:</span>
+                    <span className="font-mono font-semibold text-gray-800">₹{gstAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-purple-200 flex justify-between items-center">
+                  <div>
+                    <span className="text-[13px] font-black text-gray-900 block leading-tight">Net Bank Payout:</span>
+                    <span className="text-[10.5px] text-emerald-600 font-bold">Credited to linked bank account</span>
+                  </div>
+                  <span className="font-display font-black text-[22px] text-emerald-600 font-mono">
+                    ₹{netPayout.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Destination Account */}

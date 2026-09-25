@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
-import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
+import { verifyBiometricCredential } from '../../../utils/biometric.util';
 
 export default function WalletPage() {
   const navigate = useNavigate();
@@ -21,7 +21,6 @@ export default function WalletPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
-  const [showLoanModal, setShowLoanModal] = useState(false);
   const [showPayLaterModal, setShowPayLaterModal] = useState(false);
   const [addAmount, setAmount] = useState(''); // Used for both add and withdraw
   const [isProcessing, setIsProcessing] = useState(false);
@@ -148,7 +147,8 @@ export default function WalletPage() {
         },
         prefill: {
           name: currentUser.ownerName || currentUser.storeName || 'Vendor',
-          contact: currentUser.phone || '9999999999',
+          contact: currentUser.phone ? String(currentUser.phone).replace(/\D/g, '').slice(-10) : '',
+          email: currentUser.email || '',
         },
         theme: {
           color: '#7E3AF2',
@@ -170,23 +170,91 @@ export default function WalletPage() {
     }
   };
 
-  const handleConfirmWithdraw = async () => {
-    if (!addAmount || Number(addAmount) <= 0) return;
-    if (Number(addAmount) > wallet?.balance) {
-      alert('Insufficient balance');
-      return;
-    }
-    if (!bankDetails?.accountNumber || !bankDetails?.ifscCode) {
-      alert('Please link your bank account first before requesting a withdrawal.');
-      return;
-    }
+  const [showWithdrawSuccessModal, setShowWithdrawSuccessModal] = useState(false);
+  const [withdrawalReceipt, setWithdrawalReceipt] = useState(null);
 
+  const withdrawNum = Number(addAmount) || 0;
+  const withdrawFeePercent = 2;
+  const withdrawalFixedFee = 5;
+  const withdrawPlatformFeeAmount = Math.round(((withdrawNum * withdrawFeePercent) / 100) * 100) / 100;
+  const withdrawFeeAmount = withdrawNum > 0 ? Math.round((withdrawalFixedFee + withdrawPlatformFeeAmount) * 100) / 100 : 0;
+  const withdrawBaseFee = Math.round((withdrawFeeAmount / 1.18) * 100) / 100;
+  const withdrawGstAmount = Math.round((withdrawFeeAmount - withdrawBaseFee) * 100) / 100;
+  const withdrawNetPayout = Math.max(0, Math.round((withdrawNum - withdrawFeeAmount) * 100) / 100);
+
+  // Biometric & PIN Security States
+  const isSecurityProtected = Boolean(currentUser?.security?.biometricEnabled || currentUser?.security?.hasPin);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [authMode, setAuthMode] = useState('biometric'); // 'biometric' | 'pin'
+  const [authPin, setAuthPin] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isVerifyingSecurity, setIsVerifyingSecurity] = useState(false);
+
+  const triggerBiometricPrompt = async () => {
+    setIsVerifyingSecurity(true);
+    setAuthError('');
+    try {
+      const bioRes = await verifyBiometricCredential(currentUser?.security?.biometricCredentialId);
+      if (bioRes.success) {
+        setShowSecurityModal(false);
+        await executeWithdrawal();
+      } else {
+        setAuthError(bioRes.error || 'Biometric validation failed. Use your PIN.');
+      }
+    } catch (err) {
+      console.error(err);
+      setAuthError('Biometric verification failed. Please enter your PIN.');
+    } finally {
+      setIsVerifyingSecurity(false);
+    }
+  };
+
+  const handleVerifyPinAndWithdraw = async (e) => {
+    if (e) e.preventDefault();
+    if (!authPin) return;
+
+    setIsVerifyingSecurity(true);
+    setAuthError('');
+    try {
+      const res = await VendorAPI.verifySecurityPin(authPin);
+      if (res.success) {
+        setShowSecurityModal(false);
+        setAuthPin('');
+        await executeWithdrawal();
+      } else {
+        setAuthError(res.message || 'Incorrect Security PIN.');
+      }
+    } catch (err) {
+      setAuthError(err.response?.data?.message || err.message || 'Incorrect PIN.');
+    } finally {
+      setIsVerifyingSecurity(false);
+    }
+  };
+
+  const executeWithdrawal = async () => {
     setIsProcessing(true);
     try {
       const res = await VendorAPI.requestWithdrawal(Number(addAmount));
       if (res.success) {
-        alert(`Withdrawal request for ₹${addAmount} submitted successfully!`);
-        window.location.reload();
+        setWithdrawalReceipt({
+          grossAmount: Number(addAmount),
+          withdrawalFee: res.data?.withdrawalFee ?? withdrawalFixedFee,
+          platformFee: res.data?.platformFee ?? withdrawPlatformFeeAmount,
+          gstAmount: res.data?.gstAmount ?? withdrawGstAmount,
+          feeAmount: res.data?.feeAmount ?? withdrawFeeAmount,
+          netPayout: res.data?.netPayout ?? withdrawNetPayout,
+          bankName: bankDetails?.bankName,
+          accountNumber: bankDetails?.accountNumber,
+          accountHolderName: bankDetails?.accountHolderName,
+          ifscCode: bankDetails?.ifscCode,
+          referenceId: res.data?._id || `WTH-${Date.now()}`,
+          createdAt: new Date(),
+        });
+        setWallet(prev => prev ? ({ ...prev, balance: Math.max(0, (prev.balance || 0) - Number(addAmount)) }) : prev);
+        setShowWithdrawModal(false);
+        setAmount('');
+        setShowWithdrawSuccessModal(true);
+        fetchWallet();
       } else {
         alert(res.message || 'Failed to submit withdrawal');
       }
@@ -195,9 +263,35 @@ export default function WalletPage() {
       alert(err.response?.data?.message || 'Error submitting withdrawal request');
     } finally {
       setIsProcessing(false);
-      setShowWithdrawModal(false);
-      setAmount('');
     }
+  };
+
+  const handleConfirmWithdraw = async () => {
+    if (!addAmount || Number(addAmount) <= 0) return;
+    if (Number(addAmount) > (wallet?.balance || 0)) {
+      alert('Insufficient wallet balance');
+      return;
+    }
+    if (!bankDetails?.accountNumber || !bankDetails?.ifscCode) {
+      alert('Please link your bank account first before requesting a withdrawal.');
+      return;
+    }
+
+    if (isSecurityProtected) {
+      setAuthError('');
+      setAuthPin('');
+      if (currentUser?.security?.biometricEnabled) {
+        setAuthMode('biometric');
+        setShowSecurityModal(true);
+        setTimeout(() => triggerBiometricPrompt(), 200);
+      } else {
+        setAuthMode('pin');
+        setShowSecurityModal(true);
+      }
+      return;
+    }
+
+    await executeWithdrawal();
   };
 
   // ─── Bank Account Management Handlers ───
@@ -479,31 +573,6 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* Merchant Working Capital Banner (Coming Soon) */}
-          <div 
-            onClick={() => setShowLoanModal(true)}
-            className="bg-gradient-to-r from-slate-950 via-indigo-950 to-purple-950 text-white rounded-2xl p-3 sm:p-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] border border-indigo-900/50 max-w-4xl"
-          >
-            <div className="flex items-center justify-between gap-2 sm:gap-4">
-              <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-                  <span className="material-symbols-outlined text-[19px] sm:text-[22px]">payments</span>
-                </div>
-                <div className="text-left min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className="text-[8px] sm:text-[8.5px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
-                    <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Merchant Capital</span>
-                  </div>
-                  <p className="text-[12px] sm:text-[13.5px] font-bold text-white leading-tight">Need Working Capital? Apply for Business Loan (Up to ₹25L)</p>
-                  <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">0% Property Collateral • Auto daily micro-deduction from sales</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-[9.5px] sm:text-xs shrink-0 transition-colors">
-                <span className="whitespace-nowrap">Apply</span>
-                <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
-              </div>
-            </div>
-          </div>
 
           {/* Vendor Shop & Pay Later Banner (Upto ₹25,000 Credit Limit) */}
           <div 
@@ -787,8 +856,64 @@ export default function WalletPage() {
                 </div>
               </div>
 
+              {/* Live Fee & GST Breakdown Card */}
+              {withdrawNum > 0 && (
+                <div className="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/80 border border-purple-200/80 rounded-2xl p-4 text-left space-y-2.5 shadow-sm">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-purple-100">
+                    <span className="flex items-center gap-1 text-purple-900">
+                      <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
+                      Payout Breakdown
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-700 border border-purple-200">
+                      18% GST Compliant
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-[13px] text-gray-700">
+                    <span>Withdrawal Amount:</span>
+                    <span className="font-bold text-gray-900 font-mono">₹{withdrawNum.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-[13px] text-gray-700">
+                    <span>Withdrawal Fee:</span>
+                    <span className="font-bold text-rose-600 font-mono">-₹{withdrawalFixedFee.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-[13px] text-gray-700">
+                    <span>Platform Fee (2%):</span>
+                    <span className="font-bold text-rose-600 font-mono">-₹{withdrawPlatformFeeAmount.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-[13px] text-rose-600 font-bold pt-1 border-t border-purple-100">
+                    <span>Total Fee Deduction:</span>
+                    <span className="font-mono font-bold">-₹{withdrawFeeAmount.toFixed(2)}</span>
+                  </div>
+
+                  <div className="bg-purple-50/60 rounded-xl p-2.5 space-y-1 text-[11.5px] text-gray-600 border border-purple-100/70">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Base Fee:</span>
+                      <span className="font-mono font-semibold text-gray-800">₹{withdrawBaseFee.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">GST @ 18% on Fee:</span>
+                      <span className="font-mono font-semibold text-gray-800">₹{withdrawGstAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-purple-200 flex justify-between items-center">
+                    <div>
+                      <span className="text-[13px] font-black text-gray-900 block leading-tight">Net Bank Payout:</span>
+                      <span className="text-[10.5px] text-emerald-600 font-bold">Transferred to linked bank</span>
+                    </div>
+                    <span className="font-display font-black text-[22px] text-emerald-600 font-mono">
+                      ₹{withdrawNetPayout.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="text-[11px] text-on-surface-variant/70 text-center">
-                Withdrawals are processed to your linked bank account within 24-48 business hours.
+                Withdrawals are reviewed by Admin and credited to your verified bank account within 24-48 business hours.
               </div>
 
               <button
@@ -809,11 +934,96 @@ export default function WalletPage() {
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                    Withdraw ₹{addAmount || '0'}
+                    Withdraw Net ₹{withdrawNetPayout > 0 ? withdrawNetPayout.toFixed(2) : '0.00'}
                   </>
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── WITHDRAWAL SUCCESS RECEIPT MODAL ─── */}
+      {showWithdrawSuccessModal && withdrawalReceipt && (
+        <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWithdrawSuccessModal(false)} />
+          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-5 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp text-center space-y-4 max-h-[90dvh] overflow-y-auto">
+            {/* Header Icon */}
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+              <span className="material-symbols-outlined text-[36px]">check_circle</span>
+            </div>
+
+            <div>
+              <h3 className="font-display text-[20px] font-black text-gray-900">
+                Withdrawal Submitted!
+              </h3>
+              <p className="text-[12.5px] text-gray-500 mt-1">
+                Your request has been received and will be processed to your bank within 24-48 business hours.
+              </p>
+            </div>
+
+            {/* Receipt Card */}
+            <div className="bg-[#fcfaff] border border-purple-100 rounded-2xl p-4 text-left space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-purple-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                <span>Transaction Receipt</span>
+                <span className="font-mono text-purple-700">{withdrawalReceipt.referenceId?.toString().slice(-8)}</span>
+              </div>
+
+              <div className="space-y-1.5 text-[12.5px]">
+                <div className="flex justify-between text-gray-600">
+                  <span>Gross Withdrawal:</span>
+                  <span className="font-bold text-gray-900 font-mono">₹{withdrawalReceipt.grossAmount.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>Withdrawal Fee:</span>
+                  <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.withdrawalFee ?? 5).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>Platform Fee (2%):</span>
+                  <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.platformFee ?? 0).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>GST (18% on Fee):</span>
+                  <span className="font-mono text-gray-800">₹{(withdrawalReceipt.gstAmount ?? 0).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-purple-100">
+                  <span>Total Fee Deduction:</span>
+                  <span className="font-mono">-₹{withdrawalReceipt.feeAmount.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t border-purple-200">
+                  <span className="font-black text-gray-900 text-[13.5px]">Net Bank Transfer:</span>
+                  <span className="font-black font-mono text-[18px] text-emerald-600">
+                    ₹{withdrawalReceipt.netPayout.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Destination Bank Snapshot */}
+              <div className="bg-white rounded-xl p-2.5 border border-purple-100/80 text-[11.5px] space-y-1 mt-2">
+                <div className="flex items-center gap-1.5 text-purple-900 font-bold">
+                  <span className="material-symbols-outlined text-[15px] text-purple-600">account_balance</span>
+                  <span>Destination Account</span>
+                </div>
+                <div className="text-gray-600 pl-5">
+                  <p className="font-semibold text-gray-800">{withdrawalReceipt.bankName || 'Verified Bank'}</p>
+                  <p className="font-mono text-[11px] text-gray-500">
+                    A/C: •••• {withdrawalReceipt.accountNumber ? withdrawalReceipt.accountNumber.slice(-4) : '****'} • IFSC: {withdrawalReceipt.ifscCode || 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowWithdrawSuccessModal(false)}
+              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-[14.5px] transition-all shadow-md active:scale-[0.98] cursor-pointer"
+            >
+              Done & Return to Wallet
+            </button>
           </div>
         </div>
       )}
@@ -1056,11 +1266,133 @@ export default function WalletPage() {
           </div>
         </div>
       )}
-      {/* Vendor Loan Modal */}
-      <VendorLoanModal
-        isOpen={showLoanModal}
-        onClose={() => setShowLoanModal(false)}
-      />
+      {/* Security Verification Modal (Biometrics / PIN Fallback) */}
+      {showSecurityModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-reveal">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-center border border-gray-150">
+            <div className="flex items-center justify-between pb-1 border-b border-outline-variant/10">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">
+                    {authMode === 'biometric' ? 'fingerprint' : 'lock'}
+                  </span>
+                </div>
+                <h3 className="font-display font-bold text-[15px] text-on-surface">Security Authorization</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSecurityModal(false)}
+                className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+
+            {/* Amount badge */}
+            <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-2xl">
+              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Withdrawing</p>
+              <p className="text-[26px] font-black text-primary">₹{parseFloat(addAmount || 0).toFixed(2)}</p>
+              <p className="text-[10px] text-on-surface-variant font-medium">To {bankDetails?.bankName || 'Linked Bank'}</p>
+            </div>
+
+            {authMode === 'biometric' ? (
+              <div className="space-y-4 py-2">
+                <div className="w-20 h-20 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center mx-auto shadow-inner">
+                  <span className="material-symbols-outlined text-[44px] animate-pulse">fingerprint</span>
+                </div>
+                <div>
+                  <p className="font-bold text-[14px] text-on-surface">Touch Fingerprint or Face ID</p>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">Authorize transfer on your device</p>
+                </div>
+
+                {authError && (
+                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-medium text-left">
+                    {authError}
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={triggerBiometricPrompt}
+                    disabled={isVerifyingSecurity}
+                    className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {isVerifyingSecurity ? (
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[18px]">fingerprint</span>
+                        Verify with Biometrics
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('pin'); setAuthError(''); setAuthPin(''); }}
+                    className="w-full h-10 border border-outline-variant/30 text-on-surface font-bold text-[12px] rounded-xl hover:bg-gray-50 active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-primary">pin</span>
+                    Use PIN / Password Instead
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleVerifyPinAndWithdraw} className="space-y-3.5 py-1 text-left">
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                    Enter Security PIN / Password
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    autoFocus
+                    required
+                    value={authPin}
+                    onChange={(e) => { setAuthPin(e.target.value.replace(/\D/g, '')); setAuthError(''); }}
+                    placeholder="Enter 4-8 digit PIN"
+                    className="w-full h-12 px-4 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[16px] font-bold tracking-widest text-on-surface text-center"
+                  />
+                </div>
+
+                {authError && (
+                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-medium text-left">
+                    {authError}
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={isVerifyingSecurity || !authPin}
+                    className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {isVerifyingSecurity ? (
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      'Verify & Confirm Cashout'
+                    )}
+                  </button>
+
+                  {currentUser?.security?.biometricEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => { setAuthMode('biometric'); setAuthError(''); }}
+                      className="w-full py-1 text-[11px] text-primary font-bold hover:underline cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">fingerprint</span>
+                      Switch back to Biometrics
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Vendor Pay Later Modal */}
       <VendorPayLaterModal
         isOpen={showPayLaterModal}

@@ -6,6 +6,7 @@ import ShopTab from '../components/vendor-detail/ShopTab';
 import PhotosTab from '../components/vendor-detail/PhotosTab';
 import ReviewsTab from '../components/vendor-detail/ReviewsTab';
 import StoryViewerModal from '../components/StoryViewerModal';
+import MediaLightboxModal from '../components/MediaLightboxModal';
 
 export default function VendorDetailScreen() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function VendorDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [vendorStories, setVendorStories] = useState([]);
   const [showStoryViewer, setShowStoryViewer] = useState(false);
+  const [showHeroLightbox, setShowHeroLightbox] = useState(false);
 
   const defaultVendor = {
     _id: 1,
@@ -93,39 +95,67 @@ export default function VendorDetailScreen() {
     <div className="mesh-gradient text-on-surface font-body-lg min-h-screen pb-12">
 
       {/* Hero Banner Section */}
-      <header className="relative h-[280px] w-full overflow-hidden bg-surface-container-high flex items-center justify-center">
-        {vendor.storeLogo || vendor.profilePic ? (
+      <header className="relative h-[280px] w-full overflow-hidden bg-surface-container-high flex items-center justify-center group">
+        {vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage ? (
           <img
             alt={vendor.storeName}
-            className="w-full h-full object-cover"
-            src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
+            className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-700"
+            src={(vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage).startsWith('http') || (vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage}`}
+            onClick={() => setShowHeroLightbox(true)}
+            title="Click to view full image"
           />
         ) : (
           <span className="material-symbols-outlined text-6xl text-on-surface-variant">store</span>
         )}
         {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none"></div>
 
         {/* Navigation Bar inside Header */}
         <div className="absolute top-0 left-0 right-0 p-container-margin flex justify-between items-center z-20">
           <button
             onClick={() => navigate(-1)}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer"
+            className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer hover:bg-white/30"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
 
-          <button
-            onClick={handleFavoriteToggle}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer"
-          >
-            <span
-              className={`material-symbols-outlined ${isFavorite ? 'text-red-500' : ''}`}
-              style={{ fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+          <div className="flex items-center gap-2">
+            {(vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage) && (
+              <button
+                onClick={() => setShowHeroLightbox(true)}
+                title="View full cover photo"
+                className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer hover:bg-white/30"
+              >
+                <span className="material-symbols-outlined text-[20px]">zoom_in</span>
+              </button>
+            )}
+
+            {/* Prominent Help Pill Button for Customers */}
+            <a
+              href={`https://wa.me/919111966732?text=${encodeURIComponent(`Hello Zeebac Support, I need help regarding store: ${vendor.storeName || 'Vendor'}`)}`}
+              target="_blank"
+              rel="noreferrer"
+              title="24x7 Help & Support on WhatsApp"
+              className="h-11 px-3.5 flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-[#25D366] hover:from-emerald-600 hover:to-emerald-500 text-white transition-transform active:scale-95 cursor-pointer shadow-md shadow-black/20"
             >
-              favorite
-            </span>
-          </button>
+              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+              </svg>
+              <span className="text-[12px] font-black tracking-wide">Help</span>
+            </a>
+
+            <button
+              onClick={handleFavoriteToggle}
+              className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer hover:bg-white/30"
+            >
+              <span
+                className={`material-symbols-outlined ${isFavorite ? 'text-red-500' : ''}`}
+                style={{ fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                favorite
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Vendor Name Text */}
@@ -197,7 +227,7 @@ export default function VendorDetailScreen() {
 
         {activeTab === 'overview' && <OverviewTab vendor={vendor} />}
         {activeTab === 'shop' && <ShopTab vendor={vendor} />}
-        {activeTab === 'photos' && <PhotosTab vendorId={vendor._id} />}
+        {activeTab === 'photos' && <PhotosTab vendorId={vendor._id} vendor={vendor} />}
         {activeTab === 'reviews' && <ReviewsTab vendorId={vendor._id} vendor={vendor} />}
       </main>
 
@@ -257,6 +287,21 @@ export default function VendorDetailScreen() {
           groups={[{ vendor, stories: vendorStories }]}
           initialGroupIndex={0}
           onClose={() => setShowStoryViewer(false)}
+        />
+      )}
+
+      {/* Hero Banner Lightbox Modal */}
+      {showHeroLightbox && (
+        <MediaLightboxModal
+          isOpen={showHeroLightbox}
+          mediaItems={[
+            {
+              url: vendor.storeCoverImage || vendor.storeLogo || vendor.profilePic,
+              caption: `${vendor.storeName || 'Store'} Cover Photo`,
+            }
+          ]}
+          initialIndex={0}
+          onClose={() => setShowHeroLightbox(false)}
         />
       )}
 

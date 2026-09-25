@@ -1,8 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import useLanguageStore from '../../../../store/useLanguageStore';
 
 export default function VendorBottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguageStore();
 
   const navItems = [
     { label: 'Home', icon: 'home', path: '/vendor', exact: true },
@@ -36,7 +38,9 @@ export default function VendorBottomNav() {
             >
               {item.icon}
             </span>
-            <span className="font-display text-[8.5px] sm:text-[9px] mt-0.5 font-bold tracking-tight truncate w-full text-center">{item.label}</span>
+            <span className="font-display text-[8.5px] sm:text-[9px] mt-0.5 font-bold tracking-tight truncate w-full text-center">
+              {t(item.label)}
+            </span>
           </button>
         );
       })}

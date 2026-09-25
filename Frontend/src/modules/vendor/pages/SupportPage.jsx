@@ -85,6 +85,52 @@ export default function SupportPage() {
           <p className="text-[13px] text-on-surface-variant">We are here to help you grow your business.</p>
         </div>
 
+        {/* Quick Contact Channels (WhatsApp & Call) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <a
+            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20partner%20store%20and%20need%20assistance."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                </div>
+                <p className="text-[12px] text-white/95 font-medium mt-0.5">+91 91119 66732 · Merchant Help</p>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0">
+              <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+            </div>
+          </a>
+
+          <a
+            href="tel:+919111966732"
+            className="p-4 bg-white border border-outline-variant/20 hover:border-primary/30 text-on-surface rounded-2xl flex items-center justify-between shadow-sm hover:shadow active:scale-[0.98] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[24px]">phone_in_talk</span>
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-[14.5px] leading-tight block text-on-surface">Call Helpline</span>
+                <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">+91 91119 66732 · Toll-Free</p>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 text-on-surface-variant">
+              <span className="material-symbols-outlined text-[20px]">call</span>
+            </div>
+          </a>
+        </div>
+
         {/* FAQs */}
         <div className="space-y-3">
           <h3 className="font-bold text-[15px] text-on-surface">Frequently Asked Questions</h3>

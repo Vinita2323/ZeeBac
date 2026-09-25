@@ -34,9 +34,10 @@ export const initSocket = (httpServer) => {
   io.on('connection', (socket) => {
     logger.info(`Socket connected: ${socket.id} (User: ${socket.user.id}, Role: ${socket.user.role})`);
 
-    // Auto-join private user / vendor rooms for targeted real-time events
+    // Auto-join private user / vendor / customer rooms for targeted real-time events
     if (socket.user?.id) {
       socket.join(`user_${socket.user.id}`);
+      socket.join(`customer_${socket.user.id}`);
       socket.join(`vendor_${socket.user.id}`);
     }
 

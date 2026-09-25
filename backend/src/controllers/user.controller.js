@@ -361,8 +361,8 @@ export const createCustomerTransaction = async (req, res) => {
       recipientType: 'vendor',
       fcmTokens: vendor.fcmTokens || [],
       type: 'approval',
-      title: `🔑 Cash Cashback Request: ₹${cashbackAmount}`,
-      message: `${customer.name || customer.phone} requested ₹${cashbackAmount} cashback on ₹${amount} cash. Share Code: ${verificationCode} with customer to auto-approve.`,
+      title: `🔑 OTP: ${verificationCode} | Amount: ₹${amount}`,
+      message: `Cash OTP: ${verificationCode} • Share with ${customer.name || customer.phone} (Cashback: ₹${cashbackAmount} on ₹${amount} cash)`,
       icon: 'pin',
       referenceId: request._id,
       referenceType: 'cashback_request',
@@ -371,6 +371,7 @@ export const createCustomerTransaction = async (req, res) => {
         verificationCode,
         amount: String(amount),
         cashbackAmount: String(cashbackAmount),
+        isCashMode: 'true',
       },
     });
 
@@ -381,6 +382,7 @@ export const createCustomerTransaction = async (req, res) => {
         amount: parseFloat(amount),
         cashbackAmount,
         verificationCode,
+        paymentMethod: 'Cash',
       });
     } catch (socketErr) {
       logger.warn(`Socket emit error for vendor ${vendor._id}: ${socketErr.message}`);
@@ -552,25 +554,56 @@ export const verifyCashbackRequestCode = async (req, res) => {
       recipientType: 'customer',
       fcmTokens: customer.fcmTokens || [],
       type: 'credit',
-      title: '✅ Cashback Approved!',
+      title: '✅ Cashback Credited: ₹' + cashbackAmount,
       message: `₹${cashbackAmount} cashback from ${vendor.storeName} credited! (Locked for 24h from bank withdrawal)`,
       icon: 'check_circle',
       referenceId: txn._id,
       referenceType: 'transaction',
+      data: {
+        cashbackAmount: String(cashbackAmount),
+        amount: String(request.amount),
+        vendorName: vendor.storeName,
+      },
     });
 
-    // Notify Vendor
+    // Notify Vendor with type 'credit' (renders green)
     sendNotification({
       recipientId: vendor._id,
       recipientType: 'vendor',
       fcmTokens: vendor.fcmTokens || [],
-      type: 'system',
-      title: '🎉 Cash Cashback Verified',
-      message: `${customer.name || customer.phone}'s ₹${cashbackAmount} cashback auto-approved via 3-digit code.`,
+      type: 'credit',
+      title: '✅ Cashback Successful: ₹' + cashbackAmount,
+      message: `${customer.name || customer.phone}'s ₹${cashbackAmount} cashback auto-approved via OTP code ${cleanCode}.`,
       icon: 'verified',
       referenceId: txn._id,
       referenceType: 'transaction',
+      data: {
+        requestId: request._id.toString(),
+        cashbackAmount: String(cashbackAmount),
+        amount: String(request.amount),
+        status: 'Approved',
+        verificationCode: cleanCode,
+      },
     });
+
+    try {
+      getIO()?.to(`customer_${customer._id}`).emit('cashback_approved', {
+        requestId: request._id,
+        cashbackAmount,
+        amount: request.amount,
+        vendorName: vendor.storeName,
+        transactionId: txn.transactionId,
+      });
+      getIO()?.to(`vendor_${vendor._id}`).emit('cash_request_verified', {
+        requestId: request._id,
+        customerName: customer.name || customer.phone,
+        cashbackAmount,
+        amount: request.amount,
+        verificationCode: cleanCode,
+      });
+    } catch (socketErr) {
+      logger.warn(`Socket emit error on verification: ${socketErr.message}`);
+    }
 
     if (referralAward) {
       sendNotification({
@@ -1320,8 +1353,14 @@ export const requestWithdrawal = async (req, res) => {
       });
     }
 
-    const feeAmount = Math.round(((reqAmount * commissionPercent) / 100) * 100) / 100;
-    const netPayout = Math.round((reqAmount - feeAmount) * 100) / 100;
+    const withdrawalFixedFee = config.withdrawalFixedFee !== undefined ? Number(config.withdrawalFixedFee) : 5;
+    const platformFee = Math.round(((reqAmount * commissionPercent) / 100) * 100) / 100;
+    const withdrawalFee = withdrawalFixedFee;
+    const feeAmount = Math.round((withdrawalFee + platformFee) * 100) / 100;
+    const gstPercent = config.withdrawalGstPercent ?? 18;
+    const baseFee = Math.round((feeAmount / (1 + gstPercent / 100)) * 100) / 100;
+    const gstAmount = Math.round((feeAmount - baseFee) * 100) / 100;
+    const netPayout = Math.max(0, Math.round((reqAmount - feeAmount) * 100) / 100);
 
     // Deduct balance
     wallet.balance -= reqAmount;
@@ -1334,11 +1373,16 @@ export const requestWithdrawal = async (req, res) => {
       ownerType: 'User',
       type: 'debit',
       amount: reqAmount,
+      withdrawalFee,
       feeAmount,
+      platformFee,
+      gstAmount,
+      feePercent: commissionPercent,
+      gstPercent,
       netPayout,
       balanceAfter: wallet.balance,
       category: 'cashout',
-      description: `Bank Withdrawal Request (Fee: ₹${feeAmount}, Net: ₹${netPayout})`,
+      description: `Bank Withdrawal Request (Withdrawal Fee: ₹${withdrawalFee} + Platform Fee: ₹${platformFee}, Net: ₹${netPayout})`,
       status: 'Pending'
     });
 
@@ -1349,13 +1393,21 @@ export const requestWithdrawal = async (req, res) => {
       fcmTokens: (await User.findById(req.user.id).select('fcmTokens'))?.fcmTokens || [],
       type: 'system',
       title: '⏳ Withdrawal Request Received',
-      message: `Your withdrawal request for ₹${reqAmount} (Net Payout: ₹${netPayout} after ${commissionPercent}% fee) is pending Admin review.`,
+      message: `Your withdrawal request for ₹${reqAmount} (Net Payout: ₹${netPayout} after ₹${feeAmount} fee deduction: ₹${withdrawalFee} withdrawal fee + ₹${platformFee} platform fee) is pending Admin review.`,
       icon: 'schedule',
     });
 
     res.status(200).json({ 
       success: true, 
-      data: withdrawalTx, 
+      data: {
+        ...withdrawalTx.toObject(),
+        grossAmount: reqAmount,
+        withdrawalFee,
+        platformFee,
+        gstAmount,
+        feeAmount,
+        netPayout,
+      }, 
       message: 'Withdrawal requested successfully (Pending Admin Approval)' 
     });
   } catch (error) {

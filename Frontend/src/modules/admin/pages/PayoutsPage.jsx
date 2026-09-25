@@ -99,90 +99,123 @@ export default function PayoutsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
+          <table className="w-full text-left border-collapse min-w-[950px]">
             <thead>
-              <tr className="border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant bg-white">
+              <tr className="border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant bg-[#fcfcff]">
                 <th className="p-4 font-bold">Requested By</th>
                 <th className="p-4 font-bold">Bank Details</th>
-                <th className="p-4 font-bold">Amount</th>
+                <th className="p-4 font-bold">Gross Requested</th>
+                <th className="p-4 font-bold">Platform Fee (2% + GST)</th>
+                <th className="p-4 font-bold">Net Bank Transfer</th>
                 <th className="p-4 font-bold">Requested At</th>
                 <th className="p-4 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan="5" className="p-8 text-center">Loading...</td></tr>
+                <tr><td colSpan="7" className="p-8 text-center">Loading payouts...</td></tr>
               ) : currentList.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-on-surface-variant font-bold">No pending requests in this category.</td></tr>
+                <tr><td colSpan="7" className="p-8 text-center text-on-surface-variant font-bold">No pending requests in this category.</td></tr>
               ) : (
-                currentList.map((item) => (
-                  <tr key={item._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">
-                    <td className="p-4">
-                      {activeTab === 'vendors' ? (
-                        <div>
-                          <p className="font-bold text-on-surface">{item.vendorId?.storeName || 'Unknown Store'}</p>
-                          <p className="text-[12px] text-on-surface-variant">{item.vendorId?.ownerName} • {item.vendorId?.phone}</p>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="font-bold text-on-surface">{item.ownerId?.name || 'Unknown User'}</p>
-                          <p className="text-[12px] text-on-surface-variant">{item.ownerId?.phone}</p>
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-4 text-[13px] text-on-surface-variant">
-                      {activeTab === 'vendors' ? (
+                currentList.map((item) => {
+                  const gross = item.amount || 0;
+                  const fixedFee = item.withdrawalFee !== undefined ? item.withdrawalFee : 5;
+                  const platFee = item.platformFee || Math.round((gross * 0.02) * 100) / 100;
+                  const fee = item.feeAmount || Math.round((fixedFee + platFee) * 100) / 100;
+                  const baseFee = Math.round((fee / 1.18) * 100) / 100;
+                  const gst = item.gstAmount || Math.round((fee - baseFee) * 100) / 100;
+                  const net = item.netPayout || Math.max(0, Math.round((gross - fee) * 100) / 100);
+
+                  return (
+                    <tr key={item._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">
+                      <td className="p-4">
+                        {activeTab === 'vendors' ? (
+                          <div>
+                            <p className="font-bold text-on-surface">{item.vendorId?.storeName || 'Unknown Store'}</p>
+                            <p className="text-[12px] text-on-surface-variant">{item.vendorId?.ownerName} • {item.vendorId?.phone}</p>
+                            {item.vendorId?.zeebacId && (
+                              <span className="text-[11px] font-mono text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded font-semibold">{item.vendorId.zeebacId}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="font-bold text-on-surface">{item.ownerId?.name || 'Unknown User'}</p>
+                            <p className="text-[12px] text-on-surface-variant">{item.ownerId?.phone}</p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 text-[13px] text-on-surface-variant">
+                        {activeTab === 'vendors' ? (
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-on-surface text-[13.5px]">
+                              {item.bankDetailsSnapshot?.accountHolderName || item.vendorId?.bankDetails?.accountHolderName || item.vendorId?.ownerName || 'N/A'}
+                            </p>
+                            <p><span className="font-semibold text-gray-700">Bank:</span> {item.bankDetailsSnapshot?.bankName || item.vendorId?.bankDetails?.bankName || 'N/A'}</p>
+                            <p className="font-mono"><span className="font-semibold text-gray-700 font-sans">A/C:</span> {item.bankDetailsSnapshot?.accountNumber || item.vendorId?.bankDetails?.accountNumber || 'N/A'}</p>
+                            <p className="font-mono"><span className="font-semibold text-gray-700 font-sans">IFSC:</span> {item.bankDetailsSnapshot?.ifscCode || item.vendorId?.bankDetails?.ifscCode || 'N/A'}</p>
+                            {(item.bankDetailsSnapshot?.upiId || item.vendorId?.bankDetails?.upiId) && (
+                              <p><span className="font-semibold text-gray-700">UPI:</span> {item.bankDetailsSnapshot?.upiId || item.vendorId?.bankDetails?.upiId}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            {!(item.ownerId?.bankDetails?.upiId || item.ownerId?.bankDetails?.accountNumber) && (
+                              <span className="italic text-[12px] text-red-500">Bank info missing</span>
+                            )}
+                            {item.ownerId?.bankDetails?.accountNumber && (
+                              <div className="mb-1 border-b border-outline-variant/10 pb-1">
+                                <p><span className="font-bold">Bank:</span> {item.ownerId.bankDetails.bankName || 'N/A'}</p>
+                                <p><span className="font-bold">A/C:</span> {item.ownerId.bankDetails.accountNumber}</p>
+                                {item.ownerId.bankDetails.ifscCode && <p><span className="font-bold">IFSC:</span> {item.ownerId.bankDetails.ifscCode}</p>}
+                              </div>
+                            )}
+                            {item.ownerId?.bankDetails?.upiId && (
+                              <p><span className="font-bold">UPI:</span> {item.ownerId.bankDetails.upiId}</p>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 font-bold text-[15px] text-gray-900 font-mono">
+                        ₹{gross.toLocaleString()}
+                      </td>
+                      <td className="p-4">
                         <div className="space-y-0.5">
-                          <p className="font-bold text-on-surface text-[13.5px]">
-                            {item.bankDetailsSnapshot?.accountHolderName || item.vendorId?.bankDetails?.accountHolderName || item.vendorId?.ownerName || 'N/A'}
+                          <p className="font-bold text-[13.5px] text-rose-600 font-mono">-₹{fee.toFixed(2)}</p>
+                          <p className="text-[11px] text-gray-500">
+                            Base: ₹{baseFee.toFixed(2)} · <span className="text-purple-700 font-medium">GST 18%: ₹{gst.toFixed(2)}</span>
                           </p>
-                          <p><span className="font-semibold text-gray-700">Bank:</span> {item.bankDetailsSnapshot?.bankName || item.vendorId?.bankDetails?.bankName || 'N/A'}</p>
-                          <p className="font-mono"><span className="font-semibold text-gray-700 font-sans">A/C:</span> {item.bankDetailsSnapshot?.accountNumber || item.vendorId?.bankDetails?.accountNumber || 'N/A'}</p>
-                          <p className="font-mono"><span className="font-semibold text-gray-700 font-sans">IFSC:</span> {item.bankDetailsSnapshot?.ifscCode || item.vendorId?.bankDetails?.ifscCode || 'N/A'}</p>
-                          {(item.bankDetailsSnapshot?.upiId || item.vendorId?.bankDetails?.upiId) && (
-                            <p><span className="font-semibold text-gray-700">UPI:</span> {item.bankDetailsSnapshot?.upiId || item.vendorId?.bankDetails?.upiId}</p>
-                          )}
                         </div>
-                      ) : (
-                        <div>
-                          {!(item.ownerId?.bankDetails?.upiId || item.ownerId?.bankDetails?.accountNumber) && (
-                            <span className="italic text-[12px] text-red-500">Bank info missing</span>
-                          )}
-                          {item.ownerId?.bankDetails?.accountNumber && (
-                            <div className="mb-1 border-b border-outline-variant/10 pb-1">
-                              <p><span className="font-bold">Bank:</span> {item.ownerId.bankDetails.bankName || 'N/A'}</p>
-                              <p><span className="font-bold">A/C:</span> {item.ownerId.bankDetails.accountNumber}</p>
-                              {item.ownerId.bankDetails.ifscCode && <p><span className="font-bold">IFSC:</span> {item.ownerId.bankDetails.ifscCode}</p>}
-                            </div>
-                          )}
-                          {item.ownerId?.bankDetails?.upiId && (
-                            <p><span className="font-bold">UPI:</span> {item.ownerId.bankDetails.upiId}</p>
-                          )}
+                      </td>
+                      <td className="p-4">
+                        <div className="inline-block bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-xl">
+                          <p className="font-display font-black text-[16px] text-emerald-700 font-mono">
+                            ₹{net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">To Transfer</span>
                         </div>
-                      )}
-                    </td>
-                    <td className="p-4 font-bold text-[16px] text-primary">₹{item.amount.toLocaleString()}</td>
-                    <td className="p-4 text-[12px] text-on-surface-variant">{new Date(item.createdAt).toLocaleString()}</td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openModal(item, activeTab === 'vendors' ? 'Vendor' : 'User', 'Approve')}
-                          disabled={isProcessing}
-                          className="px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => openModal(item, activeTab === 'vendors' ? 'Vendor' : 'User', 'Reject')}
-                          disabled={isProcessing}
-                          className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 font-bold rounded text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="p-4 text-[12px] text-on-surface-variant whitespace-nowrap">{new Date(item.createdAt).toLocaleString()}</td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openModal(item, activeTab === 'vendors' ? 'Vendor' : 'User', 'Approve')}
+                            disabled={isProcessing}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[12px] transition-colors disabled:opacity-50 cursor-pointer shadow-sm shadow-emerald-500/20"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => openModal(item, activeTab === 'vendors' ? 'Vendor' : 'User', 'Reject')}
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-[12px] transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -205,12 +238,50 @@ export default function PayoutsPage() {
                 {modal.action === 'Approve' && ' Please transfer funds to the verified account below and enter the Bank/UPI Transaction ID (UTR).'}
               </p>
 
-              {modal.action === 'Approve' && modal.item && (
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.75rem', padding: '0.85rem', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.4rem' }}>
-                    <span style={{ fontWeight: 'bold', color: '#334155' }}>Destination Account ({modal.type})</span>
-                    <span style={{ fontWeight: '900', color: '#7E3AF2', fontSize: '14px' }}>₹{modal.item.amount?.toLocaleString()}</span>
-                  </div>
+              {modal.action === 'Approve' && modal.item && (() => {
+                const gross = modal.item.amount || 0;
+                const fixedFee = modal.item.withdrawalFee !== undefined ? modal.item.withdrawalFee : 5;
+                const platFee = modal.item.platformFee || Math.round((gross * 0.02) * 100) / 100;
+                const fee = modal.item.feeAmount || Math.round((fixedFee + platFee) * 100) / 100;
+                const baseFee = Math.round((fee / 1.18) * 100) / 100;
+                const gst = modal.item.gstAmount || Math.round((fee - baseFee) * 100) / 100;
+                const net = modal.item.netPayout || Math.max(0, Math.round((gross - fee) * 100) / 100);
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {/* Financial Summary Card */}
+                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '0.75rem', padding: '0.85rem', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '0.35rem', textAlign: 'left' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6b7280' }}>
+                        <span>Gross Requested Amount:</span>
+                        <span style={{ fontWeight: 'bold', color: '#111827', fontFamily: 'monospace' }}>₹{gross.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6b7280' }}>
+                        <span>Withdrawal Fee:</span>
+                        <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 'bold' }}>-₹{fixedFee.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6b7280' }}>
+                        <span>Platform Fee (2%):</span>
+                        <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 'bold' }}>-₹{platFee.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6b7280' }}>
+                        <span>GST @ 18% on Fee:</span>
+                        <span style={{ color: '#4b5563', fontFamily: 'monospace' }}>-₹{gst.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', fontWeight: 'bold', borderTop: '1px dashed #ddd6fe', paddingTop: '0.35rem' }}>
+                        <span>Total Deduction:</span>
+                        <span style={{ fontFamily: 'monospace' }}>-₹{fee.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', marginTop: '0.25rem' }}>
+                        <span style={{ fontWeight: '900', color: '#065f46', fontSize: '13px' }}>Transfer Net Amount:</span>
+                        <span style={{ fontWeight: '900', color: '#047857', fontSize: '18px', fontFamily: 'monospace' }}>₹{net.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.75rem', padding: '0.85rem', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.4rem' }}>
+                        <span style={{ fontWeight: 'bold', color: '#334155' }}>Destination Account ({modal.type})</span>
+                        <span style={{ fontWeight: 'bold', color: '#059669', fontSize: '12px' }}>Net: ₹{net.toFixed(2)}</span>
+                      </div>
 
                   {modal.type === 'Vendor' ? (
                     <>
@@ -350,7 +421,9 @@ export default function PayoutsPage() {
                     </>
                   )}
                 </div>
-              )}
+              </div>
+            );
+          })()}
 
               {modal.action === 'Approve' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

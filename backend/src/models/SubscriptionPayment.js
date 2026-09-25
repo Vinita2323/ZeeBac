@@ -31,6 +31,18 @@ const subscriptionPaymentSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    baseAmount: {
+      type: Number,
+      default: 0,
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+    },
+    gstPercent: {
+      type: Number,
+      default: 18,
+    },
     paymentMethod: {
       type: String,
       enum: ['RAZORPAY', 'WALLET', 'ADMIN_MANUAL'],

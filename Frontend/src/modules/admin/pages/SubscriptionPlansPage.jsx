@@ -17,6 +17,7 @@ export default function SubscriptionPlansPage() {
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [paymentsTotal, setPaymentsTotal] = useState(0);
+  const [paymentsSummary, setPaymentsSummary] = useState({ totalRevenue: 0, totalBaseRevenue: 0, totalGST: 0 });
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -42,6 +43,9 @@ export default function SubscriptionPlansPage() {
         setPayments(res.data.payments || []);
         setPaymentsTotal(res.data.total || 0);
         setPaymentsPage(res.data.page || 1);
+        if (res.data.summary) {
+          setPaymentsSummary(res.data.summary);
+        }
       }
     } catch (err) {
       console.error('Failed to load subscription payments:', err);
@@ -151,7 +155,49 @@ export default function SubscriptionPlansPage() {
         </div>
       )}
 
-      {/* Metric Cards */}
+      {/* Financial Revenue Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-5 text-white shadow-md">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Total Subscription Revenue</p>
+            <span className="material-symbols-outlined text-[20px] text-emerald-200">payments</span>
+          </div>
+          <h3 className="text-[30px] font-black font-mono mt-1 text-white leading-tight">
+            ₹{(stats.totalSubscriptionRevenue || paymentsSummary.totalRevenue || 0).toLocaleString()}
+          </h3>
+          <p className="text-[12px] text-emerald-100/90 mt-0.5">
+            Total money collected from vendor store subscriptions
+          </p>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-700 to-indigo-800 rounded-2xl p-5 text-white shadow-md">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-purple-200">Net Base Revenue</p>
+            <span className="material-symbols-outlined text-[20px] text-purple-200">savings</span>
+          </div>
+          <h3 className="text-[30px] font-black font-mono mt-1 text-white leading-tight">
+            ₹{(stats.totalSubscriptionBase || paymentsSummary.totalBaseRevenue || 0).toLocaleString()}
+          </h3>
+          <p className="text-[12px] text-purple-200/90 mt-0.5">
+            Net revenue retained excluding GST
+          </p>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-700 to-indigo-900 rounded-2xl p-5 text-white shadow-md">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-blue-200">GST Collected (18%)</p>
+            <span className="material-symbols-outlined text-[20px] text-blue-200">account_balance</span>
+          </div>
+          <h3 className="text-[30px] font-black font-mono mt-1 text-white leading-tight">
+            ₹{(stats.totalSubscriptionGST || paymentsSummary.totalGST || 0).toLocaleString()}
+          </h3>
+          <p className="text-[12px] text-blue-200/90 mt-0.5">
+            Statutory tax liability on subscription plans
+          </p>
+        </div>
+      </div>
+
+      {/* Subscriber Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div className="bg-white rounded-2xl p-4.5 border border-outline-variant/15 shadow-sm">
           <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest">Active Stores</p>
@@ -341,7 +387,9 @@ export default function SubscriptionPlansPage() {
                 <tr>
                   <th className="py-3 px-4 rounded-l-xl">Vendor</th>
                   <th className="py-3 px-4">Plan & Type</th>
-                  <th className="py-3 px-4">Amount</th>
+                  <th className="py-3 px-4">Gross Paid</th>
+                  <th className="py-3 px-4">GST (18%)</th>
+                  <th className="py-3 px-4">Net Revenue</th>
                   <th className="py-3 px-4">Method</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Transaction / Gateway ID</th>
@@ -349,63 +397,75 @@ export default function SubscriptionPlansPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium">
-                {payments.map((p) => (
-                  <tr key={p._id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-gray-900">{p.vendorId?.storeName || p.vendorId?.ownerName || 'Unknown Vendor'}</div>
-                      <div className="text-[11px] font-mono text-gray-400">{p.vendorId?.zeebacId || '—'} · {p.vendorId?.phone || ''}</div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="font-bold text-gray-800">{p.planType} Plan</span>
-                      <span className="text-[11px] text-gray-500 block">{p.shopType}</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-black text-gray-900">
-                      ₹{p.amount?.toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
-                        p.paymentMethod === 'RAZORPAY'
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                          : p.paymentMethod === 'WALLET'
-                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}>
-                        {p.paymentMethod === 'ADMIN_MANUAL' ? 'Manual Admin' : p.paymentMethod}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                        p.paymentStatus === 'SUCCESS'
-                          ? 'bg-green-100 text-green-800'
-                          : p.paymentStatus === 'PENDING'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {p.paymentStatus}
-                      </span>
-                      {p.errorMessage && (
-                        <p className="text-[10.5px] text-red-600 mt-1 max-w-[200px] truncate" title={p.errorMessage}>
-                          {p.errorMessage}
-                        </p>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-gray-600">
-                      <div>{p.transactionId}</div>
-                      {p.razorpayPaymentId && (
-                        <div className="text-[10px] text-purple-600 font-semibold">{p.razorpayPaymentId}</div>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-gray-500 text-[11.5px] whitespace-nowrap">
-                      {new Date(p.createdAt).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((p) => {
+                  const gross = p.amount || 0;
+                  const base = p.baseAmount || Math.round((gross / 1.18) * 100) / 100;
+                  const gst = p.gstAmount || Math.round((gross - base) * 100) / 100;
+
+                  return (
+                    <tr key={p._id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-gray-900">{p.vendorId?.storeName || p.vendorId?.ownerName || 'Unknown Vendor'}</div>
+                        <div className="text-[11px] font-mono text-gray-400">{p.vendorId?.zeebacId || '—'} · {p.vendorId?.phone || ''}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-gray-800">{p.planType} Plan</span>
+                        <span className="text-[11px] text-gray-500 block">{p.shopType}</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-black font-mono text-gray-900">
+                        ₹{gross.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-purple-700">
+                        ₹{gst.toFixed(2)}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-700">
+                        ₹{base.toFixed(2)}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                          p.paymentMethod === 'RAZORPAY'
+                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                            : p.paymentMethod === 'WALLET'
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            : 'bg-blue-100 text-blue-700 border border-blue-200'
+                        }`}>
+                          {p.paymentMethod === 'ADMIN_MANUAL' ? 'Manual Admin' : p.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                          p.paymentStatus === 'SUCCESS'
+                            ? 'bg-green-100 text-green-800'
+                            : p.paymentStatus === 'PENDING'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {p.paymentStatus}
+                        </span>
+                        {p.errorMessage && (
+                          <p className="text-[10.5px] text-red-600 mt-1 max-w-[200px] truncate" title={p.errorMessage}>
+                            {p.errorMessage}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-gray-600">
+                        <div>{p.transactionId}</div>
+                        {p.razorpayPaymentId && (
+                          <div className="text-[10px] text-purple-600 font-semibold">{p.razorpayPaymentId}</div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-gray-500 text-[11.5px] whitespace-nowrap">
+                        {new Date(p.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

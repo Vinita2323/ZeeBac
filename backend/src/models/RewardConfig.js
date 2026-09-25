@@ -29,6 +29,22 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Number,
     default: 2,
   },
+  vendorWithdrawalCommissionPercent: {
+    type: Number,
+    default: 2,
+  },
+  withdrawalFixedFee: {
+    type: Number,
+    default: 5,
+  },
+  withdrawalGstPercent: {
+    type: Number,
+    default: 18,
+  },
+  enableWithdrawalGst: {
+    type: Boolean,
+    default: false,
+  },
   independentStoreMonthlyPrice: {
     type: Number,
     default: 499,

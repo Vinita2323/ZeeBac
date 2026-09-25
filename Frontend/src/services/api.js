@@ -31,10 +31,26 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if (!originalRequest) return Promise.reject(error);
+
     if (error.response?.status === 413) {
       if (typeof error.response.data !== 'object' || !error.response.data?.message) {
         error.response.data = {
@@ -42,18 +58,48 @@ apiClient.interceptors.response.use(
         };
       }
     }
-    if (error.response?.status === 401 && !originalRequest._retry) {
+
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
+                           originalRequest.url?.includes('/auth/refresh') ||
+                           originalRequest.url?.includes('/auth/send-otp') ||
+                           originalRequest.url?.includes('/auth/customer/login') ||
+                           originalRequest.url?.includes('/auth/vendor-app/login');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
+
       try {
         const refreshToken = localStorage.getItem('zeebac_refresh_token');
         if (!refreshToken) throw new Error('No refresh token');
+
         const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
-        useAuthStore.getState().setAccessToken(data.accessToken);
-        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        const newAccessToken = data.accessToken;
+        useAuthStore.getState().setAccessToken(newAccessToken);
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+        processQueue(null, newAccessToken);
         return apiClient(originalRequest);
       } catch (err) {
-        useAuthStore.getState().logout();
+        processQueue(err, null);
+        // Only logout if refresh token was rejected by server (401 or 403) or missing
+        if (err.response?.status === 401 || err.response?.status === 403 || err.message === 'No refresh token') {
+          useAuthStore.getState().logout();
+        }
         return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
       }
     }
     return Promise.reject(error);
@@ -482,6 +528,19 @@ export const VendorAPI = {
     return res.data;
   },
   requestWithdrawal: async (amount) => { const res = await apiClient.post('/vendor/wallet/withdraw', { amount }); return res.data; },
+  // Security: PIN & Biometrics
+  setupSecurityPin: async (pin, currentPin = null) => {
+    const res = await apiClient.post('/vendor/security/setup-pin', { pin, currentPin });
+    return res.data;
+  },
+  toggleBiometricSecurity: async (enabled, credentialId = null) => {
+    const res = await apiClient.post('/vendor/security/toggle-biometric', { enabled, credentialId });
+    return res.data;
+  },
+  verifySecurityPin: async (pin) => {
+    const res = await apiClient.post('/vendor/security/verify-pin', { pin });
+    return res.data;
+  },
 
   // Reviews
   getMyReviews: async () => { const res = await apiClient.get('/vendor/reviews'); return res.data; },

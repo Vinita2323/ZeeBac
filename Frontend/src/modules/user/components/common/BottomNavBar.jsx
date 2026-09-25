@@ -1,7 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
+import useLanguageStore from '../../../../store/useLanguageStore';
 
 export default function BottomNavBar() {
   const location = useLocation();
+  const { t } = useLanguageStore();
 
   const navItems = [
     { label: 'Home', icon: 'home', path: '/home' },
@@ -32,7 +34,7 @@ export default function BottomNavBar() {
               >
                 {item.icon}
               </span>
-              <span className="font-display text-[9px] font-bold tracking-wide truncate max-w-full">{item.label}</span>
+              <span className="font-display text-[9px] font-bold tracking-wide truncate max-w-full">{t(item.label)}</span>
             </Link>
           );
         })}

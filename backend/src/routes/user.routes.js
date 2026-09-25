@@ -80,10 +80,10 @@ router.delete('/vendors/:vendorId/reviews', deleteReview);
 // Profile (Phase 4E)
 router.put('/me', updateUserProfile);
 
-// Vendor Lookup (for QR Scan / Manual Search)
-router.get('/vendors/:query', lookupVendorById);
 router.get('/vendors/:vendorId/media', getVendorMedia);
 router.get('/vendors/:vendorId/promotions', getVendorPromotions);
+// Vendor Lookup (for QR Scan / Manual Search)
+router.get('/vendors/:query', lookupVendorById);
 
 // Customer Transaction (Core Payment Engine - For Cash)
 router.post('/transactions', createCustomerTransaction);

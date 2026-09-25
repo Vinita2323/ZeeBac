@@ -7,14 +7,18 @@ import { shareContent, downloadImage } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
 import { isBiometricSupported, registerBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
+import useLanguageStore from '../../../store/useLanguageStore';
+import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const { language, t } = useLanguageStore();
   const [subView, setSubView] = useState(null); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
   const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showLangModal, setShowLangModal] = useState(false);
   
   // Profile state
   const [profile, setProfile] = useState({
@@ -514,8 +518,26 @@ export default function ProfileScreen() {
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Preferences</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm p-sm space-y-md">
             
+            {/* Preference: App Language (English & Hindi) */}
+            <div 
+              onClick={() => setShowLangModal(true)}
+              className="flex items-center justify-between py-1 cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[#7c3aed]">translate</span>
+                <div>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">App Language</p>
+                  <p className="font-caption text-[10px] text-on-surface-variant">Hindi &amp; English</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-[12px] font-bold text-primary">
+                <span>{language === 'hi' ? 'हिन्दी' : 'English'}</span>
+                <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+              </div>
+            </div>
+
             {/* Toggle 1: Notifications */}
-            <div className="flex items-center justify-between py-1">
+            <div className="flex items-center justify-between py-1 border-t border-outline-variant/10 pt-md">
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">notifications_active</span>
                 <div>
@@ -594,16 +616,23 @@ export default function ProfileScreen() {
             {/* Direct Support link */}
             <div 
               onClick={() => setSubView('support')}
-              className="flex items-center justify-between py-1 border-t border-outline-variant/10 pt-md cursor-pointer hover:opacity-80 transition-opacity"
+              className="flex items-center justify-between p-3.5 mt-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-purple-500/10 border border-emerald-500/30 rounded-2xl cursor-pointer hover:bg-emerald-500/15 active:scale-[0.99] transition-all shadow-xs"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">contact_support</span>
+                <div className="w-9 h-9 rounded-xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <span className="material-symbols-outlined text-[20px]">support_agent</span>
+                </div>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Help & FAQ Support</p>
-                  <p className="font-caption text-[10px] text-on-surface-variant">Ask questions or chat with support assistants</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-title-md text-on-surface font-extrabold text-body-sm">Help &amp; FAQ Support</p>
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase">24x7</span>
+                  </div>
+                  <p className="font-caption text-[11px] text-emerald-800 font-semibold">WhatsApp Chat &amp; Customer Care Helpline</p>
                 </div>
               </div>
-              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+              <div className="flex items-center gap-1 text-emerald-700 font-bold text-[12px]">
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </div>
             </div>
 
           </div>
@@ -788,6 +817,12 @@ export default function ProfileScreen() {
       <LoanComingSoonModal
         isOpen={showLoanModal}
         onClose={() => setShowLoanModal(false)}
+      />
+
+      {/* Language Selector Modal */}
+      <LanguageSelectorModal
+        isOpen={showLangModal}
+        onClose={() => setShowLangModal(false)}
       />
 
 
@@ -1423,6 +1458,32 @@ function SupportSubView({ onBack }) {
             <p className="text-body-sm text-on-surface-variant">Quick answers to common questions about Zeebac rewards.</p>
           </div>
 
+          {/* Direct WhatsApp Support Card */}
+          <a
+            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20need%20help%20with%20my%20account."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                </div>
+                <p className="text-[12px] text-white/95 font-medium mt-0.5">+91 91119 66732 · Direct Support</p>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0">
+              <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+            </div>
+          </a>
+
           {/* Search Bar */}
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
@@ -1592,10 +1653,22 @@ function SupportSubView({ onBack }) {
           </div>
         </div>
 
-        <div className="pt-8 space-y-sm">
+        <div className="pt-8 space-y-3">
+          <a 
+            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20need%20help%20with%20my%20account."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full h-12 bg-[#25D366] hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+          >
+            <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+            </svg>
+            <span>WhatsApp Support (+91 91119 66732)</span>
+          </a>
+
           <a 
             href="mailto:support@zeebac.com"
-            className="w-full h-12 border border-outline-variant/40 bg-white text-secondary rounded-xl font-title-md flex items-center justify-center gap-sm active:scale-95 transition-transform cursor-pointer"
+            className="w-full h-12 border border-outline-variant/40 bg-white text-secondary hover:bg-surface-container-low rounded-xl font-title-md flex items-center justify-center gap-sm active:scale-95 transition-transform cursor-pointer"
           >
             <span className="material-symbols-outlined">mail</span>
             Email Support (24/7)
