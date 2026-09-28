@@ -365,9 +365,10 @@ function CashoutSubView({
   currentUser, 
   withdrawals, 
   onBack, 
-  setBalance, 
-  setWithdrawableBalance 
+  setBalance,
+  setWithdrawableBalance
 }) {
+  const navigate = useNavigate();
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState(null); // { success, isAuto, amount, message }
@@ -711,8 +712,6 @@ function CashoutSubView({
             const withdrawalFixedFee = 5;
             const platformFeeAmount = Math.round(((numVal * 0.02)) * 100) / 100;
             const totalFee = Math.round((withdrawalFixedFee + platformFeeAmount) * 100) / 100;
-            const baseFee = Math.round((totalFee / 1.18) * 100) / 100;
-            const gstAmount = Math.round((totalFee - baseFee) * 100) / 100;
             const netPayout = Math.max(0, Math.round((numVal - totalFee) * 100) / 100);
 
             return (
@@ -745,17 +744,6 @@ function CashoutSubView({
                 <div className="flex justify-between text-[13px] text-rose-600 font-bold pt-1 border-t border-purple-100">
                   <span>Total Fee Deduction:</span>
                   <span className="font-mono font-bold">-₹{totalFee.toFixed(2)}</span>
-                </div>
-
-                <div className="bg-purple-50/60 rounded-xl p-2.5 space-y-1 text-[11.5px] text-gray-600 border border-purple-100/70">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Base Fee:</span>
-                    <span className="font-mono font-semibold text-gray-800">₹{baseFee.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">GST @ 18% on Fee:</span>
-                    <span className="font-mono font-semibold text-gray-800">₹{gstAmount.toFixed(2)}</span>
-                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-purple-200 flex justify-between items-center">
@@ -791,9 +779,19 @@ function CashoutSubView({
               <span className="material-symbols-outlined text-green-500">check_circle</span>
             </div>
           ) : (
-            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center">
-              <p className="text-red-600 text-body-sm font-bold">No Bank Account Linked</p>
-              <p className="text-[11px] text-red-500/80 mt-1">Please link a bank account in your Profile first.</p>
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center space-y-2.5">
+              <div>
+                <p className="text-red-600 text-body-sm font-bold">No Bank Account Linked</p>
+                <p className="text-[11px] text-red-500/80 mt-1">Link a bank account to receive your cashout.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/profile', { state: { openLinkedAccounts: true } })}
+                className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                Add Bank Account
+              </button>
             </div>
           )}
         </div>

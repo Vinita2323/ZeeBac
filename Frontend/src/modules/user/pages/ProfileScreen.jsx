@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { UserAPI, SupportAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
@@ -12,11 +12,14 @@ import LanguageSelectorModal from '../../../components/common/LanguageSelectorMo
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const { language, t } = useLanguageStore();
-  const [subView, setSubView] = useState(null); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
+  const [subView, setSubView] = useState(
+    location.state?.openLinkedAccounts ? 'linked-accounts' : null
+  ); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
   

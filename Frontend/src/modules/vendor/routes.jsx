@@ -31,7 +31,9 @@ export default function VendorRoutes() {
     return (
       <Routes>
         <Route path="application/*" element={<VendorApplicationRoutes />} />
+        <Route path="onboarding/*" element={<VendorApplicationRoutes />} />
         <Route path="subscription" element={<VendorSubscriptionPage />} />
+        <Route path="subscriptions" element={<VendorSubscriptionPage />} />
         <Route path="*" element={<Navigate to="application" replace />} />
       </Routes>
     );
@@ -47,13 +49,16 @@ export default function VendorRoutes() {
         <VendorLayout>
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             <Route path="subscription" element={<VendorSubscriptionPage />} />
+            <Route path="subscriptions" element={<VendorSubscriptionPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="wallet" element={<WalletPage />} />
             <Route path="passbook" element={<PassbookPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="ratings" element={<RatingsPage />} />
+            <Route path="reviews" element={<RatingsPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="chat" element={<ChatPage />} />
             <Route path="log-transaction" element={<VendorLogTransactionScreen />} />
@@ -61,6 +66,9 @@ export default function VendorRoutes() {
             <Route path="storefront" element={<StorefrontPage />} />
             <Route path="support" element={<SupportPage />} />
             <Route path="apply-loan" element={<VendorLoanPage />} />
+            <Route path="loans" element={<VendorLoanPage />} />
+            <Route path="loan" element={<VendorLoanPage />} />
+            <Route path="*" element={<Navigate to="/vendor" replace />} />
           </Routes>
         </VendorLayout>
       } />

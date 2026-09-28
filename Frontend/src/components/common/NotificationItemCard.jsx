@@ -39,7 +39,17 @@ function renderFormattedMessage(message, rawCode) {
   });
 }
 
-export default function NotificationItemCard({ notif, onMarkAsRead }) {
+// Admin-facing notification types get a dedicated icon + accent color
+// (cashback/OTP-style branches below never fire for these types)
+const ADMIN_TYPE_STYLES = {
+  FRAUD_ALERT: { icon: 'gavel', color: '#dc2626' },
+  HIGH_VALUE_REQUEST: { icon: 'priority_high', color: '#dc2626' },
+  SUPPORT_TICKET: { icon: 'support_agent', color: '#2563eb' },
+  VENDOR_KYC: { icon: 'storefront', color: '#059669' },
+  PAYOUT_REQUEST: { icon: 'payments', color: '#d97706' },
+};
+
+export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick }) {
   if (!notif) return null;
 
   // Extract amount
@@ -233,17 +243,29 @@ export default function NotificationItemCard({ notif, onMarkAsRead }) {
     );
   }
 
-  // 3. CARD 3: SUBSCRIPTION ACTIVE / SYSTEM / REGULAR NOTIFICATION
+  // 3. CARD 3: SUBSCRIPTION ACTIVE / SYSTEM / ADMIN ALERT / REGULAR NOTIFICATION
+  const adminStyle = ADMIN_TYPE_STYLES[notif.type];
+  const accentColor = adminStyle?.color || '#7c3aed';
+  const iconName = notif.icon || adminStyle?.icon || 'info';
+  const isAdminType = Boolean(adminStyle);
+
   return (
     <div
-      onClick={() => !notif.isRead && onMarkAsRead?.(notif._id)}
-      className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] border-l-4 border-l-[#7c3aed] p-3.5 sm:p-4 transition-all text-left relative"
+      onClick={() => {
+        if (!notif.isRead) onMarkAsRead?.(notif._id);
+        onCardClick?.(notif);
+      }}
+      className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] p-3.5 sm:p-4 transition-all text-left relative"
+      style={{ borderLeft: `4px solid ${accentColor}` }}
     >
       <div className="flex items-start gap-3 sm:gap-3.5">
-        {/* Left Icon (Grey Circle with Info Symbol) */}
-        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center flex-shrink-0 shadow-2xs mt-0.5">
+        {/* Left Icon Circle (tinted with accent color) */}
+        <div
+          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0 shadow-2xs mt-0.5"
+          style={{ backgroundColor: `${accentColor}1A`, color: accentColor }}
+        >
           <span className="material-symbols-outlined text-[22px] sm:text-[24px]">
-            {notif.icon || 'info'}
+            {iconName}
           </span>
         </div>
 
@@ -251,12 +273,12 @@ export default function NotificationItemCard({ notif, onMarkAsRead }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-1.5">
             <h4 className="font-extrabold text-[14px] sm:text-[15px] text-slate-900 tracking-tight leading-snug">
-              {notif.title?.startsWith('🎉') || notif.title?.startsWith('📝') || notif.title?.startsWith('⚡')
+              {isAdminType || notif.title?.startsWith('🎉') || notif.title?.startsWith('📝') || notif.title?.startsWith('⚡')
                 ? notif.title
                 : `${notif.type === 'system' ? '🎉' : '🔔'} ${notif.title}`}
             </h4>
             <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5 text-[11px] text-slate-500 font-medium">
-              <span className="w-2 h-2 rounded-full bg-[#7c3aed]" />
+              {!notif.isRead && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: accentColor }} />}
               <span>{timeAgo(notif.createdAt)}</span>
             </div>
           </div>

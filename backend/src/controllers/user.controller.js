@@ -836,8 +836,10 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
 // 1. Search vendors by name, category, or zeebacId
 export const searchVendors = async (req, res) => {
   try {
-    const { q, lat, lng } = req.query;
-    if (!q || !q.trim()) {
+    const rawQ = req.query.q || req.query.query || '';
+    const q = rawQ.trim();
+    const { lat, lng } = req.query;
+    if (!q) {
       return res.status(400).json({ success: false, message: 'Search query is required' });
     }
     

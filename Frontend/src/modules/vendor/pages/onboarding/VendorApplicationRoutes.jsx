@@ -13,6 +13,12 @@ export default function VendorApplicationRoutes() {
     <Routes>
       <Route path="resubmit" element={<VendorOnboardingWizard mode="resubmit" />} />
       <Route
+        path="status"
+        element={
+          applicationStatus === 'REJECTED' ? <ApplicationRejectedScreen /> : <ApplicationStatusScreen />
+        }
+      />
+      <Route
         path="/"
         element={
           applicationStatus === 'REJECTED' ? <ApplicationRejectedScreen /> : <ApplicationStatusScreen />

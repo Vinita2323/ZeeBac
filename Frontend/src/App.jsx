@@ -247,6 +247,7 @@ function App() {
           <Route path="/vendor-app/login" element={<AuthLoginScreen role="vendor" />} />
           <Route path="/vendor-app/signup" element={<VendorOnboardingWizard mode="register" />} />
           <Route path="/vendor-app/verify-otp" element={<AuthOTPScreen />} />
+          <Route path="/application-rejected" element={<Navigate to="/vendor/application" replace />} />
 
           {/* ─── Admin Login (Public) ─── */}
           <Route path="/admin/login" element={<AdminLoginScreen />} />

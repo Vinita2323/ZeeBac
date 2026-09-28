@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../../store/useAuthStore';
 import useLanguageStore from '../../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../../components/common/LanguageSelectorModal';
+import useNotifications from '../../../../hooks/useNotifications';
 
 export default function VendorTopBar() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
   const [showLangModal, setShowLangModal] = useState(false);
+  const { unreadCount } = useNotifications();
 
   const handleLogout = () => {
     useAuthStore.getState().logout();
@@ -53,7 +55,11 @@ export default function VendorTopBar() {
             title="Notifications"
           >
             <span className="material-symbols-outlined text-[24px]">notifications</span>
-            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-[1.5px] border-white"></span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-[9px] font-black px-0.5 border-[1.5px] border-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
           <button 
             type="button"

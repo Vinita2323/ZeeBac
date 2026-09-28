@@ -55,8 +55,17 @@ const applyApplicationFields = (vendor, body = {}, files = {}) => {
   }
 
   if (address !== undefined) {
-    const addressObj = typeof address === 'string' ? JSON.parse(address) : address;
-    vendor.address = { ...(vendor.address?.toObject ? vendor.address.toObject() : vendor.address), ...addressObj };
+    let addressObj = address;
+    if (typeof address === 'string') {
+      try {
+        addressObj = JSON.parse(address);
+      } catch {
+        addressObj = { fullAddress: address };
+      }
+    }
+    if (typeof addressObj === 'object' && addressObj !== null) {
+      vendor.address = { ...(vendor.address?.toObject ? vendor.address.toObject() : vendor.address), ...addressObj };
+    }
   }
 
   if (lat && lng) {
@@ -64,8 +73,17 @@ const applyApplicationFields = (vendor, body = {}, files = {}) => {
   }
 
   if (businessHours !== undefined) {
-    const hoursObj = typeof businessHours === 'string' ? JSON.parse(businessHours) : businessHours;
-    vendor.businessHours = { ...(vendor.businessHours?.toObject ? vendor.businessHours.toObject() : vendor.businessHours), ...hoursObj };
+    let hoursObj = businessHours;
+    if (typeof businessHours === 'string') {
+      try {
+        hoursObj = JSON.parse(businessHours);
+      } catch {
+        hoursObj = {};
+      }
+    }
+    if (typeof hoursObj === 'object' && hoursObj !== null) {
+      vendor.businessHours = { ...(vendor.businessHours?.toObject ? vendor.businessHours.toObject() : vendor.businessHours), ...hoursObj };
+    }
   }
 
   if (files) {

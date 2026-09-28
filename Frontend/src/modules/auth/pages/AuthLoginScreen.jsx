@@ -206,23 +206,7 @@ export default function AuthLoginScreen({ role = 'customer' }) {
             </button>
           </form>
 
-          {/* Registration / Signup Divider */}
-          <div className="pt-1 text-center space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">or</span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-
-            <button
-              onClick={() => navigate(isVendor ? '/vendor-app/signup' : '/signup', { state: { phone: mobileNumber } })}
-              className="w-full h-12 rounded-xl font-bold text-xs text-purple-700 bg-purple-50 hover:bg-purple-100/80 border border-purple-200/60 transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">{isVendor ? 'store' : 'person_add'}</span>
-              {isVendor ? 'Register Business Partner' : 'Create New Customer Account'}
-            </button>
-          </div>
-
+      
           {/* Terms Footer */}
           <p className="text-center text-[11px] text-slate-400 pt-2">
             By continuing, you agree to Zeebac's{' '}
