@@ -186,44 +186,6 @@ export default function OverviewTab({ vendor }) {
         </div>
       </div>
 
-      {/* Highlighted Store Help & Support for Customers */}
-      <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-primary/5 border-2 border-emerald-500/30 rounded-2xl p-4 shadow-sm space-y-3 text-left">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#25D366] text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
-              <span className="material-symbols-outlined text-[22px]">support_agent</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h4 className="font-display text-[14px] font-black text-on-surface">Store Help &amp; Support</h4>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">24x7</span>
-              </div>
-              <p className="text-[11px] text-on-surface-variant font-medium">Need help with payments, cashbacks, or store queries?</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <a
-            href={`https://wa.me/919111966732?text=${encodeURIComponent(`Hello Zeebac Support, I need help regarding store: ${vendor?.storeName || 'Vendor'}`)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="py-2.5 px-3 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[12px] font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
-          >
-            <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
-              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
-            </svg>
-            <span>WhatsApp Chat</span>
-          </a>
-          <a
-            href="tel:+919111966732"
-            className="py-2.5 px-3 bg-white hover:bg-surface-container-low border border-outline-variant/30 text-on-surface rounded-xl text-[12px] font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
-          >
-            <span className="material-symbols-outlined text-[18px] text-primary">phone_in_talk</span>
-            <span>Call Helpline</span>
-          </a>
-        </div>
-      </div>
 
       <div className="pt-1">
         <button

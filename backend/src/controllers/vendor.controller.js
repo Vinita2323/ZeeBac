@@ -7,6 +7,7 @@ import WalletTransaction from '../models/WalletTransaction.js';
 import Transaction from '../models/Transaction.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
 import CashbackRequest from '../models/CashbackRequest.js';
+import PosBill from '../models/PosBill.js';
 import CashbackRule from '../models/CashbackRule.js';
 import RewardConfig from '../models/RewardConfig.js';
 import Referral from '../models/Referral.js';
@@ -1099,6 +1100,27 @@ export const respondToCashbackRequest = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cashback blocked due to insufficient cashback wallet balance.' });
     }
 
+    // Fix 3: Reject manual vendor approval if this bill number corresponds to an already claimed POS bill
+    if (claimed.billNumber) {
+      const cleanBill = String(claimed.billNumber).trim().toUpperCase();
+      const alreadyClaimedPos = await PosBill.findOne({
+        vendor: vendor._id,
+        status: 'CLAIMED',
+        $or: [
+          { billCode: cleanBill },
+          { invoiceNumber: cleanBill },
+        ],
+      });
+      if (alreadyClaimedPos) {
+        await CashbackRequest.updateOne({ _id: id }, { status: 'Rejected' });
+        return res.status(400).json({
+          success: false,
+          alreadyClaimed: true,
+          message: 'Cannot approve: this POS bill has already been claimed.',
+        });
+      }
+    }
+
     const customer = claimed.customerId;
     const amount = claimed.amount;
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
@@ -1126,6 +1148,32 @@ export const respondToCashbackRequest = async (req, res) => {
           hasReceipt: !!claimed.billImageUrl, receiptUrl: claimed.billImageUrl,
         }], { session });
         txn = created[0];
+
+        // If an unclaimed POS bill existed for this invoice/code, atomically claim it now
+        if (claimed.billNumber) {
+          const cleanBill = String(claimed.billNumber).trim().toUpperCase();
+          await PosBill.updateOne(
+            {
+              vendor: vendor._id,
+              status: 'UNCLAIMED',
+              $or: [
+                { billCode: cleanBill },
+                { invoiceNumber: cleanBill },
+              ],
+            },
+            {
+              $set: {
+                status: 'CLAIMED',
+                claimedBy: customer._id,
+                claimedAt: new Date(),
+                claimMode: 'AI_BILL_MATCH',
+                cashbackAmount,
+                transaction: txn._id,
+              },
+            },
+            { session }
+          );
+        }
 
         await debitWallet({
           session, ownerId: vendor._id, ownerType: 'Vendor',

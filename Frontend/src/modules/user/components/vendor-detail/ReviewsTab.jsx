@@ -88,28 +88,14 @@ export default function ReviewsTab({ vendorId, vendor }) {
   };
 
   return (
-    <div className="space-y-lg animate-reveal pb-[100px]">
+    <div className="space-y-lg animate-reveal pb-[110px]">
       
-      {/* Header with Write/Edit Review Button */}
+      {/* Header (Clean title without top write button) */}
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-display text-[18px] font-black text-on-surface">Customer Reviews</h3>
-        <div className="flex items-center gap-2">
-          {myReview && (
-            <button 
-              onClick={handleDeleteReview}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-red-50 text-red-500 active:scale-95 transition-transform cursor-pointer"
-              title="Delete Review"
-            >
-              <span className="material-symbols-outlined text-[18px]">delete</span>
-            </button>
-          )}
-          <button 
-            onClick={openModal}
-            className="px-4 py-2 bg-primary text-white rounded-full font-bold text-[12px] active:scale-95 transition-transform shadow-sm cursor-pointer"
-          >
-            {myReview ? 'Edit Review' : 'Write Review'}
-          </button>
-        </div>
+        <span className="text-[12px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-full">
+          {totalReviews} {totalReviews === 1 ? 'Review' : 'Reviews'}
+        </span>
       </div>
 
       <div className="flex items-center gap-4 p-4 bg-white rounded-3xl shadow-sm border border-outline-variant/10">
@@ -141,10 +127,17 @@ export default function ReviewsTab({ vendorId, vendor }) {
         {isLoading ? (
           <p className="text-center py-8 text-on-surface-variant text-[13px] font-bold">Loading reviews...</p>
         ) : reviews.length === 0 ? (
-          <div className="text-center py-10 bg-white rounded-2xl border border-outline-variant/10 shadow-sm">
-            <span className="material-symbols-outlined text-[48px] text-on-surface-variant opacity-30 mb-2">forum</span>
+          <div className="text-center py-10 px-4 bg-white rounded-2xl border border-outline-variant/10 shadow-sm flex flex-col items-center gap-2">
+            <span className="material-symbols-outlined text-[48px] text-on-surface-variant opacity-30 mb-1">forum</span>
             <p className="font-bold text-[15px] text-on-surface">No reviews yet</p>
-            <p className="text-[12px] text-on-surface-variant mt-1">Be the first to review this store!</p>
+            <p className="text-[12px] text-on-surface-variant max-w-[260px]">Be the first to share your experience with this store!</p>
+            <button 
+              onClick={openModal}
+              className="mt-3 px-6 py-2.5 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white rounded-xl font-bold text-[13px] active:scale-95 transition-transform shadow-md shadow-[#6000da]/20 flex items-center gap-2 cursor-pointer hover:opacity-95"
+            >
+              <span className="material-symbols-outlined text-[18px]">rate_review</span>
+              <span>Write a Review</span>
+            </button>
           </div>
         ) : reviews.map(review => (
           <div key={review._id} className="p-4 bg-white rounded-2xl shadow-sm border border-outline-variant/10">
@@ -182,6 +175,44 @@ export default function ReviewsTab({ vendorId, vendor }) {
           </div>
         ))}
       </div>
+
+      {/* Bottom Write Review Option Section */}
+      {reviews.length > 0 && (
+        <div className="pt-2">
+          <div className="p-4 bg-white rounded-2xl shadow-sm border border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-left w-full sm:w-auto">
+              <h4 className="font-bold text-[14.5px] text-on-surface flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-primary text-[19px]">rate_review</span>
+                {myReview ? 'Your Review for this Store' : 'Rate & Review this Store'}
+              </h4>
+              <p className="text-[12px] text-on-surface-variant mt-0.5">
+                {myReview
+                  ? 'You have already shared feedback. You can edit or delete it anytime.'
+                  : 'Share your genuine experience with other Zeebac shoppers!'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-shrink-0">
+              {myReview && (
+                <button 
+                  onClick={handleDeleteReview}
+                  className="h-10 px-3.5 flex items-center justify-center gap-1 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 font-bold text-[12px] active:scale-95 transition-all cursor-pointer"
+                  title="Delete Review"
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  <span>Delete</span>
+                </button>
+              )}
+              <button 
+                onClick={openModal}
+                className="flex-1 sm:flex-initial h-10 px-5 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white rounded-xl font-bold text-[13px] active:scale-95 transition-all shadow-md shadow-[#6000da]/20 flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-95"
+              >
+                <span className="material-symbols-outlined text-[18px]">edit_note</span>
+                <span>{myReview ? 'Edit Review' : 'Write a Review'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Write Review Modal */}
       {showWriteModal && createPortal(

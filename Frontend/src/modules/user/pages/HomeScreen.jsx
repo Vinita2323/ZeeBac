@@ -128,7 +128,7 @@ export default function HomeScreen() {
             {/* 🔔 Notification Bell */}
             <button
               ref={bellRef}
-              onClick={() => setIsNotifOpen((prev) => !prev)}
+              onClick={() => navigate('/notifications')}
               className="relative text-[#7c3aed] hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-9 h-9 rounded-full hover:bg-primary/5"
             >
               <span className="material-symbols-outlined text-[24px]">notifications</span>

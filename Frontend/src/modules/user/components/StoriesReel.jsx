@@ -100,10 +100,11 @@ export default function StoriesReel({ location }) {
               const hasUnseen = group.hasUnseen;
               const hasOffer = group.stories.some((s) => s.offerTag);
 
-              const avatarUrl = vendor?.profilePic
-                ? (vendor.profilePic.startsWith('http') || vendor.profilePic.startsWith('data:')
-                    ? vendor.profilePic
-                    : `${import.meta.env.VITE_API_URL}${vendor.profilePic}`)
+              const rawAvatar = vendor?.profilePic || vendor?.storeLogo;
+              const avatarUrl = rawAvatar
+                ? (rawAvatar.startsWith('http') || rawAvatar.startsWith('data:')
+                    ? rawAvatar
+                    : `${import.meta.env.VITE_API_URL}${rawAvatar}`)
                 : null;
 
               return (
@@ -145,7 +146,7 @@ export default function StoriesReel({ location }) {
                   </div>
 
                   {/* Store Name Label */}
-                  <span className="text-[11px] font-bold text-on-surface truncate w-16 text-center leading-tight">
+                  <span className="text-[11px] font-bold text-on-surface truncate w-[72px] text-center leading-tight">
                     {vendor?.storeName || 'Partner'}
                   </span>
                 </div>

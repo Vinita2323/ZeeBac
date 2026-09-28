@@ -53,7 +53,7 @@ const transactionSchema = new mongoose.Schema(
     
     paymentMethod: {
       type: String,
-      enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other', 'Cash (POS Bill Scan)', 'Cash (POS Auto Credit)', 'POS'],
+      enum: ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Wallet', 'Other', 'Cash (POS Bill Scan)', 'Cash (POS Auto Credit)', 'POS', 'POS (AI Auto Match)', 'AI Auto Match'],
       default: 'Cash',
     },
     
@@ -85,7 +85,7 @@ const transactionSchema = new mongoose.Schema(
     
     source: {
       type: String,
-      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan', 'pos_auto_credit', 'upi_qr_scan', 'upi_utr_claim'],
+      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan', 'pos_auto_credit', 'upi_qr_scan', 'upi_utr_claim', 'ai_pos_auto_match'],
       required: true,
     },
     

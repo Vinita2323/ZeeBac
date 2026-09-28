@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { StoryAPI } from '../../../services/api';
 
@@ -16,10 +17,22 @@ export default function StoryViewerModal({
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0); // 0 to 100%
   const [isPaused, setIsPaused] = useState(false);
+  const [isFit, setIsFit] = useState(false); // Toggle between cover (full immersion) & contain (fit full image)
 
-  const timerRef = useRef(null);
   const startTimeRef = useRef(null);
   const elapsedBeforePauseRef = useRef(0);
+
+  // Prevent background scrolling while story modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   // Sync initialGroupIndex when modal opens
   useEffect(() => {
@@ -121,170 +134,231 @@ export default function StoryViewerModal({
   if (!isOpen || !currentGroup || !currentStory) return null;
 
   const timeAgo = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return 'Just now';
     const diffMins = Math.floor((Date.now() - new Date(dateString).getTime()) / (1000 * 60));
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 60) return `${Math.max(1, diffMins)}m ago`;
     const diffHours = Math.floor(diffMins / 60);
     return `${diffHours}h ago`;
   };
 
-  const vendorAvatar = vendor?.profilePic
-    ? (vendor.profilePic.startsWith('http') || vendor.profilePic.startsWith('data:')
-        ? vendor.profilePic
-        : `${import.meta.env.VITE_API_URL}${vendor.profilePic}`)
+  const avatar = vendor?.profilePic || vendor?.storeLogo;
+  const vendorAvatar = avatar
+    ? (avatar.startsWith('http') || avatar.startsWith('data:')
+        ? avatar
+        : `${import.meta.env.VITE_API_URL}${avatar}`)
     : null;
 
-  const handleTap = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-    if (x < width * 0.35) {
-      prevStory();
-    } else {
-      advanceStory();
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center select-none animate-fadeIn">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] w-screen h-screen bg-black/95 sm:bg-black/90 sm:backdrop-blur-xl flex items-center justify-center p-0 select-none overflow-hidden animate-fadeIn">
       
-      {/* Desktop Backdrop Blur Frame */}
+      {/* Click outside to close (desktop) */}
+      <div className="absolute inset-0 w-full h-full" onClick={onClose} />
+
+      {/* Main Story Container (Full bleed on mobile, sleek phone frame on desktop) */}
       <div 
-        className="relative w-full h-full max-w-[420px] max-h-[100vh] sm:max-h-[92vh] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between"
-        style={{ background: currentStory.backgroundColor || '#0f172a' }}
+        className="relative z-10 w-full h-full h-[100dvh] sm:h-[92vh] sm:max-h-[840px] sm:max-w-[420px] bg-slate-950 sm:rounded-3xl shadow-2xl flex flex-col justify-between overflow-hidden border-0 sm:border sm:border-white/15"
+        onClick={(e) => e.stopPropagation()}
         onMouseDown={handlePause}
         onMouseUp={handleResume}
         onTouchStart={handlePause}
         onTouchEnd={handleResume}
       >
-        {/* Story Background Media */}
-        <div 
-          className="absolute inset-0 w-full h-full cursor-pointer"
-          onClick={handleTap}
-        >
+        {/* ================= FULL-BLEED STORY PHOTO & AMBIENT BACKDROP ================= */}
+        <div className="absolute inset-0 w-full h-full overflow-hidden">
+          {/* Ambient blurred backdrop for seamless color glow */}
           <img
             src={currentStory.mediaUrl}
-            alt="story"
-            className="w-full h-full object-cover sm:object-contain"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-70 brightness-75 select-none pointer-events-none"
           />
-          {/* Subtle gradient vignette */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/60 pointer-events-none" />
+
+          {/* Main Story Image */}
+          <img
+            src={currentStory.mediaUrl}
+            alt={vendor?.storeName || 'Story Image'}
+            className={`relative z-10 w-full h-full select-none transition-all duration-300 pointer-events-none ${
+              isFit ? 'object-contain' : 'object-cover'
+            }`}
+          />
+
+          {/* Cinematic Vignettes so top header and bottom controls remain 100% legible */}
+          <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/85 via-transparent to-black/90 pointer-events-none" />
         </div>
 
-        {/* Top Segmented Progress Bar */}
-        <div className="relative z-20 px-3 pt-3 flex gap-1.5 pointer-events-none">
-          {currentStories.map((s, idx) => {
-            let widthPct = 0;
-            if (idx < currentStoryIndex) widthPct = 100;
-            else if (idx === currentStoryIndex) widthPct = progress;
+        {/* Tap zones for story navigation */}
+        <div 
+          onClick={prevStory}
+          className="absolute inset-y-0 left-0 w-[35%] z-20 cursor-pointer"
+          title="Previous Story"
+        />
+        <div 
+          onClick={advanceStory}
+          className="absolute inset-y-0 right-0 w-[65%] z-20 cursor-pointer"
+          title="Next Story"
+        />
 
-            return (
-              <div
-                key={s._id || idx}
-                className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden backdrop-blur-xs"
-              >
+        {/* ================= 1. TOP HEADER (Profile img & Name UPAR) ================= */}
+        <div className="relative z-30 pt-3 px-3.5 pb-2 space-y-2.5 pointer-events-auto">
+          {/* Top Segmented Progress Bar */}
+          <div className="flex gap-1.5 pointer-events-none">
+            {currentStories.map((s, idx) => {
+              let widthPct = 0;
+              if (idx < currentStoryIndex) widthPct = 100;
+              else if (idx === currentStoryIndex) widthPct = progress;
+
+              return (
                 <div
-                  className="h-full bg-white transition-all duration-75"
-                  style={{ width: `${widthPct}%` }}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Header: Store Avatar, Name, Time, Close */}
-        <div className="relative z-20 px-3.5 pt-2 flex items-center justify-between pointer-events-auto">
-          <div 
-            onClick={() => {
-              onClose();
-              navigate(`/vendor/${vendor?._id}`);
-            }}
-            className="flex items-center gap-2.5 cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] p-[2px] shadow-sm">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden uppercase font-bold text-primary text-xs">
-                {vendorAvatar ? (
-                  <img src={vendorAvatar} alt={vendor?.storeName} className="w-full h-full object-cover" />
-                ) : (
-                  vendor?.storeName?.charAt(0) || 'V'
-                )}
-              </div>
-            </div>
-            <div className="text-left">
-              <p className="text-white font-black text-xs group-hover:underline drop-shadow-md truncate max-w-[170px]">
-                {vendor?.storeName || 'Partner Store'}
-              </p>
-              <span className="text-[10px] text-white/75 font-medium drop-shadow-sm">
-                {timeAgo(currentStory.createdAt)} • 24h Story
-              </span>
-            </div>
+                  key={s._id || idx}
+                  className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden backdrop-blur-xs"
+                >
+                  <div
+                    className="h-full bg-white transition-all duration-75"
+                    style={{ width: `${widthPct}%` }}
+                  />
+                </div>
+              );
+            })}
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Pause indicator pill when holding */}
-            {isPaused && (
-              <span className="px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-bold animate-pulse backdrop-blur-md">
-                Paused
-              </span>
-            )}
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md hover:bg-black/60 text-white flex items-center justify-center transition-colors cursor-pointer border border-white/20"
+          {/* Header Row: Profile Avatar, Store Name, Time, Close */}
+          <div className="flex items-center justify-between pointer-events-auto">
+            <div 
+              onClick={() => {
+                onClose();
+                navigate('/vendor-detail', { state: { vendor } });
+              }}
+              className="flex items-center gap-2.5 cursor-pointer group text-left min-w-0"
+              title="View Store"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[2px] shadow-sm flex-shrink-0">
+                <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden uppercase font-bold text-primary text-xs">
+                  {vendorAvatar ? (
+                    <img src={vendorAvatar} alt={vendor?.storeName} className="w-full h-full object-cover" />
+                  ) : (
+                    vendor?.storeName?.charAt(0) || 'V'
+                  )}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-white font-black text-[14.5px] group-hover:text-amber-300 transition-colors truncate max-w-[190px] sm:max-w-[220px] drop-shadow-md leading-tight">
+                    {vendor?.storeName || 'Partner Store'}
+                  </p>
+                  <span className="material-symbols-outlined text-[16px] text-sky-400 flex-shrink-0" title="Verified Store">
+                    verified
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-white/80 font-medium truncate drop-shadow-sm">
+                  <span>{vendor?.category || 'Store'}</span>
+                  <span>•</span>
+                  <span>{timeAgo(currentStory.createdAt)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Aspect Ratio Toggle (Fit / Fill) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFit(!isFit);
+                }}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md ${
+                  isFit ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-black/40 hover:bg-black/60 text-white/90 border border-white/20'
+                }`}
+                title={isFit ? 'Switch to Full Screen Fill' : 'Switch to Fit Image'}
+              >
+                <span className="material-symbols-outlined text-[17px]">
+                  {isFit ? 'fullscreen' : 'fit_screen'}
+                </span>
+              </button>
+
+              {isPaused && (
+                <span className="px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-bold backdrop-blur-md border border-white/20 animate-pulse">
+                  Paused
+                </span>
+              )}
+              
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors cursor-pointer border border-white/20 backdrop-blur-md"
+                title="Close"
+              >
+                <span className="material-symbols-outlined text-[19px]">close</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Center / Sticky Offer Tag Sticker */}
-        {currentStory.offerTag && (
-          <div className="relative z-20 self-start px-4 mt-3 pointer-events-none">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 text-slate-900 font-black text-xs shadow-xl border border-white/40 animate-bounce">
-              <span className="material-symbols-outlined text-[15px]">local_fire_department</span>
+        {/* ================= 2. DESKTOP NAVIGATION CHEVRONS ================= */}
+        <div 
+          onClick={prevStory}
+          className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/80 hidden sm:flex items-center justify-center transition-all opacity-0 hover:opacity-100 cursor-pointer z-30 border border-white/20 backdrop-blur-sm"
+          title="Previous"
+        >
+          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+        </div>
+        <div 
+          onClick={advanceStory}
+          className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/80 hidden sm:flex items-center justify-center transition-all opacity-0 hover:opacity-100 cursor-pointer z-30 border border-white/20 backdrop-blur-sm"
+          title="Next"
+        >
+          <span className="material-symbols-outlined text-[22px]">chevron_right</span>
+        </div>
+
+        {/* ================= 3. BOTTOM SECTION (USKE NEECHE DESCRIPTION PROPER) ================= */}
+        <div className="relative z-30 px-4 pt-4 pb-6 sm:pb-5 space-y-2.5 text-left pointer-events-auto">
+          {/* Offer Tag Badge (if present) */}
+          {currentStory.offerTag && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 text-slate-950 font-black text-[11px] shadow-lg">
+              <span className="material-symbols-outlined text-[14px]">local_fire_department</span>
               <span>{currentStory.offerTag}</span>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Bottom Section: Caption & Actions */}
-        <div className="relative z-20 p-4 space-y-3 pointer-events-auto">
-          {/* Caption */}
+          {/* Story Caption / Description */}
           {currentStory.caption && (
-            <div className="bg-black/45 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-left">
-              <p className="text-white text-xs font-semibold leading-relaxed drop-shadow-sm">
+            <div className="bg-black/45 backdrop-blur-md p-3 rounded-2xl border border-white/15 shadow-sm">
+              <p className="text-white text-[13px] font-medium leading-relaxed max-h-20 overflow-y-auto no-scrollbar drop-shadow-sm">
                 {currentStory.caption}
               </p>
             </div>
           )}
 
-          {/* Quick Action Buttons */}
-          <div className="flex items-center gap-2 pt-1">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 pt-0.5">
             <button
               onClick={() => {
                 onClose();
-                navigate('/chat', { state: { selectedChat: vendor?._id } });
+                navigate('/vendor-detail', { state: { vendor } });
               }}
-              className="flex-1 h-11 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-white/25 cursor-pointer shadow-sm active:scale-95"
+              className="flex-1 h-12 rounded-2xl bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] hover:opacity-95 text-white text-[13px] font-extrabold transition-all flex items-center justify-center gap-2 shadow-xl shadow-[#6000da]/30 active:scale-95 cursor-pointer border border-white/10"
             >
-              <span className="material-symbols-outlined text-[18px]">chat</span>
-              Message Store
+              <span className="material-symbols-outlined text-[19px]">storefront</span>
+              <span>View Store & Offers</span>
+              {vendor?.cashbackRate && (
+                <span className="bg-white/20 text-white text-[9px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider ml-0.5">
+                  FLAT {vendor.cashbackRate}%
+                </span>
+              )}
             </button>
 
             <button
               onClick={() => {
                 onClose();
-                navigate(`/vendor/${vendor?._id}`);
+                navigate('/chat', { state: { vendorData: vendor } });
               }}
-              className="flex-1 h-11 rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/95 hover:to-purple-600/95 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-lg active:scale-95 cursor-pointer"
+              className="w-12 h-12 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 flex-shrink-0 border border-white/20 shadow-md"
+              title="Message Store"
             >
-              <span className="material-symbols-outlined text-[18px]">storefront</span>
-              View Store & Deals
+              <span className="material-symbols-outlined text-[20px]">chat</span>
             </button>
           </div>
         </div>
 
       </div>
 
-    </div>
+    </div>,
+    document.body
   );
 }

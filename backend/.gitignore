@@ -9,4 +9,5 @@ dist/
 coverage/
 # Firebase Service Account Key - NEVER commit this to git!
 src/config/serviceAccountKey.json
+*.traineddata
 

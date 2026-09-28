@@ -5,7 +5,7 @@
 import axios from 'axios';
 import useAuthStore from '../store/useAuthStore.js';
 
-const rawApiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? `${window.location.protocol}//${window.location.host}/api` : 'http://localhost:5000/api');
+const rawApiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? `${window.location.protocol}//${window.location.host}/api` : 'http://localhost:5001/api');
 export const SERVER_URL = rawApiUrl.replace(/\/api\/?$/, '');
 export const API_BASE_URL = `${SERVER_URL}/api`;
 

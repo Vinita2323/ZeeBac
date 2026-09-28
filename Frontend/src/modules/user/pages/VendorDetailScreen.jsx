@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserAPI, StoryAPI, API_BASE_URL } from '../../../services/api';
+import { calculateDistance } from '../../../utils/distance';
 import OverviewTab from '../components/vendor-detail/OverviewTab';
 import ShopTab from '../components/vendor-detail/ShopTab';
 import PhotosTab from '../components/vendor-detail/PhotosTab';
@@ -16,6 +17,14 @@ export default function VendorDetailScreen() {
   const [vendorStories, setVendorStories] = useState([]);
   const [showStoryViewer, setShowStoryViewer] = useState(false);
   const [showHeroLightbox, setShowHeroLightbox] = useState(false);
+  const [userLocation, setUserLocation] = useState(() => {
+    try {
+      const stored = localStorage.getItem('zeebac_location');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const defaultVendor = {
     _id: 1,
@@ -175,7 +184,11 @@ export default function VendorDetailScreen() {
           <h1 className="font-display text-headline-lg font-black tracking-tight">{vendor.storeName}</h1>
           <div className="flex items-center gap-xs text-[13px] text-white/80">
             <span className="material-symbols-outlined text-[14px]">distance</span>
-            0.8 miles away
+            {userLocation && vendor.location?.coordinates ? (
+              `${calculateDistance(userLocation.lat, userLocation.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km away`
+            ) : (
+              vendor.address?.city || 'Nearby'
+            )}
             <span>•</span>
             {vendor.category}
           </div>

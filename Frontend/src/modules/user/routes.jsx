@@ -16,6 +16,7 @@ import FindVendorScreen from './pages/FindVendorScreen';
 import PayVendorScreen from './pages/PayVendorScreen';
 import ChatScreen from './pages/ChatScreen';
 import ApplyLoanScreen from './pages/ApplyLoanScreen';
+import NotificationsScreen from './pages/NotificationsScreen';
 import ProtectedRoute from '../auth/components/ProtectedRoute';
 
 export default function UserRoutes() {
@@ -42,6 +43,7 @@ export default function UserRoutes() {
         <Route path="/find-vendor" element={<FindVendorScreen />} />
         <Route path="/pay-vendor" element={<PayVendorScreen />} />
         <Route path="/apply-loan" element={<ApplyLoanScreen />} />
+        <Route path="/notifications" element={<NotificationsScreen />} />
       </Route>
     </Routes>
   );

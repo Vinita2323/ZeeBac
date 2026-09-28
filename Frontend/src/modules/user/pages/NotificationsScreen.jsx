@@ -4,7 +4,7 @@ import useNotifications from '../../../hooks/useNotifications';
 import useAuthStore from '../../../store/useAuthStore';
 import NotificationItemCard from '../../../components/common/NotificationItemCard';
 
-export default function NotificationsPage() {
+export default function NotificationsScreen() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
   const { notifications, isLoading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
@@ -16,9 +16,9 @@ export default function NotificationsPage() {
   const hasUnread = notifications.some((n) => !n.isRead);
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 flex flex-col font-sans select-none -m-4 sm:-m-6 p-4 sm:p-6">
+    <div className="min-h-screen bg-[#fafafa] text-slate-900 flex flex-col font-sans select-none">
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-2xs -mx-4 sm:-mx-6 px-4 sm:px-6 mb-4">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-2xs">
         <div className="flex items-center gap-1">
           <button
             onClick={() => navigate(-1)}
@@ -42,8 +42,8 @@ export default function NotificationsPage() {
 
           {/* Profile Circle Avatar */}
           <div className="w-8 h-8 rounded-full bg-[#4c1d95] flex items-center justify-center text-white shadow-2xs overflow-hidden">
-            {currentUser?.profilePicture || currentUser?.logoUrl ? (
-              <img src={currentUser.profilePicture || currentUser.logoUrl} alt="Store Profile" className="w-full h-full object-cover" />
+            {currentUser?.profilePicture ? (
+              <img src={currentUser.profilePicture} alt="Profile" className="w-full h-full object-cover" />
             ) : (
               <span className="material-symbols-outlined text-[20px]">person</span>
             )}
@@ -52,7 +52,7 @@ export default function NotificationsPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-lg mx-auto space-y-3 pb-16">
+      <main className="flex-1 w-full max-w-lg mx-auto p-3 sm:p-4 space-y-3 pb-16">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
             <div className="w-8 h-8 border-2 border-[#4c1d95] border-t-transparent rounded-full animate-spin" />
@@ -63,9 +63,9 @@ export default function NotificationsPage() {
             <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-1">
               <span className="material-symbols-outlined text-[36px] text-slate-400">notifications_off</span>
             </div>
-            <p className="font-bold text-[16px] text-slate-700">No notifications</p>
+            <p className="font-bold text-[16px] text-slate-700">No notifications yet</p>
             <p className="text-[13px] text-slate-500 max-w-xs">
-              You're all caught up! Customer OTPs and cashback approval alerts will show here.
+              When you earn cashback, claim bills, or receive store updates, they will appear here.
             </p>
           </div>
         ) : (

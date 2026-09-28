@@ -92,7 +92,7 @@ export const getActiveStories = async (req, res) => {
 
     // Fetch active, unexpired stories for nearby vendors
     const activeStories = await Story.find(storyQuery)
-      .populate('vendorId', 'storeName profilePic category address phone zeebacId location')
+      .populate('vendorId', 'storeName profilePic storeLogo storeCoverImage category address phone zeebacId location cashbackRate')
       .sort({ createdAt: 1 }); // chronological within each vendor
 
     // Group stories by vendor
@@ -168,7 +168,7 @@ export const getVendorStories = async (req, res) => {
       isActive: true,
       expiresAt: { $gt: now },
     })
-      .populate('vendorId', 'storeName profilePic category address phone')
+      .populate('vendorId', 'storeName profilePic storeLogo storeCoverImage category address phone zeebacId location cashbackRate')
       .sort({ createdAt: 1 });
 
     const formatted = stories.map((story) => ({

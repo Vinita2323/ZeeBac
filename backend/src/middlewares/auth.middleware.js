@@ -104,3 +104,53 @@ export const requireApprovedVendor = async (req, res, next) => {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+// POS Bill Creation Guard — requires vendor JWT or valid POS API key
+export const authenticatePosOrVendor = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    const posKey = req.headers['x-pos-key'] || req.headers['x-api-key'] || req.query?.apiKey;
+
+    // 1. Check Bearer JWT Token
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      req.user = {
+        ...decoded,
+        _id: decoded.id || decoded._id,
+        id: decoded.id || decoded._id,
+      };
+
+      if (req.user.role !== 'vendor' && req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+        logger.warn(`[authenticatePosOrVendor] Forbidden role: ${req.user.role}`);
+        return res.status(403).json({ success: false, message: 'Access denied: only vendors or POS clients can create bills' });
+      }
+
+      if (req.user.role === 'vendor') {
+        const vendor = await Vendor.findById(req.user.id);
+        if (!vendor) {
+          return res.status(404).json({ success: false, message: 'Authenticated vendor not found' });
+        }
+        req.vendor = vendor;
+        req.user.zeebacId = vendor.zeebacId;
+      }
+      return next();
+    }
+
+    // 2. Check POS API Key
+    const configuredPosKey = process.env.POS_API_KEY;
+    if (posKey && configuredPosKey && posKey === configuredPosKey) {
+      req.isPosApiKey = true;
+      return next();
+    }
+
+    logger.warn(`[authenticatePosOrVendor] Unauthorized attempt to create POS bill`);
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized: POS bill creation requires vendor authentication or valid POS API key',
+    });
+  } catch (error) {
+    logger.error(`[authenticatePosOrVendor] ${error.message}`);
+    return res.status(401).json({ success: false, message: 'Not authorized, authentication failed' });
+  }
+};

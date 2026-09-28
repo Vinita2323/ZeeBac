@@ -94,6 +94,47 @@ const cashbackRequestSchema = new mongoose.Schema({
   lockedUntil: {
     type: Date,
   },
+  // AI Auto-Approval & Smart POS Match attributes
+  autoApproved: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  verifiedBy: {
+    type: String,
+    enum: ['AI_POS_AUTO_MATCH', 'VENDOR', 'ADMIN', null],
+    default: null,
+  },
+  verifiedAt: {
+    type: Date,
+    default: null,
+  },
+  aiConfidence: {
+    type: Number,
+    default: 0,
+  },
+  matchedPosBill: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PosBill',
+    default: null,
+  },
+  ocrExtractedText: {
+    type: String,
+    default: null,
+  },
+  ocrInvoiceNumber: {
+    type: String,
+    default: null,
+  },
+  ocrDetectedAmount: {
+    type: Number,
+    default: null,
+  },
+  transactionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Transaction',
+    default: null,
+  },
   status: {
     type: String,
     enum: ['Pending', 'Approved', 'Rejected', 'Held'],

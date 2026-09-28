@@ -31,23 +31,77 @@ export const createPosBill = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     const { vendorZeebacId, amount, billCode: customBillCode, customerPhone, paymentMethod } = req.body;
-    const vendorId = vendorZeebacId || req.user?.zeebacId;
+    const rawInvoice = req.body.invoiceNumber || req.body.billNumber || req.body.invoiceNo || customBillCode;
+    const invoiceNumber = rawInvoice ? String(rawInvoice).toUpperCase().trim() : null;
+
+    // Security Fix 6: Never trust client-provided vendor ID if authenticated vendor identity is present
+    const authenticatedVendorId = req.user?.zeebacId || req.vendor?.zeebacId;
+    if (authenticatedVendorId && vendorZeebacId && authenticatedVendorId !== vendorZeebacId && req.user?.role !== 'admin' && req.user?.role !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'Forbidden: cannot create bill for a different vendor' });
+    }
+    const vendorId = authenticatedVendorId || vendorZeebacId;
 
     if (!vendorId || !amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Vendor Zeebac ID and valid amount are required' });
     }
 
-    const vendor = await Vendor.findOne({ zeebacId: vendorId });
+    const vendor = req.vendor || (await Vendor.findOne({ zeebacId: vendorId }));
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
-    let billCode = customBillCode ? customBillCode.toUpperCase().trim() : generateBillCode();
-    
-    // Ensure code uniqueness
-    let existing = await PosBill.findOne({ billCode });
-    if (existing && !customBillCode) {
-      billCode = generateBillCode();
+    let billCode = (customBillCode || invoiceNumber) ? String(customBillCode || invoiceNumber).toUpperCase().trim() : generateBillCode();
+
+    // Security Fix 7: Safe duplicate POS bill handling
+    const existingForVendor = await PosBill.findOne({
+      vendor: vendor._id,
+      $or: [
+        { billCode },
+        ...(invoiceNumber ? [{ invoiceNumber }] : []),
+      ],
+    });
+
+    if (existingForVendor) {
+      if (existingForVendor.status === 'CLAIMED') {
+        return res.status(409).json({
+          success: false,
+          alreadyClaimed: true,
+          message: 'A POS bill with this invoice number has already been claimed',
+        });
+      }
+      if (existingForVendor.status === 'UNCLAIMED' && existingForVendor.expiresAt > new Date()) {
+        const existingCashback = Math.round(existingForVendor.amount * (existingForVendor.cashbackRate / 100) * 100) / 100;
+        return res.status(200).json({
+          success: true,
+          message: 'POS bill already exists and is ready to claim',
+          data: {
+            mode: 'QR_SCAN',
+            billCode: existingForVendor.billCode,
+            invoiceNumber: existingForVendor.invoiceNumber,
+            amount: existingForVendor.amount,
+            storeName: vendor.storeName,
+            cashbackRate: existingForVendor.cashbackRate,
+            cashbackAmount: existingCashback,
+            qrPayload: existingForVendor.billCode,
+            expiresAt: existingForVendor.expiresAt,
+          },
+        });
+      }
+    }
+
+    // If billCode exists for a DIFFERENT vendor, scope with vendor prefix to avoid index collision
+    let codeConflict = await PosBill.findOne({ billCode });
+    if (codeConflict && codeConflict.vendor.toString() !== vendor._id.toString()) {
+      billCode = `${vendor.zeebacId}-${billCode}`;
+    }
+
+    // Ensure code uniqueness for generated codes
+    if (!customBillCode && !invoiceNumber) {
+      let existing = await PosBill.findOne({ billCode });
+      while (existing) {
+        billCode = generateBillCode();
+        existing = await PosBill.findOne({ billCode });
+      }
     }
 
     const cashbackRate = vendor.cashbackRate || 10;
@@ -224,6 +278,7 @@ export const createPosBill = async (req, res) => {
       // Customer not registered on Zeebac yet -> create UNCLAIMED bill with linked customerPhone & QR
       const posBill = await PosBill.create({
         billCode,
+        invoiceNumber: invoiceNumber || billCode,
         vendorZeebacId: vendor.zeebacId,
         vendor: vendor._id,
         amount: billAmount,
@@ -243,6 +298,7 @@ export const createPosBill = async (req, res) => {
         data: {
           mode: 'UNREGISTERED_CUSTOMER_QR',
           billCode: posBill.billCode,
+          invoiceNumber: posBill.invoiceNumber,
           amount: posBill.amount,
           cashbackRate: posBill.cashbackRate,
           cashbackAmount: cashbackEarned,
@@ -258,6 +314,7 @@ export const createPosBill = async (req, res) => {
     // Option 1: Standard POS Printed Bill without customer phone (QR Scan flow)
     const posBill = await PosBill.create({
       billCode,
+      invoiceNumber: invoiceNumber || billCode,
       vendorZeebacId: vendor.zeebacId,
       vendor: vendor._id,
       amount: billAmount,
@@ -387,15 +444,26 @@ export const claimPosBill = async (req, res) => {
         { session }
       );
 
-      // 4. Mark POS Bill as CLAIMED
-      posBill.status = 'CLAIMED';
-      posBill.claimedBy = customer._id;
-      posBill.claimedAt = new Date();
-      posBill.claimMode = 'SCAN';
-      if (!posBill.customerPhone) posBill.customerPhone = customer.phone;
-      posBill.cashbackAmount = cashbackEarned;
-      posBill.transaction = transaction[0]._id;
-      await posBill.save({ session });
+      // 4. Mark POS Bill as CLAIMED atomically
+      const claimedPos = await PosBill.findOneAndUpdate(
+        { _id: posBill._id, status: 'UNCLAIMED' },
+        {
+          $set: {
+            status: 'CLAIMED',
+            claimedBy: customer._id,
+            claimedAt: new Date(),
+            claimMode: 'SCAN',
+            customerPhone: posBill.customerPhone || customer.phone,
+            cashbackAmount: cashbackEarned,
+            transaction: transaction[0]._id,
+          },
+        },
+        { session, returnDocument: 'after' }
+      );
+
+      if (!claimedPos) {
+        throw new Error('BILL_ALREADY_CLAIMED_OR_LOCKED');
+      }
     });
 
     logger.info(`[POS Bill Claimed] Code: ${normalizedCode} | Customer: ${customer.phone} | Cashback: ₹${cashbackEarned}`);
@@ -426,6 +494,9 @@ export const claimPosBill = async (req, res) => {
     });
   } catch (error) {
     logger.error(`[claimPosBill] Error: ${error.message}`);
+    if (error.message?.includes('BILL_ALREADY_CLAIMED')) {
+      return res.status(400).json({ success: false, alreadyClaimed: true, message: 'This POS Bill has already been claimed!' });
+    }
     res.status(500).json({ success: false, message: error.message });
   } finally {
     session.endSession();

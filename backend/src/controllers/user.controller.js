@@ -36,6 +36,7 @@ import {
   HIGH_VALUE_THRESHOLD,
 } from '../utils/cashbackRequestLimits.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, CUSTOMER_QR_TTL_SECONDS } from '../utils/qr.util.js';
+import { performOcrOnBill, matchBillWithSoftwarePos, executeInstantAutoCashbackApproval } from '../services/aiBillVerification.service.js';
 
 // ─── Get Customer Profile ───
 export const getUserProfile = async (req, res) => {
@@ -220,7 +221,7 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category cashbackRate phone address storeLogo profilePic description operatingHours stats socialLinks subscription shopType');
+      .select('zeebacId storeName category subCategory cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours stats socialLinks subscription shopType location');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -861,7 +862,7 @@ export const searchVendors = async (req, res) => {
     }
 
     const vendors = await Vendor.find(query)
-      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location subscription shopType')
+      .select('storeName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType')
       .limit(50);
 
     const visibleVendors = vendors
@@ -936,7 +937,7 @@ export const getVendorsByCategory = async (req, res) => {
     }
     
     const vendors = await Vendor.find(query)
-      .select('storeName category cashbackRate address stats storeLogo profilePic zeebacId location subscription shopType')
+      .select('storeName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType')
       .limit(50);
 
     const visibleVendors = vendors
@@ -1085,8 +1086,8 @@ export const createCashbackRequest = async (req, res) => {
   try {
     const { vendorId, amount, description, paymentMethod, purchaseDate, billNumber, latitude, longitude } = req.body;
 
-    if (!vendorId || !amount || amount < 1) {
-      return res.status(400).json({ success: false, message: 'vendorId and amount (>=1) are required' });
+    if (!vendorId || !mongoose.Types.ObjectId.isValid(vendorId) || !amount || isNaN(amount) || parseFloat(amount) < 1 || parseFloat(amount) > 10000000) {
+      return res.status(400).json({ success: false, message: 'Valid vendorId and amount (between ₹1 and ₹1,00,00,000) are required' });
     }
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'A photo of the bill/receipt is required' });
@@ -1147,13 +1148,49 @@ export const createCashbackRequest = async (req, res) => {
     const isHighValue = parseFloat(amount) >= HIGH_VALUE_THRESHOLD;
     const trimmedBillNumber = billNumber ? String(billNumber).trim() : undefined;
 
+    // Phase AI: Intelligent OCR & Software POS Bill Auto-Verification
+    const imageSource = req.file.buffer || req.file.path || billImageUrl;
+    const ocrResult = await performOcrOnBill(imageSource);
+
+    const posMatch = await matchBillWithSoftwarePos({
+      vendorId: vendor._id,
+      billNumber: trimmedBillNumber,
+      amount: parseFloat(amount),
+      ocrResult,
+    });
+
+    // Fix 3: Hard-reject already claimed POS bills (NEVER allow pending/manual review)
+    if (posMatch.alreadyClaimed) {
+      return res.status(400).json({
+        success: false,
+        alreadyClaimed: true,
+        message: 'This bill has already been claimed for cashback. Duplicate claims are not allowed.',
+      });
+    }
+
+    // Fix 9: Reject expired bills
+    if (posMatch.isExpired) {
+      return res.status(400).json({
+        success: false,
+        isExpired: true,
+        message: 'This bill has expired and is no longer eligible for cashback.',
+      });
+    }
+
+    // Fix 2 & 8: Auto-approval requires full match + OCR corroboration + amount matching within tolerance
+    const isAutoApproved = Boolean(
+      posMatch.matched &&
+      posMatch.ocrCorroborated &&
+      !posMatch.amountMismatch
+    );
+
     const request = await CashbackRequest.create({
       customerId: customer._id,
       vendorId: vendor._id,
-      amount: parseFloat(amount),
+      amount: isAutoApproved ? posMatch.posBill.amount : parseFloat(amount),
       requestType: 'receipt_claim',
       billImageUrl,
-      billNumber: trimmedBillNumber,
+      billNumber: trimmedBillNumber || posMatch.posBill?.billCode || ocrResult.invoiceNumber,
       description,
       purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
       location,
@@ -1161,7 +1198,51 @@ export const createCashbackRequest = async (req, res) => {
       isHighValue,
       paymentMethod: paymentMethod || 'Other',
       status: 'Pending',
+      ocrExtractedText: ocrResult.rawText ? ocrResult.rawText.slice(0, 500) : null,
+      ocrInvoiceNumber: ocrResult.invoiceNumber || null,
+      ocrDetectedAmount: ocrResult.amount || null,
     });
+
+    // If software bill matched and corroborated, execute instant auto-approval (No manual vendor approval required!)
+    if (isAutoApproved) {
+      try {
+        const autoResult = await executeInstantAutoCashbackApproval({
+          cashbackRequest: request,
+          posBill: posMatch.posBill,
+          vendor,
+          customer,
+        });
+
+        return res.status(201).json({
+          success: true,
+          autoApproved: true,
+          message: '🎉 Bill auto-verified with billing software! Cashback credited instantly without vendor approval.',
+          data: autoResult.cashbackRequest,
+          cashbackEarned: autoResult.cashbackEarned,
+          transactionId: autoResult.transactionId,
+          posBill: {
+            billCode: posMatch.posBill.billCode,
+            amount: posMatch.posBill.amount,
+          },
+          ocr: {
+            detectedInvoiceNumber: ocrResult.invoiceNumber,
+            detectedAmount: ocrResult.amount,
+          },
+        });
+      } catch (autoErr) {
+        logger.error(`AI auto-approval failed: ${autoErr.message}.`);
+        // Fix 4: If bill was locked or claimed by a concurrent request, hard reject
+        if (autoErr.message?.includes('BILL_ALREADY_CLAIMED')) {
+          await CashbackRequest.findByIdAndDelete(request._id);
+          return res.status(400).json({
+            success: false,
+            alreadyClaimed: true,
+            message: 'This bill has already been claimed by another customer.',
+          });
+        }
+        logger.info('Falling back to manual vendor review.');
+      }
+    }
 
     const billNumInfo = trimmedBillNumber ? ` (Bill No: ${trimmedBillNumber})` : '';
 
@@ -1183,10 +1264,10 @@ export const createCashbackRequest = async (req, res) => {
         'HIGH_VALUE_REQUEST',
         'High-value cashback request',
         `${customer.name || customer.phone} submitted a ₹${amount} receipt claim at ${vendor.storeName || 'a vendor'}.`
-      ).catch((e) => logger.error('notifyAdmins (high-value request) failed', e));
+      )?.catch?.((e) => logger.error('notifyAdmins (high-value request) failed', e));
     }
 
-    res.status(201).json({ success: true, data: request });
+    res.status(201).json({ success: true, autoApproved: false, data: request });
   } catch (error) {
     if (error instanceof DailyLimitExceededError || error instanceof DuplicateRequestError) {
       return res.status(429).json({ success: false, message: error.message });
@@ -1252,7 +1333,7 @@ export const getNearbyVendors = async (req, res) => {
       }
     });
 
-    const vendors = await Vendor.find(query).select('storeName zeebacId category storeLogo profilePic address cashbackRate stats subscription shopType location');
+    const vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location');
 
     const visibleVendors = vendors
       .filter(vendor => {

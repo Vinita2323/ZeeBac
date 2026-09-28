@@ -1,11 +1,11 @@
 import express from 'express';
 import { createPosBill, claimPosBill, getPosBillStatus } from '../controllers/pos.controller.js';
-import { protect } from '../middlewares/auth.middleware.js';
+import { protect, authenticatePosOrVendor } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-// Public / Vendor Trigger to generate POS Bill
-router.post('/create-bill', createPosBill);
+// Authenticated POS / Vendor Trigger to generate POS Bill
+router.post('/create-bill', authenticatePosOrVendor, createPosBill);
 
 // Customer Auth Protected route to claim POS Bill code
 router.post('/claim', protect, claimPosBill);

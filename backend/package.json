@@ -27,6 +27,7 @@
     "multer": "^2.2.0",
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.3",
+    "tesseract.js": "^7.0.0",
     "winston": "^3.19.0"
   },
   "devDependencies": {

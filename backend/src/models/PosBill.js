@@ -57,14 +57,20 @@ const posBillSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
-    claimMode: {
+    invoiceNumber: {
       type: String,
-      enum: ['SCAN', 'AUTO_PHONE', null],
+      uppercase: true,
+      trim: true,
       default: null,
     },
     paymentMethod: {
       type: String,
       default: 'Cash',
+    },
+    claimMode: {
+      type: String,
+      enum: ['SCAN', 'AUTO_PHONE', 'AI_BILL_MATCH', null],
+      default: null,
     },
     expiresAt: {
       type: Date,
@@ -74,8 +80,12 @@ const posBillSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Index for fast lookup by billCode
+// Index for fast lookup by billCode and invoiceNumber
 posBillSchema.index({ billCode: 1, status: 1 });
+posBillSchema.index({ invoiceNumber: 1, status: 1 });
+posBillSchema.index({ vendor: 1, status: 1 });
+posBillSchema.index({ vendor: 1, invoiceNumber: 1 });
+posBillSchema.index({ vendor: 1, billCode: 1 });
 
 const PosBill = mongoose.model('PosBill', posBillSchema);
 export default PosBill;

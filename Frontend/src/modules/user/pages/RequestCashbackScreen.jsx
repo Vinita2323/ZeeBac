@@ -1,11 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function RequestCashbackScreen() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isAutoApproved, setIsAutoApproved] = useState(false);
+  const [autoCashbackEarned, setAutoCashbackEarned] = useState(0);
+  const [autoTransactionId, setAutoTransactionId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [vendorsList, setVendorsList] = useState([]);
@@ -159,11 +163,24 @@ export default function RequestCashbackScreen() {
       const res = await UserAPI.createCashbackRequest(formData);
 
       if (res.success) {
-        const reqId = res.data._id;
-        const now = new Date(res.data.createdAt);
+        const reqId = res.data?._id || res.data?.id;
+        const now = new Date(res.data?.createdAt || Date.now());
         const dateTimeStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         setSubmittedRequestId(reqId);
         setSubmittedDateTime(dateTimeStr);
+
+        if (res.autoApproved) {
+          setIsAutoApproved(true);
+          setAutoCashbackEarned(res.cashbackEarned || 0);
+          setAutoTransactionId(res.transactionId || '');
+          // Sync real-time wallet balance in global store
+          try {
+            useAuthStore.getState().fetchWalletBalance();
+          } catch (_) {}
+        } else {
+          setIsAutoApproved(false);
+        }
+
         setIsSuccess(true);
       } else {
         setErrorMsg('Failed to submit request.');
@@ -179,6 +196,95 @@ export default function RequestCashbackScreen() {
   const filteredVendors = vendorsList;
 
   if (isSuccess) {
+    if (isAutoApproved) {
+      return (
+        <div className="mesh-gradient text-on-surface min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
+          <main className="app-container bg-white border border-emerald-200 shadow-2xl rounded-3xl p-lg space-y-lg text-center animate-reveal relative overflow-hidden">
+            {/* Top glowing ambient blob */}
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-60 h-60 bg-emerald-400/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Glowing AI Verification Chip */}
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold tracking-wide uppercase shadow-sm">
+              <span className="material-symbols-outlined text-sm animate-pulse text-emerald-600">auto_awesome</span>
+              AI Instant Match Verified
+            </div>
+
+            <div className="relative w-20 h-20 bg-gradient-to-tr from-emerald-600 to-green-400 rounded-full flex items-center justify-center mx-auto shadow-xl text-white">
+              <span className="material-symbols-outlined text-[44px]">verified</span>
+            </div>
+
+            <div className="space-y-xs">
+              <h1 className="text-headline-lg font-black tracking-tight text-on-surface">Cashback Approved Instantly!</h1>
+              <p className="text-body-sm text-on-surface-variant max-w-[320px] mx-auto">
+                Bill verified with store billing software. Your cashback has been automatically credited directly to your Zeebac wallet!
+              </p>
+            </div>
+
+            {/* Big Cashback Amount Card */}
+            <div className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent rounded-2xl p-md border-2 border-emerald-400/50 text-center space-y-1">
+              <span className="text-[11px] uppercase font-bold text-emerald-800 tracking-wider">Cashback Credited to Wallet</span>
+              <div className="text-[38px] font-black text-emerald-600 tracking-tight font-display">
+                +₹{parseFloat(autoCashbackEarned || 0).toFixed(2)}
+              </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/90 px-3 py-0.5 rounded-full">
+                <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                Instant Success • No Vendor Waiting
+              </span>
+            </div>
+
+            {/* Bill Details */}
+            <div className="bg-surface-container-low rounded-2xl p-md border border-outline-variant/20 text-left space-y-sm text-body-sm text-on-surface-variant">
+              <div className="flex justify-between items-center">
+                <span>Store</span>
+                <span className="font-bold text-on-surface">{selectedVendor?.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Bill / Invoice No</span>
+                <span className="font-label-mono font-bold text-[12px] text-on-surface">{billNumber}</span>
+              </div>
+              {autoTransactionId && (
+                <div className="flex justify-between items-center">
+                  <span>Transaction ID</span>
+                  <span className="font-label-mono font-bold text-[12px] text-primary">{autoTransactionId}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span>Status</span>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[12px]">done_all</span>
+                  Auto-Approved & Paid
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-sm pt-xs">
+              <button 
+                onClick={() => navigate('/wallet')}
+                className="w-full h-14 bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-700 hover:to-green-600 text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined">account_balance_wallet</span>
+                View Wallet Balance
+              </button>
+              <button 
+                onClick={() => navigate('/transactions')}
+                className="w-full h-12 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-xl font-title-md flex items-center justify-center gap-sm active:scale-95 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+                View Transaction Receipt
+              </button>
+              <button 
+                onClick={() => navigate('/home')}
+                className="w-full h-10 bg-transparent text-secondary font-title-md active:opacity-75 transition-opacity cursor-pointer text-sm"
+              >
+                Back to Home
+              </button>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
     return (
       <div className="mesh-gradient text-on-surface min-h-screen flex flex-col items-center justify-center p-container-margin select-none font-body-lg">
         <main className="app-container bg-white border border-outline-variant/20 shadow-2xl rounded-3xl p-lg space-y-lg text-center animate-reveal">
@@ -370,6 +476,22 @@ export default function RequestCashbackScreen() {
               <div className="space-y-1">
                 <h2 className="font-display text-title-md text-on-surface font-extrabold">Purchase & Bill Details</h2>
                 <p className="text-body-sm text-on-surface-variant">Provide bill facts and upload the receipt image.</p>
+              </div>
+
+              {/* AI Software Auto-Match Feature Card */}
+              <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-primary/10 border border-emerald-400/40 rounded-2xl p-3.5 flex items-start gap-3 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+                </div>
+                <div className="text-left space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-on-surface">AI Smart Bill Match Active</span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.2 rounded-full uppercase">Instant Auto-Approval</span>
+                  </div>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                    If this bill is generated by the store&apos;s software, AI will automatically match the bill invoice number and receipt photo. Your cashback will succeed immediately without requiring vendor approval!
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-sm">
