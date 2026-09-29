@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import UserRoutes from './modules/user/routes';
 import VendorRoutes from './modules/vendor/routes';
 import AdminRoutes from './modules/admin/routes';

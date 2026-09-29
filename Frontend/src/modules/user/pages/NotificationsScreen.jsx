@@ -1,19 +1,83 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../../../hooks/useNotifications';
 import useAuthStore from '../../../store/useAuthStore';
 import NotificationItemCard from '../../../components/common/NotificationItemCard';
 
+// TODO: remove — dummy data for local UI testing only
+const DUMMY_NOTIFICATIONS = [
+  {
+    _id: 'dummy-1',
+    type: 'credit',
+    title: '✅ Cashback Successful: ₹120',
+    message: 'Your cashback of ₹120 has been credited to your wallet instantly.',
+    isRead: false,
+    createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+  },
+  {
+    _id: 'dummy-2',
+    type: 'approval',
+    title: '🔑 Cash Claim OTP Generated',
+    message: 'Show this OTP to the vendor to verify your ₹850 cash payment.',
+    data: { verificationCode: 'Z482', amount: 850 },
+    isRead: false,
+    createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+  },
+  {
+    _id: 'dummy-3',
+    type: 'referral',
+    title: '🎉 Referral Bonus Earned!',
+    message: 'You earned ₹50 for referring a friend who made their first purchase.',
+    isRead: true,
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    _id: 'dummy-4',
+    type: 'system',
+    title: '🎉 Welcome to Zeebac!',
+    message: 'Thanks for joining! Start saving cashback on every purchase you make.',
+    isRead: true,
+    createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    _id: 'dummy-5',
+    type: 'approval',
+    title: '📝 Bill Approved',
+    message: 'Your bill of ₹450 has been approved by the vendor.',
+    isRead: false,
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 export default function NotificationsScreen() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
   const { notifications, isLoading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
+  const [dummy, setDummy] = useState(DUMMY_NOTIFICATIONS);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  const hasUnread = notifications.some((n) => !n.isRead);
+  const usingDummy = notifications.length === 0;
+  const displayNotifications = usingDummy ? dummy : notifications;
+  const hasUnread = displayNotifications.some((n) => !n.isRead);
+
+  const handleMarkAsRead = (id) => {
+    if (usingDummy) {
+      setDummy((prev) => prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)));
+    } else {
+      markAsRead(id);
+    }
+  };
+
+  const handleMarkAllAsRead = () => {
+    if (usingDummy) {
+      setDummy((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } else {
+      markAllAsRead();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-slate-900 flex flex-col font-sans select-none">
@@ -33,7 +97,7 @@ export default function NotificationsScreen() {
         <div className="flex items-center gap-3">
           {hasUnread && (
             <button
-              onClick={markAllAsRead}
+              onClick={handleMarkAllAsRead}
               className="text-[#3b0764] text-[13px] font-semibold hover:opacity-80 active:scale-95 transition-all cursor-pointer"
             >
               Mark all
@@ -58,7 +122,7 @@ export default function NotificationsScreen() {
             <div className="w-8 h-8 border-2 border-[#4c1d95] border-t-transparent rounded-full animate-spin" />
             <p className="text-[13px] font-medium">Loading notifications...</p>
           </div>
-        ) : notifications.length === 0 ? (
+        ) : displayNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-1">
               <span className="material-symbols-outlined text-[36px] text-slate-400">notifications_off</span>
@@ -69,11 +133,11 @@ export default function NotificationsScreen() {
             </p>
           </div>
         ) : (
-          notifications.map((notif) => (
+          displayNotifications.map((notif) => (
             <NotificationItemCard
               key={notif._id}
               notif={notif}
-              onMarkAsRead={markAsRead}
+              onMarkAsRead={handleMarkAsRead}
             />
           ))
         )}
