@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
+import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -199,7 +199,7 @@ export default function ExploreScreen() {
 
       <PermissionPrimerModal
         open={showLocationPrimer}
-        icon="near_me"
+        visual={<LocationPreview />}
         title="Find deals near you"
         message="Allow location access to see the best cashback offers from stores around you."
         onAllow={handleAllowLocation}

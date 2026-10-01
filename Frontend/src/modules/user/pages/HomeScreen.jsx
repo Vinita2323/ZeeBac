@@ -8,7 +8,7 @@ import NotificationPanel from '../components/common/NotificationPanel';
 import useNotifications from '../../../hooks/useNotifications';
 import ShopAndPayLaterModal from '../components/ShopAndPayLaterModal';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
-import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
+import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 
 export default function HomeScreen() {
@@ -157,7 +157,7 @@ export default function HomeScreen() {
 
       <PermissionPrimerModal
         open={showLocationPrimer}
-        icon="near_me"
+        visual={<LocationPreview />}
         title="Find deals near you"
         message="Allow location access to see the best cashback offers from stores around you."
         onAllow={handleAllowLocation}

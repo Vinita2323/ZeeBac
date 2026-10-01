@@ -365,6 +365,14 @@ export default function PayVendorScreen() {
                 </button>
               );
             })}
+            <button
+              onClick={() => useUIStore.getState().showSnackbar('Pay Later is coming soon!', 'info')}
+              className="px-3 py-1.5 rounded-full text-[11px] font-bold bg-amber-50 border border-amber-200 text-amber-700 flex items-center gap-1 transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[13px]">schedule</span>
+              Pay later
+              <span className="text-[8.5px] font-black bg-amber-200/70 text-amber-800 px-1 py-[1px] rounded-full tracking-wide">SOON</span>
+            </button>
           </div>
         </div>
 
