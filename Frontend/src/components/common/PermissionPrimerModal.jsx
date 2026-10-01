@@ -268,8 +268,13 @@ export default function PermissionPrimerModal({
           </div>
         )}
 
-        {/* Action Buttons: Exact Android System Permission Buttons in system blue */}
-        {isLocation || detectedType === 'camera' || detectedType === 'mic' ? (
+        {/* Action Buttons: Exact Android System Permission Buttons in system blue.
+            The "While using the app / Only this time" split is a real, distinct
+            choice only for location (Android's actual permission model) — camera
+            and mic are plain Allow/Deny on the web, so they keep the simple
+            2-button branch below, which also respects a caller's custom
+            allowLabel/skipLabel (e.g. "Allow & Answer", "I'll enter their ID"). */}
+        {isLocation ? (
           <div className="w-full mt-4 pt-1 border-t border-gray-100 flex flex-col items-center">
             <button
               type="button"
