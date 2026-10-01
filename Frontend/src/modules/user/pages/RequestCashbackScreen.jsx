@@ -36,6 +36,7 @@ export default function RequestCashbackScreen() {
 
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const isSubmittingRef = useRef(false);
 
   // Fetch vendors for dropdown
   useEffect(() => {
@@ -145,6 +146,8 @@ export default function RequestCashbackScreen() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current || isLoadingSubmit) return;
+    isSubmittingRef.current = true;
     setIsLoadingSubmit(true);
     try {
       const formData = new FormData();
@@ -189,11 +192,66 @@ export default function RequestCashbackScreen() {
       console.error(err);
       setErrorMsg(err.response?.data?.message || 'Error submitting request. Please try again.');
     } finally {
+      isSubmittingRef.current = false;
       setIsLoadingSubmit(false);
     }
   };
 
-  const filteredVendors = vendorsList;
+  const filteredVendors = (() => {
+    if (!searchQuery.trim()) return vendorsList;
+    const q = searchQuery.trim().toLowerCase();
+    
+    const matches = vendorsList.filter(v => {
+      const sName = (v.storeName || '').toLowerCase();
+      const oName = (v.ownerName || '').toLowerCase();
+      const zId = (v.zeebacId || '').toLowerCase();
+      const id = (v._id || '').toLowerCase();
+      const cat = (v.category || '').toLowerCase();
+      const subCat = (v.subCategory || '').toLowerCase();
+      return sName.includes(q) || oName.includes(q) || zId.includes(q) || id.includes(q) || cat.includes(q) || subCat.includes(q);
+    });
+
+    return matches.sort((a, b) => {
+      const aName = (a.storeName || '').toLowerCase();
+      const bName = (b.storeName || '').toLowerCase();
+      const aOwner = (a.ownerName || '').toLowerCase();
+      const bOwner = (b.ownerName || '').toLowerCase();
+      const aId = (a.zeebacId || '').toLowerCase();
+      const bId = (b.zeebacId || '').toLowerCase();
+
+      // 1. Exact match on store name or zeebacId
+      const aExact = aName === q || aId === q;
+      const bExact = bName === q || bId === q;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+
+      // 2. Store name starts with search query
+      const aStarts = aName.startsWith(q);
+      const bStarts = bName.startsWith(q);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      // 3. Store name contains search query
+      const aContains = aName.includes(q);
+      const bContains = bName.includes(q);
+      if (aContains && !bContains) return -1;
+      if (!aContains && bContains) return 1;
+
+      // 4. Owner name starts with query
+      const aOwnerStarts = aOwner.startsWith(q);
+      const bOwnerStarts = bOwner.startsWith(q);
+      if (aOwnerStarts && !bOwnerStarts) return -1;
+      if (!aOwnerStarts && bOwnerStarts) return 1;
+
+      // 5. Owner name contains query
+      const aOwnerContains = aOwner.includes(q);
+      const bOwnerContains = bOwner.includes(q);
+      if (aOwnerContains && !bOwnerContains) return -1;
+      if (!aOwnerContains && bOwnerContains) return 1;
+
+      return 0;
+    });
+  })();
 
   if (isSuccess) {
     if (isAutoApproved) {
@@ -431,22 +489,30 @@ export default function RequestCashbackScreen() {
                 </div>
 
                 {showDropdown && filteredVendors.length > 0 && (
-                  <div className="absolute left-0 right-0 mt-xs bg-white border border-outline-variant/30 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="absolute left-0 right-0 mt-xs bg-white border border-outline-variant/30 rounded-xl shadow-xl z-50 max-h-72 overflow-y-auto">
                     {filteredVendors.map(vendor => (
                       <div 
                         key={vendor._id}
                         onClick={() => handleVendorSelect(vendor)}
-                        className="px-md py-sm hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b border-outline-variant/10 last:border-none"
+                        className="px-md py-sm hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b border-outline-variant/10 last:border-none transition-colors"
                       >
-                        <div>
-                          <p className="font-title-md text-on-surface text-body-lg font-bold">{vendor.storeName}</p>
-                          <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-wider">ID: {vendor._id}</p>
+                        <div className="min-w-0 pr-2">
+                          <p className="font-title-md text-on-surface text-body-lg font-bold truncate">{vendor.storeName}</p>
+                          <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-wider truncate">
+                            ID: {vendor.zeebacId || vendor._id} {vendor.ownerName ? `• ${vendor.ownerName}` : ''}
+                          </p>
                         </div>
-                        <span className="bg-primary/10 text-primary font-label-mono text-[10px] px-2 py-0.5 rounded-full font-bold">
+                        <span className="bg-primary/10 text-primary font-label-mono text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
                           {vendor.cashbackRate * 100}% BACK
                         </span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {showDropdown && searchQuery && filteredVendors.length === 0 && (
+                  <div className="absolute left-0 right-0 mt-xs bg-white border border-outline-variant/30 rounded-xl shadow-xl z-50 p-4 text-center text-on-surface-variant text-body-sm">
+                    No partner shop found matching "{searchQuery}"
                   </div>
                 )}
               </div>
@@ -715,11 +781,22 @@ export default function RequestCashbackScreen() {
         {/* Footer controls */}
         <div className="pt-lg shrink-0">
           <button 
+            type="button"
             onClick={step === 3 ? handleSubmit : handleNext}
-            className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg active:scale-95 transition-transform duration-100 cursor-pointer"
+            disabled={isLoadingSubmit}
+            className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg active:scale-95 transition-transform duration-100 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
           >
-            <span>{step === 3 ? 'Submit Request' : 'Continue'}</span>
-            <span className="material-symbols-outlined text-body-lg">arrow_forward</span>
+            {isLoadingSubmit ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Submitting Request...</span>
+              </>
+            ) : (
+              <>
+                <span>{step === 3 ? 'Submit Request' : 'Continue'}</span>
+                <span className="material-symbols-outlined text-body-lg">arrow_forward</span>
+              </>
+            )}
           </button>
         </div>
       </main>

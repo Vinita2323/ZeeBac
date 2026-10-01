@@ -5,8 +5,8 @@ export default function ProtectedRoute({ children, allowedRole }) {
   const currentUser = useAuthStore((state) => state.currentUser);
   
   if (!currentUser) {
-    // Not logged in — redirect to the appropriate login page based on the allowedRole
-    if (allowedRole === 'vendor') return <Navigate to="/vendor-app/login" replace />;
+    // Not logged in — redirect to the appropriate page based on the allowedRole
+    if (allowedRole === 'vendor') return <Navigate to="/vendor-app" replace />;
     if (allowedRole === 'admin') return <Navigate to="/admin/login" replace />;
     return <Navigate to="/login" replace />;
   }
@@ -17,7 +17,7 @@ export default function ProtectedRoute({ children, allowedRole }) {
 
   if (allowedRole && !isRoleValid) {
     // Logged in but trying to access the wrong role's pages
-    // Redirect them to their own dashboard
+    if (allowedRole === 'vendor') return <Navigate to="/vendor-app" replace />;
     if (currentUser.role === 'vendor') return <Navigate to="/vendor" replace />;
     if (currentUser.role === 'admin' || currentUser.role === 'super_admin') return <Navigate to="/admin" replace />;
     return <Navigate to="/home" replace />;

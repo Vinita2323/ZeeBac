@@ -45,6 +45,14 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  customerWalletPayCommissionPercent: {
+    type: Number,
+    default: 2, // 2% convenience fee by default when user pays merchant from wallet
+  },
+  customerWalletPayFixedFee: {
+    type: Number,
+    default: 0,
+  },
   independentStoreMonthlyPrice: {
     type: Number,
     default: 499,

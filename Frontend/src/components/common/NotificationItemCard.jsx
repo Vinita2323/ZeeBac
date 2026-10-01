@@ -99,18 +99,105 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
   // 1. CARD 1: CASHBACK SUCCESSFUL NOTIFICATION
   if (isSuccessNotif) {
     const displayAmount = extractedCashback || extractedAmount || '50';
+
+    // Detailed transaction type detection:
+    const isScratchReward = Boolean(
+      notif.title?.toLowerCase().includes('scratch card') ||
+      notif.message?.toLowerCase().includes('scratch') ||
+      notif.type === 'reward'
+    );
+    const isPosBill = Boolean(
+      notif.title?.toLowerCase().includes('pos bill') ||
+      notif.message?.toLowerCase().includes('pos bill')
+    );
+    const isReferralReward = Boolean(
+      notif.title?.toLowerCase().includes('referral') ||
+      notif.type === 'referral' ||
+      notif.message?.toLowerCase().includes('referral')
+    );
+    const isRealCashOtp = Boolean(
+      notif.data?.isCashMode === 'true' ||
+      notif.message?.toLowerCase().includes('otp code') ||
+      (notif.title?.toLowerCase().includes('otp') && !notif.title?.toLowerCase().includes('pos'))
+    );
+    const isReceiptClaim = Boolean(
+      notif.referenceType === 'cashback_request' ||
+      notif.title?.toLowerCase().includes('receipt') ||
+      notif.message?.toLowerCase().includes('receipt') ||
+      notif.message?.toLowerCase().includes('bill')
+    );
+
+    let successBadgeText = 'CASHBACK';
+    let successBadgeBg = 'bg-[#059669]';
+    let cardBorderColor = 'border-emerald-200';
+    let iconContent = null;
+
+    if (isScratchReward) {
+      successBadgeText = 'SCRATCH CARD';
+      successBadgeBg = 'bg-[#7c3aed]';
+      cardBorderColor = 'border-purple-200';
+      iconContent = (
+        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#7c3aed] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+          <span className="material-symbols-outlined text-[24px]">card_giftcard</span>
+        </div>
+      );
+    } else if (isPosBill) {
+      successBadgeText = 'POS BILL';
+      successBadgeBg = 'bg-[#2563eb]';
+      cardBorderColor = 'border-blue-200';
+      iconContent = (
+        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#2563eb] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+          <span className="material-symbols-outlined text-[24px]">point_of_sale</span>
+        </div>
+      );
+    } else if (isReferralReward) {
+      successBadgeText = 'REFERRAL';
+      successBadgeBg = 'bg-[#0d9488]';
+      cardBorderColor = 'border-teal-200';
+      iconContent = (
+        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0d9488] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+          <span className="material-symbols-outlined text-[24px]">group_add</span>
+        </div>
+      );
+    } else if (isRealCashOtp) {
+      successBadgeText = 'CASH OTP';
+      successBadgeBg = 'bg-[#dc2626]';
+      cardBorderColor = 'border-red-200';
+      iconContent = (
+        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#ef4444] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+          <div className="border-[1.5px] border-white/90 rounded px-1 py-0.5 flex items-center justify-center bg-white/10">
+            <span className="text-[10px] font-black tracking-tighter leading-none text-white font-mono">123</span>
+          </div>
+        </div>
+      );
+    } else if (isReceiptClaim) {
+      successBadgeText = 'RECEIPT CLAIM';
+      successBadgeBg = 'bg-[#0284c7]';
+      cardBorderColor = 'border-sky-200';
+      iconContent = (
+        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0284c7] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+          <span className="material-symbols-outlined text-[24px]">receipt_long</span>
+        </div>
+      );
+    } else {
+      successBadgeText = 'CASHBACK';
+      successBadgeBg = 'bg-[#059669]';
+      cardBorderColor = 'border-emerald-200';
+      iconContent = (
+        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#059669] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+          <span className="material-symbols-outlined text-[24px]">savings</span>
+        </div>
+      );
+    }
+
     return (
       <div
         onClick={() => !notif.isRead && onMarkAsRead?.(notif._id)}
-        className="bg-white rounded-2xl border-[1.5px] border-[#ef4444] p-3.5 sm:p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] transition-all text-left relative overflow-hidden"
+        className={`bg-white rounded-2xl border-[1.5px] ${cardBorderColor} p-3.5 sm:p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] transition-all text-left relative overflow-hidden`}
       >
         <div className="flex items-start gap-3 sm:gap-3.5">
-          {/* Left Red Badge Icon */}
-          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#ef4444] text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
-            <div className="border-[1.5px] border-white/90 rounded px-1 py-0.5 flex items-center justify-center bg-white/10">
-              <span className="text-[10px] font-black tracking-tighter leading-none text-white font-mono">123</span>
-            </div>
-          </div>
+          {/* Left Thematic Badge Icon */}
+          {iconContent}
 
           {/* Right Content */}
           <div className="flex-1 min-w-0">
@@ -120,7 +207,7 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
                 {notif.title?.startsWith('✅') ? notif.title.replace(/:?\s*₹.*$/, ':') : `✅ ${notif.title || 'Cashback Successful:'}`}
               </h4>
               <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5 text-[11px] text-slate-500 font-medium">
-                <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
+                {!notif.isRead && <span className="w-2 h-2 rounded-full bg-[#059669]" />}
                 <span>{timeAgo(notif.createdAt)}</span>
               </div>
             </div>
@@ -132,8 +219,8 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
 
             {/* Badges Row */}
             <div className="flex items-center gap-1.5 flex-wrap mb-2">
-              <span className="bg-[#DC2626] text-white text-[9.5px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-2xs">
-                CASH OTP
+              <span className={`${successBadgeBg} text-white text-[9.5px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-2xs`}>
+                {successBadgeText}
               </span>
               <span className="bg-[#059669] text-white text-[9.5px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-2xs">
                 SUCCESS
@@ -191,7 +278,7 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
                 </span>
               </h4>
               <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5 text-[11px] text-slate-500 font-medium">
-                <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
+                {!notif.isRead && <span className="w-2 h-2 rounded-full bg-[#ef4444]" />}
                 <span>{timeAgo(notif.createdAt)}</span>
               </div>
             </div>

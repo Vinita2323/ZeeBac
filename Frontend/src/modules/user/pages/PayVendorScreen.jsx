@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import useUIStore from '../../../store/useUIStore';
@@ -11,9 +12,22 @@ export default function PayVendorScreen() {
   const [amount, setAmount] = useState('');
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [rewardConfig, setRewardConfig] = useState(null);
   const updateBalance = useAuthStore((state) => state.updateBalance);
   const walletBalance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser);
+
+  useEffect(() => {
+    let isMounted = true;
+    UserAPI.getRewardsData()
+      .then((res) => {
+        if (isMounted && res?.success && res.data?.config) {
+          setRewardConfig(res.data.config);
+        }
+      })
+      .catch((err) => console.warn('Could not load reward config:', err));
+    return () => { isMounted = false; };
+  }, []);
 
   if (!vendor) {
     return (
@@ -45,8 +59,17 @@ export default function PayVendorScreen() {
   const cashbackRate = vendor.cashbackRate || 10;
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
+
+  const customerFeePercent = rewardConfig?.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 2;
+  const customerFixedFee = rewardConfig?.customerWalletPayFixedFee !== undefined ? rewardConfig.customerWalletPayFixedFee : 0;
+  const walletFee = paymentMethod === 'Wallet' && purchaseAmount > 0 
+    ? Math.round(((purchaseAmount * customerFeePercent) / 100 + customerFixedFee) * 100) / 100 
+    : 0;
+  const totalWalletDebit = Math.round((purchaseAmount + walletFee) * 100) / 100;
+
   const isCashOverLimit = paymentMethod === 'Cash' && purchaseAmount > 1000;
-  const isValid = purchaseAmount >= 1 && !isCashOverLimit && (paymentMethod !== 'Wallet' || purchaseAmount <= walletBalance);
+  const isWalletInsufficient = paymentMethod === 'Wallet' && totalWalletDebit > walletBalance;
+  const isValid = purchaseAmount >= 1 && !isCashOverLimit && !isWalletInsufficient;
 
   const getCurrentLocation = () =>
     new Promise((resolve) => {
@@ -159,14 +182,17 @@ export default function PayVendorScreen() {
   };
 
   const handleSuccess = (data) => {
-    const { cashbackEarned, newWalletBalance, vendorName, transaction } = data;
-    updateBalance(newWalletBalance);
+    const { cashbackEarned, newWalletBalance, newBalance, vendorName, transaction, billAmount, convenienceFee, totalPaid } = data || {};
+    updateBalance(newBalance ?? newWalletBalance);
     navigate('/transaction-success', {
       state: {
-        vendorName,
+        vendorName: vendorName || data?.vendor?.name || vendor.storeName,
         amount: parseFloat(amount),
+        billAmount: billAmount || parseFloat(amount),
+        convenienceFee: convenienceFee !== undefined ? convenienceFee : walletFee,
+        totalPaid: totalPaid || (paymentMethod === 'Wallet' ? totalWalletDebit : parseFloat(amount)),
         cashback: cashbackEarned,
-        transactionId: transaction.transactionId,
+        transactionId: transaction?.transactionId,
       }
     });
   };
@@ -186,7 +212,7 @@ export default function PayVendorScreen() {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 border-b border-outline-variant/10 shadow-sm">
         <div className="app-container flex items-center justify-between">
           <div className="flex items-center gap-xs">
-            <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-all cursor-pointer">
+            <button onClick={() => safeNavigateBack(navigate, '/home')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-all cursor-pointer">
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
             <span className="font-display text-title-md text-primary font-bold ml-2">Pay Vendor</span>
@@ -277,6 +303,32 @@ export default function PayVendorScreen() {
             </div>
           )}
 
+          {/* Wallet Payment Fee Breakdown Card */}
+          {paymentMethod === 'Wallet' && purchaseAmount > 0 && (
+            <div className="bg-purple-50/80 border border-purple-200 rounded-xl p-3.5 w-full max-w-[320px] text-left animate-reveal shadow-xs space-y-1.5">
+              <div className="flex justify-between text-[12px] text-on-surface-variant font-medium">
+                <span>Store Bill:</span>
+                <span className="font-bold text-on-surface">₹{purchaseAmount.toFixed(2)}</span>
+              </div>
+              {walletFee > 0 && (
+                <div className="flex justify-between text-[12px] text-purple-700 font-medium">
+                  <span>Convenience Fee ({customerFeePercent}%{customerFixedFee > 0 ? ` + ₹${customerFixedFee}` : ''}):</span>
+                  <span className="font-bold">+₹{walletFee.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="border-t border-purple-200/60 pt-1.5 flex justify-between text-[13px] font-bold text-on-surface">
+                <span>Total Wallet Deduction:</span>
+                <span className="text-purple-700 font-black">₹{totalWalletDebit.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-on-surface-variant/70 pt-0.5">
+                <span>Your Wallet Balance:</span>
+                <span className={walletBalance >= totalWalletDebit ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
+                  ₹{walletBalance.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Cash > 1000 Warning Banner */}
           {isCashOverLimit && (
             <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 w-full max-w-[340px] text-left animate-reveal shadow-sm">
@@ -295,7 +347,7 @@ export default function PayVendorScreen() {
           {/* Payment Method Selector */}
           <div className="flex gap-2 flex-wrap justify-center mt-2">
             {['Wallet', 'Cash', 'UPI', 'Credit Card', 'Debit Card'].map((method) => {
-              const isDisabled = method === 'Wallet' && purchaseAmount > walletBalance;
+              const isDisabled = method === 'Wallet' && totalWalletDebit > walletBalance;
               return (
                 <button
                   key={method}
@@ -317,9 +369,9 @@ export default function PayVendorScreen() {
         </div>
 
         {/* Confirm Button */}
-        {paymentMethod === 'Wallet' && purchaseAmount > walletBalance && (
+        {paymentMethod === 'Wallet' && isWalletInsufficient && (
           <p className="text-red-500 text-center text-[12px] mt-4 mb-[-10px] font-bold">
-            Insufficient Wallet Balance
+            Insufficient Wallet Balance (Required: ₹{totalWalletDebit.toFixed(2)}, Available: ₹{walletBalance.toFixed(2)})
           </p>
         )}
         <button
@@ -340,6 +392,11 @@ export default function PayVendorScreen() {
             <>
               <span className="material-symbols-outlined text-[20px]">send</span>
               Send for Vendor Approval
+            </>
+          ) : paymentMethod === 'Wallet' ? (
+            <>
+              <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+              Pay ₹{totalWalletDebit > 0 ? totalWalletDebit.toFixed(2) : purchaseAmount.toFixed(2)} via Wallet
             </>
           ) : (
             <>

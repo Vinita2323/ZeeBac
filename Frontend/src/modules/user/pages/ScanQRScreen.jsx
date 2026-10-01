@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
+import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
+import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 
 const CAMERA_REGION_ID = 'zeebac-scan-vendor-camera';
 const FILE_REGION_ID = 'zeebac-scan-vendor-file';
@@ -20,6 +22,11 @@ export default function ScanQRScreen() {
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [cameraStatus, setCameraStatus] = useState('starting'); // starting | active | denied
+  const [cameraPrimed, setCameraPrimed] = useState(hasSeenPrimer('camera'));
+
+  // Only show the explainer once the shared primer gate is free — queued
+  // behind any higher-priority primer (e.g. notifications right after login).
+  const showCameraPrimer = usePrimerSlot('camera', PRIMER_PRIORITY.camera, !cameraPrimed);
 
   // Shared by the live camera scan, a picked gallery image, and manual entry
   // — whichever produced a value, this is what actually resolves it to a
@@ -112,6 +119,7 @@ export default function ScanQRScreen() {
 
   // Real camera scanning with safe fallback for desktops without webcams
   useEffect(() => {
+    if (!cameraPrimed) return;
     let cancelled = false;
     let html5QrCode = null;
 
@@ -151,7 +159,20 @@ export default function ScanQRScreen() {
         } catch (e) { }
       }
     };
-  }, [resolveVendor]);
+  }, [resolveVendor, cameraPrimed]);
+
+  const handleAllowCamera = () => {
+    markPrimerSeen('camera');
+    setCameraPrimed(true);
+    usePrimerGate.getState().release('camera');
+  };
+
+  const handleSkipCamera = () => {
+    markPrimerSeen('camera');
+    setCameraStatus('denied');
+    setShowIdInput(true);
+    usePrimerGate.getState().release('camera');
+  };
 
   const handleManualSearch = async () => {
     if (!vendorId.trim() || isSearching) return;
@@ -211,6 +232,17 @@ export default function ScanQRScreen() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden relative font-body-lg select-none">
+
+      <PermissionPrimerModal
+        open={showCameraPrimer}
+        icon="qr_code_scanner"
+        title="Scan to Pay & Earn"
+        message="Zeebac needs camera access to scan the vendor's QR code and credit your cashback instantly."
+        allowLabel="Enable Camera"
+        skipLabel="I'll type the Store ID"
+        onAllow={handleAllowCamera}
+        onSkip={handleSkipCamera}
+      />
 
       {/* Hidden inputs: gallery picker + an off-screen region html5-qrcode uses to decode picked images */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />

@@ -1,17 +1,33 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../../../hooks/useNotifications';
 import useAuthStore from '../../../store/useAuthStore';
 import NotificationItemCard from '../../../components/common/NotificationItemCard';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
   const { notifications, isLoading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
+  const hasAutoReadRef = useRef(false);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Once notifications load or on page open, automatically mark them as read so the red dot clears
+  useEffect(() => {
+    if (!hasAutoReadRef.current && notifications.length > 0) {
+      const unreadExists = notifications.some((n) => !n.isRead);
+      if (unreadExists) {
+        hasAutoReadRef.current = true;
+        const timer = setTimeout(() => {
+          markAllAsRead();
+        }, 800);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [notifications, markAllAsRead]);
 
   const hasUnread = notifications.some((n) => !n.isRead);
 
@@ -21,7 +37,7 @@ export default function NotificationsPage() {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-2xs -mx-4 sm:-mx-6 px-4 sm:px-6 mb-4">
         <div className="flex items-center gap-1">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => safeNavigateBack(navigate, '/vendor')}
             aria-label="Go back"
             className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-[#3b0764] active:scale-95 transition-all cursor-pointer"
           >

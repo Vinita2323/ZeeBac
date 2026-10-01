@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import StorefrontMedia from '../models/StorefrontMedia.js';
 import Promotion from '../models/Promotion.js';
 import Vendor from '../models/Vendor.js';
@@ -66,6 +67,9 @@ export const deleteMedia = async (req, res) => {
 // GET vendor media for public (user viewing store page)
 export const getVendorMedia = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.vendorId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vendor ID' });
+    }
     let media = await StorefrontMedia.find({ vendorId: req.params.vendorId, isActive: true })
       .sort({ sortOrder: 1, createdAt: -1 });
 
@@ -180,6 +184,9 @@ export const deletePromotion = async (req, res) => {
 // GET vendor promotions for public (user viewing store page)
 export const getVendorPromotions = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.vendorId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vendor ID' });
+    }
     const now = new Date();
     const promotions = await Promotion.find({
       vendorId: req.params.vendorId,

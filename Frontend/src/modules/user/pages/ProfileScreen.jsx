@@ -90,7 +90,7 @@ export default function ProfileScreen() {
   }, [currentUser]);
 
   // Settings Toggles
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState(currentUser?.preferences?.pushNotifications ?? true);
   const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
@@ -103,7 +103,26 @@ export default function ProfileScreen() {
     if (currentUser?.security) {
       setBiometrics(!!currentUser.security.biometricEnabled);
     }
+    if (currentUser?.preferences) {
+      setNotifications(currentUser.preferences.pushNotifications ?? true);
+    }
   }, [currentUser]);
+
+  const handleToggleNotifications = async (e) => {
+    const next = e.target.checked;
+    setNotifications(next); // optimistic
+    try {
+      const res = await UserAPI.updateProfile({ preferences: { pushNotifications: next } });
+      if (res.success) {
+        updateProfileStore({ preferences: { ...currentUser?.preferences, pushNotifications: next } });
+      } else {
+        setNotifications(!next);
+      }
+    } catch (err) {
+      console.error('Failed to update notification preference', err);
+      setNotifications(!next);
+    }
+  };
 
   const enrollBiometrics = async () => {
     try {
@@ -550,10 +569,10 @@ export default function ProfileScreen() {
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
-                  type="checkbox" 
-                  checked={notifications} 
-                  onChange={(e) => setNotifications(e.target.checked)} 
-                  className="sr-only peer" 
+                  type="checkbox"
+                  checked={notifications}
+                  onChange={handleToggleNotifications}
+                  className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
               </label>

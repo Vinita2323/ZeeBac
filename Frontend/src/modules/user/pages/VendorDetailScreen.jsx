@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI, StoryAPI, API_BASE_URL } from '../../../services/api';
 import { calculateDistance } from '../../../utils/distance';
 import OverviewTab from '../components/vendor-detail/OverviewTab';
@@ -122,7 +123,7 @@ export default function VendorDetailScreen() {
         {/* Navigation Bar inside Header */}
         <div className="absolute top-0 left-0 right-0 p-container-margin flex justify-between items-center z-20">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => safeNavigateBack(navigate, '/home')}
             className="w-11 h-11 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-transform active:scale-95 cursor-pointer hover:bg-white/30"
           >
             <span className="material-symbols-outlined">arrow_back</span>

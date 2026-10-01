@@ -92,10 +92,22 @@ export default function AuthLoginScreen({ role = 'customer' }) {
         </div>
 
         {/* Right: Classy Single-Card Login Form */}
-        <main className="w-full max-w-[420px] mx-auto bg-white/90 backdrop-blur-2xl border border-white/80 rounded-[2rem] p-7 md:p-9 shadow-2xl shadow-slate-900/10 space-y-6 animate-reveal text-left">
+        <main className="w-full max-w-[420px] mx-auto bg-white/90 backdrop-blur-2xl border border-white/80 rounded-[2rem] p-7 md:p-9 shadow-2xl shadow-slate-900/10 space-y-6 animate-reveal text-left relative">
+
+          {/* Back button for Vendor */}
+          {isVendor && (
+            <button
+              type="button"
+              onClick={() => navigate('/vendor-app')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              Back to Overview
+            </button>
+          )}
 
           {/* Header Brand & Logo */}
-          <div className="flex flex-col items-center justify-center text-center space-y-2 pt-2">
+          <div className="flex flex-col items-center justify-center text-center space-y-2 pt-1">
             <img
               alt="Zeebac Logo"
               className="w-32 h-auto drop-shadow-sm transition-transform hover:scale-105"
@@ -157,7 +169,7 @@ export default function AuthLoginScreen({ role = 'customer' }) {
               </div>
             </div>
 
-            {/* Unregistered User 1-Tap Banner */}
+            {/* Unregistered User 1-Tap Banner (Customer) */}
             {isNotFound && !isVendor && (
               <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl space-y-2.5 animate-reveal">
                 <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
@@ -178,6 +190,27 @@ export default function AuthLoginScreen({ role = 'customer' }) {
               </div>
             )}
 
+            {/* Unregistered Vendor Banner */}
+            {isNotFound && isVendor && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2.5 animate-reveal">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                  <span className="material-symbols-outlined text-amber-600 text-[18px]">store</span>
+                  <span>Not a registered Partner?</span>
+                </div>
+                <p className="text-[12px] text-amber-700 leading-relaxed">
+                  No vendor account was found for <span className="font-bold">+91 {mobileNumber}</span>. Register your business to start growing with Zeebac!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/vendor-app/signup')}
+                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <span>Register Your Business</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              </div>
+            )}
+
             {error && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-semibold flex items-center gap-2 animate-reveal">
                 <span className="material-symbols-outlined text-base">error</span>
@@ -191,7 +224,9 @@ export default function AuthLoginScreen({ role = 'customer' }) {
               disabled={!isFormValid || isLoading}
               className={`w-full h-14 rounded-2xl font-bold text-sm tracking-wide text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
                 isFormValid && !isLoading
-                  ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 hover:opacity-95 shadow-purple-600/25 active:scale-[0.98]'
+                  ? isVendor
+                    ? 'bg-amber-600 hover:bg-amber-700 active:scale-[0.98]'
+                    : 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-600 hover:opacity-95 shadow-purple-600/25 active:scale-[0.98]'
                   : 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
               }`}
             >
@@ -204,6 +239,20 @@ export default function AuthLoginScreen({ role = 'customer' }) {
                 </>
               )}
             </button>
+
+            {/* Bottom link for Vendor registration */}
+            {isVendor && (
+              <div className="text-center pt-1">
+                <span className="text-xs text-slate-500">Don't have a partner account? </span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/vendor-app/signup')}
+                  className="text-xs font-bold text-amber-700 hover:underline cursor-pointer"
+                >
+                  Register Business
+                </button>
+              </div>
+            )}
           </form>
 
       

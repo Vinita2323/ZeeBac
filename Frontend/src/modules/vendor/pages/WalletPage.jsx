@@ -283,7 +283,10 @@ export default function WalletPage() {
       if (currentUser?.security?.biometricEnabled) {
         setAuthMode('biometric');
         setShowSecurityModal(true);
-        setTimeout(() => triggerBiometricPrompt(), 200);
+        // Call synchronously within the click handler — browsers (notably iOS
+        // Safari) require WebAuthn prompts to fire within the user-activation
+        // window, which a setTimeout callback falls outside of.
+        triggerBiometricPrompt();
       } else {
         setAuthMode('pin');
         setShowSecurityModal(true);
@@ -864,9 +867,6 @@ export default function WalletPage() {
                       <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
                       Payout Breakdown
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-700 border border-purple-200">
-                      18% GST Compliant
-                    </span>
                   </div>
 
                   <div className="flex justify-between text-[13px] text-gray-700">
@@ -887,17 +887,6 @@ export default function WalletPage() {
                   <div className="flex justify-between text-[13px] text-rose-600 font-bold pt-1 border-t border-purple-100">
                     <span>Total Fee Deduction:</span>
                     <span className="font-mono font-bold">-₹{withdrawFeeAmount.toFixed(2)}</span>
-                  </div>
-
-                  <div className="bg-purple-50/60 rounded-xl p-2.5 space-y-1 text-[11.5px] text-gray-600 border border-purple-100/70">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Base Fee:</span>
-                      <span className="font-mono font-semibold text-gray-800">₹{withdrawBaseFee.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">GST @ 18% on Fee:</span>
-                      <span className="font-mono font-semibold text-gray-800">₹{withdrawGstAmount.toFixed(2)}</span>
-                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-purple-200 flex justify-between items-center">
@@ -983,11 +972,6 @@ export default function WalletPage() {
                 <div className="flex justify-between text-gray-600">
                   <span>Platform Fee (2%):</span>
                   <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.platformFee ?? 0).toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between text-gray-600">
-                  <span>GST (18% on Fee):</span>
-                  <span className="font-mono text-gray-800">₹{(withdrawalReceipt.gstAmount ?? 0).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-purple-100">

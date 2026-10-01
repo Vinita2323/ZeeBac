@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
@@ -161,7 +162,7 @@ export default function WalletScreen() {
         <div className="app-container flex items-center justify-between">
           <div className="flex items-center gap-xs">
             <button 
-              onClick={() => navigate(-1)}
+              onClick={() => safeNavigateBack(navigate, '/home')}
               className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>
@@ -483,8 +484,10 @@ function CashoutSubView({
       if (currentUser?.security?.biometricEnabled) {
         setAuthMode('biometric');
         setShowSecurityModal(true);
-        // Automatically prompt biometric scan
-        setTimeout(() => triggerBiometricPrompt(), 200);
+        // Call synchronously within the click handler — browsers (notably iOS
+        // Safari) require WebAuthn prompts to fire within the user-activation
+        // window, which a setTimeout callback falls outside of.
+        triggerBiometricPrompt();
       } else {
         setAuthMode('pin');
         setShowSecurityModal(true);
@@ -569,11 +572,6 @@ function CashoutSubView({
                 <div className="flex justify-between text-gray-600">
                   <span>Platform Fee (2%):</span>
                   <span className="font-mono text-gray-800 font-semibold">₹{(result.platformFee ?? 0).toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between text-gray-600">
-                  <span>GST (18% on Fee):</span>
-                  <span className="font-mono text-gray-800">₹{(result.gstAmount ?? 0).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-gray-100">
@@ -720,9 +718,6 @@ function CashoutSubView({
                   <span className="flex items-center gap-1 text-purple-900">
                     <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
                     Cashout Breakdown
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-700 border border-purple-200">
-                    18% GST Compliant
                   </span>
                 </div>
 
@@ -1293,7 +1288,10 @@ function RechargeSubView({ balance, currentUser, onBack, setBalance, onRechargeS
       if (currentUser?.security?.biometricEnabled) {
         setAuthMode('biometric');
         setShowSecurityModal(true);
-        setTimeout(async () => {
+        // Call synchronously within the click handler — browsers (notably iOS
+        // Safari) require WebAuthn prompts to fire within the user-activation
+        // window, which a setTimeout callback falls outside of.
+        (async () => {
           try {
             setIsVerifyingSecurity(true);
             const bioRes = await verifyBiometricCredential(currentUser?.security?.biometricCredentialId);
@@ -1310,7 +1308,7 @@ function RechargeSubView({ balance, currentUser, onBack, setBalance, onRechargeS
           } finally {
             setIsVerifyingSecurity(false);
           }
-        }, 200);
+        })();
       } else {
         setAuthMode('pin');
         setShowSecurityModal(true);

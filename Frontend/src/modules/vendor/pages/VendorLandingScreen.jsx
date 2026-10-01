@@ -1,22 +1,31 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import useAuthStore from '../../../store/useAuthStore';
 
 export default function VendorLandingScreen() {
   const navigate = useNavigate();
   const [show, setShow] = useState(false);
+  const currentUser = useAuthStore((s) => s.currentUser);
 
   useEffect(() => {
     // Check if already logged in as vendor
+    if (currentUser?.role === 'vendor') {
+      navigate('/vendor', { replace: true });
+      return;
+    }
+
     const user = localStorage.getItem('zeebac_current_user');
     if (user) {
-      const parsed = JSON.parse(user);
-      if (parsed.role === 'vendor') {
-        navigate('/vendor', { replace: true });
-        return;
-      }
+      try {
+        const parsed = JSON.parse(user);
+        if (parsed?.role === 'vendor') {
+          navigate('/vendor', { replace: true });
+          return;
+        }
+      } catch (e) {}
     }
     setShow(true);
-  }, [navigate]);
+  }, [navigate, currentUser]);
 
   if (!show) return null;
 
@@ -35,9 +44,7 @@ export default function VendorLandingScreen() {
 
         {/* Logo & Branding */}
         <div className="flex flex-col items-center mb-6 animate-reveal">
-          <div className="w-16 h-16 rounded-3xl bg-secondary/10 flex items-center justify-center mb-4 shadow-lg shadow-secondary/10">
-            <span className="material-symbols-outlined text-secondary text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>storefront</span>
-          </div>
+        
           <img
             alt="Zeebac Logo"
             className="w-32 h-auto mb-3"

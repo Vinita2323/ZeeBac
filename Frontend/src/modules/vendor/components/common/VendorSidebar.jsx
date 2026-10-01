@@ -12,7 +12,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   const handleLogout = (e) => {
     if (e) e.stopPropagation();
     useAuthStore.getState().logout();
-    window.location.replace('/vendor-app/login');
+    window.location.replace('/vendor-app');
   };
 
   const navItems = [

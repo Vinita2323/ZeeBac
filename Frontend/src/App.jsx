@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import UserRoutes from './modules/user/routes';
 import VendorRoutes from './modules/vendor/routes';
@@ -28,6 +28,9 @@ import IncomingCallModal from './components/common/IncomingCallModal';
 import MaskedCallModal from './components/common/MaskedCallModal';
 import { connectSocket } from './services/socket';
 import { playVendorCashRequestVoice, playCustomerCashbackCreditedVoice, playNotificationChime } from './utils/voiceUtils';
+import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from './utils/permissionPrimer.util';
+import DataConsentModal from './components/common/DataConsentModal';
+import PermissionPrimerModal from './components/common/PermissionPrimerModal';
 
 // Globally override browser alert to use toast for a better UI experience
 window.alert = (message) => {
@@ -51,8 +54,64 @@ function ScrollToTop() {
 }
 
 function App() {
-  const { accessToken, logout } = useAuthStore();
+  const { accessToken, logout, currentUser } = useAuthStore();
   const fetchedRef = useRef(false);
+  const [isRequestingNotif, setIsRequestingNotif] = useState(false);
+
+  // These permission primers are for the customer/vendor-facing app only —
+  // admins run an internal tool and shouldn't see a cashback-data consent
+  // screen or feature permission prompts blocking their dashboard.
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
+  // One-time mandatory data-usage consent, shown before any permission is
+  // requested. Highest priority — always wins the shared primer gate.
+  const showDataConsent = usePrimerSlot(
+    'data_consent',
+    PRIMER_PRIORITY.data_consent,
+    !!accessToken && !isAdmin && !hasSeenPrimer('data_consent')
+  );
+
+  const handleAgreeDataConsent = () => {
+    markPrimerSeen('data_consent');
+    usePrimerGate.getState().release('data_consent');
+  };
+
+  // Explain notifications before the native prompt, but only while the OS
+  // hasn't already decided (still 'default') — otherwise just sync silently.
+  const showNotifPrimer = usePrimerSlot(
+    'notifications',
+    PRIMER_PRIORITY.notifications,
+    !!accessToken &&
+      !isAdmin &&
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'default' &&
+      !hasSeenPrimer('notifications')
+  );
+
+  useEffect(() => {
+    if (!accessToken || isAdmin || typeof Notification === 'undefined') return;
+    if (Notification.permission === 'default') return;
+    const role = useAuthStore.getState().currentUser?.role || 'customer';
+    requestNotificationPermission(role).catch(console.error);
+  }, [accessToken, isAdmin]);
+
+  const handleAllowNotifications = async () => {
+    setIsRequestingNotif(true);
+    const role = useAuthStore.getState().currentUser?.role || 'customer';
+    try {
+      await requestNotificationPermission(role);
+    } catch (err) {
+      console.error(err);
+    }
+    markPrimerSeen('notifications');
+    setIsRequestingNotif(false);
+    usePrimerGate.getState().release('notifications');
+  };
+
+  const handleSkipNotifications = () => {
+    markPrimerSeen('notifications');
+    usePrimerGate.getState().release('notifications');
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -87,7 +146,6 @@ function App() {
 
     const user = useAuthStore.getState().currentUser;
     const role = user?.role || (user?.storeName ? 'vendor' : 'customer');
-    requestNotificationPermission(role).catch(console.error);
 
     const socket = connectSocket(accessToken);
 
@@ -112,7 +170,7 @@ function App() {
             <div className="bg-white rounded-xl p-3 shadow-inner flex items-center justify-between gap-2 my-2">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-wider text-gray-500">Customer OTP Code</p>
-                <p className="text-[12px] font-bold text-gray-800">Tell this 3-digit code to customer</p>
+                <p className="text-[12px] font-bold text-gray-800">Tell this code to customer</p>
               </div>
               <span className="text-[26px] font-mono font-black tracking-[0.2em] text-red-600 bg-red-50 px-3.5 py-1 rounded-lg border-2 border-red-300 select-all shadow-xs">
                 {data.verificationCode}
@@ -233,6 +291,16 @@ function App() {
         <GlobalSnackbar />
         <IncomingCallModal />
         <MaskedCallModal />
+        <DataConsentModal open={showDataConsent} onAgree={handleAgreeDataConsent} />
+        <PermissionPrimerModal
+          open={showNotifPrimer}
+          icon="notifications_active"
+          title="Stay in the loop"
+          message="Allow notifications to get instant alerts for cashback credits, OTPs, and order updates."
+          onAllow={handleAllowNotifications}
+          onSkip={handleSkipNotifications}
+          isProcessing={isRequestingNotif}
+        />
 
         <Routes>
           {/* ─── Customer App Auth ─── */}

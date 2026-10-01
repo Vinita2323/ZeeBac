@@ -227,12 +227,12 @@ export default function PayoutsPage() {
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '1rem' }}
         >
-          <div style={{ background: 'white', borderRadius: '1rem', width: '100%', maxWidth: '28rem', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
-            <div style={{ padding: '1rem', borderBottom: '1px solid #eee', color: modal.action === 'Approve' ? '#16a34a' : '#ef4444', fontWeight: 'bold', background: modal.action === 'Approve' ? 'rgba(22, 163, 74, 0.05)' : 'rgba(239, 68, 68, 0.05)' }}>
+          <div style={{ background: 'white', borderRadius: '1rem', width: '100%', maxWidth: '28rem', maxHeight: '90vh', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '1rem', borderBottom: '1px solid #eee', color: modal.action === 'Approve' ? '#16a34a' : '#ef4444', fontWeight: 'bold', background: modal.action === 'Approve' ? 'rgba(22, 163, 74, 0.05)' : 'rgba(239, 68, 68, 0.05)', flexShrink: 0 }}>
               {modal.action === 'Approve' ? 'Confirm Approval' : 'Confirm Rejection'}
             </div>
 
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', minHeight: 0 }}>
               <p style={{ fontSize: '14px', color: '#666' }}>
                 You are about to <strong>{modal.action.toLowerCase()}</strong> this payout request.
                 {modal.action === 'Approve' && ' Please transfer funds to the verified account below and enter the Bank/UPI Transaction ID (UTR).'}
@@ -451,7 +451,7 @@ export default function PayoutsPage() {
               </div>
             </div>
 
-            <div style={{ padding: '1rem', background: '#f9f9fc', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <div style={{ padding: '1rem', background: '#f9f9fc', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
               <button
                 onClick={closeModal}
                 disabled={isProcessing}

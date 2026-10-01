@@ -10,6 +10,8 @@ export default function RewardsManagerPage() {
     minScratchReward: 5,
     maxScratchReward: 50,
     isActive: true,
+    customerWalletPayCommissionPercent: 2,
+    customerWalletPayFixedFee: 0,
   });
   const [isSavingRules, setIsSavingRules] = useState(false);
 
@@ -239,7 +241,7 @@ export default function RewardsManagerPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-on-surface-variant mb-2">Customer Fee (%)</label>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Customer Withdrawal Fee (%)</label>
                 <input
                   type="number"
                   step="0.1"
@@ -248,6 +250,29 @@ export default function RewardsManagerPage() {
                   value={rules.userWithdrawalCommissionPercent ?? 2}
                   onChange={(e) => setRules({ ...rules, userWithdrawalCommissionPercent: parseFloat(e.target.value) || 0 })}
                   className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-purple-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Customer Wallet Pay Fee (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={rules.customerWalletPayCommissionPercent ?? 2}
+                  onChange={(e) => setRules({ ...rules, customerWalletPayCommissionPercent: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-emerald-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Wallet Pay Flat Fee (₹)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={rules.customerWalletPayFixedFee ?? 0}
+                  onChange={(e) => setRules({ ...rules, customerWalletPayFixedFee: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-emerald-700"
                 />
               </div>
               <div>

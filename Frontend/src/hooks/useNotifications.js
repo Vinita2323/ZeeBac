@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
+import { connectSocket, getSocket } from '../services/socket';
+import useAuthStore from '../store/useAuthStore';
 
 /**
  * Custom hook for notification management
@@ -57,10 +59,29 @@ export default function useNotifications() {
   // Fetch unread count on mount (lightweight)
   useEffect(() => {
     fetchUnreadCount();
-    // Poll every 60 seconds for new notifications
+    // Poll every 60 seconds as a fallback in case the socket drops
     const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
+
+  // Live updates: push new notifications instantly over the socket
+  // instead of waiting on the 60s poll.
+  useEffect(() => {
+    const token = useAuthStore.getState().accessToken;
+    if (!token) return;
+
+    connectSocket(token);
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewNotification = (notif) => {
+      setNotifications((prev) => [notif, ...prev]);
+      setUnreadCount((prev) => prev + 1);
+    };
+
+    socket.on('new_notification', handleNewNotification);
+    return () => socket.off('new_notification', handleNewNotification);
+  }, []);
 
   return {
     notifications,

@@ -133,6 +133,13 @@ export default function DashboardPage() {
               Payouts & Fees
             </button>
             <button
+              onClick={() => navigate('/admin/rewards')}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-[12.5px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">tune</span>
+              Configure Rates
+            </button>
+            <button
               onClick={() => navigate('/admin/subscriptions')}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[12.5px] font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
             >

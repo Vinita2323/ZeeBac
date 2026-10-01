@@ -43,6 +43,9 @@ const notificationSchema = new mongoose.Schema(
     readAt: {
       type: Date,
     },
+    data: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   {
     timestamps: true,

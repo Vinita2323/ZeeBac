@@ -25,7 +25,7 @@ const walletTransactionSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription', 'mobile_recharge'],
+      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription', 'mobile_recharge', 'platform_fee'],
     },
     amount: {
       type: Number,
@@ -60,6 +60,15 @@ const walletTransactionSchema = new mongoose.Schema(
     // Sparse because most ledger rows (cash/manual transactions) have no
     // gateway payment at all.
     gatewayPaymentId: {
+      type: String,
+      index: { unique: true, sparse: true },
+    },
+    // Unique + sparse, same pattern as gatewayPaymentId above: closes the
+    // narrow race where two near-simultaneous identical withdrawal requests
+    // both pass the "any recent duplicate?" pre-check before either has
+    // committed — the second insert hits this index and fails cleanly
+    // instead of creating a second Pending withdrawal.
+    idempotencyKey: {
       type: String,
       index: { unique: true, sparse: true },
     },

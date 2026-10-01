@@ -481,7 +481,7 @@ export const requestWithdrawal = async (req, res) => {
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-    const wallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
+    let wallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
 
     if (!vendor.bankDetails?.accountNumber || !vendor.bankDetails?.ifscCode) {
       return res.status(400).json({
@@ -492,6 +492,26 @@ export const requestWithdrawal = async (req, res) => {
 
     if (wallet.balance < amount) {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance for withdrawal' });
+    }
+
+    // Guard against a double-tap or naive network retry creating two
+    // separate pending withdrawal requests — treat an identical request
+    // (same amount, still Pending) submitted within the last 10s as a retry.
+    const recentDuplicateWithdrawal = await WithdrawalRequest.findOne({
+      vendorId: vendor._id,
+      amount,
+      status: 'Pending',
+      createdAt: { $gte: new Date(Date.now() - 10000) },
+    });
+    if (recentDuplicateWithdrawal) {
+      return res.status(201).json({
+        success: true,
+        message: 'Withdrawal request submitted successfully',
+        data: {
+          ...recentDuplicateWithdrawal.toObject(),
+          grossAmount: recentDuplicateWithdrawal.amount,
+        },
+      });
     }
 
     const config = (await RewardConfig.findOne()) || {};
@@ -517,49 +537,89 @@ export const requestWithdrawal = async (req, res) => {
       verifiedAt: vendor.bankDetails?.verifiedAt || new Date(),
     };
 
-    // Deduct from balance
-    wallet.balance -= amount;
-    // Let's create the withdrawal request record with bankDetailsSnapshot and fee breakdown
-    const withdrawalReq = await WithdrawalRequest.create({
-      vendorId: vendor._id,
-      amount,
-      withdrawalFee,
-      platformFee,
-      gstAmount,
-      feeAmount,
-      feePercent: commissionPercent,
-      gstPercent,
-      netPayout,
-      status: 'Pending',
-      bankDetailsSnapshot: bankSnapshot,
-    });
-
     const maskedAcc = bankSnapshot.accountNumber ? `•••• ${bankSnapshot.accountNumber.slice(-4)}` : '';
     const destDesc = bankSnapshot.bankName ? `Withdrawal to ${bankSnapshot.bankName} (${maskedAcc})` : 'Withdrawal request initiated';
 
-    // Create a ledger entry for the withdrawal deduction
-    await WalletTransaction.create({
-      walletId: wallet._id,
-      ownerId: vendor._id,
-      ownerType: 'Vendor',
-      type: 'debit',
-      category: 'withdrawal',
-      amount: amount,
-      withdrawalFee,
-      platformFee,
-      gstAmount,
-      feeAmount,
-      feePercent: commissionPercent,
-      gstPercent,
-      netPayout,
-      balanceAfter: wallet.balance,
-      referenceId: withdrawalReq._id,
-      referenceType: 'WithdrawalRequest',
-      description: destDesc,
-      vendorName: vendor.storeName,
-    });
+    // Deterministic key for this vendor+amount within a 10s bucket — backed
+    // by a unique index, this is what actually closes the race the
+    // pre-check above can't: two requests landing at the exact same instant.
+    const idempotencyKey = `${vendor._id}_${amount}_${Math.floor(Date.now() / 10000)}`;
 
-    await wallet.save();
+    // Deduct balance atomically (single findOneAndUpdate with a balance
+    // precondition, inside a transaction) so two concurrent withdrawal
+    // requests can never both pass the earlier balance check and both debit.
+    const session = await mongoose.startSession();
+    let withdrawalReq;
+    try {
+      await session.withTransaction(async () => {
+        const updatedWallet = await Wallet.findOneAndUpdate(
+          { _id: wallet._id, balance: { $gte: amount } },
+          { $inc: { balance: -amount } },
+          { returnDocument: 'after', session, runValidators: true }
+        );
+        if (!updatedWallet) {
+          throw new InsufficientBalanceError('Insufficient wallet balance for withdrawal');
+        }
+        wallet = updatedWallet;
+
+        const createdReq = await WithdrawalRequest.create([{
+          vendorId: vendor._id,
+          amount,
+          withdrawalFee,
+          platformFee,
+          gstAmount,
+          feeAmount,
+          feePercent: commissionPercent,
+          gstPercent,
+          netPayout,
+          status: 'Pending',
+          bankDetailsSnapshot: bankSnapshot,
+          idempotencyKey,
+        }], { session });
+        withdrawalReq = createdReq[0];
+
+        await WalletTransaction.create([{
+          walletId: wallet._id,
+          ownerId: vendor._id,
+          ownerType: 'Vendor',
+          type: 'debit',
+          category: 'withdrawal',
+          amount: amount,
+          withdrawalFee,
+          platformFee,
+          gstAmount,
+          feeAmount,
+          feePercent: commissionPercent,
+          gstPercent,
+          netPayout,
+          balanceAfter: wallet.balance,
+          referenceId: withdrawalReq._id,
+          referenceType: 'WithdrawalRequest',
+          description: destDesc,
+          vendorName: vendor.storeName,
+        }], { session });
+      });
+    } catch (txErr) {
+      if (txErr instanceof InsufficientBalanceError) {
+        return res.status(400).json({ success: false, message: 'Insufficient wallet balance for withdrawal' });
+      }
+      if (txErr.code === 11000 && txErr.keyPattern?.idempotencyKey) {
+        // Lost the race to an identical in-flight request — the OTHER one
+        // already debited the wallet, so return its result instead of
+        // erroring (and definitely not debiting again).
+        const existing = await WithdrawalRequest.findOne({ idempotencyKey });
+        if (existing) {
+          return res.status(201).json({
+            success: true,
+            message: 'Withdrawal request submitted successfully',
+            data: { ...existing.toObject(), grossAmount: existing.amount },
+          });
+        }
+      }
+      throw txErr;
+    } finally {
+      await session.endSession();
+    }
 
     await notifyAdmins(
       'PAYOUT_REQUEST',
@@ -1058,12 +1118,46 @@ export const verifyRazorpayPayment = async (req, res) => {
 
 export const getPendingRequests = async (req, res) => {
   try {
-    const requests = await CashbackRequest.find({
+    const rawRequests = await CashbackRequest.find({
       vendorId: req.user.id,
       status: { $in: ['Pending', 'Held'] }
     }).populate('customerId', 'name phone').sort({ createdAt: -1 });
 
-    res.status(200).json({ success: true, data: requests });
+    const seenBillNumbers = new Set();
+    const seenFallbackKeys = new Set();
+    const duplicateIdsToReject = [];
+    const uniqueRequests = [];
+
+    for (const reqItem of rawRequests) {
+      const bNum = reqItem.billNumber ? String(reqItem.billNumber).trim().toUpperCase() : null;
+      if (bNum) {
+        if (seenBillNumbers.has(bNum)) {
+          duplicateIdsToReject.push(reqItem._id);
+          continue;
+        }
+        seenBillNumbers.add(bNum);
+      } else if (reqItem.customerId?._id && reqItem.amount) {
+        // Fallback deduplication for requests without bill numbers submitted within 2 minutes
+        const custId = reqItem.customerId._id.toString();
+        const fallbackKey = `${custId}_${reqItem.amount}_${Math.floor(new Date(reqItem.createdAt).getTime() / (120 * 1000))}`;
+        if (seenFallbackKeys.has(fallbackKey)) {
+          duplicateIdsToReject.push(reqItem._id);
+          continue;
+        }
+        seenFallbackKeys.add(fallbackKey);
+      }
+      uniqueRequests.push(reqItem);
+    }
+
+    // Auto-clean redundant duplicate pending requests in the background
+    if (duplicateIdsToReject.length > 0) {
+      CashbackRequest.updateMany(
+        { _id: { $in: duplicateIdsToReject } },
+        { status: 'Rejected', rejectionReason: 'Duplicate submission auto-resolved' }
+      ).catch(err => logger.warn(`Failed to auto-clean duplicate pending requests: ${err.message}`));
+    }
+
+    res.status(200).json({ success: true, data: uniqueRequests });
   } catch (error) {
     logger.error(`getPendingRequests error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -1119,6 +1213,7 @@ export const respondToCashbackRequest = async (req, res) => {
     }
 
     // Fix 3: Reject manual vendor approval if this bill number corresponds to an already claimed POS bill
+    // or if another CashbackRequest was already approved for the same bill number
     if (claimed.billNumber) {
       const cleanBill = String(claimed.billNumber).trim().toUpperCase();
       const alreadyClaimedPos = await PosBill.findOne({
@@ -1130,11 +1225,26 @@ export const respondToCashbackRequest = async (req, res) => {
         ],
       });
       if (alreadyClaimedPos) {
-        await CashbackRequest.updateOne({ _id: id }, { status: 'Rejected' });
+        await CashbackRequest.updateOne({ _id: id }, { status: 'Rejected', rejectionReason: 'POS bill already claimed' });
         return res.status(400).json({
           success: false,
           alreadyClaimed: true,
           message: 'Cannot approve: this POS bill has already been claimed.',
+        });
+      }
+
+      const alreadyApprovedReq = await CashbackRequest.findOne({
+        _id: { $ne: claimed._id },
+        vendorId: vendor._id,
+        billNumber: { $regex: new RegExp(`^${cleanBill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        status: 'Approved',
+      });
+      if (alreadyApprovedReq) {
+        await CashbackRequest.updateOne({ _id: id }, { status: 'Rejected', rejectionReason: 'Bill already approved in another request' });
+        return res.status(400).json({
+          success: false,
+          alreadyClaimed: true,
+          message: 'Cannot approve: this bill has already been approved and cashback was disbursed.',
         });
       }
     }
@@ -1260,6 +1370,20 @@ export const respondToCashbackRequest = async (req, res) => {
         referenceId: referralAward.referralId,
         referenceType: 'Referral',
       });
+    }
+
+    // Auto-reject any other remaining duplicate pending requests for this billNumber
+    if (claimed.billNumber) {
+      const cleanBill = String(claimed.billNumber).trim();
+      CashbackRequest.updateMany(
+        {
+          _id: { $ne: claimed._id },
+          vendorId: vendor._id,
+          billNumber: { $regex: new RegExp(`^${cleanBill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          status: { $in: ['Pending', 'Held'] },
+        },
+        { status: 'Rejected', rejectionReason: 'Duplicate of approved bill request' }
+      ).catch(err => logger.warn(`Failed to auto-reject duplicate bill requests: ${err.message}`));
     }
 
     return res.status(200).json({ success: true, message: 'Request approved successfully' });

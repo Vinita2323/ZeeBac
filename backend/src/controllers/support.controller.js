@@ -40,6 +40,35 @@ export const getUserTickets = async (req, res) => {
 };
 
 // --- Admin Actions ---
+
+// Admin manually logging a ticket on behalf of a customer/vendor (e.g. a
+// phone-in complaint) — same shape as self-service createTicket, but the
+// owner is picked by the admin instead of taken from the logged-in session.
+export const adminCreateTicket = async (req, res) => {
+  try {
+    const { userId, userType, subject, message, status } = req.body;
+    if (!userId || !userType || !subject || !message) {
+      return res.status(400).json({ success: false, message: 'User, user type, subject and message are required' });
+    }
+    if (!['User', 'Vendor'].includes(userType)) {
+      return res.status(400).json({ success: false, message: 'userType must be User or Vendor' });
+    }
+
+    const ticket = await SupportTicket.create({
+      userId,
+      userType,
+      subject: subject.trim(),
+      message: message.trim(),
+      status: ['Open', 'In Progress', 'Resolved', 'Closed'].includes(status) ? status : 'Open',
+    });
+
+    res.status(201).json({ success: true, data: ticket, message: 'Ticket logged successfully' });
+  } catch (error) {
+    logger.error(`adminCreateTicket error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 export const getAllTickets = async (req, res) => {
   try {
     const { status, userType, search } = req.query;

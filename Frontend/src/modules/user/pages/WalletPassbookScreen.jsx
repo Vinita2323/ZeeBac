@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
@@ -206,7 +207,7 @@ export default function WalletPassbookScreen() {
           {/* Header */}
           <header className="flex items-center gap-2 mb-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => safeNavigateBack(navigate, '/wallet')}
               className="w-8 h-8 flex items-center justify-center text-on-surface active:scale-95 transition-transform cursor-pointer"
             >
               <span className="material-symbols-outlined text-[22px]">arrow_back</span>

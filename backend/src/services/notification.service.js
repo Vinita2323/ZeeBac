@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import { firebaseInitialized } from '../config/firebase.admin.js';
 import { getMessaging } from 'firebase-admin/messaging';
+import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -29,10 +30,11 @@ export const sendNotification = async ({
   icon = 'notifications',
   referenceId,
   referenceType,
+  data = {},
 }) => {
   try {
     // 1. Save to MongoDB (In-App history)
-    await Notification.create({
+    const notification = await Notification.create({
       recipientId,
       recipientType,
       type,
@@ -41,9 +43,19 @@ export const sendNotification = async ({
       icon,
       referenceId,
       referenceType,
+      data,
     });
 
-    // 2. Send FCM Push Notification (if tokens exist and firebase is initialized)
+    // 2. Push the notification over the live socket connection so the
+    // notification bell updates instantly instead of waiting on polling.
+    try {
+      const room = recipientType === 'vendor' ? `vendor_${recipientId}` : `user_${recipientId}`;
+      getIO().to(room).emit('new_notification', notification);
+    } catch (ioErr) {
+      logger.warn(`sendNotification: socket emit skipped (${ioErr.message})`);
+    }
+
+    // 3. Send FCM Push Notification (if tokens exist and firebase is initialized)
     if (firebaseInitialized && fcmTokens && fcmTokens.length > 0) {
       const response = await getMessaging().sendEachForMulticast({
         tokens: fcmTokens,

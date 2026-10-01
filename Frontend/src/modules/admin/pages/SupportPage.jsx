@@ -21,6 +21,14 @@ export default function SupportPage() {
   const [isReplying, setIsReplying] = useState(false);
   const [copySuccess, setCopySuccess] = useState('');
 
+  // New Ticket (admin-logged, e.g. a phone-in complaint) modal state
+  const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
+  const [newTicketForm, setNewTicketForm] = useState({ userType: 'User', userId: '', userLabel: '', subject: '', message: '' });
+  const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
+  const [ownerSearchResults, setOwnerSearchResults] = useState([]);
+  const [isSearchingOwners, setIsSearchingOwners] = useState(false);
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+
   // ─── FAQ Management State ───
   const [faqs, setFaqs] = useState([]);
   const [faqCounts, setFaqCounts] = useState({ total: 0, customer: 0, vendor: 0, allAudience: 0, active: 0, inactive: 0 });
@@ -78,6 +86,69 @@ export default function SupportPage() {
       console.error("Failed to load tickets", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ─── New Ticket: owner search (debounced) ───
+  useEffect(() => {
+    if (!isNewTicketModalOpen || !ownerSearchQuery.trim()) {
+      setOwnerSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingOwners(true);
+        const res = newTicketForm.userType === 'Vendor'
+          ? await AdminAPI.getVendors('', 1, ownerSearchQuery.trim())
+          : await AdminAPI.getUsers(1, ownerSearchQuery.trim());
+        if (res.success) setOwnerSearchResults(res.data || []);
+      } catch (err) {
+        console.error('Owner search failed', err);
+      } finally {
+        setIsSearchingOwners(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [ownerSearchQuery, newTicketForm.userType, isNewTicketModalOpen]);
+
+  const openNewTicketModal = () => {
+    setNewTicketForm({ userType: 'User', userId: '', userLabel: '', subject: '', message: '' });
+    setOwnerSearchQuery('');
+    setOwnerSearchResults([]);
+    setIsNewTicketModalOpen(true);
+  };
+
+  const selectTicketOwner = (owner) => {
+    setNewTicketForm((prev) => ({
+      ...prev,
+      userId: owner._id,
+      userLabel: `${owner.name || owner.storeName || owner.ownerName || 'Unknown'} · ${owner.phone || 'No phone'}`,
+    }));
+    setOwnerSearchQuery('');
+    setOwnerSearchResults([]);
+  };
+
+  const handleCreateTicket = async (e) => {
+    e.preventDefault();
+    if (!newTicketForm.userId || !newTicketForm.subject.trim() || !newTicketForm.message.trim()) return;
+    try {
+      setIsCreatingTicket(true);
+      const res = await AdminAPI.createTicket({
+        userId: newTicketForm.userId,
+        userType: newTicketForm.userType,
+        subject: newTicketForm.subject.trim(),
+        message: newTicketForm.message.trim(),
+      });
+      if (res.success) {
+        showToast('Ticket logged successfully');
+        setIsNewTicketModalOpen(false);
+        fetchTickets();
+      }
+    } catch (err) {
+      console.error('Failed to create ticket', err);
+      showToast(err.response?.data?.message || 'Failed to log ticket');
+    } finally {
+      setIsCreatingTicket(false);
     }
   };
 
@@ -446,6 +517,14 @@ export default function SupportPage() {
                 <option value="Resolved">Resolved ({counts.resolved})</option>
                 <option value="Closed">Closed ({counts.closed})</option>
               </select>
+
+              <button
+                onClick={openNewTicketModal}
+                className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[12px] font-bold transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                New Ticket
+              </button>
             </div>
           </div>
 
@@ -1091,6 +1170,160 @@ export default function SupportPage() {
                     <>
                       <span className="material-symbols-outlined text-[16px]">save</span>
                       {editingFaq ? 'Save Changes' : 'Create FAQ'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New Ticket Modal (admin-logged, e.g. a phone-in complaint) */}
+      {isNewTicketModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-reveal">
+
+            {/* Modal Header */}
+            <div className="p-5 border-b border-outline-variant/15 flex justify-between items-center bg-surface-container-lowest">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[22px]">support_agent</span>
+                <h3 className="font-display font-bold text-[16px] text-on-surface">Log a New Ticket</h3>
+              </div>
+              <button
+                onClick={() => setIsNewTicketModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-outline hover:text-on-surface cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleCreateTicket} className="p-6 space-y-4">
+              {/* Role toggle */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                  Raised By
+                </label>
+                <div className="flex bg-surface-container-low p-1 rounded-xl border border-outline-variant/20 w-fit">
+                  {['User', 'Vendor'].map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setNewTicketForm({ ...newTicketForm, userType: t, userId: '', userLabel: '' })}
+                      className={`px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all cursor-pointer ${
+                        newTicketForm.userType === t ? 'bg-white text-primary shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      {t === 'User' ? 'Customer' : 'Merchant'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Owner search-select */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                  {newTicketForm.userType === 'User' ? 'Customer' : 'Merchant'} <span className="text-rose-500">*</span>
+                </label>
+                {newTicketForm.userId ? (
+                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-primary/5 border border-primary/30 rounded-xl text-[13px] font-bold text-on-surface">
+                    <span>{newTicketForm.userLabel}</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewTicketForm({ ...newTicketForm, userId: '', userLabel: '' })}
+                      className="text-outline hover:text-rose-500 material-symbols-outlined text-[16px] cursor-pointer"
+                    >
+                      close
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={ownerSearchQuery}
+                      onChange={(e) => setOwnerSearchQuery(e.target.value)}
+                      placeholder="Search by name, phone, or Zeebac ID..."
+                      className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[13px] text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                    />
+                    {ownerSearchQuery.trim() && (
+                      <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-outline-variant/30 rounded-xl shadow-lg">
+                        {isSearchingOwners ? (
+                          <div className="p-3 text-center text-[12px] text-on-surface-variant">Searching...</div>
+                        ) : ownerSearchResults.length === 0 ? (
+                          <div className="p-3 text-center text-[12px] text-on-surface-variant">No match found</div>
+                        ) : (
+                          ownerSearchResults.map((owner) => (
+                            <button
+                              key={owner._id}
+                              type="button"
+                              onClick={() => selectTicketOwner(owner)}
+                              className="w-full text-left px-3.5 py-2 hover:bg-surface-container-low text-[12.5px] cursor-pointer border-b border-outline-variant/10 last:border-0"
+                            >
+                              <span className="font-bold text-on-surface">{owner.name || owner.storeName || owner.ownerName}</span>
+                              <span className="text-on-surface-variant ml-1.5">· {owner.phone} · {owner.zeebacId}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                  Subject <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTicketForm.subject}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, subject: e.target.value })}
+                  placeholder="E.g., Cashback not credited for bill #1234"
+                  className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[13px] text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                />
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                  Message <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={newTicketForm.message}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, message: e.target.value })}
+                  placeholder="Describe what the customer/merchant reported over the call..."
+                  className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[13px] text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-outline-variant/15">
+                <button
+                  type="button"
+                  onClick={() => setIsNewTicketModalOpen(false)}
+                  className="px-4 py-2 bg-surface-container hover:bg-surface-container-high rounded-xl text-[12px] font-bold text-on-surface transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingTicket || !newTicketForm.userId || !newTicketForm.subject.trim() || !newTicketForm.message.trim()}
+                  className="px-5 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-[12px] font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  {isCreatingTicket ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Logging...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[16px]">save</span>
+                      Log Ticket
                     </>
                   )}
                 </button>

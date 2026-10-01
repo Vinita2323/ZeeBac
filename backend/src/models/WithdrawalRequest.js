@@ -53,6 +53,14 @@ const withdrawalRequestSchema = new mongoose.Schema({
   adminTransactionId: {
     type: String, // UTR or Bank Reference entered by admin during manual payout
   },
+  // Unique + sparse: closes the narrow race where two near-simultaneous
+  // identical withdrawal requests both pass the "any recent duplicate?"
+  // pre-check before either has committed — the second insert hits this
+  // index and fails cleanly instead of creating a second Pending request.
+  idempotencyKey: {
+    type: String,
+    index: { unique: true, sparse: true },
+  },
 }, { timestamps: true });
 
 const WithdrawalRequest = mongoose.model('WithdrawalRequest', withdrawalRequestSchema);

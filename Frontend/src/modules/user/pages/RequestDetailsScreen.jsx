@@ -23,11 +23,12 @@ export default function RequestDetailsScreen() {
   const [verifySuccessMsg, setVerifySuccessMsg] = useState('');
 
   const handleVerifyCode = async () => {
-    if (!verifyInputCode || verifyInputCode.length !== 3) return;
+    const cleanCode = verifyInputCode.trim().toUpperCase();
+    if (!cleanCode || cleanCode.length < 3) return;
     setIsVerifying(true);
     setVerifyError('');
     try {
-      const res = await UserAPI.verifyCashbackRequestCode(id, verifyInputCode);
+      const res = await UserAPI.verifyCashbackRequestCode(id, cleanCode);
       if (res.success) {
         setVerifySuccessMsg('Approved successfully! Cashback credited to your wallet (locked for 24h from bank withdrawal).');
         setRequest((prev) => ({
@@ -42,7 +43,7 @@ export default function RequestDetailsScreen() {
         playCustomerCashbackCreditedVoice(cbAmount);
       }
     } catch (err) {
-      setVerifyError(err.response?.data?.message || 'Verification failed. Please check the 3-digit code.');
+      setVerifyError(err.response?.data?.message || 'Verification failed. Please check the vendor code.');
     } finally {
       setIsVerifying(false);
     }
@@ -169,7 +170,7 @@ export default function RequestDetailsScreen() {
           </div>
         </div>
 
-        {/* 3-Digit Verification Code Input (For Pending Cash Claims) */}
+        {/* 4-Digit/Character Verification Code Input (For Pending Cash Claims) */}
         {request.status === 'Pending' && (request.requestType === 'cash_claim' || request.paymentMethod === 'Cash') && (
           <div className="bg-gradient-to-br from-primary/10 via-white to-primary/5 rounded-2xl p-5 border-2 border-primary/30 shadow-md animate-reveal space-y-4">
             <div className="flex items-center gap-3">
@@ -177,9 +178,9 @@ export default function RequestDetailsScreen() {
                 <span className="material-symbols-outlined text-[20px]">pin</span>
               </div>
               <div>
-                <h3 className="font-bold text-[16px] text-on-surface leading-tight">Enter 3-Digit Vendor Code</h3>
+                <h3 className="font-bold text-[16px] text-on-surface leading-tight">Enter 4-Digit Vendor Code</h3>
                 <p className="text-[12px] text-on-surface-variant mt-0.5 leading-snug">
-                  Ask the shopkeeper for the 3-digit code on their app for <strong>instant auto-approval</strong>.
+                  Ask the shopkeeper for the code (e.g. <strong>Z584</strong>) on their app for <strong>instant auto-approval</strong>.
                 </p>
               </div>
             </div>
@@ -187,20 +188,19 @@ export default function RequestDetailsScreen() {
             <div className="flex flex-col sm:flex-row gap-3 items-center">
               <input
                 type="text"
-                maxLength={3}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="• • •"
+                maxLength={4}
+                autoCapitalize="characters"
+                placeholder="Z • • •"
                 value={verifyInputCode}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '');
+                  const val = e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4);
                   setVerifyInputCode(val);
                   setVerifyError('');
                 }}
-                className="w-full sm:w-40 h-12 text-center text-[24px] font-black tracking-widest bg-white rounded-xl border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-on-surface shadow-inner"
+                className="w-full sm:w-44 h-12 text-center text-[22px] font-black tracking-widest bg-white rounded-xl border border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-on-surface shadow-inner font-mono"
               />
               <button
-                disabled={verifyInputCode.length !== 3 || isVerifying}
+                disabled={verifyInputCode.length < 3 || isVerifying}
                 onClick={handleVerifyCode}
                 className="w-full sm:flex-1 h-12 rounded-xl bg-primary text-white font-title-md font-bold shadow-md hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
               >

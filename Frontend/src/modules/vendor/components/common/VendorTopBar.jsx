@@ -13,7 +13,7 @@ export default function VendorTopBar() {
 
   const handleLogout = () => {
     useAuthStore.getState().logout();
-    window.location.replace('/vendor-app/login');
+    window.location.replace('/vendor-app');
   };
 
   return (
@@ -30,23 +30,11 @@ export default function VendorTopBar() {
           <button 
             type="button"
             onClick={() => setShowLangModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/5 hover:bg-primary/10 border border-primary/20 text-primary text-[11.5px] font-bold cursor-pointer transition-colors active:scale-95 mr-1"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface-variant hover:text-primary text-[11px] font-semibold cursor-pointer transition-all active:scale-95"
             title="Change App Language"
           >
-            <span className="material-symbols-outlined text-[15px]">translate</span>
-            <span>{language === 'hi' ? 'हिन्दी' : 'English'}</span>
-          </button>
-
-          {/* Prominent Help & Support Highlight Button */}
-          <button 
-            type="button"
-            onClick={() => navigate('/vendor/support')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-[#25D366] hover:from-emerald-600 hover:to-emerald-500 text-white font-black text-[12px] cursor-pointer shadow-sm hover:shadow active:scale-95 transition-all mr-1"
-            title="Help & Support - WhatsApp & Helpline"
-          >
-            <span className="material-symbols-outlined text-[17px]">support_agent</span>
-            <span className="hidden sm:inline">Help &amp; Support</span>
-            <span className="sm:hidden">Help</span>
+            <span className="material-symbols-outlined text-[13px] text-primary">translate</span>
+            <span className="leading-none">{language === 'hi' ? 'हिन्दी' : 'English'}</span>
           </button>
 
           <button 

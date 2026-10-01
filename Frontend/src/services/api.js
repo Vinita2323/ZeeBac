@@ -279,6 +279,10 @@ export const AdminAPI = {
     const res = await apiClient.get(`/admin/support/tickets?${params.toString()}`);
     return res.data;
   },
+  createTicket: async (ticketData) => {
+    const res = await apiClient.post('/admin/support/tickets', ticketData);
+    return res.data;
+  },
   replyToTicket: async (id, replyMessage, status = 'Resolved') => {
     const res = await apiClient.put(`/admin/support/tickets/${id}/reply`, { replyMessage, status });
     return res.data;

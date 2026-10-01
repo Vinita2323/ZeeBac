@@ -91,7 +91,16 @@ export default function DashboardPage() {
         }
 
         if (reqsRes.status === 'fulfilled' && reqsRes.value.success) {
-          setPendingRequests(reqsRes.value.data);
+          const raw = reqsRes.value.data || [];
+          const seen = new Set();
+          const deduplicated = raw.filter(r => {
+            if (!r.billNumber) return true;
+            const key = String(r.billNumber).trim().toUpperCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setPendingRequests(deduplicated);
         }
 
         if (txnsRes.status === 'fulfilled' && txnsRes.value.success) {
@@ -158,9 +167,18 @@ export default function DashboardPage() {
   const handleRequestAction = async (requestId, action) => {
     setIsProcessing(true);
     try {
+      const targetReq = pendingRequests.find(req => req._id === requestId);
+      const targetBillNumber = targetReq?.billNumber ? String(targetReq.billNumber).trim().toUpperCase() : null;
+
       const res = await VendorAPI.respondToRequest(requestId, action);
       if (res.success) {
-        setPendingRequests(prev => prev.filter(req => req._id !== requestId));
+        setPendingRequests(prev => prev.filter(req => {
+          if (req._id === requestId) return false;
+          if (targetBillNumber && req.billNumber && String(req.billNumber).trim().toUpperCase() === targetBillNumber) {
+            return false;
+          }
+          return true;
+        }));
         // Refresh stats
         const statsRes = await VendorAPI.getDashboardStats();
         setDashboardData(statsRes);
@@ -201,40 +219,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Highlighted Merchant Support Bar */}
-      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-primary/5 border border-emerald-500/25 rounded-2xl px-4 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-sm">
-            <span className="material-symbols-outlined text-[18px]">support_agent</span>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-[12.5px] text-on-surface truncate">Merchant Help &amp; Support</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-white text-[8.5px] font-black uppercase tracking-wider animate-pulse hidden xs:inline">24x7</span>
-            </div>
-            <p className="text-[10.5px] text-on-surface-variant font-medium truncate">Chat on WhatsApp or reach support desk</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <a
-            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20partner%20store%20and%20need%20assistance."
-            target="_blank"
-            rel="noreferrer"
-            className="px-2.5 py-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[11px] font-black flex items-center gap-1 shadow-xs active:scale-95 transition-all"
-          >
-            <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
-              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
-            </svg>
-            <span className="hidden sm:inline">WhatsApp</span>
-          </a>
-          <button
-            onClick={() => navigate('/vendor/support')}
-            className="px-2.5 py-1.5 bg-white border border-outline-variant/20 hover:bg-surface-container-low text-primary rounded-xl text-[11px] font-black active:scale-95 transition-all cursor-pointer"
-          >
-            Helpdesk
-          </button>
-        </div>
-      </div>
+
 
       {/* Subscription & Store Status Banners */}
       {/* Alert 1: Subscription Required / Store Inactive */}

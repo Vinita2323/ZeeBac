@@ -83,13 +83,30 @@ export default function TransactionSuccessScreen() {
             <span>Paid To</span>
             <span className="font-bold text-on-surface">{details.vendorName}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Paid Amount</span>
-            <span className="font-bold text-on-surface">₹{details.amount}</span>
-          </div>
+          {details.convenienceFee > 0 ? (
+            <>
+              <div className="flex justify-between">
+                <span>Store Bill</span>
+                <span className="font-bold text-on-surface">₹{Number(details.billAmount || details.amount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-purple-700">
+                <span>Convenience Fee</span>
+                <span className="font-bold">+₹{Number(details.convenienceFee).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-on-surface border-t border-outline-variant/10 pt-1">
+                <span>Total Paid from Wallet</span>
+                <span className="font-black text-purple-700">₹{Number(details.totalPaid || details.amount).toFixed(2)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between">
+              <span>Paid Amount</span>
+              <span className="font-bold text-on-surface">₹{details.amount}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>Cashback Earned</span>
-            <span className="font-bold text-[#7c3aed]">+₹{details.cashback}</span>
+            <span className="font-bold text-[#7c3aed]">+₹{typeof details.cashback === 'number' ? details.cashback.toFixed(2) : details.cashback}</span>
           </div>
           <div className="flex justify-between">
             <span>Transaction ID</span>

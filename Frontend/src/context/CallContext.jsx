@@ -3,6 +3,8 @@ import { getSocket, connectSocket } from '../services/socket';
 import useAuthStore from '../store/useAuthStore';
 import { playOutgoingRing, playIncomingRing, playEndCallTone, stopRingtone } from '../utils/callSound';
 import toast from 'react-hot-toast';
+import PermissionPrimerModal from '../components/common/PermissionPrimerModal';
+import { hasSeenPrimer, markPrimerSeen } from '../utils/permissionPrimer.util';
 
 const CallContext = createContext(null);
 
@@ -31,6 +33,9 @@ export function CallProvider({ children }) {
   const remoteAudioRef = useRef(null);
   const queuedCandidatesRef = useRef([]);
   const activeCallDataRef = useRef(null); // Keep sync ref for event callbacks
+
+  // Gate the first-ever mic request behind an explainer card
+  const [micPrimerRequest, setMicPrimerRequest] = useState(null); // { kind: 'start'|'accept', run }
 
   // Ensure persistent socket connection for calls when authenticated
   useEffect(() => {
@@ -226,7 +231,15 @@ export function CallProvider({ children }) {
   }, [token, callStatus]);
 
   // Start Outgoing Call
-  const startCall = async ({ targetUserId, targetUserRole, partnerName, partnerAvatar, partnerRole, conversationId }) => {
+  const startCall = async (params) => {
+    if (hasSeenPrimer('mic_call')) {
+      await _doStartCall(params);
+    } else {
+      setMicPrimerRequest({ kind: 'start', run: () => _doStartCall(params) });
+    }
+  };
+
+  const _doStartCall = async ({ targetUserId, targetUserRole, partnerName, partnerAvatar, partnerRole, conversationId }) => {
     try {
       const socket = getSocket();
       if (!socket || !socket.connected) {
@@ -299,6 +312,15 @@ export function CallProvider({ children }) {
 
   // Accept Incoming Call
   const acceptCall = async () => {
+    if (!incomingCall) return;
+    if (hasSeenPrimer('mic_call')) {
+      await _doAcceptCall();
+    } else {
+      setMicPrimerRequest({ kind: 'accept', run: () => _doAcceptCall() });
+    }
+  };
+
+  const _doAcceptCall = async () => {
     if (!incomingCall) return;
 
     try {
@@ -425,6 +447,23 @@ export function CallProvider({ children }) {
     }
   };
 
+  const handleAllowMic = async () => {
+    markPrimerSeen('mic_call');
+    const pending = micPrimerRequest;
+    setMicPrimerRequest(null);
+    if (pending) await pending.run();
+  };
+
+  const handleSkipMic = () => {
+    markPrimerSeen('mic_call');
+    const pending = micPrimerRequest;
+    setMicPrimerRequest(null);
+    // An incoming call left un-accepted should be declined, not left ringing
+    if (pending?.kind === 'accept') {
+      rejectCall('declined');
+    }
+  };
+
   // Toggle Speaker
   const toggleSpeaker = () => {
     if (remoteAudioRef.current) {
@@ -454,6 +493,16 @@ export function CallProvider({ children }) {
       {children}
       {/* Hidden audio element for WebRTC remote audio playback */}
       <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+      <PermissionPrimerModal
+        open={!!micPrimerRequest}
+        icon="mic"
+        title="Enable Microphone"
+        message="Zeebac needs microphone access to connect your call."
+        allowLabel={micPrimerRequest?.kind === 'accept' ? 'Allow & Answer' : 'Allow & Call'}
+        skipLabel="Not now"
+        onAllow={handleAllowMic}
+        onSkip={handleSkipMic}
+      />
     </CallContext.Provider>
   );
 }

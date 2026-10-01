@@ -40,9 +40,10 @@ import {
 import { getReferralStats } from '../controllers/referral.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
-import { 
-  getAllTickets, 
-  replyToTicket, 
+import {
+  adminCreateTicket,
+  getAllTickets,
+  replyToTicket,
   closeTicket,
   getAllAdminFaqs,
   createFaq,
@@ -66,6 +67,7 @@ router.post('/fcm-token', saveAdminFcmToken);
 
 // ─── Support Tickets ───
 router.get('/support/tickets', getAllTickets);
+router.post('/support/tickets', adminCreateTicket);
 router.put('/support/tickets/:id/reply', replyToTicket);
 router.put('/support/tickets/:id/close', closeTicket);
 

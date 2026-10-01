@@ -882,6 +882,7 @@ export const updateRewardConfig = async (req, res) => {
       vendorWithdrawalCommissionPercent, withdrawalFixedFee, withdrawalGstPercent, enableWithdrawalGst,
       independentStoreMonthlyPrice, independentStoreYearlyPrice,
       brandMonthlyPrice, brandYearlyPrice,
+      customerWalletPayCommissionPercent, customerWalletPayFixedFee,
     } = req.body;
 
     if (withdrawalFixedFee !== undefined) config.withdrawalFixedFee = Number(withdrawalFixedFee);
@@ -896,6 +897,8 @@ export const updateRewardConfig = async (req, res) => {
     if (vendorWithdrawalCommissionPercent !== undefined) config.vendorWithdrawalCommissionPercent = Number(vendorWithdrawalCommissionPercent);
     if (withdrawalGstPercent !== undefined) config.withdrawalGstPercent = Number(withdrawalGstPercent);
     if (enableWithdrawalGst !== undefined) config.enableWithdrawalGst = Boolean(enableWithdrawalGst);
+    if (customerWalletPayCommissionPercent !== undefined) config.customerWalletPayCommissionPercent = Number(customerWalletPayCommissionPercent);
+    if (customerWalletPayFixedFee !== undefined) config.customerWalletPayFixedFee = Number(customerWalletPayFixedFee);
     if (independentStoreMonthlyPrice !== undefined) config.independentStoreMonthlyPrice = Number(independentStoreMonthlyPrice);
     if (independentStoreYearlyPrice !== undefined) config.independentStoreYearlyPrice = Number(independentStoreYearlyPrice);
     if (brandMonthlyPrice !== undefined) config.brandMonthlyPrice = Number(brandMonthlyPrice);
@@ -1024,16 +1027,23 @@ export const processPayout = async (req, res) => {
     }
 
     if (type === 'User') {
-      const tx = await WalletTransaction.findById(id).populate('ownerId');
-      if (!tx || tx.status !== 'Pending') {
-        return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
-      }
-
       if (action === 'Approve') {
-        tx.status = 'Success';
-        tx.description = remarks ? `Withdrawal Approved: ${remarks}` : 'Bank Withdrawal Approved';
-        tx.adminTransactionId = transactionId;
-        await tx.save();
+        // Atomically claim the transition — the status-in-filter guarantees
+        // only one concurrent Approve/Reject click can ever win it.
+        const tx = await WalletTransaction.findOneAndUpdate(
+          { _id: id, status: 'Pending' },
+          {
+            $set: {
+              status: 'Success',
+              description: remarks ? `Withdrawal Approved: ${remarks}` : 'Bank Withdrawal Approved',
+              adminTransactionId: transactionId,
+            },
+          },
+          { new: true }
+        ).populate('ownerId');
+        if (!tx) {
+          return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
+        }
 
         // Notify user
         sendNotification({
@@ -1046,16 +1056,45 @@ export const processPayout = async (req, res) => {
           icon: 'account_balance',
         });
       } else if (action === 'Reject') {
-        tx.status = 'Failed';
-        tx.description = remarks ? `Withdrawal Rejected: ${remarks}` : 'Bank Withdrawal Rejected';
-        
-        // Refund wallet
-        const wallet = await Wallet.findById(tx.walletId);
-        if (wallet) {
-          wallet.balance += tx.amount;
-          await wallet.save();
+        const session = await mongoose.startSession();
+        let tx;
+        try {
+          await session.withTransaction(async () => {
+            tx = await WalletTransaction.findOneAndUpdate(
+              { _id: id, status: 'Pending' },
+              {
+                $set: {
+                  status: 'Failed',
+                  description: remarks ? `Withdrawal Rejected: ${remarks}` : 'Bank Withdrawal Rejected',
+                },
+              },
+              { new: true, session }
+            ).populate('ownerId');
+            if (!tx) {
+              throw new Error('ALREADY_PROCESSED');
+            }
+
+            // Atomic refund + ledger entry (existing wallet service)
+            await creditWallet({
+              session,
+              ownerId: tx.ownerId._id,
+              ownerType: 'User',
+              ownerZeebacId: tx.ownerId.zeebacId,
+              amount: tx.amount,
+              category: 'refund',
+              description: `Withdrawal request for ₹${tx.amount} rejected and refunded to wallet`,
+              referenceId: tx._id,
+              referenceType: 'Cashout',
+            });
+          });
+        } catch (txErr) {
+          if (txErr.message === 'ALREADY_PROCESSED') {
+            return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
+          }
+          throw txErr;
+        } finally {
+          await session.endSession();
         }
-        await tx.save();
 
         // Notify user
         sendNotification({
@@ -1073,16 +1112,23 @@ export const processPayout = async (req, res) => {
 
     if (type === 'Vendor') {
       const WithdrawalRequest = mongoose.model('WithdrawalRequest');
-      const reqDoc = await WithdrawalRequest.findById(id).populate('vendorId');
-      if (!reqDoc || reqDoc.status !== 'Pending') {
-        return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
-      }
 
       if (action === 'Approve') {
-        reqDoc.status = 'Approved';
-        reqDoc.adminRemarks = remarks || '';
-        reqDoc.adminTransactionId = transactionId;
-        await reqDoc.save();
+        // Atomically claim the transition — same reasoning as the User branch.
+        const reqDoc = await WithdrawalRequest.findOneAndUpdate(
+          { _id: id, status: 'Pending' },
+          {
+            $set: {
+              status: 'Approved',
+              adminRemarks: remarks || '',
+              adminTransactionId: transactionId,
+            },
+          },
+          { new: true }
+        ).populate('vendorId');
+        if (!reqDoc) {
+          return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
+        }
 
         const destBank = reqDoc.bankDetailsSnapshot?.bankName || reqDoc.vendorId?.bankDetails?.bankName || 'Bank';
         const rawAcc = reqDoc.bankDetailsSnapshot?.accountNumber || reqDoc.vendorId?.bankDetails?.accountNumber || '';
@@ -1109,11 +1155,19 @@ export const processPayout = async (req, res) => {
         });
       } else if (action === 'Reject') {
         const session = await mongoose.startSession();
+        let reqDoc;
         try {
           await session.withTransaction(async () => {
-            reqDoc.status = 'Rejected';
-            reqDoc.adminRemarks = remarks || '';
-            await reqDoc.save({ session });
+            // Atomically claim the transition first, same as Approve above,
+            // so a double-click can't win the race and double-refund.
+            reqDoc = await WithdrawalRequest.findOneAndUpdate(
+              { _id: id, status: 'Pending' },
+              { $set: { status: 'Rejected', adminRemarks: remarks || '' } },
+              { new: true, session }
+            ).populate('vendorId');
+            if (!reqDoc) {
+              throw new Error('ALREADY_PROCESSED');
+            }
 
             // Atomic credit back to vendor wallet + ledger entry
             await creditWallet({
@@ -1128,8 +1182,13 @@ export const processPayout = async (req, res) => {
               referenceType: 'WithdrawalRequest',
             });
           });
+        } catch (txErr) {
+          if (txErr.message === 'ALREADY_PROCESSED') {
+            return res.status(400).json({ success: false, message: 'Invalid or already processed request' });
+          }
+          throw txErr;
         } finally {
-          session.endSession();
+          await session.endSession();
         }
 
         // Notify vendor

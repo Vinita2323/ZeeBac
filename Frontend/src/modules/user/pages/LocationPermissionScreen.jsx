@@ -4,6 +4,7 @@ import Lottie from 'lottie-react';
 import locationAnimation from '../../../assets/Lotties/Location.json';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
+import { markPrimerSeen } from '../../../utils/permissionPrimer.util';
 
 export default function LocationPermissionScreen() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function LocationPermissionScreen() {
 
   const handleEnableLocation = () => {
     setStatus('requesting');
+    markPrimerSeen('location');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
@@ -40,6 +42,7 @@ export default function LocationPermissionScreen() {
   };
 
   const handleNotNow = () => {
+    markPrimerSeen('location');
     navigate('/home');
   };
 

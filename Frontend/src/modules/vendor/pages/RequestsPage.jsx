@@ -20,7 +20,16 @@ export default function RequestsPage() {
       try {
         const res = await VendorAPI.getPendingRequests();
         if (res.success) {
-          setPendingRequests(res.data);
+          const raw = res.data || [];
+          const seen = new Set();
+          const deduplicated = raw.filter(r => {
+            if (!r.billNumber) return true;
+            const key = String(r.billNumber).trim().toUpperCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setPendingRequests(deduplicated);
         }
       } catch (err) {
         console.error("Failed to fetch pending requests", err);
@@ -83,9 +92,18 @@ export default function RequestsPage() {
   const handleRequestAction = async (requestId, action) => {
     setIsProcessing(true);
     try {
+      const targetReq = pendingRequests.find(req => req._id === requestId);
+      const targetBillNumber = targetReq?.billNumber ? String(targetReq.billNumber).trim().toUpperCase() : null;
+
       const res = await VendorAPI.respondToRequest(requestId, action);
       if (res.success) {
-        setPendingRequests(prev => prev.filter(req => req._id !== requestId));
+        setPendingRequests(prev => prev.filter(req => {
+          if (req._id === requestId) return false;
+          if (targetBillNumber && req.billNumber && String(req.billNumber).trim().toUpperCase() === targetBillNumber) {
+            return false;
+          }
+          return true;
+        }));
       }
     } catch (error) {
       console.error('Failed to process request', error);

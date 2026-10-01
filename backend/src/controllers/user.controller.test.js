@@ -5,7 +5,7 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import CashbackRequest from '../models/CashbackRequest.js';
-import { createCustomerTransaction, createCashbackRequest } from './user.controller.js';
+import { createCustomerTransaction, createCashbackRequest, updateUserProfile } from './user.controller.js';
 
 vi.mock('../services/notification.service.js', () => ({ sendNotification: vi.fn() }));
 vi.mock('../utils/adminNotification.js', () => ({
@@ -54,6 +54,37 @@ const makeCustomer = async (overrides = {}) => {
     ...overrides,
   });
 };
+
+describe('updateUserProfile — preferences persistence (QA regression)', () => {
+  // Regression test: the "Push Notifications" toggle on the customer Settings
+  // screen used to be purely local React state with no API call at all, so it
+  // always reset to ON on reload and never reflected what the user chose.
+  it('persists a preferences.pushNotifications update and leaves other preferences untouched', async () => {
+    const customer = await makeCustomer();
+
+    const res1 = makeRes();
+    await updateUserProfile({ user: { id: customer._id.toString() }, body: { preferences: { pushNotifications: false } } }, res1);
+    expect(res1.status).toHaveBeenCalledWith(200);
+    expect(res1.json.mock.calls[0][0].data.preferences.pushNotifications).toBe(false);
+    expect(res1.json.mock.calls[0][0].data.preferences.smsNotifications).toBe(true); // untouched default
+
+    const reloaded = await User.findById(customer._id);
+    expect(reloaded.preferences.pushNotifications).toBe(false);
+
+    const res2 = makeRes();
+    await updateUserProfile({ user: { id: customer._id.toString() }, body: { preferences: { pushNotifications: true } } }, res2);
+    expect(res2.json.mock.calls[0][0].data.preferences.pushNotifications).toBe(true);
+  });
+
+  it('ignores a malformed preferences payload instead of corrupting stored preferences', async () => {
+    const customer = await makeCustomer();
+    const res = makeRes();
+    await updateUserProfile({ user: { id: customer._id.toString() }, body: { preferences: 'not-an-object' } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const reloaded = await User.findById(customer._id);
+    expect(reloaded.preferences.pushNotifications).toBe(true); // schema default, unchanged
+  });
+});
 
 describe('createCashbackRequest (receipt claim)', () => {
   it('rejects with 400 when no bill photo is attached', async () => {

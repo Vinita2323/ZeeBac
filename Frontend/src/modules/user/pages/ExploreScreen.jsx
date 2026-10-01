@@ -10,6 +10,8 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
+import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -66,9 +68,10 @@ export default function ExploreScreen() {
       setIsLoading(true);
       try {
         let lat = null, lng = null;
-        
+        const locationAlreadyPrimed = hasSeenPrimer('location');
+
         // Try getting latest live location
-        if (navigator.geolocation) {
+        if (navigator.geolocation && locationAlreadyPrimed) {
           try {
             const pos = await new Promise((resolve, reject) => {
               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
@@ -89,6 +92,15 @@ export default function ExploreScreen() {
               setLocation({ lat, lng });
             }
           }
+        } else if (!locationAlreadyPrimed) {
+          // Primer is showing — use any previously cached location meanwhile
+          const stored = localStorage.getItem('zeebac_location');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            lat = parsed.lat;
+            lng = parsed.lng;
+            setLocation({ lat, lng });
+          }
         }
 
         const res = await UserAPI.getVendorsByCategory(activeCategory, lat, lng);
@@ -101,6 +113,37 @@ export default function ExploreScreen() {
     };
     if (!searchQuery) fetchByCategory();
   }, [activeCategory, searchQuery]);
+
+  // Explain why we need location before the native prompt ever fires, the
+  // very first time — queued behind any higher-priority primer (e.g. the
+  // data-usage consent) via the shared gate instead of stacking on top of it.
+  const showLocationPrimer = usePrimerSlot(
+    'location',
+    PRIMER_PRIORITY.location,
+    !!navigator.geolocation && !hasSeenPrimer('location')
+  );
+
+  const handleAllowLocation = () => {
+    markPrimerSeen('location');
+    usePrimerGate.getState().release('location');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        localStorage.setItem('zeebac_location', JSON.stringify(coords));
+        setLocation(coords);
+        UserAPI.getVendorsByCategory(activeCategory, coords.lat, coords.lng).then((res) => {
+          if (res.success) setVendors(res.data);
+        });
+      },
+      (err) => console.warn('Location permission declined:', err.message),
+      { timeout: 5000 }
+    );
+  };
+
+  const handleSkipLocation = () => {
+    markPrimerSeen('location');
+    usePrimerGate.getState().release('location');
+  };
 
   // Debounced search
   useEffect(() => {
@@ -153,7 +196,16 @@ export default function ExploreScreen() {
 
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
-      
+
+      <PermissionPrimerModal
+        open={showLocationPrimer}
+        icon="near_me"
+        title="Find deals near you"
+        message="Allow location access to see the best cashback offers from stores around you."
+        onAllow={handleAllowLocation}
+        onSkip={handleSkipLocation}
+      />
+
       {/* Top Search bar Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-4 py-2 border-b border-outline-variant/10 shadow-sm space-y-2">
         <div className="app-container space-y-2">

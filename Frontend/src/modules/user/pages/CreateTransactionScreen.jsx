@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 
 export default function CreateTransactionScreen() {
@@ -68,7 +69,7 @@ export default function CreateTransactionScreen() {
         {/* Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md flex items-center border-b border-outline-variant/10 shadow-sm">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => safeNavigateBack(navigate, '/home')}
             className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined text-primary">arrow_back</span>

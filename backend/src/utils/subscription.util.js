@@ -117,29 +117,44 @@ export const getStoreVisibilityQuery = (additionalQuery = {}) => {
   const now = new Date();
   const graceCutoff = new Date(now.getTime() - GRACE_PERIOD_MS);
 
+  const subConditions = [
+    // Active plan
+    {
+      'subscription.status': 'ACTIVE',
+      $or: [
+        { 'subscription.expiresAt': { $gte: now } },
+        { 'subscription.expiresAt': null },
+        { 'subscription.expiresAt': { $exists: false } },
+      ],
+    },
+    // Expired within 24h grace period
+    {
+      'subscription.status': { $in: ['ACTIVE', 'EXPIRED'] },
+      'subscription.expiresAt': { $gte: graceCutoff },
+    },
+    {
+      'subscription.status': 'EXPIRED',
+      'subscription.expiredAt': { $gte: graceCutoff },
+    },
+  ];
+
+  const { $or: additionalOr, ...restQuery } = additionalQuery;
+
+  if (additionalOr && Array.isArray(additionalOr) && additionalOr.length > 0) {
+    return {
+      ...restQuery,
+      status: 'Verified',
+      $and: [
+        { $or: additionalOr },
+        { $or: subConditions },
+      ],
+    };
+  }
+
   return {
     ...additionalQuery,
     status: 'Verified',
-    $or: [
-      // Active plan
-      {
-        'subscription.status': 'ACTIVE',
-        $or: [
-          { 'subscription.expiresAt': { $gte: now } },
-          { 'subscription.expiresAt': null },
-          { 'subscription.expiresAt': { $exists: false } },
-        ],
-      },
-      // Expired within 24h grace period
-      {
-        'subscription.status': { $in: ['ACTIVE', 'EXPIRED'] },
-        'subscription.expiresAt': { $gte: graceCutoff },
-      },
-      {
-        'subscription.status': 'EXPIRED',
-        'subscription.expiredAt': { $gte: graceCutoff },
-      },
-    ],
+    $or: subConditions,
   };
 };
 

@@ -61,6 +61,7 @@ const setupVendorAndCustomer = async ({ vendorLocation = [77.2090, 28.6139] } = 
     phone: '9900112233',
     zeebacId: 'ZBC-CUST01',
     status: 'Active',
+    bankDetails: { accountNumber: '1234567890', ifscCode: 'HDFC0001234', accountHolderName: 'Rahul Verma', isVerified: true },
   });
 
   const customerWallet = await Wallet.create({
@@ -176,7 +177,7 @@ describe('Zero-Fraud Cash Cashback Architecture', () => {
 
     const savedRequest = await CashbackRequest.findById(res.body.data.requestId);
     expect(savedRequest).toBeDefined();
-    expect(savedRequest.verificationCode).toMatch(/^\d{3}$/);
+    expect(savedRequest.verificationCode).toMatch(/^Z?\d{3}$/);
     expect(savedRequest.status).toBe('Pending');
   });
 

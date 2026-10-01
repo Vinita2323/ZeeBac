@@ -151,6 +151,7 @@ const useAuthStore = create((set, get) => ({
       const user = get().currentUser;
       if (!user) return 0;
       const role = user?.role || user?.userType;
+      if (role === 'admin' || role === 'super_admin') return get().walletBalance;
       const { apiClient } = await import('../services/api.js');
 
       if (role === 'vendor') {

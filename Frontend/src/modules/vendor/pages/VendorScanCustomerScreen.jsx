@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { VendorAPI } from '../../../services/api';
+import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
+import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 
 const CAMERA_REGION_ID = 'zeebac-scan-customer-camera';
 const FILE_REGION_ID = 'zeebac-scan-customer-file';
@@ -19,6 +21,11 @@ export default function VendorScanCustomerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [cameraStatus, setCameraStatus] = useState('starting'); // starting | active | denied
   const [recentCustomers, setRecentCustomers] = useState([]);
+  const [cameraPrimed, setCameraPrimed] = useState(hasSeenPrimer('camera'));
+
+  // Only show the explainer once the shared primer gate is free — queued
+  // behind any higher-priority primer (e.g. notifications right after login).
+  const showCameraPrimer = usePrimerSlot('camera', PRIMER_PRIORITY.camera, !cameraPrimed);
 
   useEffect(() => {
     const fetchRecents = async () => {
@@ -73,6 +80,7 @@ export default function VendorScanCustomerScreen() {
 
   // Real camera scanning with safe fallback
   useEffect(() => {
+    if (!cameraPrimed) return;
     let cancelled = false;
     let html5QrCode = null;
 
@@ -112,7 +120,20 @@ export default function VendorScanCustomerScreen() {
         } catch (e) { }
       }
     };
-  }, [resolveCustomer]);
+  }, [resolveCustomer, cameraPrimed]);
+
+  const handleAllowCamera = () => {
+    markPrimerSeen('camera');
+    setCameraPrimed(true);
+    usePrimerGate.getState().release('camera');
+  };
+
+  const handleSkipCamera = () => {
+    markPrimerSeen('camera');
+    setCameraStatus('denied');
+    setShowIdInput(true);
+    usePrimerGate.getState().release('camera');
+  };
 
   const handleManualSearch = async () => {
     if (!query.trim() || isLoading) return;
@@ -144,6 +165,17 @@ export default function VendorScanCustomerScreen() {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black text-white overflow-hidden font-body-lg select-none">
+
+      <PermissionPrimerModal
+        open={showCameraPrimer}
+        icon="qr_code_scanner"
+        title="Scan Customer QR"
+        message="Zeebac needs camera access to scan the customer's QR code and log their transaction."
+        allowLabel="Enable Camera"
+        skipLabel="I'll enter their ID"
+        onAllow={handleAllowCamera}
+        onSkip={handleSkipCamera}
+      />
 
       {/* Hidden inputs: gallery picker + an off-screen region html5-qrcode uses to decode picked images */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />

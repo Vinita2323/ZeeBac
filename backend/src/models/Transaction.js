@@ -50,6 +50,13 @@ const transactionSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    convenienceFee: {
+      type: Number,
+      default: 0,
+    },
+    totalPaid: {
+      type: Number,
+    },
     
     paymentMethod: {
       type: String,

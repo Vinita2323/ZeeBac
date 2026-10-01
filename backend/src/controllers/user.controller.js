@@ -10,6 +10,7 @@ import Product from '../models/Product.js';
 import Referral from '../models/Referral.js';
 import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
+import AdminUser from '../models/AdminUser.js';
 import OtpVerification from '../models/OtpVerification.js';
 import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
@@ -37,6 +38,9 @@ import {
 } from '../utils/cashbackRequestLimits.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, CUSTOMER_QR_TTL_SECONDS } from '../utils/qr.util.js';
 import { performOcrOnBill, matchBillWithSoftwarePos, executeInstantAutoCashbackApproval } from '../services/aiBillVerification.service.js';
+
+// In-flight submission lock to prevent concurrent double/triple submits
+const activeSubmissionLocks = new Set();
 
 // ─── Get Customer Profile ───
 export const getUserProfile = async (req, res) => {
@@ -333,8 +337,8 @@ export const createCustomerTransaction = async (req, res) => {
       });
     }
 
-    // Generate 3-digit verification code for cash requests
-    const verificationCode = String(Math.floor(100 + Math.random() * 900));
+    // Generate 4-character verification code starting with 'Z' for cash requests (e.g. Z584)
+    const verificationCode = 'Z' + Math.floor(100 + Math.random() * 900);
     const verificationExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins validity
 
     let location = undefined;
@@ -357,6 +361,7 @@ export const createCustomerTransaction = async (req, res) => {
       distanceFromVendorMeters: geoResult.distanceFromVendorMeters,
     });
 
+    // 1. Send OTP Notification to Vendor
     sendNotification({
       recipientId: vendor._id,
       recipientType: 'vendor',
@@ -364,6 +369,26 @@ export const createCustomerTransaction = async (req, res) => {
       type: 'approval',
       title: `🔑 OTP: ${verificationCode} | Amount: ₹${amount}`,
       message: `Cash OTP: ${verificationCode} • Share with ${customer.name || customer.phone} (Cashback: ₹${cashbackAmount} on ₹${amount} cash)`,
+      icon: 'pin',
+      referenceId: request._id,
+      referenceType: 'cashback_request',
+      data: {
+        requestId: request._id.toString(),
+        verificationCode,
+        amount: String(amount),
+        cashbackAmount: String(cashbackAmount),
+        isCashMode: 'true',
+      },
+    });
+
+    // 2. Send Status Notification to Customer
+    sendNotification({
+      recipientId: customer._id,
+      recipientType: 'customer',
+      fcmTokens: customer.fcmTokens || [],
+      type: 'approval',
+      title: `⏳ Cash Request Sent: ₹${amount}`,
+      message: `Ask ${vendor.storeName} for 4-digit code ${verificationCode} to auto-approve your ₹${cashbackAmount} cashback.`,
       icon: 'pin',
       referenceId: request._id,
       referenceType: 'cashback_request',
@@ -391,13 +416,14 @@ export const createCustomerTransaction = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Request sent to vendor! Ask the vendor for the 3-digit verification code to auto-approve.',
+      message: `Request sent to vendor! Ask the vendor for the code ${verificationCode} to auto-approve.`,
       data: {
         requestId: request._id,
         amount: request.amount,
         estimatedCashback: cashbackAmount,
         vendorName: vendor.storeName,
         status: request.status,
+        verificationCode,
       },
     });
   } catch (error) {
@@ -447,10 +473,17 @@ export const verifyCashbackRequestCode = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Pending cashback request not found' });
     }
 
-    if (request.verificationCode !== cleanCode) {
+    const userCode = cleanCode.toUpperCase();
+    const expectedCode = (request.verificationCode || '').toUpperCase();
+    const isCodeMatch = (userCode === expectedCode) ||
+                        (userCode === `Z${expectedCode}`) ||
+                        (`Z${userCode}` === expectedCode) ||
+                        (userCode.replace(/^Z/, '') === expectedCode.replace(/^Z/, ''));
+
+    if (!isCodeMatch) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid verification code. Please ask the vendor for the 3-digit code.',
+        message: 'Invalid verification code. Please ask the vendor for the code (e.g. Z584).',
       });
     }
 
@@ -833,23 +866,29 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
 
 // ─── Phase 4C: Vendor Discovery ───
 
-// 1. Search vendors by name, category, or zeebacId
+// 1. Search vendors by name, category, or zeebacId with relevancy ranking
 export const searchVendors = async (req, res) => {
   try {
     const rawQ = req.query.q || req.query.query || '';
     const q = rawQ.trim();
     const { lat, lng } = req.query;
-    if (!q) {
-      return res.status(400).json({ success: false, message: 'Search query is required' });
+
+    let baseQuery = {};
+    if (q) {
+      const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      baseQuery = {
+        $or: [
+          { storeName: { $regex: escapedQ, $options: 'i' } },
+          { ownerName: { $regex: escapedQ, $options: 'i' } },
+          { zeebacId: { $regex: escapedQ, $options: 'i' } },
+          { category: { $regex: escapedQ, $options: 'i' } },
+          { subCategory: { $regex: escapedQ, $options: 'i' } },
+          { phone: { $regex: escapedQ, $options: 'i' } },
+        ]
+      };
     }
     
-    const query = getStoreVisibilityQuery({
-      $or: [
-        { storeName: { $regex: q, $options: 'i' } },
-        { category: { $regex: q, $options: 'i' } },
-        { zeebacId: { $regex: q, $options: 'i' } }
-      ]
-    });
+    const query = getStoreVisibilityQuery(baseQuery);
 
     if (lat && lng) {
       // Global search, but nearest first
@@ -864,7 +903,7 @@ export const searchVendors = async (req, res) => {
     }
 
     const vendors = await Vendor.find(query)
-      .select('storeName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType')
+      .select('storeName ownerName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType phone')
       .limit(50);
 
     const visibleVendors = vendors
@@ -881,6 +920,51 @@ export const searchVendors = async (req, res) => {
         vObj.subscriptionState = state;
         return vObj;
       });
+
+    // Relevancy ranking: Pin exact and prefix matches on storeName to the top
+    if (q) {
+      const lowerQ = q.toLowerCase();
+      visibleVendors.sort((a, b) => {
+        const aName = (a.storeName || '').toLowerCase();
+        const bName = (b.storeName || '').toLowerCase();
+        const aId = (a.zeebacId || '').toLowerCase();
+        const bId = (b.zeebacId || '').toLowerCase();
+        const aOwner = (a.ownerName || '').toLowerCase();
+        const bOwner = (b.ownerName || '').toLowerCase();
+
+        // 1. Exact match on store name or zeebacId
+        const aExact = aName === lowerQ || aId === lowerQ;
+        const bExact = bName === lowerQ || bId === lowerQ;
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+
+        // 2. Starts with search query in store name
+        const aStarts = aName.startsWith(lowerQ);
+        const bStarts = bName.startsWith(lowerQ);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+
+        // 3. Store name contains search query
+        const aContains = aName.includes(lowerQ);
+        const bContains = bName.includes(lowerQ);
+        if (aContains && !bContains) return -1;
+        if (!aContains && bContains) return 1;
+
+        // 4. Starts with in owner name
+        const aOwnerStarts = aOwner.startsWith(lowerQ);
+        const bOwnerStarts = bOwner.startsWith(lowerQ);
+        if (aOwnerStarts && !bOwnerStarts) return -1;
+        if (!aOwnerStarts && bOwnerStarts) return 1;
+
+        // 5. Contains in owner name
+        const aOwnerContains = aOwner.includes(lowerQ);
+        const bOwnerContains = bOwner.includes(lowerQ);
+        if (aOwnerContains && !bOwnerContains) return -1;
+        if (!aOwnerContains && bOwnerContains) return 1;
+
+        return 0;
+      });
+    }
       
     res.status(200).json({ success: true, data: visibleVendors });
   } catch (error) {
@@ -898,8 +982,9 @@ export const getCategories = async (req, res) => {
     const categories = [...new Set(validVendors.map(v => v.category).filter(Boolean))];
     const shopTypes = [...new Set(validVendors.map(v => v.shopType).filter(Boolean))];
     
-    // Combine them and ensure 'All' is first
-    const dynamicList = ['All', ...shopTypes, ...categories].filter(Boolean);
+    // Combine them and ensure 'All' is first — de-dupe across both groups,
+    // since a vendor's shopType and another vendor's category can collide.
+    const dynamicList = ['All', ...new Set([...shopTypes, ...categories])].filter(Boolean);
     
     res.status(200).json({ success: true, data: dynamicList });
   } catch (error) {
@@ -1065,10 +1150,18 @@ export const getMyTransactions = async (req, res) => {
 
 export const updateUserProfile = async (req, res) => {
   try {
-    const { name, email, phone, profileImage } = req.body; // allowing phone update might require OTP in real scenario, keeping it simple here
+    const { name, email, phone, profileImage, preferences } = req.body; // allowing phone update might require OTP in real scenario, keeping it simple here
+    const update = { name, email, phone, profileImage };
+    if (preferences && typeof preferences === 'object') {
+      for (const key of ['pushNotifications', 'smsNotifications', 'emailPromos']) {
+        if (typeof preferences[key] === 'boolean') {
+          update[`preferences.${key}`] = preferences[key];
+        }
+      }
+    }
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, email, phone, profileImage },
+      update,
       { returnDocument: 'after', select: '-password -refreshToken -otp -otpExpiry' }
     );
     res.status(200).json({ success: true, data: user });
@@ -1085,9 +1178,20 @@ export const updateUserProfile = async (req, res) => {
 // bypassed multer's size/type checks entirely and let a customer submit a
 // request with no photo despite the frontend claiming it was mandatory.
 export const createCashbackRequest = async (req, res) => {
-  try {
-    const { vendorId, amount, description, paymentMethod, purchaseDate, billNumber, latitude, longitude } = req.body;
+  const { vendorId, amount, description, paymentMethod, purchaseDate, billNumber, latitude, longitude } = req.body;
+  const trimmedBillNumber = billNumber ? String(billNumber).trim() : undefined;
+  const lockKey = `${req.user.id}_${vendorId}_${(trimmedBillNumber || amount || '').toString().toLowerCase()}`;
 
+  if (activeSubmissionLocks.has(lockKey)) {
+    return res.status(429).json({
+      success: false,
+      message: 'A cashback request for this bill is currently being processed. Please wait.',
+    });
+  }
+
+  activeSubmissionLocks.add(lockKey);
+
+  try {
     if (!vendorId || !mongoose.Types.ObjectId.isValid(vendorId) || !amount || isNaN(amount) || parseFloat(amount) < 1 || parseFloat(amount) > 10000000) {
       return res.status(400).json({ success: false, message: 'Valid vendorId and amount (between ₹1 and ₹1,00,00,000) are required' });
     }
@@ -1124,6 +1228,24 @@ export const createCashbackRequest = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Customer account is not active' });
     }
 
+    // Explicit duplicate bill number check across vendor's pending/approved requests
+    if (trimmedBillNumber) {
+      const existingBillReq = await CashbackRequest.findOne({
+        vendorId: vendor._id,
+        billNumber: { $regex: new RegExp(`^${trimmedBillNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        status: { $in: ['Pending', 'Approved', 'Held'] },
+      });
+      if (existingBillReq) {
+        return res.status(400).json({
+          success: false,
+          alreadyClaimed: existingBillReq.status === 'Approved',
+          message: existingBillReq.status === 'Approved'
+            ? 'This bill number has already been approved and claimed.'
+            : 'A cashback request with this bill number has already been submitted and is pending review.',
+        });
+      }
+    }
+
     await assertWithinDailyRequestLimit(customer._id);
     await assertNoRecentDuplicateRequest(customer._id, vendor._id, parseFloat(amount));
 
@@ -1148,7 +1270,6 @@ export const createCashbackRequest = async (req, res) => {
     }
 
     const isHighValue = parseFloat(amount) >= HIGH_VALUE_THRESHOLD;
-    const trimmedBillNumber = billNumber ? String(billNumber).trim() : undefined;
 
     // Phase AI: Intelligent OCR & Software POS Bill Auto-Verification
     const imageSource = req.file.buffer || req.file.path || billImageUrl;
@@ -1276,6 +1397,8 @@ export const createCashbackRequest = async (req, res) => {
     }
     logger.error(`createCashbackRequest error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
+  } finally {
+    activeSubmissionLocks.delete(lockKey);
   }
 };
 
@@ -1307,6 +1430,9 @@ export const getCashbackRequestById = async (req, res) => {
 
 export const getVendorProducts = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.vendorId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vendor ID' });
+    }
     const products = await Product.find({ vendorId: req.params.vendorId, isActive: true });
     res.status(200).json({ success: true, data: products });
   } catch (error) {
@@ -1406,6 +1532,14 @@ export const requestWithdrawal = async (req, res) => {
       return res.status(400).json({ success: false, message: `Maximum withdrawal limit per transaction is ₹${maxWithdrawal}` });
     }
 
+    const user = await User.findById(req.user.id).select('bankDetails');
+    if (!user?.bankDetails?.accountNumber || !user?.bankDetails?.ifscCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please link and verify your bank account before requesting a withdrawal.',
+      });
+    }
+
     let wallet = await Wallet.findOne({ ownerId: req.user.id, ownerType: 'User' });
     if (!wallet || wallet.balance < reqAmount) {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
@@ -1436,6 +1570,29 @@ export const requestWithdrawal = async (req, res) => {
       });
     }
 
+    // Guard against a double-tap or naive network retry creating two
+    // separate pending withdrawal requests — treat an identical request
+    // (same amount, still Pending) submitted within the last 10s as a retry.
+    const recentDuplicateWithdrawal = await WalletTransaction.findOne({
+      ownerId: req.user.id,
+      ownerType: 'User',
+      category: 'cashout',
+      amount: reqAmount,
+      status: 'Pending',
+      createdAt: { $gte: new Date(Date.now() - 10000) },
+    });
+    if (recentDuplicateWithdrawal) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...recentDuplicateWithdrawal.toObject(),
+          grossAmount: recentDuplicateWithdrawal.amount,
+          netPayout: recentDuplicateWithdrawal.netPayout,
+        },
+        message: 'Withdrawal requested successfully (Pending Admin Approval)',
+      });
+    }
+
     const withdrawalFixedFee = config.withdrawalFixedFee !== undefined ? Number(config.withdrawalFixedFee) : 5;
     const platformFee = Math.round(((reqAmount * commissionPercent) / 100) * 100) / 100;
     const withdrawalFee = withdrawalFixedFee;
@@ -1445,29 +1602,70 @@ export const requestWithdrawal = async (req, res) => {
     const gstAmount = Math.round((feeAmount - baseFee) * 100) / 100;
     const netPayout = Math.max(0, Math.round((reqAmount - feeAmount) * 100) / 100);
 
-    // Deduct balance
-    wallet.balance -= reqAmount;
-    await wallet.save();
+    // Deterministic key for this user+amount within a 10s bucket — backed by
+    // a unique index, this is what actually closes the race the pre-check
+    // above can't: two requests landing at the exact same instant.
+    const idempotencyKey = `${req.user.id}_${reqAmount}_${Math.floor(Date.now() / 10000)}`;
 
-    // Create wallet transaction
-    const withdrawalTx = await WalletTransaction.create({
-      walletId: wallet._id,
-      ownerId: wallet.ownerId,
-      ownerType: 'User',
-      type: 'debit',
-      amount: reqAmount,
-      withdrawalFee,
-      feeAmount,
-      platformFee,
-      gstAmount,
-      feePercent: commissionPercent,
-      gstPercent,
-      netPayout,
-      balanceAfter: wallet.balance,
-      category: 'cashout',
-      description: `Bank Withdrawal Request (Withdrawal Fee: ₹${withdrawalFee} + Platform Fee: ₹${platformFee}, Net: ₹${netPayout})`,
-      status: 'Pending'
-    });
+    // Deduct balance atomically (single findOneAndUpdate with a balance
+    // precondition, inside a transaction) so two concurrent withdrawal
+    // requests can never both pass the earlier balance check and both debit.
+    const session = await mongoose.startSession();
+    let withdrawalTx;
+    try {
+      await session.withTransaction(async () => {
+        const updatedWallet = await Wallet.findOneAndUpdate(
+          { _id: wallet._id, balance: { $gte: reqAmount } },
+          { $inc: { balance: -reqAmount } },
+          { returnDocument: 'after', session, runValidators: true }
+        );
+        if (!updatedWallet) {
+          throw new InsufficientBalanceError('Insufficient wallet balance');
+        }
+        wallet = updatedWallet;
+
+        const created = await WalletTransaction.create([{
+          walletId: wallet._id,
+          ownerId: wallet.ownerId,
+          ownerType: 'User',
+          type: 'debit',
+          amount: reqAmount,
+          withdrawalFee,
+          feeAmount,
+          platformFee,
+          gstAmount,
+          feePercent: commissionPercent,
+          gstPercent,
+          netPayout,
+          balanceAfter: wallet.balance,
+          category: 'cashout',
+          description: `Bank Withdrawal Request (Withdrawal Fee: ₹${withdrawalFee} + Platform Fee: ₹${platformFee}, Net: ₹${netPayout})`,
+          status: 'Pending',
+          idempotencyKey,
+        }], { session });
+        withdrawalTx = created[0];
+      });
+    } catch (txErr) {
+      if (txErr instanceof InsufficientBalanceError) {
+        return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+      }
+      if (txErr.code === 11000 && txErr.keyPattern?.idempotencyKey) {
+        // Lost the race to an identical in-flight request — the OTHER one
+        // already debited the wallet, so return its result instead of
+        // erroring (and definitely not debiting again).
+        const existing = await WalletTransaction.findOne({ idempotencyKey });
+        if (existing) {
+          return res.status(200).json({
+            success: true,
+            data: { ...existing.toObject(), grossAmount: existing.amount },
+            message: 'Withdrawal requested successfully (Pending Admin Approval)',
+          });
+        }
+      }
+      throw txErr;
+    } finally {
+      await session.endSession();
+    }
 
     // 🔔 Notify user about withdrawal status
     sendNotification({
@@ -1617,9 +1815,51 @@ export const processWalletPayment = async (req, res) => {
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
     const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
+    // Wallet payments carry the same platform commission vendors already pay
+    // on withdrawals — taken from the vendor's side only, customer cashback
+    // and debit are unaffected.
+    const rewardConfig = (await RewardConfig.findOne()) || {};
+    const commissionPercent = rewardConfig.vendorWithdrawalCommissionPercent ?? 2;
+    const platformFee = Math.round(((parseFloat(amount) * commissionPercent) / 100) * 100) / 100;
+
+    // Configurable Customer Wallet Payment Fee (Option A: Bill + Convenience Fee)
+    const customerFeePercent = rewardConfig.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 2;
+    const customerFixedFee = rewardConfig.customerWalletPayFixedFee !== undefined ? rewardConfig.customerWalletPayFixedFee : 0;
+    const customerFee = Math.round(((parseFloat(amount) * customerFeePercent) / 100 + customerFixedFee) * 100) / 100;
+    const totalCustomerDebit = Math.round((parseFloat(amount) + customerFee) * 100) / 100;
+
+    // Verify customer wallet has enough balance for Bill + Convenience Fee
+    const customerWalletCheck = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
+    if (!customerWalletCheck || (customerWalletCheck.balance || 0) < totalCustomerDebit) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Bill: ₹${amount}${customerFee > 0 ? `, Convenience Fee (${customerFeePercent}%): ₹${customerFee}` : ''}. Total required: ₹${totalCustomerDebit}, Available: ₹${customerWalletCheck?.balance?.toFixed(2) || '0.00'}`,
+      });
+    }
+
     let txn;
+    let isDuplicate = false;
 
     await session.withTransaction(async () => {
+      // Guard against a double-tap or naive network retry creating a second,
+      // separate payment — the atomic debit above only stops the wallet from
+      // going negative, it doesn't stop two legitimate-looking payments from
+      // both succeeding. Treat an identical payment to the same vendor within
+      // the last 10s as a retry of the same request, not a new one.
+      const recentDuplicate = await Transaction.findOne({
+        customerId: customer._id,
+        vendorId: vendor._id,
+        amount: parseFloat(amount),
+        paymentMethod: 'Wallet',
+        createdAt: { $gte: new Date(Date.now() - 10000) },
+      }).session(session);
+
+      if (recentDuplicate) {
+        txn = recentDuplicate;
+        isDuplicate = true;
+        return;
+      }
+
       const created = await Transaction.create([{
         transactionId, customerId: customer._id, customerZeebacId: customer.zeebacId,
         customerPhone: customer.phone, customerName: customer.name,
@@ -1629,16 +1869,27 @@ export const processWalletPayment = async (req, res) => {
         initiatedBy: 'customer', source: 'customer_request',
         amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
         cashbackAmount, paymentMethod: 'Wallet', status: 'Approved',
+        convenienceFee: customerFee,
+        totalPaid: totalCustomerDebit,
       }], { session });
       txn = created[0];
 
-      // Customer: debit the bill amount, then credit their own cashback back.
+      // Customer: debit the bill amount, then debit convenience fee (if any), then credit their own cashback back.
       await debitWallet({
         session, ownerId: customer._id, ownerType: 'User',
         amount: parseFloat(amount), category: 'payment_received',
         description: `Payment to ${vendor.storeName} (Wallet)`,
         referenceId: txn._id, referenceType: 'Transaction',
       });
+
+      if (customerFee > 0) {
+        await debitWallet({
+          session, ownerId: customer._id, ownerType: 'User',
+          amount: customerFee, category: 'platform_fee',
+          description: `Convenience fee (${customerFeePercent}%) on wallet payment to ${vendor.storeName}`,
+          referenceId: txn._id, referenceType: 'Transaction',
+        });
+      }
 
       await creditWallet({
         session, ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId,
@@ -1662,13 +1913,38 @@ export const processWalletPayment = async (req, res) => {
         referenceId: txn._id, referenceType: 'Transaction',
       });
 
+      if (platformFee > 0) {
+        await debitWallet({
+          session, ownerId: vendor._id, ownerType: 'Vendor',
+          amount: platformFee, category: 'platform_fee',
+          description: `Zeebac platform fee (${commissionPercent}%) on wallet payment from ${customer.name}`,
+          referenceId: txn._id, referenceType: 'Transaction',
+        });
+      }
+
+      // Admin Platform Wallet: credit customer convenience fee and vendor platform fee
+      const adminUser = await AdminUser.findOne({ role: { $in: ['super_admin', 'admin'] } }).session(session);
+      if (adminUser) {
+        const totalFeeToAdmin = Math.round((customerFee + platformFee) * 100) / 100;
+        if (totalFeeToAdmin > 0) {
+          await creditWallet({
+            session, ownerId: adminUser._id, ownerType: 'Admin', ownerZeebacId: 'ZEEBAC-ADMIN',
+            amount: totalFeeToAdmin, category: 'platform_fee',
+            description: `Platform fee earned on wallet txn ${txn.transactionId} (Customer Fee: ₹${customerFee}, Vendor Fee: ₹${platformFee})`,
+            referenceId: txn._id, referenceType: 'Transaction',
+          });
+        }
+      }
+
       await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': parseFloat(amount) } }, { session });
     });
 
-    checkAndNotifyFraud(txn).catch(e => logger.error('Fraud check failed', e));
+    if (!isDuplicate) {
+      checkAndNotifyFraud(txn).catch(e => logger.error('Fraud check failed', e));
 
-    await User.findByIdAndUpdate(req.user.id, { $pull: { recentVendors: vendor._id } });
-    await User.findByIdAndUpdate(req.user.id, { $push: { recentVendors: { $each: [vendor._id], $position: 0, $slice: 10 } } });
+      await User.findByIdAndUpdate(req.user.id, { $pull: { recentVendors: vendor._id } });
+      await User.findByIdAndUpdate(req.user.id, { $push: { recentVendors: { $each: [vendor._id], $position: 0, $slice: 10 } } });
+    }
 
     const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
 
@@ -1682,8 +1958,13 @@ export const processWalletPayment = async (req, res) => {
           cashbackPercent: txn.cashbackPercent,
           status: txn.status,
           timestamp: txn.timestamp,
+          convenienceFee: customerFee,
+          totalPaid: totalCustomerDebit,
         },
         vendor: { name: vendor.storeName },
+        billAmount: parseFloat(amount),
+        convenienceFee: customerFee,
+        totalPaid: totalCustomerDebit,
         cashbackEarned: cashbackAmount,
         newBalance: customerWallet?.balance,
       }
