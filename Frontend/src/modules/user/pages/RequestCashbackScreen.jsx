@@ -61,7 +61,9 @@ export default function RequestCashbackScreen() {
   const handleVendorSelect = (vendor) => {
     setSelectedVendor({
       id: vendor._id,
+      zeebacId: vendor.zeebacId,
       name: vendor.storeName,
+      category: vendor.category,
       cashbackRate: vendor.cashbackRate / 100 // assuming backend returns percentage like 15
     });
     setSearchQuery(vendor.storeName);
@@ -518,17 +520,43 @@ export default function RequestCashbackScreen() {
               </div>
 
               {selectedVendor && (
-                <div className="glass-card rounded-2xl p-md border border-outline-variant/30 text-left space-y-xs animate-reveal">
-                  <span className="text-[10px] uppercase font-bold text-primary tracking-widest">SELECTED PARTNER</span>
-                  <h3 className="font-display text-title-md font-black text-on-surface pt-1">{selectedVendor.name}</h3>
-                  <div className="grid grid-cols-2 gap-sm pt-sm border-t border-outline-variant/10 text-body-sm text-on-surface-variant">
-                    <div>
-                      <p className="font-caption text-[10px] uppercase">Vendor ID</p>
-                      <p className="font-bold text-on-surface">{selectedVendor.id}</p>
+                <div className="glass-card rounded-2xl p-4 border border-outline-variant/30 text-left space-y-3 animate-reveal bg-white/90 backdrop-blur-md shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase font-extrabold text-primary tracking-widest bg-primary/10 px-2.5 py-0.5 rounded-full">
+                      Selected Partner
+                    </span>
+                    {selectedVendor.category && (
+                      <span className="text-[11px] font-semibold text-on-surface-variant/80 bg-surface-container-high px-2 py-0.5 rounded-md truncate max-w-[140px]">
+                        {selectedVendor.category}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="font-display text-title-md font-black text-on-surface truncate">
+                    {selectedVendor.name}
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-outline-variant/15">
+                    <div className="min-w-0 bg-surface-container-low/70 rounded-xl p-2.5 border border-outline-variant/15 flex flex-col justify-center">
+                      <p className="font-caption text-[10px] uppercase font-bold text-on-surface-variant/70 truncate">
+                        Vendor ID
+                      </p>
+                      <p 
+                        className="font-bold text-on-surface font-mono text-[12px] truncate mt-0.5" 
+                        title={selectedVendor.zeebacId || selectedVendor.id}
+                      >
+                        {selectedVendor.zeebacId || selectedVendor.id}
+                      </p>
                     </div>
-                    <div>
-                      <p className="font-caption text-[10px] uppercase">Cashback Rate</p>
-                      <p className="font-bold text-primary">{(selectedVendor.cashbackRate * 100).toFixed(0)}% Cashback</p>
+
+                    <div className="min-w-0 bg-emerald-50/80 rounded-xl p-2.5 border border-emerald-200/60 flex flex-col justify-center">
+                      <p className="font-caption text-[10px] uppercase font-bold text-emerald-800/80 truncate">
+                        Cashback Rate
+                      </p>
+                      <p className="font-black text-emerald-700 text-[12.5px] truncate mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px] shrink-0">percent</span>
+                        {(selectedVendor.cashbackRate * 100).toFixed(0)}% Cashback
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -728,26 +756,26 @@ export default function RequestCashbackScreen() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-md gap-x-sm text-body-sm text-on-surface-variant">
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-caption text-[10px] uppercase">Bill Number</p>
-                    <p className="font-bold text-on-surface font-mono">{billNumber || 'N/A'}</p>
+                    <p className="font-bold text-on-surface font-mono truncate" title={billNumber}>{billNumber || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-caption text-[10px] uppercase">Purchase Date</p>
-                    <p className="font-bold text-on-surface">{purchaseDate}</p>
+                    <p className="font-bold text-on-surface truncate">{purchaseDate}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-caption text-[10px] uppercase">Payment Method</p>
-                    <p className="font-bold text-on-surface">{paymentMethod}</p>
+                    <p className="font-bold text-on-surface truncate">{paymentMethod}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-caption text-[10px] uppercase">Bill Amount</p>
-                    <p className="font-bold text-on-surface">₹{parseFloat(billAmount).toFixed(2)}</p>
+                    <p className="font-bold text-on-surface truncate">₹{parseFloat(billAmount || 0).toFixed(2)}</p>
                   </div>
-                  <div>
+                  <div className="col-span-2 min-w-0 bg-secondary/5 border border-secondary/15 rounded-xl p-2.5">
                     <p className="font-caption text-[10px] uppercase text-secondary font-bold">Estimated Cashback</p>
                     <p className="font-bold text-secondary font-display text-body-lg">
-                      +₹{(parseFloat(billAmount) * selectedVendor.cashbackRate).toFixed(2)}
+                      +₹{((parseFloat(billAmount) || 0) * (selectedVendor?.cashbackRate || 0)).toFixed(2)}
                     </p>
                   </div>
                 </div>

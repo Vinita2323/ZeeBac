@@ -38,6 +38,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Referral Program', icon: 'share', path: '/admin/referrals' },
     { label: 'Rewards Manager', icon: 'military_tech', path: '/admin/rewards' },
     { label: 'Support Tickets', icon: 'headset_mic', path: '/admin/support', badge: openTicketsCount > 0 ? openTicketsCount : null },
+    { label: 'Legal & Policies', icon: 'gavel', path: '/admin/legal-content' },
     { label: 'Notifications', icon: 'campaign', path: '/admin/notifications' },
   ];
 

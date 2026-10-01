@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Lottie from 'lottie-react';
-import locationAnimation from '../../../assets/Lotties/Location.json';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import { markPrimerSeen } from '../../../utils/permissionPrimer.util';
+import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
 
 export default function LocationPermissionScreen() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState('idle'); // 'idle', 'requesting', 'authorized'
+  const [isProcessing, setIsProcessing] = useState(false);
   const updateProfile = useAuthStore(state => state.updateProfile);
 
-  const handleEnableLocation = () => {
-    setStatus('requesting');
+  const handleEnableLocation = (opts) => {
+    setIsProcessing(true);
     markPrimerSeen('location');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -26,17 +25,19 @@ export default function LocationPermissionScreen() {
           }
         } catch (err) {
           console.error('Location update failed:', err);
-          // Non-blocking — continue even if API fails
         } finally {
-          setStatus('authorized');
-          setTimeout(() => navigate('/home'), 800);
+          setIsProcessing(false);
+          navigate('/home');
         }
       },
       (error) => {
-        // User denied or error — still go to home
         console.warn('GPS denied:', error.message);
-        setStatus('authorized');
-        setTimeout(() => navigate('/home'), 800);
+        setIsProcessing(false);
+        navigate('/home');
+      },
+      {
+        enableHighAccuracy: opts?.accuracy !== 'approximate',
+        timeout: 10000,
       }
     );
   };
@@ -47,78 +48,33 @@ export default function LocationPermissionScreen() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-container-margin mesh-gradient text-on-surface relative overflow-hidden select-none font-body-lg">
-      {/* Decorative floating orbs */}
-      <div className="blob-orb w-72 h-72 bg-primary/14 -top-16 -right-16 animate-drift" />
-      <div className="blob-orb w-64 h-64 bg-secondary/12 -bottom-16 -left-16 animate-drift-reverse" />
-
-      {/* Top AppBar */}
-      <header className="fixed top-0 left-0 w-full z-50 flex items-center px-container-margin h-16">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-primary">arrow_back</span>
-        </button>
-      </header>
-
-      <main className="w-full max-w-[440px] flex flex-col items-center text-center mt-12 z-10 space-y-lg glass-panel rounded-[2.5rem] py-10 px-6">
-        {/* Illustration Section */}
-        <div className="relative w-full aspect-square flex items-center justify-center">
-          {/* Background Decorative Blobs */}
-          <div className="absolute w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
-          <div className="absolute w-48 h-48 bg-secondary/10 rounded-full blur-2xl -bottom-4 -right-4"></div>
-          
-          {/* Lottie Animation Component */}
-          <div className="relative w-40 h-40 flex items-center justify-center">
-            <Lottie 
-              animationData={locationAnimation} 
-              loop={true} 
-              className="w-full h-full"
-            />
+    <div className="min-h-screen mesh-gradient relative overflow-hidden select-none font-body-lg flex flex-col">
+      {/* Background preview of the app behind the system permission dialog */}
+      <div className="flex-1 opacity-40 pointer-events-none p-4 space-y-4 filter blur-[0.5px]">
+        <div className="h-14 bg-white/60 rounded-2xl flex items-center px-4 justify-between border border-outline-variant/20">
+          <div className="w-24 h-6 bg-primary/20 rounded-md" />
+          <div className="flex gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/10" />
+            <div className="w-8 h-8 rounded-full bg-primary/10" />
           </div>
         </div>
-
-        {/* Text Area */}
-        <div className="space-y-md">
-          <h1 className="text-headline-lg-mobile font-black tracking-tight text-primary">Find Vendors Nearby</h1>
-          <p className="text-body-lg text-on-surface-variant max-w-[320px] mx-auto">
-            We use your location to find the best cashback deals in your neighborhood.
-          </p>
+        <div className="h-40 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-3xl" />
+        <div className="grid grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-20 bg-white/40 rounded-2xl" />
+          ))}
         </div>
+      </div>
 
-        {/* Actions button */}
-        <div className="w-full space-y-sm">
-          <button 
-            onClick={handleEnableLocation}
-            disabled={status !== 'idle'}
-            className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg active:scale-95 transition-transform duration-100 cursor-pointer"
-          >
-            {status === 'idle' && (
-              <>
-                <span className="material-symbols-outlined">near_me</span>
-                Enable Location Access
-              </>
-            )}
-            {status === 'requesting' && (
-              <span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-            )}
-            {status === 'authorized' && (
-              <>
-                <span className="material-symbols-outlined text-green-300">check_circle</span>
-                Location Authorized!
-              </>
-            )}
-          </button>
-          
-          <button 
-            onClick={handleNotNow}
-            className="w-full h-12 bg-transparent text-secondary font-title-md active:opacity-75 transition-opacity cursor-pointer"
-          >
-            Not Now
-          </button>
-        </div>
-      </main>
+      {/* Android System Location Permission Dialog matching user screenshot */}
+      <PermissionPrimerModal
+        open={true}
+        type="location"
+        appName="Zeebac"
+        onAllow={handleEnableLocation}
+        onSkip={handleNotNow}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 }

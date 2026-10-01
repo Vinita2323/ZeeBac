@@ -38,6 +38,7 @@ import {
   getAdminSubscriptionPayments,
 } from '../controllers/admin.controller.js';
 import { getReferralStats } from '../controllers/referral.controller.js';
+import { getAdminLegalContent, updateAdminLegalContent } from '../controllers/platformContent.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
 import {
@@ -149,5 +150,10 @@ router.route('/subscription-plans/:id')
 
 router.post('/vendors/:vendorId/activate-subscription', adminActivateVendorSubscription);
 router.get('/subscription-payments', getAdminSubscriptionPayments);
+
+// ─── Legal & Policy CMS ───
+router.route('/content/legal')
+  .get(getAdminLegalContent)
+  .put(updateAdminLegalContent);
 
 export default router;

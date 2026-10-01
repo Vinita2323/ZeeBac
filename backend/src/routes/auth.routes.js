@@ -1,6 +1,7 @@
 import express from 'express';
 import { sendOtp, customerLogin, vendorLogin, adminLogin, refreshAccessToken, logout, getMe } from '../controllers/auth.controller.js';
 import { customerSignup, vendorRegister, getVendorCategories, getPublicCashbackRules } from '../controllers/signup.controller.js';
+import { getPublicLegalContent } from '../controllers/platformContent.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 import { otpLimiter, loginLimiter, adminLoginLimiter } from '../middlewares/rateLimit.middleware.js';
@@ -25,6 +26,7 @@ router.post('/customer/signup', upload.single('profilePic'), customerSignup);
 router.post('/vendor/register', vendorRegister);
 router.get('/vendor/categories', getVendorCategories);
 router.get('/vendor/cashback-rules', getPublicCashbackRules);
+router.get('/content/legal', getPublicLegalContent);
 
 // Tokens
 router.post('/refresh', refreshAccessToken);

@@ -154,6 +154,10 @@ export const AuthAPI = {
   getMe: async () => {
     const res = await apiClient.get('/auth/me');
     return res.data;
+  },
+  getLegalContent: async () => {
+    const res = await apiClient.get('/auth/content/legal');
+    return res.data;
   }
 };
 
@@ -374,6 +378,15 @@ export const AdminAPI = {
     if (paymentStatus) url += `&paymentStatus=${paymentStatus}`;
     if (paymentMethod) url += `&paymentMethod=${paymentMethod}`;
     const res = await apiClient.get(url);
+    return res.data;
+  },
+  // Legal & Policy CMS
+  getLegalContent: async () => {
+    const res = await apiClient.get('/admin/content/legal');
+    return res.data;
+  },
+  updateLegalContent: async (data) => {
+    const res = await apiClient.put('/admin/content/legal', data);
     return res.data;
   },
 };
