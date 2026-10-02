@@ -140,6 +140,12 @@ const vendorSchema = new mongoose.Schema(
     // a negative or >100% rate with nothing stopping it from being applied
     // to real transactions.
     cashbackRate: { type: Number, min: 0, max: 100 },
+    // Per-vendor override for how many cashback requests one customer may
+    // file at this shop per day — null/unset means "use the platform
+    // default" (RewardConfig.dailyCashbackRequestsPerShop). Lets admin raise
+    // or lower the limit for a specific high-traffic or high-risk store
+    // without changing it for everyone else.
+    dailyRequestLimitOverride: { type: Number, min: 1, max: 100, default: null },
     subscription: {
       planType: {
         type: String,

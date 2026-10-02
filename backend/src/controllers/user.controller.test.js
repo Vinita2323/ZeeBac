@@ -5,6 +5,7 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import CashbackRequest from '../models/CashbackRequest.js';
+import RewardConfig from '../models/RewardConfig.js';
 import { createCustomerTransaction, createCashbackRequest, updateUserProfile } from './user.controller.js';
 
 vi.mock('../services/notification.service.js', () => ({ sendNotification: vi.fn() }));
@@ -243,5 +244,101 @@ describe('daily request limit + duplicate detection (shared across both request 
     );
 
     expect(resB.status).toHaveBeenCalledWith(201); // customer B is unaffected by customer A's limit
+  });
+
+  // Regression test: the limit used to be one shared pool across every
+  // vendor combined, so hitting it at Shop A silently blocked Shop B too —
+  // it must be scoped per shop.
+  it('hitting the limit at one shop does not block a different shop the same day', async () => {
+    const shopA = await makeVendor();
+    const shopB = await makeVendor();
+    const customer = await makeCustomer();
+
+    for (let i = 0; i < 3; i++) {
+      const res = makeRes();
+      await createCustomerTransaction(
+        { user: { id: customer._id.toString() }, body: { vendorZeebacId: shopA.zeebacId, amount: 100 + i } },
+        res
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    }
+    const fourthAtShopA = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: shopA.zeebacId, amount: 999 } },
+      fourthAtShopA
+    );
+    expect(fourthAtShopA.status).toHaveBeenCalledWith(429); // Shop A's own limit is hit
+
+    const firstAtShopB = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: shopB.zeebacId, amount: 150 } },
+      firstAtShopB
+    );
+    expect(firstAtShopB.status).toHaveBeenCalledWith(201); // Shop B has its own independent limit
+  });
+
+  it('honors an admin-configured platform-wide daily limit instead of the hardcoded default', async () => {
+    await RewardConfig.create({ dailyCashbackRequestsPerShop: 1 });
+    const vendor = await makeVendor();
+    const customer = await makeCustomer();
+
+    const first = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 100 } },
+      first
+    );
+    expect(first.status).toHaveBeenCalledWith(201);
+
+    const second = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 200 } },
+      second
+    );
+    expect(second.status).toHaveBeenCalledWith(429); // configured limit of 1 already reached
+  });
+
+  it('a per-vendor override takes precedence over the platform-wide default', async () => {
+    await RewardConfig.create({ dailyCashbackRequestsPerShop: 3 });
+    const vendor = await makeVendor({ dailyRequestLimitOverride: 1 });
+    const customer = await makeCustomer();
+
+    const first = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 100 } },
+      first
+    );
+    expect(first.status).toHaveBeenCalledWith(201);
+
+    const second = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 200 } },
+      second
+    );
+    expect(second.status).toHaveBeenCalledWith(429); // vendor override of 1, even though platform default is 3
+  });
+
+  it('a rejected request does not count against the daily per-shop limit', async () => {
+    await RewardConfig.create({ dailyCashbackRequestsPerShop: 2 });
+    const vendor = await makeVendor();
+    const customer = await makeCustomer();
+
+    const first = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 100 } },
+      first
+    );
+    expect(first.status).toHaveBeenCalledWith(201);
+    const firstRequestId = first.json.mock.calls[0][0].data.requestId;
+    await CashbackRequest.findByIdAndUpdate(firstRequestId, { status: 'Rejected' });
+
+    // Two more should still go through — only 0 non-rejected requests count so far
+    for (const amount of [200, 300]) {
+      const res = makeRes();
+      await createCustomerTransaction(
+        { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount } },
+        res
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    }
   });
 });

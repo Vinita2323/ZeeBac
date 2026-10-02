@@ -1,9 +1,11 @@
 import CashbackRequest from '../models/CashbackRequest.js';
+import RewardConfig from '../models/RewardConfig.js';
 
-// One customer, across both request types (cash_claim + receipt_claim)
-// combined, in a rolling 24 hours — not a calendar day, so it can't be
-// gamed by timing a burst of requests right around midnight.
-export const DAILY_REQUEST_LIMIT = 3;
+// Fallback only — the real, admin-configurable value lives on RewardConfig
+// (dailyCashbackRequestsPerShop), with an optional per-vendor override on
+// Vendor.dailyRequestLimitOverride. Used only if no RewardConfig document
+// exists yet (e.g. a brand new deployment).
+export const DEFAULT_DAILY_REQUESTS_PER_SHOP = 3;
 
 // Receipt claims at/above this amount get flagged for admin visibility
 // (notifyAdmins) but are NOT blocked — the vendor still approves/rejects
@@ -18,7 +20,6 @@ export const DUPLICATE_WINDOW_MINUTES = 10;
 // Cash mode anti-fraud rules
 export const MAX_CASH_REQUEST_AMOUNT = 1000;
 export const MAX_CASH_NEARBY_METERS = 300;
-export const DAILY_CASH_REQUESTS_PER_VENDOR = 3;
 
 export class DailyLimitExceededError extends Error {
   constructor(message) {
@@ -55,19 +56,33 @@ export class CashLocationOutOfRangeError extends Error {
   }
 }
 
-export class CashDailyShopLimitError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'CashDailyShopLimitError';
+// Effective per-shop daily limit for a given vendor: that vendor's own
+// override if admin set one, else the platform-wide RewardConfig default.
+export const getEffectiveDailyRequestLimit = async (vendor) => {
+  if (Number.isFinite(vendor?.dailyRequestLimitOverride) && vendor.dailyRequestLimitOverride > 0) {
+    return vendor.dailyRequestLimitOverride;
   }
-}
+  const config = await RewardConfig.findOne();
+  return config?.dailyCashbackRequestsPerShop || DEFAULT_DAILY_REQUESTS_PER_SHOP;
+};
 
-export const assertWithinDailyRequestLimit = async (customerId) => {
+// One customer, at this ONE shop, across both request types (cash_claim +
+// receipt_claim) combined, in a rolling 24 hours — not a calendar day, so it
+// can't be gamed by timing a burst of requests right around midnight. Scoped
+// per vendor: visiting 3 different shops gets this limit at each one
+// independently, not one shared pool across every shop combined.
+export const assertWithinDailyRequestLimit = async (customerId, vendor) => {
+  const limit = await getEffectiveDailyRequestLimit(vendor);
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const count = await CashbackRequest.countDocuments({ customerId, createdAt: { $gte: since } });
-  if (count >= DAILY_REQUEST_LIMIT) {
+  const count = await CashbackRequest.countDocuments({
+    customerId,
+    vendorId: vendor._id,
+    createdAt: { $gte: since },
+    status: { $in: ['Pending', 'Approved', 'Held'] },
+  });
+  if (count >= limit) {
     throw new DailyLimitExceededError(
-      `You've reached the limit of ${DAILY_REQUEST_LIMIT} cashback requests per day. Please try again later.`
+      `You've reached the limit of ${limit} cashback requests per day for ${vendor.storeName || 'this shop'}. Please try again tomorrow or visit another store.`
     );
   }
 };
@@ -94,21 +109,9 @@ export const assertCashRequestAllowed = async ({ customerId, vendor, amount, lat
     );
   }
 
-  // Check daily limit of 3 cash requests for this same shop
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const count = await CashbackRequest.countDocuments({
-    customerId,
-    vendorId: vendor._id,
-    paymentMethod: 'Cash',
-    createdAt: { $gte: since },
-    status: { $in: ['Pending', 'Approved', 'Held'] },
-  });
-
-  if (count >= DAILY_CASH_REQUESTS_PER_VENDOR) {
-    throw new CashDailyShopLimitError(
-      `You've reached the daily limit of ${DAILY_CASH_REQUESTS_PER_VENDOR} cash cashback requests for ${vendor.storeName || 'this shop'}.`
-    );
-  }
+  // Per-shop daily request count is enforced once, up front, by
+  // assertWithinDailyRequestLimit (covers cash_claim + receipt_claim
+  // together) — not duplicated here.
 
   // Geofence check if vendor has coordinates registered
   let distanceFromVendorMeters = null;

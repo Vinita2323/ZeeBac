@@ -187,6 +187,10 @@ export const AdminAPI = {
     const res = await apiClient.patch(`/admin/vendors/${id}/reject`, { reasonCategory, comment });
     return res.data;
   },
+  updateVendorRequestLimit: async (id, dailyRequestLimitOverride) => {
+    const res = await apiClient.patch(`/admin/vendors/${id}/request-limit`, { dailyRequestLimitOverride });
+    return res.data;
+  },
   getUsers: async (page = 1, search = '') => {
     const res = await apiClient.get(`/admin/users?page=${page}&search=${search}`);
     return res.data;

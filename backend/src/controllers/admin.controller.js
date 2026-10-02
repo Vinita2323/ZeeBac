@@ -173,6 +173,35 @@ export const getVendorById = async (req, res) => {
   }
 };
 
+// Per-vendor override for how many cashback requests one customer may file
+// at this specific shop per day — null clears the override, reverting to
+// the platform-wide RewardConfig.dailyCashbackRequestsPerShop default.
+export const updateVendorRequestLimit = async (req, res) => {
+  try {
+    const { dailyRequestLimitOverride } = req.body;
+
+    let value = null;
+    if (dailyRequestLimitOverride !== null && dailyRequestLimitOverride !== undefined && dailyRequestLimitOverride !== '') {
+      value = Number(dailyRequestLimitOverride);
+      if (!Number.isFinite(value) || value < 1) {
+        return res.status(400).json({ success: false, message: 'Request limit override must be at least 1, or left blank to use the platform default' });
+      }
+    }
+
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.id,
+      { dailyRequestLimitOverride: value },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    res.status(200).json({ success: true, data: { dailyRequestLimitOverride: vendor.dailyRequestLimitOverride } });
+  } catch (error) {
+    logger.error(`Error in updateVendorRequestLimit: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 const REJECTION_CATEGORIES = ['Incomplete information', 'Invalid document', 'Document unclear', 'Business details mismatch', 'Location issue', 'Verification failed', 'Other'];
 
 export const approveVendor = async (req, res) => {
@@ -883,6 +912,7 @@ export const updateRewardConfig = async (req, res) => {
       independentStoreMonthlyPrice, independentStoreYearlyPrice,
       brandMonthlyPrice, brandYearlyPrice,
       customerWalletPayCommissionPercent, customerWalletPayFixedFee,
+      dailyCashbackRequestsPerShop,
     } = req.body;
 
     if (withdrawalFixedFee !== undefined) config.withdrawalFixedFee = Number(withdrawalFixedFee);
@@ -903,6 +933,13 @@ export const updateRewardConfig = async (req, res) => {
     if (independentStoreYearlyPrice !== undefined) config.independentStoreYearlyPrice = Number(independentStoreYearlyPrice);
     if (brandMonthlyPrice !== undefined) config.brandMonthlyPrice = Number(brandMonthlyPrice);
     if (brandYearlyPrice !== undefined) config.brandYearlyPrice = Number(brandYearlyPrice);
+    if (dailyCashbackRequestsPerShop !== undefined) {
+      const parsed = Number(dailyCashbackRequestsPerShop);
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        return res.status(400).json({ success: false, message: 'Daily cashback requests per shop must be at least 1' });
+      }
+      config.dailyCashbackRequestsPerShop = parsed;
+    }
     if (isActive !== undefined) config.isActive = isActive;
     
     await config.save();

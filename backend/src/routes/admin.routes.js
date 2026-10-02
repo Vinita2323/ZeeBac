@@ -5,6 +5,7 @@ import {
   getVendorById,
   approveVendor,
   rejectVendor,
+  updateVendorRequestLimit,
   getAllUsers,
   suspendUser,
   unsuspendUser,
@@ -88,6 +89,7 @@ router.get('/vendors', getAllVendors);
 router.get('/vendors/:id', getVendorById);
 router.patch('/vendors/:id/approve', approveVendor);
 router.patch('/vendors/:id/reject', rejectVendor);
+router.patch('/vendors/:id/request-limit', updateVendorRequestLimit);
 
 // ─── User Management ───
 router.get('/users', getAllUsers);

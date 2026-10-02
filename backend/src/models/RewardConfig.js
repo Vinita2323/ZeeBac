@@ -81,6 +81,15 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Number,
     default: 10,
   },
+  // How many cashback requests (cash_claim + receipt_claim combined) one
+  // customer may file at the SAME shop per rolling 24 hours. Scoped per
+  // vendor, not a platform-wide total — a customer visiting 3 different
+  // shops gets this limit at each one independently. A specific vendor can
+  // be given a different limit via Vendor.dailyRequestLimitOverride.
+  dailyCashbackRequestsPerShop: {
+    type: Number,
+    default: 3,
+  },
   isActive: {
     type: Boolean,
     default: true,

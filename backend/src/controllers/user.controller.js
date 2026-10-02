@@ -33,7 +33,6 @@ import {
   CashLimitExceededError,
   CashLocationRequiredError,
   CashLocationOutOfRangeError,
-  CashDailyShopLimitError,
   HIGH_VALUE_THRESHOLD,
 } from '../utils/cashbackRequestLimits.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, CUSTOMER_QR_TTL_SECONDS } from '../utils/qr.util.js';
@@ -319,13 +318,12 @@ export const createCustomerTransaction = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Customer account is not active' });
     }
 
-    await assertWithinDailyRequestLimit(customer._id);
+    await assertWithinDailyRequestLimit(customer._id, vendor);
     await assertNoRecentDuplicateRequest(customer._id, vendor._id, parseFloat(amount));
 
     // Zero-Fraud Cash Mode Restrictions:
     // 1. Max ₹1,000 limit
-    // 2. Daily max 3 cash requests per shop
-    // 3. Nearby location check (within 300m)
+    // 2. Nearby location check (within 300m)
     let geoResult = { distanceFromVendorMeters: null };
     const isCashPayment = !paymentMethod || paymentMethod === 'Cash';
     if (isCashPayment) {
@@ -451,8 +449,7 @@ export const createCustomerTransaction = async (req, res) => {
   } catch (error) {
     if (
       error instanceof DailyLimitExceededError ||
-      error instanceof DuplicateRequestError ||
-      error instanceof CashDailyShopLimitError
+      error instanceof DuplicateRequestError
     ) {
       return res.status(429).json({ success: false, message: error.message });
     }
@@ -1268,7 +1265,7 @@ export const createCashbackRequest = async (req, res) => {
       }
     }
 
-    await assertWithinDailyRequestLimit(customer._id);
+    await assertWithinDailyRequestLimit(customer._id, vendor);
     await assertNoRecentDuplicateRequest(customer._id, vendor._id, parseFloat(amount));
 
     const billImageUrl = req.file.url || (req.file.filename?.startsWith('http') ? req.file.filename : null);

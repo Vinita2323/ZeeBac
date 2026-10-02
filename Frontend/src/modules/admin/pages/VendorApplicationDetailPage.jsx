@@ -90,18 +90,37 @@ export default function VendorApplicationDetailPage() {
   const [selectedPlanType, setSelectedPlanType] = useState('1 Month');
   const [includeBonusDays, setIncludeBonusDays] = useState(true);
   const [isActivating, setIsActivating] = useState(false);
+  const [requestLimitInput, setRequestLimitInput] = useState('');
+  const [isSavingRequestLimit, setIsSavingRequestLimit] = useState(false);
+  const [requestLimitSaved, setRequestLimitSaved] = useState(false);
 
   const fetchVendor = async () => {
     setIsLoading(true);
     try {
       const res = await AdminAPI.getVendorById(id);
-      if (res.success) setVendor(res.data);
+      if (res.success) {
+        setVendor(res.data);
+        setRequestLimitInput(res.data.dailyRequestLimitOverride ?? '');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => { fetchVendor(); }, [id]);
+
+  const handleSaveRequestLimit = async () => {
+    setIsSavingRequestLimit(true);
+    setRequestLimitSaved(false);
+    try {
+      await AdminAPI.updateVendorRequestLimit(id, requestLimitInput === '' ? null : Number(requestLimitInput));
+      setRequestLimitSaved(true);
+      setTimeout(() => setRequestLimitSaved(false), 2500);
+      fetchVendor();
+    } finally {
+      setIsSavingRequestLimit(false);
+    }
+  };
 
   const handleApprove = async (cashbackRate) => {
     await AdminAPI.approveVendor(id, cashbackRate);
@@ -237,6 +256,32 @@ export default function VendorApplicationDetailPage() {
               </span>
             </div>
             <div className="col-span-2"><Row label="Description" value={vendor.description} /></div>
+          </div>
+        </Section>
+
+        <Section title="Cashback Request Limit" icon="rule">
+          <p className="text-[12px] text-gray-500 mb-3">
+            How many cashback requests one customer can file at this shop per day. Leave blank to use the platform default.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Override (blank = platform default)</label>
+              <input
+                type="number"
+                min="1"
+                placeholder="Platform default"
+                value={requestLimitInput}
+                onChange={(e) => setRequestLimitInput(e.target.value)}
+                className="mt-1 w-full px-3 py-2 border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50"
+              />
+            </div>
+            <button
+              onClick={handleSaveRequestLimit}
+              disabled={isSavingRequestLimit}
+              className="h-10.5 px-5 bg-primary text-white rounded-lg font-bold text-[13px] disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingRequestLimit ? 'Saving...' : requestLimitSaved ? 'Saved ✓' : 'Save'}
+            </button>
           </div>
         </Section>
 

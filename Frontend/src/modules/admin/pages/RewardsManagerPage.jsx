@@ -223,6 +223,18 @@ export default function RewardsManagerPage() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Cashback Requests / Shop / Day</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={rules.dailyCashbackRequestsPerShop ?? 3}
+                  onChange={(e) => setRules({ ...rules, dailyCashbackRequestsPerShop: parseInt(e.target.value, 10) || 1 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50"
+                />
+                <p className="text-[11px] text-on-surface-variant mt-1">Per customer, per shop — not a shared total across shops. A specific shop can be overridden from its vendor detail page.</p>
+              </div>
+              <div>
                 <label className="block text-sm font-bold text-on-surface-variant mb-2">Min Withdrawal (₹)</label>
                 <input
                   type="number"
