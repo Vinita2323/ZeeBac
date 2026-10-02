@@ -43,6 +43,7 @@ import { getMyMedia, uploadMedia, deleteMedia, getMyPromotions, createPromotion,
 import { saveVendorFcmToken } from '../controllers/notification.controller.js';
 import { createTicket, getUserTickets } from '../controllers/support.controller.js';
 import { protect, requireRole, requireApprovedVendor } from '../middlewares/auth.middleware.js';
+import { pinLimiter } from '../middlewares/rateLimit.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
 const router = express.Router();
@@ -56,9 +57,9 @@ router.get('/me', getProfile);
 router.put('/me', updateProfile);
 
 // Biometric & PIN Security
-router.post('/security/setup-pin', setupSecurityPin);
+router.post('/security/setup-pin', pinLimiter, setupSecurityPin);
 router.post('/security/toggle-biometric', toggleBiometricSecurity);
-router.post('/security/verify-pin', verifySecurityPin);
+router.post('/security/verify-pin', pinLimiter, verifySecurityPin);
 
 // Vendor Onboarding — open regardless of approval status (this IS the approval flow)
 router.patch('/application/draft', upload.fields(APPLICATION_UPLOAD_FIELDS), saveApplicationDraft);

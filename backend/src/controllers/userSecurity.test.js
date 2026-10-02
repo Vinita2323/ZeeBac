@@ -127,6 +127,28 @@ describe('User Biometric Security & PIN Protection', () => {
     expect(correctRes.body.success).toBe(true);
   });
 
+  it('rejects a non-numeric PIN on first-time setup without touching the database', async () => {
+    const user = await User.create({
+      zeebacId: 'ZBC-SEC06',
+      name: 'Rakesh Dubey',
+      phone: '9866666666',
+    });
+
+    const req = {
+      user: { id: user._id.toString() },
+      body: { pin: 'ab12' },
+    };
+    const res = mockRes();
+
+    await setupSecurityPin(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+
+    const unchanged = await User.findById(user._id);
+    expect(unchanged.security?.securityPin).toBeFalsy();
+  });
+
   it('getUserProfile does not expose plaintext or hashed PIN, but returns hasPin boolean', async () => {
     const user = await User.create({
       zeebacId: 'ZBC-SEC05',

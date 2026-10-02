@@ -2121,7 +2121,7 @@ export const setupSecurityPin = async (req, res) => {
     const { pin, currentPin } = req.body;
     const cleanPin = String(pin || '').trim();
 
-    if (!cleanPin || cleanPin.length < 4 || cleanPin.length > 8) {
+    if (!cleanPin || cleanPin.length < 4 || cleanPin.length > 8 || !/^\d+$/.test(cleanPin)) {
       return res.status(400).json({ success: false, message: 'Security PIN must be between 4 and 8 digits' });
     }
 

@@ -40,7 +40,7 @@ import { getVendorReviews, createReview, deleteReview } from '../controllers/rev
 import { getMyReferrals } from '../controllers/referral.controller.js';
 import { getRechargePlans, processMobileRecharge, getMyRecharges } from '../controllers/recharge.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
-import { otpLimiter } from '../middlewares/rateLimit.middleware.js';
+import { otpLimiter, pinLimiter } from '../middlewares/rateLimit.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
 const router = express.Router();
@@ -95,9 +95,9 @@ router.post('/wallet/withdraw', requestWithdrawal);
 router.get('/wallet/withdrawals', getUserWithdrawals);
 
 // Biometric & PIN Security
-router.post('/security/setup-pin', setupSecurityPin);
+router.post('/security/setup-pin', pinLimiter, setupSecurityPin);
 router.post('/security/toggle-biometric', toggleBiometricSecurity);
-router.post('/security/verify-pin', verifySecurityPin);
+router.post('/security/verify-pin', pinLimiter, verifySecurityPin);
 
 // Razorpay Flow (For UPI/Cards)
 router.post('/transactions/razorpay/order', createRazorpayOrder);

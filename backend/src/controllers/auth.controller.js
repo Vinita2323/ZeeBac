@@ -284,6 +284,19 @@ export const getMe = async (req, res) => {
     if (!data) return res.status(404).json({ message: 'User not found' });
     const userObj = data.toObject ? data.toObject() : { ...data };
     userObj.role = userObj.role || role || (userObj.storeName ? 'vendor' : 'customer');
+
+    // Never leak the PIN hash to the client — expose only whether one is
+    // configured. Without this, the frontend's `security.hasPin` flag (used
+    // to decide first-time PIN setup vs. change-PIN) is always undefined
+    // after this endpoint runs, which forces the "setup" form (no Current
+    // PIN field) even when a PIN already exists — causing the backend to
+    // correctly reject the request with "Current PIN is required" with no
+    // way for the user to satisfy it.
+    if (userObj.security) {
+      userObj.security.hasPin = Boolean(userObj.security.securityPin);
+      delete userObj.security.securityPin;
+    }
+
     res.status(200).json({ success: true, data: userObj });
   } catch (error) {
     logger.error(`[getMe] Error: ${error.message}`);

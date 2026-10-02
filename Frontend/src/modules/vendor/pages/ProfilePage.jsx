@@ -44,10 +44,13 @@ export default function ProfilePage() {
     try {
       const supported = await isBiometricSupported();
       if (!supported) {
-        await VendorAPI.toggleBiometricSecurity(true);
-        updateProfileStore({ security: { ...currentUser?.security, biometricEnabled: true } });
-        setBiometrics(true);
-        setSecurityToast('Device does not have biometric hardware. Protected with your Security PIN.');
+        setBiometrics(false);
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (!window.isSecureContext && !isLocalhost) {
+          setSecurityToast('⚠️ Biometrics requires HTTPS connection. Store cashouts protected with your PIN.');
+        } else {
+          setSecurityToast('⚠️ Biometric sensor not detected on this device. Secured with your Security PIN.');
+        }
         setTimeout(() => setSecurityToast(''), 4500);
         return;
       }
@@ -63,7 +66,7 @@ export default function ProfilePage() {
           }
         });
         setBiometrics(true);
-        setSecurityToast('✅ Biometric security enabled! Store cashouts and funds are now protected.');
+        setSecurityToast('✅ Biometric security enabled! Store cashouts are now protected with your fingerprint / Face ID.');
         setTimeout(() => setSecurityToast(''), 4000);
       } else {
         setSecurityToast(bioRes.error || 'Biometric registration cancelled.');
