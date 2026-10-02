@@ -58,12 +58,22 @@ export class CashLocationOutOfRangeError extends Error {
 
 // Effective per-shop daily limit for a given vendor: that vendor's own
 // override if admin set one, else the platform-wide RewardConfig default.
+// Returns null if daily requests are unlimited.
 export const getEffectiveDailyRequestLimit = async (vendor) => {
   if (Number.isFinite(vendor?.dailyRequestLimitOverride) && vendor.dailyRequestLimitOverride > 0) {
     return vendor.dailyRequestLimitOverride;
   }
   const config = await RewardConfig.findOne();
-  return config?.dailyCashbackRequestsPerShop || DEFAULT_DAILY_REQUESTS_PER_SHOP;
+  if (!config) {
+    return DEFAULT_DAILY_REQUESTS_PER_SHOP;
+  }
+  if (config.dailyCashbackRequestsPerShop === null) {
+    return null;
+  }
+  if (Number.isFinite(config.dailyCashbackRequestsPerShop) && config.dailyCashbackRequestsPerShop > 0) {
+    return config.dailyCashbackRequestsPerShop;
+  }
+  return null;
 };
 
 // One customer, at this ONE shop, across both request types (cash_claim +
@@ -73,6 +83,9 @@ export const getEffectiveDailyRequestLimit = async (vendor) => {
 // independently, not one shared pool across every shop combined.
 export const assertWithinDailyRequestLimit = async (customerId, vendor) => {
   const limit = await getEffectiveDailyRequestLimit(vendor);
+  if (limit === null || limit === undefined) {
+    return; // Unlimited: no limit configured per shop/day
+  }
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const count = await CashbackRequest.countDocuments({
     customerId,

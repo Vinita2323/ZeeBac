@@ -934,11 +934,15 @@ export const updateRewardConfig = async (req, res) => {
     if (brandMonthlyPrice !== undefined) config.brandMonthlyPrice = Number(brandMonthlyPrice);
     if (brandYearlyPrice !== undefined) config.brandYearlyPrice = Number(brandYearlyPrice);
     if (dailyCashbackRequestsPerShop !== undefined) {
-      const parsed = Number(dailyCashbackRequestsPerShop);
-      if (!Number.isFinite(parsed) || parsed < 1) {
-        return res.status(400).json({ success: false, message: 'Daily cashback requests per shop must be at least 1' });
+      if (dailyCashbackRequestsPerShop === null || dailyCashbackRequestsPerShop === '' || dailyCashbackRequestsPerShop === 'null') {
+        config.dailyCashbackRequestsPerShop = null;
+      } else {
+        const parsed = Number(dailyCashbackRequestsPerShop);
+        if (!Number.isFinite(parsed) || parsed < 1) {
+          return res.status(400).json({ success: false, message: 'Daily cashback requests per shop must be at least 1, or left blank for unlimited' });
+        }
+        config.dailyCashbackRequestsPerShop = parsed;
       }
-      config.dailyCashbackRequestsPerShop = parsed;
     }
     if (isActive !== undefined) config.isActive = isActive;
     

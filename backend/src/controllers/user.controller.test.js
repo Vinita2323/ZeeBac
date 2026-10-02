@@ -297,6 +297,21 @@ describe('daily request limit + duplicate detection (shared across both request 
     expect(second.status).toHaveBeenCalledWith(429); // configured limit of 1 already reached
   });
 
+  it('allows unlimited requests when dailyCashbackRequestsPerShop is null and no vendor override exists', async () => {
+    await RewardConfig.create({ dailyCashbackRequestsPerShop: null });
+    const vendor = await makeVendor();
+    const customer = await makeCustomer();
+
+    for (const amount of [100, 200, 300, 400, 500]) {
+      const res = makeRes();
+      await createCustomerTransaction(
+        { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount } },
+        res
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    }
+  });
+
   it('a per-vendor override takes precedence over the platform-wide default', async () => {
     await RewardConfig.create({ dailyCashbackRequestsPerShop: 3 });
     const vendor = await makeVendor({ dailyRequestLimitOverride: 1 });

@@ -107,7 +107,16 @@ export const customerLogin = async (req, res) => {
         phone: user.phone,
         zeebacId: user.zeebacId,
         role: user.role,
-        referralCode: user.referralCode
+        referralCode: user.referralCode,
+        // Was missing here — the app-open PIN/biometric lock reads this from
+        // the session cached at login, so without it the lock silently
+        // never engaged until something else (e.g. visiting Profile)
+        // happened to backfill it into the local store first.
+        security: {
+          hasPin: Boolean(user.security?.securityPin),
+          biometricEnabled: !!user.security?.biometricEnabled,
+          biometricCredentialId: user.security?.biometricCredentialId || null,
+        },
       }
     });
   } catch (error) {
@@ -159,6 +168,13 @@ export const vendorLogin = async (req, res) => {
         // pages fell back to computing "Estimated CB" against `undefined`
         // and rendered "₹NaN".
         cashbackRate: vendor.cashbackRate,
+        // Same gap as customerLogin above — the app-open lock reads this
+        // from the session cached at login.
+        security: {
+          hasPin: Boolean(vendor.security?.securityPin),
+          biometricEnabled: !!vendor.security?.biometricEnabled,
+          biometricCredentialId: vendor.security?.biometricCredentialId || null,
+        },
       }
     });
   } catch (error) {

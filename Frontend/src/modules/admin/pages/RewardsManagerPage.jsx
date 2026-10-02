@@ -12,6 +12,7 @@ export default function RewardsManagerPage() {
     isActive: true,
     customerWalletPayCommissionPercent: 2,
     customerWalletPayFixedFee: 0,
+    dailyCashbackRequestsPerShop: null,
   });
   const [isSavingRules, setIsSavingRules] = useState(false);
 
@@ -65,12 +66,22 @@ export default function RewardsManagerPage() {
   const handleSaveRules = async () => {
     try {
       setIsSavingRules(true);
-      const res = await AdminAPI.updateRewardConfig(rules);
+      const payload = {
+        ...rules,
+        dailyCashbackRequestsPerShop:
+          rules.dailyCashbackRequestsPerShop === '' || rules.dailyCashbackRequestsPerShop === null || rules.dailyCashbackRequestsPerShop === undefined
+            ? null
+            : Number(rules.dailyCashbackRequestsPerShop),
+      };
+      const res = await AdminAPI.updateRewardConfig(payload);
       if (res.success) {
         alert('Reward rules updated successfully');
+        if (res.data) {
+          setRules(res.data);
+        }
       }
     } catch (err) {
-      alert('Failed to update reward rules');
+      alert(err.response?.data?.message || 'Failed to update reward rules');
     } finally {
       setIsSavingRules(false);
     }
@@ -223,16 +234,34 @@ export default function RewardsManagerPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-on-surface-variant mb-2">Cashback Requests / Shop / Day</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-bold text-on-surface-variant">Cashback Requests / Shop / Day</label>
+                  {rules.dailyCashbackRequestsPerShop !== null && rules.dailyCashbackRequestsPerShop !== '' && (
+                    <button
+                      type="button"
+                      onClick={() => setRules({ ...rules, dailyCashbackRequestsPerShop: null })}
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                    >
+                      Clear (Unlimited)
+                    </button>
+                  )}
+                </div>
                 <input
                   type="number"
                   step="1"
                   min="1"
-                  value={rules.dailyCashbackRequestsPerShop ?? 3}
-                  onChange={(e) => setRules({ ...rules, dailyCashbackRequestsPerShop: parseInt(e.target.value, 10) || 1 })}
+                  value={rules.dailyCashbackRequestsPerShop ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRules({
+                      ...rules,
+                      dailyCashbackRequestsPerShop: val === '' ? null : (parseInt(val, 10) || ''),
+                    });
+                  }}
+                  placeholder="Unlimited (No limit)"
                   className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50"
                 />
-                <p className="text-[11px] text-on-surface-variant mt-1">Per customer, per shop — not a shared total across shops. A specific shop can be overridden from its vendor detail page.</p>
+                <p className="text-[11px] text-on-surface-variant mt-1">Per customer, per shop — not a shared total across shops. Leave blank or empty for unlimited requests. A specific shop can be overridden from its vendor detail page.</p>
               </div>
               <div>
                 <label className="block text-sm font-bold text-on-surface-variant mb-2">Min Withdrawal (₹)</label>

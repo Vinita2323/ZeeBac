@@ -88,7 +88,7 @@ const rewardConfigSchema = new mongoose.Schema({
   // be given a different limit via Vendor.dailyRequestLimitOverride.
   dailyCashbackRequestsPerShop: {
     type: Number,
-    default: 3,
+    default: null,
   },
   isActive: {
     type: Boolean,

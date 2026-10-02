@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import useAuthStore from '../../store/useAuthStore';
 import { UserAPI, VendorAPI } from '../../services/api';
 import { verifyBiometricCredential } from '../../utils/biometric.util';
+import PinKeypad from './PinKeypad';
 
 // Full-screen PIN/biometric gate shown whenever the app is (re)opened for a
 // user who has Security PIN or Biometrics enabled — see useAuthStore's
@@ -131,21 +132,12 @@ export default function AppLockScreen() {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleVerifyPin} className="space-y-3.5 text-left">
-            <input
-              type="password"
-              inputMode="numeric"
-              autoFocus
-              value={pin}
-              onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
-              placeholder="Enter 4-8 digit PIN"
-              maxLength={8}
-              className="w-full h-12 px-4 rounded-xl border border-outline-variant/30 text-center text-[18px] font-bold tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
+          <form onSubmit={handleVerifyPin} className="space-y-4">
+            <PinKeypad value={pin} onChange={(v) => { setPin(v); setError(''); }} autoFocusError={!!error} />
             <button
               type="submit"
-              disabled={isVerifying || !pin}
-              className="w-full h-12 btn-primary-gradient text-white rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
+              disabled={isVerifying || pin.length < 4}
+              className="w-full h-12 btn-primary-gradient text-white rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40 cursor-pointer"
             >
               {isVerifying ? (
                 <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />

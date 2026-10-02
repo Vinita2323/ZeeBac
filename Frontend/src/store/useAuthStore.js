@@ -12,6 +12,22 @@ const hasSecurityEnabled = (user) => {
   return Boolean(user?.security?.hasPin || user?.security?.biometricEnabled);
 };
 
+// Tracks "already unlocked" for THIS browser tab only (sessionStorage, not
+// localStorage) — survives a page refresh within the same tab so the lock
+// doesn't nag on every reload, but disappears on a genuine close/reopen
+// (new tab = fresh sessionStorage) or whenever App.jsx's background-resume
+// check explicitly clears it.
+const SESSION_UNLOCK_KEY = 'zeebac_app_unlocked_session';
+const wasUnlockedThisSession = () => {
+  try { return sessionStorage.getItem(SESSION_UNLOCK_KEY) === '1'; } catch { return false; }
+};
+const markUnlockedThisSession = () => {
+  try { sessionStorage.setItem(SESSION_UNLOCK_KEY, '1'); } catch { /* ignore */ }
+};
+const clearUnlockedThisSession = () => {
+  try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch { /* ignore */ }
+};
+
 const useAuthStore = create((set, get) => ({
   // ── State ──
   currentUser: null,        // { role, name, phone, email, storeName, ... }
@@ -54,9 +70,10 @@ const useAuthStore = create((set, get) => ({
           accessToken: token,
           isAuthenticated: true,
           walletBalance: balance,
-          // This runs once per fresh page load / app open — exactly the
-          // moment a PIN/biometric gate is supposed to appear.
-          isAppLocked: hasSecurityEnabled(user),
+          // Runs on every fresh page load, including a plain refresh — only
+          // actually gate if this tab hasn't already been unlocked this
+          // session, so refreshing mid-use doesn't re-prompt every time.
+          isAppLocked: hasSecurityEnabled(user) && !wasUnlockedThisSession(),
         });
 
         // Silently sync real-time wallet balance from backend in background
@@ -92,22 +109,32 @@ const useAuthStore = create((set, get) => ({
       }
     }
 
+    markUnlockedThisSession(); // just verified identity via OTP — don't immediately re-gate
     set({
       currentUser: userData,
       accessToken: accessToken,
       isAuthenticated: true,
       walletBalance: balance,
-      isAppLocked: false, // just verified identity via OTP — don't immediately re-gate
+      isAppLocked: false,
     });
 
     // Fetch live balance from backend immediately on login
     get().fetchWalletBalance();
   },
 
+  // Re-gate on resume (App.jsx's background-timer calls this) — clears the
+  // tab's "already unlocked" flag so the lock actually re-engages instead of
+  // immediately passing itself via hydrate's session check.
   lockApp: () => {
-    if (hasSecurityEnabled(get().currentUser)) set({ isAppLocked: true });
+    if (hasSecurityEnabled(get().currentUser)) {
+      clearUnlockedThisSession();
+      set({ isAppLocked: true });
+    }
   },
-  unlockApp: () => set({ isAppLocked: false }),
+  unlockApp: () => {
+    markUnlockedThisSession();
+    set({ isAppLocked: false });
+  },
 
   setAccessToken: (token) => {
     localStorage.setItem('zeebac_access_token', token);
@@ -117,6 +144,7 @@ const useAuthStore = create((set, get) => ({
   // Log out and clear all persisted session data immediately
   logout: () => {
     const token = localStorage.getItem('zeebac_access_token');
+    clearUnlockedThisSession();
 
     // 1. Immediately wipe all local storage keys
     localStorage.removeItem('zeebac_current_user');

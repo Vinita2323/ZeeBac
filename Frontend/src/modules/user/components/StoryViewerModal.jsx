@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { StoryAPI } from '../../../services/api';
+import { StoryAPI, ChatAPI } from '../../../services/api';
 
 const STORY_DURATION = 5000; // 5 seconds per story
 
@@ -368,9 +368,18 @@ export default function StoryViewerModal({
             </button>
 
             <button
-              onClick={() => {
+              onClick={async () => {
                 onClose();
-                navigate('/chat', { state: { vendorData: vendor } });
+                // Resolve/create the real conversation first — ChatScreen
+                // expects a conversation id in `selectedChat`, not a raw
+                // vendor object, or it just falls back to the chat list.
+                try {
+                  const res = await ChatAPI.getOrCreateConversation({ vendorId: vendor._id });
+                  navigate('/chat', { state: { selectedChat: res?.data?._id || null, vendorData: vendor } });
+                } catch (err) {
+                  console.error('Failed to create or get conversation', err);
+                  navigate('/chat', { state: { selectedChat: null, vendorData: vendor } });
+                }
               }}
               className="w-12 h-12 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 flex-shrink-0 border border-white/20 shadow-md"
               title="Message Store"

@@ -1,0 +1,19 @@
+{
+  "name": "Zeebac",
+  "short_name": "Zeebac",
+  "description": "Cashback on every purchase, from your neighbourhood stores.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/Logo (6).png",
+      "sizes": "521x479",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
