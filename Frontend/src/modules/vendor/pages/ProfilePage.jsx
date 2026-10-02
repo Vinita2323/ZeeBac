@@ -9,7 +9,7 @@ import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
-import { isBiometricSupported, registerBiometricCredential } from '../../../utils/biometric.util';
+import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function ProfilePage() {
@@ -42,16 +42,11 @@ export default function ProfilePage() {
 
   const enrollBiometrics = async () => {
     try {
-      const supported = await isBiometricSupported();
-      if (!supported) {
+      const status = await getBiometricSupportStatus();
+      if (!status.supported) {
         setBiometrics(false);
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (!window.isSecureContext && !isLocalhost) {
-          setSecurityToast('⚠️ Biometrics requires HTTPS connection. Store cashouts protected with your PIN.');
-        } else {
-          setSecurityToast('⚠️ Biometric sensor not detected on this device. Secured with your Security PIN.');
-        }
-        setTimeout(() => setSecurityToast(''), 4500);
+        setSecurityToast(`⚠️ ${describeBiometricUnsupportedReason(status.reason, status.detail)}`);
+        setTimeout(() => setSecurityToast(''), 7000);
         return;
       }
 

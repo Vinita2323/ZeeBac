@@ -5,7 +5,7 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { shareContent, downloadImage } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
-import { isBiometricSupported, registerBiometricCredential } from '../../../utils/biometric.util';
+import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
@@ -132,16 +132,11 @@ export default function ProfileScreen() {
 
   const enrollBiometrics = async () => {
     try {
-      const supported = await isBiometricSupported();
-      if (!supported) {
+      const status = await getBiometricSupportStatus();
+      if (!status.supported) {
         setBiometrics(false);
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (!window.isSecureContext && !isLocalhost) {
-          setSecurityToast('⚠️ Biometrics requires HTTPS connection. Protected with your Security PIN.');
-        } else {
-          setSecurityToast('⚠️ Biometric sensor not detected on this device. Secured with your Security PIN.');
-        }
-        setTimeout(() => setSecurityToast(''), 4500);
+        setSecurityToast(`⚠️ ${describeBiometricUnsupportedReason(status.reason, status.detail)}`);
+        setTimeout(() => setSecurityToast(''), 7000);
         return;
       }
 

@@ -5,32 +5,65 @@
  */
 
 /**
- * Checks if the current browser and device support platform biometrics.
- * @returns {Promise<boolean>}
+ * Checks platform biometric support and WHY it's unavailable when it is,
+ * so the UI can tell a user with working OS-level fingerprint/Face ID what
+ * to actually do about it instead of a generic "not detected" dead end —
+ * by far the most common real cause is the page being opened inside an
+ * in-app browser (WhatsApp/Instagram/etc.) rather than Chrome/Safari, which
+ * often doesn't expose the platform authenticator at all even though the
+ * phone's own lock screen uses it fine.
+ * @returns {Promise<{ supported: boolean, reason: string|null, detail?: string }>}
  */
-export const isBiometricSupported = async () => {
+export const getBiometricSupportStatus = async () => {
   try {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined') return { supported: false, reason: 'no_window' };
 
-    // WebAuthn requires a secure context (https: or localhost/127.0.0.1)
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (!window.isSecureContext && !isLocalhost) {
-      console.warn('[Biometrics] WebAuthn requires a secure context (HTTPS or localhost).');
-      return false;
+      return { supported: false, reason: 'insecure_context' };
     }
 
-    if (
-      !window.PublicKeyCredential ||
-      typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function'
-    ) {
-      return false;
+    if (!window.PublicKeyCredential) {
+      return { supported: false, reason: 'no_webauthn_api' };
+    }
+    if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
+      return { supported: false, reason: 'no_platform_check_api' };
     }
 
     const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    return Boolean(available);
+    if (!available) {
+      return { supported: false, reason: 'no_platform_authenticator' };
+    }
+
+    return { supported: true, reason: null };
   } catch (err) {
-    console.warn('[Biometrics] Support check error:', err);
-    return false;
+    return { supported: false, reason: 'exception', detail: err?.message };
+  }
+};
+
+/**
+ * Checks if the current browser and device support platform biometrics.
+ * @returns {Promise<boolean>}
+ */
+export const isBiometricSupported = async () => (await getBiometricSupportStatus()).supported;
+
+/**
+ * Turns a support-check reason code into the specific, actionable message
+ * shown to the user — see getBiometricSupportStatus for why each exists.
+ */
+export const describeBiometricUnsupportedReason = (reason, detail) => {
+  switch (reason) {
+    case 'insecure_context':
+      return 'Biometrics requires a secure HTTPS connection. Please reopen Zeebac at https://zeebac.com.';
+    case 'no_webauthn_api':
+    case 'no_platform_check_api':
+      return "This browser doesn't support fingerprint/Face ID login. Open zeebac.com directly in Chrome (or Safari on iPhone) — not inside WhatsApp, Instagram, or another app's built-in browser — and try again.";
+    case 'no_platform_authenticator':
+      return "Your phone's fingerprint/Face ID isn't available to this browser. If you opened Zeebac from a link inside WhatsApp, Instagram, or a similar app, tap the menu (⋮) and choose \"Open in Chrome\", then try again.";
+    case 'exception':
+      return `Biometric check failed${detail ? `: ${detail}` : ''}. Secured with your Security PIN instead.`;
+    default:
+      return 'Biometric hardware (Fingerprint / Face ID) is not set up or supported on this device.';
   }
 };
 
@@ -55,19 +88,9 @@ const isIpHostname = (hostname) => {
  */
 export const registerBiometricCredential = async (user) => {
   try {
-    const supported = await isBiometricSupported();
-    if (!supported) {
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (!window.isSecureContext && !isLocalhost) {
-        return {
-          success: false,
-          error: 'Biometrics requires HTTPS. Please access the app over HTTPS to use Fingerprint/Face ID.'
-        };
-      }
-      return { 
-        success: false, 
-        error: 'Biometric hardware (Fingerprint / Face ID) is not set up or supported on this device.' 
-      };
+    const status = await getBiometricSupportStatus();
+    if (!status.supported) {
+      return { success: false, error: describeBiometricUnsupportedReason(status.reason, status.detail) };
     }
 
     const challenge = new Uint8Array(32);
@@ -142,9 +165,9 @@ export const registerBiometricCredential = async (user) => {
  */
 export const verifyBiometricCredential = async (credentialId = null) => {
   try {
-    const supported = await isBiometricSupported();
-    if (!supported) {
-      return { success: false, error: 'Biometrics unavailable on this device.' };
+    const status = await getBiometricSupportStatus();
+    if (!status.supported) {
+      return { success: false, error: describeBiometricUnsupportedReason(status.reason, status.detail) };
     }
 
     const challenge = new Uint8Array(32);
