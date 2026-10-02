@@ -50,7 +50,9 @@ import {
   createFaq,
   updateFaq,
   deleteFaq,
-  toggleFaqStatus 
+  toggleFaqStatus,
+  getSupportConfig,
+  updateSupportConfig
 } from '../controllers/support.controller.js';
 import { saveAdminFcmToken } from '../controllers/notification.controller.js';
 
@@ -66,11 +68,13 @@ router.get('/dashboard/stats', getDashboardStats);
 // ─── FCM Token ───
 router.post('/fcm-token', saveAdminFcmToken);
 
-// ─── Support Tickets ───
+// ─── Support Tickets & Configuration ───
 router.get('/support/tickets', getAllTickets);
 router.post('/support/tickets', adminCreateTicket);
 router.put('/support/tickets/:id/reply', replyToTicket);
 router.put('/support/tickets/:id/close', closeTicket);
+router.get('/support/config', getSupportConfig);
+router.put('/support/config', updateSupportConfig);
 
 // ─── FAQ Management ───
 router.get('/faqs', getAllAdminFaqs);

@@ -27,7 +27,7 @@ import { CallProvider } from './context/CallContext';
 import IncomingCallModal from './components/common/IncomingCallModal';
 import MaskedCallModal from './components/common/MaskedCallModal';
 import { connectSocket } from './services/socket';
-import { playVendorCashRequestVoice, playCustomerCashbackCreditedVoice, playNotificationChime } from './utils/voiceUtils';
+import { playVendorCashRequestVoice, playCustomerCashbackCreditedVoice, playNotificationChime, speakVoice } from './utils/voiceUtils';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from './utils/permissionPrimer.util';
 import DataConsentModal from './components/common/DataConsentModal';
 import PermissionPrimerModal from './components/common/PermissionPrimerModal';
@@ -254,9 +254,39 @@ function App() {
       }
     };
 
+    const handleIncomingChatMessage = (data) => {
+      // Don't ring if user is already actively looking at this conversation
+      if (window.location.pathname.includes('/chat')) return;
+      playNotificationChime('incoming');
+      toast.custom((t) => (
+        <div
+          onClick={() => {
+            toast.dismiss(t.id);
+            window.location.href = '/chat';
+          }}
+          className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-sm w-full bg-slate-900 text-white shadow-2xl rounded-2xl p-3.5 border border-purple-500/30 flex items-center gap-3 cursor-pointer`}
+        >
+          <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-[20px]">chat</span>
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-xs font-bold text-white truncate">New Message</p>
+            <p className="text-[11px] text-slate-300 truncate">{data.text || 'You received a new message'}</p>
+          </div>
+        </div>
+      ), { duration: 5000, id: `chat-${data.conversationId || Date.now()}` });
+    };
+
+    const handleCashRequestSent = (data) => {
+      playNotificationChime('incoming');
+      speakVoice('Cashback request sent. Ask merchant for OTP code at billing counter.');
+    };
+
     socket.on('new_cash_request', handleNewCashRequest);
     socket.on('cash_request_verified', handleCashRequestVerified);
     socket.on('cashback_approved', handleCashbackApproved);
+    socket.on('incomingChatMessage', handleIncomingChatMessage);
+    socket.on('cash_request_sent', handleCashRequestSent);
 
     // Listen for foreground notifications (when app is open)
     const unsubscribe = onForegroundMessage((payload) => {
@@ -267,6 +297,8 @@ function App() {
           playVendorCashRequestVoice(notifData.amount);
         } else if (notifData.cashbackAmount && role === 'customer') {
           playCustomerCashbackCreditedVoice(notifData.cashbackAmount);
+        } else if (notifData.isChat === 'true') {
+          playNotificationChime('incoming');
         }
         useUIStore.getState().showSnackbar(`🔔 ${title}: ${body}`, 'info');
       }
@@ -276,6 +308,8 @@ function App() {
       socket.off('new_cash_request', handleNewCashRequest);
       socket.off('cash_request_verified', handleCashRequestVerified);
       socket.off('cashback_approved', handleCashbackApproved);
+      socket.off('incomingChatMessage', handleIncomingChatMessage);
+      socket.off('cash_request_sent', handleCashRequestSent);
       if (unsubscribe) unsubscribe();
     };
   }, [accessToken]);

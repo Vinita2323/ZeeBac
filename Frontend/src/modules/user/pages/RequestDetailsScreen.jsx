@@ -276,46 +276,68 @@ export default function RequestDetailsScreen() {
         <div className="glass-card rounded-2xl p-md border border-outline-variant/30 text-left space-y-md shadow-sm">
           <h4 className="font-display text-title-md text-on-surface font-extrabold pb-sm border-b border-outline-variant/10">Verification Timeline</h4>
           
-          <div className="relative pl-6 space-y-lg border-l-2 border-outline-variant/30 ml-2 pt-2">
-            <div className="absolute top-0 bottom-0 left-[9px] w-[2px] bg-outline-variant/20"></div>
+          <div className="relative pl-2 pt-2 space-y-1">
+            {TIMELINE_STEPS.map((stepName, idx) => {
+              const isLast = idx === TIMELINE_STEPS.length - 1;
+              const isActive = idx === activeIndex;
+              const isCompleted = idx <= activeIndex;
+              const isLineCompleted = idx < activeIndex;
+              const isWalletCredited = idx === 5 && isCompleted;
+              const isRejected = request.status === 'Rejected' && idx === 4;
+              const dateText = isCompleted ? new Date(request.updatedAt || request.createdAt).toLocaleDateString() : '';
 
-              {TIMELINE_STEPS.map((stepName, idx) => {
-                const isActive = idx === activeIndex;
-                const isCompleted = idx <= activeIndex;
-                const dateText = isCompleted ? new Date(request.updatedAt || request.createdAt).toLocaleDateString() : '';
+              return (
+                <div key={idx} className="relative flex items-start gap-4">
+                  {/* Vertical connecting line to next step */}
+                  {!isLast && (
+                    <div
+                      className={`absolute left-[7px] top-[18px] bottom-[-2px] w-[2px] rounded-full transition-colors duration-500 ${
+                        isLineCompleted ? 'bg-emerald-500' : 'bg-outline-variant/25'
+                      }`}
+                    />
+                  )}
 
-                return (
-                  <div key={idx} className="relative flex items-start gap-4">
-                    {/* Timeline dot */}
-                    <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 transition-all ${
-                      isCompleted 
-                        ? 'bg-primary border-primary shadow-sm scale-110' 
+                  {/* Timeline dot */}
+                  <div
+                    className={`relative z-10 w-4 h-4 rounded-full border-2 transition-all duration-300 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                      isRejected
+                        ? 'bg-rose-500 border-rose-500 shadow-sm shadow-rose-500/30 scale-110'
+                        : isCompleted
+                        ? 'bg-emerald-500 border-emerald-500 shadow-sm shadow-emerald-500/30 scale-110'
                         : 'bg-white border-outline-variant/60'
-                    }`}>
-                      {isCompleted && (
-                        <div className="absolute inset-[3px] rounded-full bg-white animate-scaleUp" />
-                      )}
-                    </div>
-                    <div className="flex-1 pb-4 text-left">
-                      <p className={`font-title-md font-bold text-body-sm transition-colors ${
-                        isActive 
-                          ? 'text-primary font-black' 
-                          : isCompleted 
-                            ? 'text-on-surface' 
-                            : 'text-outline'
-                      }`}>
-                        {stepName === "Approved / Rejected" ? (request.status === "Rejected" ? "Rejected" : "Approved") : stepName}
-                      </p>
-                      <p className="font-caption text-[10px] text-on-surface-variant">
-                        {isCompleted && idx === 4 && (request.status === 'Approved' ? 'Approved by Merchant' : request.status === 'Rejected' ? 'Declined by Merchant' : '')}
-                        {isCompleted && idx === 5 && "Credited to wallet balance"}
-                        {isCompleted && dateText && idx < 4 ? `Status updated on ${dateText}` : ''}
-                        {!isCompleted && "Pending progression..."}
-                      </p>
-                    </div>
+                    }`}
+                  >
+                    {isCompleted && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-white animate-scaleUp" />
+                    )}
                   </div>
-                );
-              })}
+
+                  <div className="flex-1 pb-4 text-left">
+                    <p
+                      className={`font-title-md font-bold text-body-sm transition-colors ${
+                        isWalletCredited
+                          ? 'text-emerald-600 font-black'
+                          : isRejected
+                          ? 'text-rose-600 font-black'
+                          : isActive
+                          ? 'text-primary font-black'
+                          : isCompleted
+                          ? 'text-on-surface'
+                          : 'text-outline'
+                      }`}
+                    >
+                      {stepName === "Approved / Rejected" ? (request.status === "Rejected" ? "Rejected" : "Approved") : stepName}
+                    </p>
+                    <p className={`font-caption text-[10px] ${isWalletCredited ? 'text-emerald-600 font-semibold' : 'text-on-surface-variant'}`}>
+                      {isCompleted && idx === 4 && (request.status === 'Approved' ? 'Approved by Merchant' : request.status === 'Rejected' ? 'Declined by Merchant' : '')}
+                      {isCompleted && idx === 5 && "Credited to wallet balance"}
+                      {isCompleted && dateText && idx < 4 ? `Status updated on ${dateText}` : ''}
+                      {!isCompleted && "Pending progression..."}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

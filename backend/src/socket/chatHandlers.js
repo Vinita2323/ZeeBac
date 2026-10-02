@@ -1,6 +1,7 @@
 import Message from '../models/Message.js';
 import Conversation from '../models/Conversation.js';
 import logger from '../utils/logger.js';
+import { sendNotification } from '../services/notification.service.js';
 
 export default function registerChatHandlers(io, socket) {
   // Join a specific conversation room
@@ -52,6 +53,8 @@ export default function registerChatHandlers(io, socket) {
       // 4. Notify recipient's personal room about conversation update for instant unread badge in chat list
       if (updatedConv) {
         const recipientRoom = isVendor ? `user_${updatedConv.customerId}` : `vendor_${updatedConv.vendorId}`;
+        const recipientType = isVendor ? 'customer' : 'vendor';
+
         io.to(recipientRoom).emit('conversationUpdated', {
           conversationId,
           lastMessage: text,
@@ -61,6 +64,48 @@ export default function registerChatHandlers(io, socket) {
           unreadByVendor: updatedConv.unreadByVendor,
           lastMessageIsRead: false,
         });
+
+        // Emit incomingChatMessage for instant notification / chime on recipient app
+        io.to(recipientRoom).emit('incomingChatMessage', {
+          conversationId,
+          text,
+          senderRole: isVendor ? 'vendor' : 'customer',
+          senderId: socket.user.id,
+        });
+
+        // Send in-app and push notification so recipient sees it in notifications screen and push banner
+        try {
+          const convDoc = await Conversation.findById(conversationId)
+            .populate('vendorId', 'storeName ownerName fcmTokens')
+            .populate('customerId', 'name phone fcmTokens');
+
+          if (convDoc) {
+            const senderName = isVendor
+              ? (convDoc.vendorId?.storeName || 'Merchant')
+              : (convDoc.customerId?.name || 'Customer');
+            const target = isVendor ? convDoc.customerId : convDoc.vendorId;
+
+            if (target) {
+              sendNotification({
+                recipientId: target._id,
+                recipientType,
+                fcmTokens: target.fcmTokens || [],
+                type: 'system',
+                title: `💬 ${senderName}`,
+                message: text ? (text.length > 80 ? text.slice(0, 80) + '...' : text) : 'Sent an attachment',
+                icon: 'chat',
+                referenceId: conversationId,
+                referenceType: 'conversation',
+                data: {
+                  conversationId: String(conversationId),
+                  isChat: 'true',
+                },
+              }).catch(() => {});
+            }
+          }
+        } catch (notifErr) {
+          logger.warn(`Failed to send chat push notification: ${notifErr.message}`);
+        }
       }
 
       // Notify the sender that it was successful

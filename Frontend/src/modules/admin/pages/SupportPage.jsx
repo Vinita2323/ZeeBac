@@ -53,10 +53,56 @@ export default function SupportPage() {
   const [isSavingFaq, setIsSavingFaq] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  // ─── Support Contact Settings State (WhatsApp, Phone, Email) ───
+  const [supportConfig, setSupportConfig] = useState({
+    supportWhatsapp: '+91 91119 66732',
+    supportPhone: '+91 91119 66732',
+    supportEmail: 'support@zeebac.com'
+  });
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
   };
+
+  const fetchSupportConfig = async () => {
+    try {
+      setIsLoadingConfig(true);
+      const res = await AdminAPI.getSupportConfig();
+      if (res.success && res.data) {
+        setSupportConfig({
+          supportWhatsapp: res.data.supportWhatsapp || '+91 91119 66732',
+          supportPhone: res.data.supportPhone || '+91 91119 66732',
+          supportEmail: res.data.supportEmail || 'support@zeebac.com'
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load support config", err);
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  };
+
+  const handleSaveSupportConfig = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      setIsSavingConfig(true);
+      const res = await AdminAPI.updateSupportConfig(supportConfig);
+      if (res.success) {
+        showToast("WhatsApp support & helpline saved successfully!");
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update support contact details");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSupportConfig();
+  }, []);
 
   // ─── Ticket Fetching ───
   useEffect(() => {
@@ -410,6 +456,18 @@ export default function SupportPage() {
           <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-primary/10 text-primary">
             {faqCounts.total}
           </span>
+        </button>
+
+        <button
+          onClick={() => { setPageTab('contact'); fetchSupportConfig(); }}
+          className={`pb-3 px-4 text-[14px] font-bold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
+            pageTab === 'contact'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">chat</span>
+          WhatsApp & Helpline Settings
         </button>
       </div>
 
@@ -1026,6 +1084,183 @@ export default function SupportPage() {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          TAB 3: WHATSAPP & SUPPORT HELPLINE SETTINGS
+      ───────────────────────────────────────────────────────────── */}
+      {pageTab === 'contact' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left: Configuration Form */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-outline-variant/20 shadow-sm p-6 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-outline-variant/15">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[24px]">chat</span>
+                </div>
+                <div>
+                  <h2 className="text-title-md font-display font-bold text-on-surface">
+                    WhatsApp & Helpline Configuration
+                  </h2>
+                  <p className="text-[12px] text-on-surface-variant font-medium">
+                    Update the contact numbers used across user app and merchant support screens.
+                  </p>
+                </div>
+              </div>
+
+              {isLoadingConfig ? (
+                <div className="p-8 text-center space-y-3">
+                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-[13px] text-on-surface-variant">Loading current configuration...</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveSupportConfig} className="space-y-5">
+                  {/* WhatsApp Number Field */}
+                  <div>
+                    <label className="block text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Support WhatsApp Number <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={supportConfig.supportWhatsapp}
+                        onChange={(e) => setSupportConfig({ ...supportConfig, supportWhatsapp: e.target.value })}
+                        placeholder="+91 91119 66732"
+                        className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[14px] font-semibold text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                      />
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      Powers the 1-click "Chat on WhatsApp" buttons on user profile and vendor support screens. Can include country code (+91).
+                    </p>
+                  </div>
+
+                  {/* Helpline Phone Field */}
+                  <div>
+                    <label className="block text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Helpline / Calling Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportConfig.supportPhone}
+                      onChange={(e) => setSupportConfig({ ...supportConfig, supportPhone: e.target.value })}
+                      placeholder="+91 91119 66732"
+                      className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[14px] font-semibold text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                    />
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      Target number when customer or merchant taps "Call Helpline".
+                    </p>
+                  </div>
+
+                  {/* Support Email Field */}
+                  <div>
+                    <label className="block text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                      Support Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={supportConfig.supportEmail}
+                      onChange={(e) => setSupportConfig({ ...supportConfig, supportEmail: e.target.value })}
+                      placeholder="support@zeebac.com"
+                      className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[14px] font-semibold text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-3 pt-3 border-t border-outline-variant/15">
+                    <button
+                      type="submit"
+                      disabled={isSavingConfig}
+                      className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold transition-all shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    >
+                      {isSavingConfig ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Saving Changes...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[18px]">save</span>
+                          Save Support Settings
+                        </>
+                      )}
+                    </button>
+
+                    <a
+                      href={`https://wa.me/${(supportConfig.supportWhatsapp || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hello Zeebac Support, testing WhatsApp connection.')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[13px] font-bold transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                      Test WhatsApp Link
+                    </a>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            {/* Right: Live Preview in Mobile Apps */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-extrabold text-on-surface-variant uppercase tracking-wider">
+                    Customer App Live Preview
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                    Live Sync
+                  </span>
+                </div>
+                <p className="text-[12px] text-on-surface-variant">
+                  This is how the WhatsApp direct chat card appears in the customer Help & Support screen:
+                </p>
+
+                {/* Direct WhatsApp Support Card Preview */}
+                <div className="w-full p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                      <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
+                        <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
+                        <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                      </div>
+                      <p className="text-[12px] text-white/95 font-medium mt-0.5">
+                        {supportConfig.supportWhatsapp || '+91 91119 66732'} · Direct Support
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                  </div>
+                </div>
+
+                {/* Secondary Preview: Vendor Support Card */}
+                <div className="p-3 bg-white border border-outline-variant/20 rounded-xl flex items-center justify-between text-on-surface">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[20px]">phone_in_talk</span>
+                    </div>
+                    <div>
+                      <span className="text-[12px] font-bold block text-on-surface">Helpline Dialing</span>
+                      <p className="text-[11px] text-on-surface-variant font-medium">
+                        {supportConfig.supportPhone || '+91 91119 66732'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="material-symbols-outlined text-[18px] text-on-surface-variant">call</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

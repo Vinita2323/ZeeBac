@@ -295,6 +295,14 @@ export const AdminAPI = {
     const res = await apiClient.put(`/admin/support/tickets/${id}/close`);
     return res.data;
   },
+  getSupportConfig: async () => {
+    const res = await apiClient.get('/admin/support/config');
+    return res.data;
+  },
+  updateSupportConfig: async (data) => {
+    const res = await apiClient.put('/admin/support/config', data);
+    return res.data;
+  },
   // FAQ Management
   getFaqs: async (target = 'all', category = 'All', status = 'all', search = '') => {
     const params = new URLSearchParams();
@@ -937,6 +945,10 @@ export const SupportAPI = {
     if (category && category !== 'All') params.append('category', category);
     if (search) params.append('search', search);
     const res = await apiClient.get(`/support/faqs?${params.toString()}`);
+    return res.data;
+  },
+  getConfig: async () => {
+    const res = await apiClient.get('/support/config');
     return res.data;
   },
 };

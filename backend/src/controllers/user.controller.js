@@ -221,7 +221,18 @@ export const lookupVendorById = async (req, res) => {
       }
       vendorFilter = { status: 'Verified', zeebacId: decoded.zeebacId };
     } else {
-      vendorFilter = { status: 'Verified', $or: [{ zeebacId: raw.toUpperCase() }, { phone: raw }] };
+      const normalized = raw.toUpperCase().replace(/\s/g, '');
+      const withoutHyphen = normalized.replace(/-/g, '');
+      const withHyphen = withoutHyphen.replace(/^([A-Z]+)(\d+)$/, '$1-$2');
+      const idVariants = Array.from(new Set([raw.toUpperCase(), normalized, withoutHyphen, withHyphen]));
+
+      vendorFilter = {
+        status: 'Verified',
+        $or: [
+          { zeebacId: { $in: idVariants } },
+          { phone: raw }
+        ]
+      };
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
@@ -381,20 +392,19 @@ export const createCustomerTransaction = async (req, res) => {
       },
     });
 
-    // 2. Send Status Notification to Customer
+    // 2. Send Status Notification to Customer (WITHOUT the secret verification code)
     sendNotification({
       recipientId: customer._id,
       recipientType: 'customer',
       fcmTokens: customer.fcmTokens || [],
       type: 'approval',
       title: `⏳ Cash Request Sent: ₹${amount}`,
-      message: `Ask ${vendor.storeName} for 4-digit code ${verificationCode} to auto-approve your ₹${cashbackAmount} cashback.`,
+      message: `Your cash claim of ₹${amount} was sent to ${vendor.storeName}. Please ask the merchant at the billing counter for the secret code to auto-approve your ₹${cashbackAmount} cashback.`,
       icon: 'pin',
       referenceId: request._id,
       referenceType: 'cashback_request',
       data: {
         requestId: request._id.toString(),
-        verificationCode,
         amount: String(amount),
         cashbackAmount: String(cashbackAmount),
         isCashMode: 'true',
@@ -410,20 +420,32 @@ export const createCustomerTransaction = async (req, res) => {
         verificationCode,
         paymentMethod: 'Cash',
       });
+      getIO()?.to(`user_${vendor._id}`).emit('new_cash_request', {
+        requestId: request._id,
+        customerName: customer.name || customer.phone,
+        amount: parseFloat(amount),
+        cashbackAmount,
+        verificationCode,
+        paymentMethod: 'Cash',
+      });
+      getIO()?.to(`user_${customer._id}`).emit('cash_request_sent', {
+        requestId: request._id,
+        amount: parseFloat(amount),
+        vendorName: vendor.storeName,
+      });
     } catch (socketErr) {
       logger.warn(`Socket emit error for vendor ${vendor._id}: ${socketErr.message}`);
     }
 
     res.status(201).json({
       success: true,
-      message: `Request sent to vendor! Ask the vendor for the code ${verificationCode} to auto-approve.`,
+      message: `Request sent to vendor! Ask the merchant at the billing counter for the OTP code to auto-approve.`,
       data: {
         requestId: request._id,
         amount: request.amount,
         estimatedCashback: cashbackAmount,
         vendorName: vendor.storeName,
         status: request.status,
-        verificationCode,
       },
     });
   } catch (error) {

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function RequestCashbackScreen() {
   const navigate = useNavigate();
@@ -409,7 +410,7 @@ export default function RequestCashbackScreen() {
         <div className="app-container flex items-center justify-between">
           <div className="flex items-center gap-xs">
             <button
-              onClick={() => step > 1 ? handleBack() : navigate(-1)}
+              onClick={() => step > 1 ? handleBack() : safeNavigateBack(navigate, '/home')}
               className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>

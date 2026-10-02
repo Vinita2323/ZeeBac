@@ -9,6 +9,7 @@ import { isBiometricSupported, registerBiometricCredential } from '../../../util
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
+import { useBackableSubview } from '../../../utils/navigationUtils';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -20,6 +21,11 @@ export default function ProfileScreen() {
   const [subView, setSubView] = useState(
     location.state?.openLinkedAccounts ? 'linked-accounts' : null
   ); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
+
+  // Make the browser/hardware back button close an open subview one step at
+  // a time instead of jumping straight past Profile to the previous route.
+  useBackableSubview(subView, setSubView);
+
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
   
@@ -311,8 +317,8 @@ export default function ProfileScreen() {
     return (
       <EditProfileSubView 
         initialProfile={profile} 
-        onSave={handleProfileSave} 
-        onBack={() => setSubView(null)} 
+        onSave={handleProfileSave}
+        onBack={() => window.history.back()}
       />
     );
   }
@@ -324,8 +330,8 @@ export default function ProfileScreen() {
         initialPayments={paymentDetails} 
         userPhone={currentUser?.phone || profile.phone}
         userName={currentUser?.name || profile.name}
-        onSave={handleSavePaymentDetails} 
-        onBack={() => setSubView(null)} 
+        onSave={handleSavePaymentDetails}
+        onBack={() => window.history.back()}
       />
     );
   }
@@ -333,8 +339,8 @@ export default function ProfileScreen() {
   // SUBVIEW 3: HELP & SUPPORT
   if (subView === 'support') {
     return (
-      <SupportSubView 
-        onBack={() => setSubView(null)} 
+      <SupportSubView
+        onBack={() => window.history.back()}
       />
     );
   }
@@ -342,9 +348,9 @@ export default function ProfileScreen() {
   // SUBVIEW 4: MY QR CODE
   if (subView === 'qr-code') {
     return (
-      <QRCodeSubView 
+      <QRCodeSubView
         profile={profile}
-        onBack={() => setSubView(null)} 
+        onBack={() => window.history.back()}
       />
     );
   }
@@ -352,9 +358,19 @@ export default function ProfileScreen() {
   // SUBVIEW 5: REFER & EARN
   if (subView === 'refer-earn') {
     return (
-      <ReferEarnSubView 
+      <ReferEarnSubView
         profile={profile}
-        onBack={() => setSubView(null)} 
+        onBack={() => window.history.back()}
+      />
+    );
+  }
+
+  // SUBVIEW 6: PENDING AUDITS & CASHBACK REQUESTS
+  if (subView === 'audits') {
+    return (
+      <PendingAuditsSubView
+        onBack={() => window.history.back()}
+        onSelectRequest={(reqId) => navigate(`/request/${reqId}`)}
       />
     );
   }
@@ -449,15 +465,29 @@ export default function ProfileScreen() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#D4E9FC]/40 border border-[#D4E9FC]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px]">
-            <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">Total Cashback</span>
+          <div 
+            onClick={() => navigate('/passbook')}
+            className="bg-[#D4E9FC]/40 hover:bg-[#D4E9FC]/60 border border-[#D4E9FC]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px] cursor-pointer active:scale-98 transition-all shadow-2xs hover:shadow-xs group"
+            title="View Wallet Passbook"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">Total Cashback</span>
+              <span className="material-symbols-outlined text-[14px] text-[#0F4C81] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+            </div>
             <div>
               <h3 className="font-display text-base font-black text-[#0f4c81] leading-none">₹{stats.totalEarned}</h3>
               <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">In your wallet</p>
             </div>
           </div>
-          <div className="bg-[#E6F7EB]/40 border border-[#E6F7EB]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px]">
-            <span className="font-caption text-[9px] text-[#1B5E20] uppercase tracking-wider font-bold">Pending Audits</span>
+          <div 
+            onClick={() => setSubView('audits')}
+            className="bg-[#E6F7EB]/40 hover:bg-[#E6F7EB]/60 border border-[#E6F7EB]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px] cursor-pointer active:scale-98 transition-all shadow-2xs hover:shadow-xs group"
+            title="View Pending Audits & Requests"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-caption text-[9px] text-[#1B5E20] uppercase tracking-wider font-bold">Pending Audits</span>
+              <span className="material-symbols-outlined text-[14px] text-[#1B5E20] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+            </div>
             <div>
               <h3 className="font-display text-base font-black text-[#1b5e20]">{stats.pendingRequests} Request{stats.pendingRequests !== 1 && 's'}</h3>
               <p className="text-[8px] text-[#1B5E20]/80 font-medium mt-0.5">Awaiting review</p>
@@ -493,7 +523,7 @@ export default function ProfileScreen() {
                 <span className="material-symbols-outlined text-[#7c3aed]">wallet</span>
                 <div>
                   <p className="font-title-md text-on-surface font-bold text-body-sm">Rewards Wallet</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Check balance status, withdrawal & perks</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">Check balance status, withdrawal & rewards</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
@@ -1436,6 +1466,20 @@ function SupportSubView({ onBack }) {
   const [faqCategory, setFaqCategory] = useState('All');
   const [faqSearch, setFaqSearch] = useState('');
   const [activeFaq, setActiveFaq] = useState(null);
+  const [supportWhatsapp, setSupportWhatsapp] = useState('+91 91119 66732');
+
+  useEffect(() => {
+    SupportAPI.getConfig()
+      .then((res) => {
+        if (res.success && res.data?.supportWhatsapp) {
+          setSupportWhatsapp(res.data.supportWhatsapp);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const cleanWhatsapp = (supportWhatsapp || '919111966732').replace(/[^0-9]/g, '');
+  const waUrl = `https://wa.me/${cleanWhatsapp}?text=${encodeURIComponent('Hello Zeebac Support, I need help with my account.')}`;
 
   const fetchFaqs = useCallback(async (cat = faqCategory, search = faqSearch) => {
     try {
@@ -1482,7 +1526,7 @@ function SupportSubView({ onBack }) {
 
           {/* Direct WhatsApp Support Card */}
           <a
-            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20need%20help%20with%20my%20account."
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
@@ -1498,7 +1542,7 @@ function SupportSubView({ onBack }) {
                   <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
                   <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                 </div>
-                <p className="text-[12px] text-white/95 font-medium mt-0.5">+91 91119 66732 · Direct Support</p>
+                <p className="text-[12px] text-white/95 font-medium mt-0.5">{supportWhatsapp} · Direct Support</p>
               </div>
             </div>
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0">
@@ -1677,7 +1721,7 @@ function SupportSubView({ onBack }) {
 
         <div className="pt-8 space-y-3">
           <a 
-            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20need%20help%20with%20my%20account."
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full h-12 bg-[#25D366] hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
@@ -1685,7 +1729,7 @@ function SupportSubView({ onBack }) {
             <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
               <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
             </svg>
-            <span>WhatsApp Support (+91 91119 66732)</span>
+            <span>WhatsApp Support ({supportWhatsapp})</span>
           </a>
 
           <a 
@@ -2076,6 +2120,193 @@ function ReferEarnSubView({ profile, onBack }) {
             Share Invite Link &amp; Earn ₹{stats.rewardAmount}
           </button>
         </div>
+      </main>
+    </div>
+  );
+}
+
+// SUBPAGE 6: PENDING AUDITS & CASHBACK REQUESTS COMPONENT
+function PendingAuditsSubView({ onBack, onSelectRequest }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('pending'); // 'pending' | 'all' | 'approved' | 'rejected'
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        setLoading(true);
+        const res = await UserAPI.getMyCashbackRequests();
+        if (res.success && Array.isArray(res.data)) {
+          setRequests(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch cashback requests', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRequests();
+  }, []);
+
+  const filteredRequests = requests.filter((r) => {
+    if (filter === 'pending') return r.status === 'Pending' || r.status === 'Held';
+    if (filter === 'approved') return r.status === 'Approved';
+    if (filter === 'rejected') return r.status === 'Rejected';
+    return true;
+  });
+
+  const pendingCount = requests.filter((r) => r.status === 'Pending' || r.status === 'Held').length;
+  const approvedCount = requests.filter((r) => r.status === 'Approved').length;
+
+  return (
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-sm">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button 
+              onClick={onBack}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <span className="font-display text-title-md text-primary font-black ml-2">Cashback Audits &amp; Requests</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow app-container px-container-margin py-md space-y-md text-left">
+        {/* Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+          <button
+            type="button"
+            onClick={() => setFilter('pending')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              filter === 'pending'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
+            }`}
+          >
+            <span>Pending Audits</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${filter === 'pending' ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+              {pendingCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              filter === 'all'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
+            }`}
+          >
+            All Requests ({requests.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('approved')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              filter === 'approved'
+                ? 'bg-primary text-white shadow-xs'
+                : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
+            }`}
+          >
+            Approved ({approvedCount})
+          </button>
+        </div>
+
+        {/* Requests List */}
+        {loading ? (
+          <div className="py-20 text-center space-y-3">
+            <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-on-surface-variant font-medium">Loading your cashback requests...</p>
+          </div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-outline-variant/30 p-6 space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[32px]">fact_check</span>
+            </div>
+            <h3 className="font-bold text-sm text-on-surface">No {filter === 'pending' ? 'Pending' : ''} Requests Found</h3>
+            <p className="text-xs text-on-surface-variant max-w-xs mx-auto leading-relaxed">
+              When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredRequests.map((req) => {
+              const vendor = req.vendorId || {};
+              const isApproved = req.status === 'Approved';
+              const isHeld = req.status === 'Held';
+              const isRejected = req.status === 'Rejected';
+              const isPending = req.status === 'Pending';
+
+              return (
+                <div
+                  key={req._id}
+                  onClick={() => onSelectRequest(req._id)}
+                  className="bg-white rounded-2xl border border-outline-variant/20 hover:border-primary/40 shadow-xs hover:shadow-md transition-all p-4 cursor-pointer active:scale-[0.99] space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-base flex-shrink-0">
+                        {vendor.storeName?.charAt(0) || 'S'}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-on-surface truncate">
+                          {vendor.storeName || 'Partner Store'}
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5 mt-0.5">
+                          <span className="uppercase font-semibold tracking-wider">
+                            {req.requestType === 'cash_claim' ? 'Cash Claim' : 'Bill Receipt'}
+                          </span>
+                          <span>•</span>
+                          <span>{new Date(req.createdAt).toLocaleDateString()}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 flex-shrink-0 ${
+                      isApproved
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/40'
+                        : isHeld
+                        ? 'bg-blue-100 text-blue-800 border border-blue-300/40'
+                        : isRejected
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300/40'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300/40'
+                    }`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                      {isApproved ? 'Approved' : isHeld ? 'Held (Review)' : isRejected ? 'Declined' : 'Pending Audit'}
+                    </span>
+                  </div>
+
+                  {/* Amounts Row */}
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
+                    <div>
+                      <span className="text-[10px] text-on-surface-variant block uppercase font-bold tracking-wider">Bill Amount</span>
+                      <span className="font-bold text-on-surface font-mono">₹{req.amount}</span>
+                    </div>
+                    {req.cashbackAmount && (
+                      <div className="text-right">
+                        <span className="text-[10px] text-emerald-700 block uppercase font-bold tracking-wider">Cashback</span>
+                        <span className="font-black text-emerald-700 font-mono">+₹{req.cashbackAmount}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer link to timeline */}
+                  <div className="flex items-center justify-between pt-1 text-primary text-xs font-bold">
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[16px]">timeline</span>
+                      Track Verification Timeline
+                    </span>
+                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );

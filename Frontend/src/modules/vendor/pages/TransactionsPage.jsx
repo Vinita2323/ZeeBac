@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../services/api';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ export default function TransactionsPage() {
 
       {/* Mobile Header */}
       <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
+        <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
         <span className="font-display text-title-md text-primary font-bold ml-1">Store Sales & Bills</span>

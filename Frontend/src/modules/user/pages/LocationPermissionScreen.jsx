@@ -27,13 +27,13 @@ export default function LocationPermissionScreen() {
           console.error('Location update failed:', err);
         } finally {
           setIsProcessing(false);
-          navigate('/home');
+          navigate('/home', { replace: true });
         }
       },
       (error) => {
         console.warn('GPS denied:', error.message);
         setIsProcessing(false);
-        navigate('/home');
+        navigate('/home', { replace: true });
       },
       {
         enableHighAccuracy: opts?.accuracy !== 'approximate',
@@ -44,7 +44,7 @@ export default function LocationPermissionScreen() {
 
   const handleNotNow = () => {
     markPrimerSeen('location');
-    navigate('/home');
+    navigate('/home', { replace: true });
   };
 
   return (

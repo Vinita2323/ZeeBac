@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI } from '../../../services/api';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function FindVendorScreen() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function FindVendorScreen() {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 border-b border-outline-variant/10 shadow-sm">
         <div className="app-container flex items-center justify-between">
           <div className="flex items-center gap-xs">
-            <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-all cursor-pointer">
+            <button onClick={() => safeNavigateBack(navigate, '/home')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-all cursor-pointer">
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
             <span className="font-display text-title-md text-primary font-bold ml-2">Find Vendor</span>
@@ -44,7 +45,7 @@ export default function FindVendorScreen() {
         {/* Search Section */}
         <div className="space-y-2 mb-6">
           <h1 className="text-[22px] font-black text-on-surface tracking-tight">Enter Vendor Details</h1>
-          <p className="text-[13px] text-on-surface-variant">Enter a vendor's Zeebac ID (e.g., ZBV-1234) or their registered phone number.</p>
+          <p className="text-[13px] text-on-surface-variant">Enter a vendor's Zeebac ID (e.g., ZBV8326) or their registered phone number.</p>
         </div>
 
         <div className="space-y-4">
@@ -56,7 +57,7 @@ export default function FindVendorScreen() {
               value={query}
               onChange={(e) => { setQuery(e.target.value); setError(''); setFoundVendor(null); }}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="ZBV-1234 or 9876543210"
+              placeholder="ZBV8326 or 9876543210"
               className="w-full h-[56px] pl-12 pr-4 bg-white border-2 border-outline-variant/20 rounded-xl outline-none focus:border-primary focus:shadow-[0_2px_12px_rgba(98,0,234,0.08)] text-body-lg font-bold transition-all uppercase"
             />
           </div>
@@ -96,7 +97,9 @@ export default function FindVendorScreen() {
                   <h2 className="text-[16px] font-black text-on-surface truncate">{foundVendor.storeName}</h2>
                   <p className="text-[12px] text-on-surface-variant">{foundVendor.category}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] font-mono font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{foundVendor.zeebacId}</span>
+                    <span className="text-[10px] font-mono font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">
+                      {foundVendor.zeebacId?.replace(/-/g, '')}
+                    </span>
                     <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded">{foundVendor.cashbackRate || 10}% cashback</span>
                   </div>
                 </div>

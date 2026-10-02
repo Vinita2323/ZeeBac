@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function ApplyLoanScreen() {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function ApplyLoanScreen() {
         <div className="app-container flex items-center justify-between">
           <div className="flex items-center gap-xs">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => safeNavigateBack(navigate, '/home')}
               className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>

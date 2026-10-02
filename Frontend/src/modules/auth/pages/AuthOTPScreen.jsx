@@ -74,9 +74,9 @@ export default function AuthOTPScreen() {
 
           setTimeout(() => {
             if (account.role === 'vendor') {
-              navigate('/vendor');
+              navigate('/vendor', { replace: true });
             } else {
-              navigate('/home');
+              navigate('/home', { replace: true });
             }
           }, 600);
         } catch (err) {
@@ -91,7 +91,7 @@ export default function AuthOTPScreen() {
         // Here we just accept the OTP as typed, real validation happens on final signup submit
         setVerified(true);
         setTimeout(() => {
-          navigate('/location-permission');
+          navigate('/location-permission', { replace: true });
         }, 600);
       }
     } else {

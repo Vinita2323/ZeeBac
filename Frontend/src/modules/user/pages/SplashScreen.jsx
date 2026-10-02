@@ -10,11 +10,11 @@ export default function SplashScreen() {
     // Check for existing session using AuthStore (not localStorage)
     const timer = setTimeout(() => {
       if (accessToken && currentUser?.role === 'vendor') {
-        navigate('/vendor');
+        navigate('/vendor', { replace: true });
       } else if (accessToken && currentUser?.role === 'customer') {
-        navigate('/home');
+        navigate('/home', { replace: true });
       } else {
-        navigate('/login');
+        navigate('/login', { replace: true });
       }
     }, 2200);
 

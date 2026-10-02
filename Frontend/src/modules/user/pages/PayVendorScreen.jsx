@@ -4,6 +4,7 @@ import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import useUIStore from '../../../store/useUIStore';
+import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 
 export default function PayVendorScreen() {
   const navigate = useNavigate();
@@ -96,7 +97,11 @@ export default function PayVendorScreen() {
           latitude: coords.latitude,
           longitude: coords.longitude,
         });
-        if (res.success) handlePendingApproval(res.data);
+        if (res.success) {
+          playNotificationChime('incoming');
+          speakVoice('Cashback request sent. Ask merchant for OTP code at billing counter.');
+          handlePendingApproval(res.data);
+        }
       } catch (err) {
         alert(err.response?.data?.message || 'Request failed.');
         setProcessing(false);
@@ -242,7 +247,9 @@ export default function PayVendorScreen() {
               <h2 className="text-[16px] font-black text-on-surface truncate">{vendor.storeName || vendor.name}</h2>
               <p className="text-[12px] text-on-surface-variant">{vendor.category}</p>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] font-mono font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{vendor.zeebacId}</span>
+                <span className="text-[10px] font-mono font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">
+                  {vendor.zeebacId?.replace(/-/g, '')}
+                </span>
                 <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded">{cashbackRate}% cashback</span>
               </div>
             </div>

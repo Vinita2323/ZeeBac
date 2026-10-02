@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthAPI } from '../../../services/api';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 const DEFAULT_PRIVACY = `## 1. Information We Collect
 We collect information that you provide directly to us, such as when you create or modify your account, request on-demand services, contact customer support, or otherwise communicate with us. This information may include: name, email, phone number, and postal address.
@@ -83,7 +84,7 @@ export default function PrivacyPolicyScreen() {
     <div className="bg-[#f8f9fc] min-h-screen flex flex-col font-body-lg text-on-surface">
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md px-4 py-3 flex items-center gap-3 border-b border-outline-variant/10 shadow-sm">
         <button 
-          onClick={() => navigate(-1)} 
+          onClick={() => safeNavigateBack(navigate, '/login')}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
           title="Go Back"
         >

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChatAPI, API_BASE_URL } from '../../../services/api';
+import { ChatAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
 import { connectSocket, disconnectSocket, getSocket } from '../../../services/socket';
 import useAuthStore from '../../../store/useAuthStore';
 import { useCall } from '../../../context/CallContext';
+import MediaLightboxModal from '../components/MediaLightboxModal';
 
 export default function ChatScreen() {
   const navigate = useNavigate();
@@ -21,6 +22,18 @@ export default function ChatScreen() {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // WhatsApp-style full screen photo lightbox
+  const [lightboxState, setLightboxState] = useState({ isOpen: false, items: [], index: 0 });
+
+  const handleOpenPhoto = (url, name) => {
+    if (!url) return;
+    setLightboxState({
+      isOpen: true,
+      items: [{ url, title: name || 'Photo' }],
+      index: 0
+    });
+  };
 
   // Initialize Socket
   useEffect(() => {
@@ -319,15 +332,39 @@ export default function ChatScreen() {
                     ? 'bg-primary text-white rounded-tr-none shadow-primary/10' 
                     : 'bg-white border border-outline-variant/15 text-on-surface rounded-tl-none'
                 }`}>
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="mb-2">
-                      <img 
-                        src={`${API_BASE_URL.replace('/api', '')}${msg.attachments[0].url}`} 
-                        alt="attachment" 
-                        className="rounded-xl w-full max-w-[220px] object-cover border border-white/20 shadow-sm"
-                      />
-                    </div>
-                  )}
+                  {msg.attachments && msg.attachments.length > 0 && (() => {
+                    const rawUrl = msg.attachments[0].url;
+                    const photoUrl = getMediaUrl(rawUrl);
+                    const photoName = msg.attachments[0].fileName || 'Photo';
+                    return (
+                      <div className="mb-2 -mx-1 -mt-1 group/img relative cursor-pointer overflow-hidden rounded-xl bg-black/10">
+                        <div 
+                          onClick={() => handleOpenPhoto(photoUrl, photoName)}
+                          className="relative overflow-hidden rounded-xl block group"
+                          title="Click to view full photo"
+                        >
+                          <img 
+                            src={photoUrl} 
+                            alt={photoName} 
+                            loading="lazy"
+                            className="w-full max-w-[260px] sm:max-w-[300px] max-h-[320px] object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.02] block"
+                            onError={(e) => {
+                              if (!e.target.dataset.triedFallback && !rawUrl.startsWith('http')) {
+                                e.target.dataset.triedFallback = 'true';
+                                e.target.src = `${API_BASE_URL.replace('/api', '')}/${rawUrl.replace(/^\//, '')}`;
+                              }
+                            }}
+                          />
+                          {/* WhatsApp style hover overlay */}
+                          <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                            <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center shadow-lg backdrop-blur-xs">
+                              <span className="material-symbols-outlined text-[22px]">visibility</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {msg.text?.startsWith('📞') ? (
                     <div className="flex items-center gap-3 py-1 min-w-[180px]">
                       <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
@@ -541,6 +578,13 @@ export default function ChatScreen() {
         </div>
       </main>
 
+      {/* WhatsApp Fullscreen Lightbox Modal */}
+      <MediaLightboxModal 
+        isOpen={lightboxState.isOpen}
+        mediaItems={lightboxState.items}
+        initialIndex={lightboxState.index}
+        onClose={() => setLightboxState({ isOpen: false, items: [], index: 0 })}
+      />
     </div>
   );
 }

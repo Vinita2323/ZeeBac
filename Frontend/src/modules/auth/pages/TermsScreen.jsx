@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthAPI } from '../../../services/api';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 const DEFAULT_TERMS = `## 1. Acceptance of Terms
 By accessing or using the Zeebac platform, you agree to be bound by these Terms of Service. If you do not agree to all the terms and conditions, then you may not access the platform or use any services.
@@ -83,7 +84,7 @@ export default function TermsScreen() {
     <div className="bg-[#f8f9fc] min-h-screen flex flex-col font-body-lg text-on-surface">
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md px-4 py-3 flex items-center gap-3 border-b border-outline-variant/10 shadow-sm">
         <button 
-          onClick={() => navigate(-1)} 
+          onClick={() => safeNavigateBack(navigate, '/login')}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
           title="Go Back"
         >

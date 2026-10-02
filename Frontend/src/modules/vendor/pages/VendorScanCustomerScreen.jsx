@@ -4,6 +4,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { VendorAPI } from '../../../services/api';
 import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 const CAMERA_REGION_ID = 'zeebac-scan-customer-camera';
 const FILE_REGION_ID = 'zeebac-scan-customer-file';
@@ -224,7 +225,7 @@ export default function VendorScanCustomerScreen() {
       {/* Top Header */}
       <div className="absolute top-6 left-0 right-0 px-5 flex items-center justify-between z-20">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => safeNavigateBack(navigate, '/vendor')}
           className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors active:scale-95 cursor-pointer backdrop-blur-md"
         >
           <span className="material-symbols-outlined text-[24px]">arrow_back</span>

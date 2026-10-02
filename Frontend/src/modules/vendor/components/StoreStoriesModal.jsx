@@ -455,11 +455,33 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                     {/* Background Media or Empty Dropzone */}
                     {previewUrl ? (
                       <>
-                        <img
-                          src={previewUrl}
-                          alt="Story media"
-                          className="absolute inset-0 w-full h-full object-cover z-0 group-hover:scale-102 transition-transform duration-500"
-                        />
+                        {selectedFile?.type?.startsWith('video/') ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black">
+                            <video
+                              src={previewUrl}
+                              autoPlay
+                              muted
+                              loop
+                              playsInline
+                              className="w-full h-full object-contain z-0"
+                            />
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                            {/* Ambient blur behind to fill any empty space seamlessly */}
+                            <img
+                              src={previewUrl}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover blur-xl scale-125 opacity-70"
+                            />
+                            {/* Main photo fits 100% without getting cut off */}
+                            <img
+                              src={previewUrl}
+                              alt="Story media"
+                              className="relative z-0 w-full h-full object-contain group-hover:scale-102 transition-transform duration-500"
+                            />
+                          </div>
+                        )}
                         {/* Cinematic Gradient Mask */}
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/40 pointer-events-none z-1" />
                       </>
@@ -469,10 +491,10 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                           <span className="material-symbols-outlined text-[26px]">add_photo_alternate</span>
                         </div>
                         <p className="text-xs font-bold text-white drop-shadow-xs">
-                          Tap to Add Photo
+                          Tap to Add Photo or Video
                         </p>
                         <p className="text-[10px] text-white/70 mt-1 font-medium leading-tight">
-                          Banner or product image<br />(9:16 vertical)
+                          Full screen photo or video clip<br />(No cropping / No cut)
                         </p>
                       </div>
                     )}
@@ -533,25 +555,27 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleFileChange}
                     className="hidden"
                   />
 
                   <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                    {previewUrl ? 'Tap canvas to change photo' : 'Tap canvas to upload photo'}
+                    {previewUrl ? 'Tap canvas to change media' : 'Tap canvas to upload photo or video'}
                   </p>
                 </div>
 
                 {/* Right: Minimalist Classy Controls */}
                 <div className="md:col-span-7 space-y-4">
                   
-                  {/* Photo Quick Bar */}
+                  {/* Photo / Video Quick Bar */}
                   {previewUrl ? (
                     <div className="flex items-center justify-between p-2.5 px-3 rounded-2xl bg-purple-50/70 border border-purple-200/70">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="material-symbols-outlined text-[17px] text-emerald-600">check_circle</span>
-                        <span className="text-xs font-bold text-slate-800 truncate">Photo selected</span>
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {selectedFile?.type?.startsWith('video/') ? 'Video selected' : 'Photo selected'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -582,9 +606,9 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                     >
                       <span className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-[18px]">add_photo_alternate</span>
-                        Choose Photo or Banner
+                        Choose Photo or Video
                       </span>
-                      <span className="text-[10px] text-purple-500 font-normal">JPG, PNG up to 5MB</span>
+                      <span className="text-[10px] text-purple-500 font-normal">Photo (JPG, PNG) or Video (MP4)</span>
                     </button>
                   )}
 

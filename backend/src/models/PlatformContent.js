@@ -30,6 +30,21 @@ const platformContentSchema = new mongoose.Schema(
         default: Date.now,
       },
     },
+    supportWhatsapp: {
+      type: String,
+      default: '+919111966732',
+      trim: true,
+    },
+    supportPhone: {
+      type: String,
+      default: '+919111966732',
+      trim: true,
+    },
+    supportEmail: {
+      type: String,
+      default: 'support@zeebac.com',
+      trim: true,
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'AdminUser',

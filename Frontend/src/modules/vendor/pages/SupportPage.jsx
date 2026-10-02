@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI, SupportAPI } from '../../../services/api';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function SupportPage() {
   const navigate = useNavigate();
@@ -15,10 +16,20 @@ export default function SupportPage() {
   const [faqs, setFaqs] = useState([]);
   const [isLoadingFaqs, setIsLoadingFaqs] = useState(true);
   const [activeFaq, setActiveFaq] = useState(null);
+  const [supportWhatsapp, setSupportWhatsapp] = useState('+91 91119 66732');
+  const [supportPhone, setSupportPhone] = useState('+91 91119 66732');
 
   useEffect(() => {
     fetchTickets();
     fetchFaqs();
+    SupportAPI.getConfig()
+      .then((res) => {
+        if (res.success && res.data) {
+          if (res.data.supportWhatsapp) setSupportWhatsapp(res.data.supportWhatsapp);
+          if (res.data.supportPhone) setSupportPhone(res.data.supportPhone);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const fetchFaqs = async () => {
@@ -72,7 +83,7 @@ export default function SupportPage() {
     <div className="animate-reveal pb-[100px] text-left">
       {/* Mobile Header */}
       <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
+        <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
         <span className="font-display text-title-md text-primary font-bold ml-1">Help & Support</span>
@@ -88,7 +99,7 @@ export default function SupportPage() {
         {/* Quick Contact Channels (WhatsApp & Call) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <a
-            href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20partner%20store%20and%20need%20assistance."
+            href={`https://wa.me/${(supportWhatsapp || '919111966732').replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hello Zeebac Support, I am a partner store and need assistance.')}`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
@@ -104,7 +115,7 @@ export default function SupportPage() {
                   <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
                   <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                 </div>
-                <p className="text-[12px] text-white/95 font-medium mt-0.5">+91 91119 66732 · Merchant Help</p>
+                <p className="text-[12px] text-white/95 font-medium mt-0.5">{supportWhatsapp} · Merchant Help</p>
               </div>
             </div>
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0">
@@ -113,7 +124,7 @@ export default function SupportPage() {
           </a>
 
           <a
-            href="tel:+919111966732"
+            href={`tel:${(supportPhone || '+919111966732').replace(/\s/g, '')}`}
             className="p-4 bg-white border border-outline-variant/20 hover:border-primary/30 text-on-surface rounded-2xl flex items-center justify-between shadow-sm hover:shadow active:scale-[0.98] transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-3.5">
@@ -122,7 +133,7 @@ export default function SupportPage() {
               </div>
               <div className="text-left">
                 <span className="font-bold text-[14.5px] leading-tight block text-on-surface">Call Helpline</span>
-                <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">+91 91119 66732 · Toll-Free</p>
+                <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">{supportPhone} · Toll-Free</p>
               </div>
             </div>
             <div className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 text-on-surface-variant">

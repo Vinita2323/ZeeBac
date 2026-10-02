@@ -128,16 +128,27 @@ export const uploadChatImage = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No image uploaded' });
     }
     
-    const fileUrl = req.file.url || (req.file.filename?.startsWith('http') ? req.file.filename : null);
+    let fileUrl = req.file.url;
+    if (!fileUrl && req.file.filename?.startsWith('http')) {
+      fileUrl = req.file.filename;
+    }
+    if (!fileUrl && req.file.path) {
+      const cleanPath = req.file.path.replace(/\\/g, '/');
+      fileUrl = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    }
+    if (!fileUrl && req.file.filename) {
+      fileUrl = `/uploads/temp/${req.file.filename}`;
+    }
+    
     if (!fileUrl) {
-      return res.status(500).json({ success: false, message: 'Failed to obtain secure Cloudinary URL for chat image' });
+      return res.status(500).json({ success: false, message: 'Failed to obtain secure URL for chat image' });
     }
     
     res.status(200).json({ 
       success: true, 
       data: {
         url: fileUrl,
-        fileName: req.file.originalname || fileUrl
+        fileName: req.file.originalname || 'chat_photo.jpg'
       } 
     });
   } catch (error) {

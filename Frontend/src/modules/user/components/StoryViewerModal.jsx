@@ -17,7 +17,7 @@ export default function StoryViewerModal({
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0); // 0 to 100%
   const [isPaused, setIsPaused] = useState(false);
-  const [isFit, setIsFit] = useState(false); // Toggle between cover (full immersion) & contain (fit full image)
+  const [isFit, setIsFit] = useState(true); // Toggle: default to contain (fit full image without cutting) & cover (full immersion)
 
   const startTimeRef = useRef(null);
   const elapsedBeforePauseRef = useRef(0);
@@ -163,23 +163,47 @@ export default function StoryViewerModal({
         onTouchStart={handlePause}
         onTouchEnd={handleResume}
       >
-        {/* ================= FULL-BLEED STORY PHOTO & AMBIENT BACKDROP ================= */}
-        <div className="absolute inset-0 w-full h-full overflow-hidden">
+        {/* ================= FULL-BLEED STORY PHOTO / VIDEO & AMBIENT BACKDROP ================= */}
+        <div className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center">
           {/* Ambient blurred backdrop for seamless color glow */}
-          <img
-            src={currentStory.mediaUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-70 brightness-75 select-none pointer-events-none"
-          />
+          {currentStory.mediaType === 'video' || currentStory.mediaUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i) ? (
+            <video
+              src={currentStory.mediaUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-70 brightness-75 select-none pointer-events-none"
+            />
+          ) : (
+            <img
+              src={currentStory.mediaUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-70 brightness-75 select-none pointer-events-none"
+            />
+          )}
 
-          {/* Main Story Image */}
-          <img
-            src={currentStory.mediaUrl}
-            alt={vendor?.storeName || 'Story Image'}
-            className={`relative z-10 w-full h-full select-none transition-all duration-300 pointer-events-none ${
-              isFit ? 'object-contain' : 'object-cover'
-            }`}
-          />
+          {/* Main Story Image or Video */}
+          {currentStory.mediaType === 'video' || currentStory.mediaUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i) ? (
+            <video
+              src={currentStory.mediaUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className={`relative z-10 w-full h-full select-none transition-all duration-300 pointer-events-none ${
+                isFit ? 'object-contain' : 'object-cover'
+              }`}
+            />
+          ) : (
+            <img
+              src={currentStory.mediaUrl}
+              alt={vendor?.storeName || 'Story Image'}
+              className={`relative z-10 w-full h-full select-none transition-all duration-300 pointer-events-none ${
+                isFit ? 'object-contain' : 'object-cover'
+              }`}
+            />
+          )}
 
           {/* Cinematic Vignettes so top header and bottom controls remain 100% legible */}
           <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/85 via-transparent to-black/90 pointer-events-none" />

@@ -1,4 +1,5 @@
 import SupportTicket from '../models/SupportTicket.js';
+import PlatformContent from '../models/PlatformContent.js';
 import '../models/User.js';
 import '../models/Vendor.js';
 import logger from '../utils/logger.js';
@@ -434,6 +435,56 @@ export const toggleFaqStatus = async (req, res) => {
     });
   } catch (error) {
     logger.error(`toggleFaqStatus error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 7. Get Support Contact Configuration (WhatsApp, Phone, Email)
+export const getSupportConfig = async (req, res) => {
+  try {
+    let content = await PlatformContent.findOne();
+    if (!content) {
+      content = await PlatformContent.create({});
+    }
+    res.status(200).json({
+      success: true,
+      data: {
+        supportWhatsapp: content.supportWhatsapp || '+919111966732',
+        supportPhone: content.supportPhone || '+919111966732',
+        supportEmail: content.supportEmail || 'support@zeebac.com',
+      },
+    });
+  } catch (error) {
+    logger.error(`getSupportConfig error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 8. Admin: Update Support Contact Configuration (WhatsApp, Phone, Email)
+export const updateSupportConfig = async (req, res) => {
+  try {
+    const { supportWhatsapp, supportPhone, supportEmail } = req.body;
+    let content = await PlatformContent.findOne();
+    if (!content) {
+      content = new PlatformContent({});
+    }
+    if (supportWhatsapp !== undefined) content.supportWhatsapp = supportWhatsapp.trim();
+    if (supportPhone !== undefined) content.supportPhone = supportPhone.trim();
+    if (supportEmail !== undefined) content.supportEmail = supportEmail.trim();
+    if (req.user?.id) content.updatedBy = req.user.id;
+    await content.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Support WhatsApp and helpline updated successfully!',
+      data: {
+        supportWhatsapp: content.supportWhatsapp,
+        supportPhone: content.supportPhone,
+        supportEmail: content.supportEmail,
+      },
+    });
+  } catch (error) {
+    logger.error(`updateSupportConfig error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

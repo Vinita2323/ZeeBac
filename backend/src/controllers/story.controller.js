@@ -10,16 +10,24 @@ export const createStory = async (req, res) => {
     const { caption, offerTag, backgroundColor, mediaType } = req.body;
 
     let mediaUrl = null;
+    let determinedMediaType = mediaType || 'image';
+
     if (req.file) {
       mediaUrl = req.file.url || req.file.path || req.file.filename;
+      if (req.file.mimetype?.startsWith('video/') || req.file.originalname?.match(/\.(mp4|webm|mov)$/i)) {
+        determinedMediaType = 'video';
+      }
     } else if (req.body.mediaUrl) {
       mediaUrl = req.body.mediaUrl;
+      if (mediaUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i)) {
+        determinedMediaType = 'video';
+      }
     }
 
     if (!mediaUrl) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an image or media file for your story',
+        message: 'Please provide an image or video file for your story',
       });
     }
 
@@ -29,7 +37,7 @@ export const createStory = async (req, res) => {
     const newStory = await Story.create({
       vendorId,
       mediaUrl,
-      mediaType: mediaType || 'image',
+      mediaType: determinedMediaType,
       caption: caption || '',
       offerTag: offerTag || '',
       backgroundColor: backgroundColor || '#1e1b4b',

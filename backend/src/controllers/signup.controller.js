@@ -14,7 +14,7 @@ const generateZeebacId = async (prefix, Model) => {
   let newId;
   while (!isUnique) {
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    newId = `${prefix}-${randomDigits}`;
+    newId = `${prefix}${randomDigits}`;
     const exists = await Model.findOne({ zeebacId: newId });
     if (!exists) isUnique = true;
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { safeNavigateBack } from '../../../utils/navigationUtils';
+import { safeNavigateBack, useBackableSubview } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
@@ -32,6 +32,10 @@ export default function WalletScreen() {
       setSubView(location.state.subView);
     }
   }, [location.state]);
+
+  // Make the browser/hardware back button close an open subview one step at
+  // a time instead of jumping straight past Wallet to the previous route.
+  useBackableSubview(subView, setSubView);
 
 
   // Fetch real wallet and activities
@@ -120,10 +124,10 @@ export default function WalletScreen() {
 
   if (subView === 'recharge') {
     return (
-      <RechargeSubView 
-        balance={balance} 
-        currentUser={currentUser} 
-        onBack={() => setSubView(null)} 
+      <RechargeSubView
+        balance={balance}
+        currentUser={currentUser}
+        onBack={() => window.history.back()}
         setBalance={setBalance}
         onRechargeSuccess={(newBal, newTx) => {
           setBalance(newBal);
@@ -143,8 +147,8 @@ export default function WalletScreen() {
         lockedBalance={lockedBalance}
         withdrawableBalance={withdrawableBalance}
         currentUser={currentUser} 
-        withdrawals={withdrawals} 
-        onBack={() => setSubView(null)} 
+        withdrawals={withdrawals}
+        onBack={() => window.history.back()}
         setBalance={setBalance}
         setWithdrawableBalance={setWithdrawableBalance}
       />
@@ -152,7 +156,7 @@ export default function WalletScreen() {
   }
 
   if (subView === 'perks') {
-    return <PerksSubView balance={balance} activities={activities} onBack={() => setSubView(null)} />;
+    return <PerksSubView balance={balance} activities={activities} onBack={() => window.history.back()} />;
   }
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
@@ -206,7 +210,7 @@ export default function WalletScreen() {
               <div className="w-11 h-11 bg-green-500/10 rounded-full flex items-center justify-center text-green-600 group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">stars</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Perks</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Rewards</span>
             </button>
             <button 
               onClick={() => navigate('/passbook')}
@@ -671,13 +675,19 @@ function CashoutSubView({
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-title-lg text-on-surface-variant font-bold">₹</span>
             <input 
               type="number"
+              step="0.01"
               value={amount}
-              onChange={(e) => { setAmount(e.target.value); setErrorMsg(''); }}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.includes('.') && val.split('.')[1].length > 2) return;
+                setAmount(val);
+                setErrorMsg('');
+              }}
               placeholder="0.00"
               className="w-full h-16 pl-10 pr-24 bg-white border border-outline-variant/30 rounded-2xl text-title-lg font-bold text-on-surface focus:outline-none focus:border-primary/50 shadow-inner"
             />
             <button 
-              onClick={() => setAmount(String(withdrawableBalance))}
+              onClick={() => setAmount((Math.round(withdrawableBalance * 100) / 100).toFixed(2))}
               className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-primary/10 text-primary text-label-sm font-bold rounded-lg active:scale-95 cursor-pointer"
             >
               MAX
@@ -1047,7 +1057,7 @@ function PerksSubView({ balance, activities, onBack }) {
             <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </button>
-            <span className="font-display text-title-md font-bold ml-1">Your Perks</span>
+            <span className="font-display text-title-md font-bold ml-1">Your Rewards</span>
           </div>
 
           <div className="relative z-10 text-center space-y-1 mt-4">
@@ -1055,7 +1065,7 @@ function PerksSubView({ balance, activities, onBack }) {
               <span className="text-[11px] font-bold tracking-widest uppercase">🔥 5-Day Streak</span>
             </div>
             <h2 className="text-[32px] font-display font-black leading-tight">Reward Hub</h2>
-            <p className="text-white/80 text-body-sm">Keep shopping to unlock exclusive perks</p>
+            <p className="text-white/80 text-body-sm">Keep shopping to unlock exclusive rewards</p>
           </div>
         </div>
       </div>

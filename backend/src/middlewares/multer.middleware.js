@@ -24,19 +24,31 @@ const PDF_ALLOWED_FIELDS = new Set([
 
 const fileFilter = (req, file, cb) => {
   const allowedImages = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+  const allowedVideos = ['video/mp4', 'video/webm', 'video/quicktime'];
   const allowed = PDF_ALLOWED_FIELDS.has(file.fieldname)
     ? [...allowedImages, 'application/pdf']
+    : file.fieldname === 'storyMedia'
+    ? [...allowedImages, ...allowedVideos]
     : allowedImages;
 
   allowed.includes(file.mimetype)
     ? cb(null, true)
-    : cb(new Error(PDF_ALLOWED_FIELDS.has(file.fieldname) ? 'Only images or PDF files are allowed' : 'Only images are allowed'), false);
+    : cb(
+        new Error(
+          PDF_ALLOWED_FIELDS.has(file.fieldname)
+            ? 'Only images or PDF files are allowed'
+            : file.fieldname === 'storyMedia'
+            ? 'Only images or videos (MP4, WebM, MOV) are allowed'
+            : 'Only images are allowed'
+        ),
+        false
+      );
 };
 
 const rawUpload = multer({ 
   storage, 
   fileFilter, 
-  limits: { fileSize: 10 * 1024 * 1024 } // Max: 10MB per file
+  limits: { fileSize: 30 * 1024 * 1024 } // Max: 30MB per file (accommodates short promo videos)
 });
 
 const FOLDER_MAP = {

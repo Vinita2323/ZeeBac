@@ -79,13 +79,16 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
     return { prefix: 'Z', code: clean };
   })();
 
-  // Identify notification classification
+  // Identify notification classification: Only vendor sees the "Tell Customer OTP" card
+  const isVendorNotification = notif.recipientType === 'vendor';
   const isCashOtpNotif = Boolean(
-    notif.title?.includes('OTP') ||
-    notif.message?.includes('OTP') ||
-    notif.message?.includes('Code:') ||
-    notif.data?.isCashMode === 'true' ||
-    rawCode
+    isVendorNotification && (
+      notif.title?.includes('OTP') ||
+      notif.message?.includes('OTP') ||
+      notif.message?.includes('Code:') ||
+      notif.data?.isCashMode === 'true' ||
+      rawCode
+    )
   );
 
   const isSuccessNotif = Boolean(
