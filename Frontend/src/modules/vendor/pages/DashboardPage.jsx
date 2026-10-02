@@ -8,6 +8,7 @@ import { downloadImage, shareContent } from '../../../utils/exportUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
+import SalesAnalyticsModal from '../components/SalesAnalyticsModal';
 import { getSocket } from '../../../services/socket';
 import useLanguageStore from '../../../store/useLanguageStore';
 
@@ -19,6 +20,7 @@ export default function DashboardPage() {
   const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showPayLaterModal, setShowPayLaterModal] = useState(false);
+  const [showSalesModal, setShowSalesModal] = useState(false);
   const [posAmount, setPosAmount] = useState('1590');
   const [generatedPosBill, setGeneratedPosBill] = useState(null);
   const [isGeneratingPos, setIsGeneratingPos] = useState(false);
@@ -92,12 +94,21 @@ export default function DashboardPage() {
 
         if (reqsRes.status === 'fulfilled' && reqsRes.value.success) {
           const raw = reqsRes.value.data || [];
-          const seen = new Set();
+          const seenBills = new Set();
+          const seenCashCustomers = new Set();
           const deduplicated = raw.filter(r => {
+            if (r.paymentMethod === 'Cash' || r.requestType === 'cash_claim') {
+              const custId = r.customerId?._id || r.customerId?.id || r.customerId?.phone || r.customerId?.name;
+              if (custId) {
+                if (seenCashCustomers.has(String(custId))) return false;
+                seenCashCustomers.add(String(custId));
+              }
+              return true;
+            }
             if (!r.billNumber) return true;
             const key = String(r.billNumber).trim().toUpperCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
+            if (seenBills.has(key)) return false;
+            seenBills.add(key);
             return true;
           });
           setPendingRequests(deduplicated);
@@ -129,23 +140,35 @@ export default function DashboardPage() {
 
     const handleNewCashRequest = (data) => {
       setPendingRequests(prev => {
-        if (prev.some(r => r._id === data.requestId)) return prev;
+        // Filter out any older pending requests from the same customer or with the same requestId
+        const newCustId = data.customerId?._id || data.customerId || data.customerName;
+        const filtered = prev.filter(r => {
+          if (r._id === data.requestId) return false;
+          if (r.paymentMethod === 'Cash' || r.requestType === 'cash_claim') {
+            const prevCustId = r.customerId?._id || r.customerId?.id || r.customerId?.phone || r.customerId?.name;
+            if (prevCustId && newCustId && String(prevCustId) === String(newCustId)) {
+              return false;
+            }
+          }
+          return true;
+        });
+
         const newReq = {
           _id: data.requestId,
           amount: data.amount,
           cashbackAmount: data.cashbackAmount,
           verificationCode: data.verificationCode,
-          customerId: { name: data.customerName },
+          customerId: typeof data.customerId === 'object' && data.customerId?.name ? data.customerId : { name: data.customerName, _id: data.customerId },
           paymentMethod: data.paymentMethod || 'Cash',
           status: 'Pending',
           createdAt: new Date().toISOString()
         };
-        return [newReq, ...prev];
+        return [newReq, ...filtered];
       });
     };
 
     const handleCashVerified = (data) => {
-      setPendingRequests(prev => prev.filter(r => r._id !== data.requestId));
+      setPendingRequests(prev => prev.filter(r => r._id !== data.requestId && r.verificationCode !== data.verificationCode));
     };
 
     socket.on('new_cash_request', handleNewCashRequest);
@@ -157,10 +180,29 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const todaySales = dashboardData?.data?.todaySales || {
+    total: 0,
+    cash: 0,
+    digital: 0,
+    transactions: 0
+  };
+
   const stats = [
     { label: t('Total Revenue'), value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: t('All time'), color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/transactions' },
     { label: t('Cashback Given'), value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString() || 0}` : '₹0', icon: 'savings', trend: t('All time'), color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/passbook' },
-    { label: t('Total TXNs'), value: dashboardData ? dashboardData.data?.totalTransactions || 0 : '0', icon: 'sync_alt', trend: t('All time'), color: 'text-primary', bg: 'bg-primary/10', link: '/vendor/transactions' },
+    {
+      id: 'today-sales',
+      label: t("Today's Sale") || "Today's Sale",
+      value: `₹${(todaySales.total || 0).toLocaleString('en-IN')}`,
+      icon: 'point_of_sale',
+      trend: t('Today') || 'Today',
+      trendColor: 'text-emerald-700 bg-emerald-100',
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-500/10',
+      cash: todaySales.cash || 0,
+      digital: todaySales.digital || 0,
+      onClick: () => setShowSalesModal(true)
+    },
     { label: t('Customers'), value: dashboardData ? dashboardData.data?.totalCustomers || 0 : '0', icon: 'groups', trend: t('Unique'), color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
   ];
 
@@ -169,6 +211,8 @@ export default function DashboardPage() {
     try {
       const targetReq = pendingRequests.find(req => req._id === requestId);
       const targetBillNumber = targetReq?.billNumber ? String(targetReq.billNumber).trim().toUpperCase() : null;
+      const targetCustId = targetReq?.customerId?._id || targetReq?.customerId?.id || targetReq?.customerId?.name;
+      const isCash = targetReq?.paymentMethod === 'Cash' || targetReq?.requestType === 'cash_claim';
 
       const res = await VendorAPI.respondToRequest(requestId, action);
       if (res.success) {
@@ -176,6 +220,10 @@ export default function DashboardPage() {
           if (req._id === requestId) return false;
           if (targetBillNumber && req.billNumber && String(req.billNumber).trim().toUpperCase() === targetBillNumber) {
             return false;
+          }
+          if (isCash && targetCustId) {
+            const cId = req.customerId?._id || req.customerId?.id || req.customerId?.name;
+            if (cId && String(cId) === String(targetCustId)) return false;
           }
           return true;
         }));
@@ -450,20 +498,54 @@ export default function DashboardPage() {
         {stats.map((stat, index) => (
           <div
             key={index}
-            onClick={() => navigate(stat.link)}
-            className="bg-white rounded-2xl p-3.5 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer hover:shadow-md hover:border-primary/20 transition-all active:scale-[0.98]"
+            onClick={() => {
+              if (stat.onClick) {
+                stat.onClick();
+              } else if (stat.link) {
+                navigate(stat.link);
+              }
+            }}
+            className={`bg-white rounded-2xl p-3 sm:p-3.5 border shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${
+              stat.id === 'today-sales'
+                ? 'border-emerald-500/30 hover:border-emerald-500/60 ring-1 ring-emerald-500/10'
+                : 'border-outline-variant/10 hover:border-primary/20'
+            }`}
           >
             <div className="flex justify-between items-start mb-2">
               <div className={`w-8 h-8 rounded-full ${stat.bg} ${stat.color} flex items-center justify-center`}>
                 <span className="material-symbols-outlined text-[16px]">{stat.icon}</span>
               </div>
-              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${stat.trend === 'Action needed' ? 'bg-orange-100 text-orange-700' : 'bg-surface-container text-on-surface-variant'}`}>
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                stat.trendColor || (stat.trend === 'Action needed' ? 'bg-orange-100 text-orange-700' : 'bg-surface-container text-on-surface-variant')
+              }`}>
+                {stat.id === 'today-sales' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                )}
                 {stat.trend}
               </span>
             </div>
             <div>
               <p className="text-[10px] sm:text-[11px] font-semibold text-on-surface-variant leading-tight mb-1">{stat.label}</p>
-              <h3 className="text-[20px] font-black text-on-surface leading-none tracking-tight">{stat.value}</h3>
+              <h3 className="text-[18px] sm:text-[20px] font-black text-on-surface leading-none tracking-tight">{stat.value}</h3>
+              
+              {stat.id === 'today-sales' && (
+                <div className="mt-2 pt-2 border-t border-outline-variant/10 flex flex-col gap-0.5 text-[9px] sm:text-[10px] font-semibold">
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Cash
+                    </span>
+                    <span className="font-bold">₹{(stat.cash || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-purple-700">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                      Digital
+                    </span>
+                    <span className="font-bold">₹{(stat.digital || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -929,6 +1011,14 @@ export default function DashboardPage() {
       <VendorPayLaterModal
         isOpen={showPayLaterModal}
         onClose={() => setShowPayLaterModal(false)}
+      />
+
+      {/* Sales & Collections Analytics Modal */}
+      <SalesAnalyticsModal
+        isOpen={showSalesModal}
+        onClose={() => setShowSalesModal(false)}
+        initialData={dashboardData?.data}
+        storeName={currentUser?.storeName || 'Vendor Store'}
       />
 
     </div>

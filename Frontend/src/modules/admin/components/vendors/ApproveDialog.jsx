@@ -28,7 +28,7 @@ export default function ApproveDialog({ vendorName, initialCashbackRate, onConfi
           </p>
 
           <div className="text-left mb-2">
-            <div className="flex justify-between items-center mb-1.5">
+            <div className="flex justify-between items-center mb-1.5 flex-wrap gap-1">
               <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Final Cashback Rate (%)</label>
               {initialCashbackRate != null && (
                 <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">

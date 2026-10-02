@@ -87,11 +87,16 @@ export const assertWithinDailyRequestLimit = async (customerId, vendor) => {
     return; // Unlimited: no limit configured per shop/day
   }
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // Deliberately no status filter: a resubmission to the same vendor
+  // auto-cancels the customer's own earlier Pending request (see
+  // createCustomerTransaction), so filtering to only Pending/Approved/Held
+  // would let someone resubmit indefinitely — each attempt cancelling the
+  // last — without ever consuming their daily quota. Every genuine
+  // submission attempt counts, regardless of what happened to it after.
   const count = await CashbackRequest.countDocuments({
     customerId,
     vendorId: vendor._id,
     createdAt: { $gte: since },
-    status: { $in: ['Pending', 'Approved', 'Held'] },
   });
   if (count >= limit) {
     throw new DailyLimitExceededError(

@@ -332,7 +332,12 @@ describe('daily request limit + duplicate detection (shared across both request 
     expect(second.status).toHaveBeenCalledWith(429); // vendor override of 1, even though platform default is 3
   });
 
-  it('a rejected request does not count against the daily per-shop limit', async () => {
+  // A resubmission to the same vendor auto-cancels the customer's own
+  // earlier Pending request (see createCustomerTransaction), so the limit
+  // must count every genuine submission attempt regardless of what
+  // eventually happened to it — otherwise resubmitting indefinitely (each
+  // one cancelling the last) would never consume the daily quota at all.
+  it('every submission attempt counts toward the limit, even ones later rejected or auto-cancelled', async () => {
     await RewardConfig.create({ dailyCashbackRequestsPerShop: 2 });
     const vendor = await makeVendor();
     const customer = await makeCustomer();
@@ -346,14 +351,22 @@ describe('daily request limit + duplicate detection (shared across both request 
     const firstRequestId = first.json.mock.calls[0][0].data.requestId;
     await CashbackRequest.findByIdAndUpdate(firstRequestId, { status: 'Rejected' });
 
-    // Two more should still go through — only 0 non-rejected requests count so far
-    for (const amount of [200, 300]) {
-      const res = makeRes();
-      await createCustomerTransaction(
-        { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount } },
-        res
-      );
-      expect(res.status).toHaveBeenCalledWith(201);
-    }
+    // Second attempt still goes through (1 prior attempt < limit of 2) —
+    // this also auto-cancels nothing here since the first is already Rejected.
+    const second = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 200 } },
+      second
+    );
+    expect(second.status).toHaveBeenCalledWith(201);
+
+    // Third attempt is blocked — 2 prior attempts have been made today for
+    // this shop, regardless of the first one being rejected.
+    const third = makeRes();
+    await createCustomerTransaction(
+      { user: { id: customer._id.toString() }, body: { vendorZeebacId: vendor.zeebacId, amount: 300 } },
+      third
+    );
+    expect(third.status).toHaveBeenCalledWith(429);
   });
 });

@@ -361,7 +361,7 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// ─── Get Dashboard Stats (Phase 3D Real Data) ───
+// ─── Get Dashboard Stats (Phase 3D Real Data + Sales Breakdown) ───
 export const getDashboardStats = async (req, res) => {
   try {
     const vendorId = req.user.id;
@@ -370,36 +370,276 @@ export const getDashboardStats = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
-    // Aggregate transactions for this vendor
-    const stats = await Transaction.aggregate([
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+
+    // Start of Today in IST converted back to UTC
+    const startOfTodayUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset);
+
+    // Start of Week (last 7 days)
+    const startOfWeekUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+    // Start of Current Month in IST converted back to UTC
+    const startOfMonthUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - istOffset);
+
+    // Start of Current Year in IST converted back to UTC
+    const startOfYearUtc = new Date(Date.UTC(istNow.getUTCFullYear(), 0, 1) - istOffset);
+
+    // Multi-period aggregation with Cash vs Digital breakdown
+    const salesStats = await Transaction.aggregate([
       { $match: { vendorId: vendor._id, status: 'Approved' } },
       {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: "$amount" },
-          totalCashbackGiven: { $sum: "$cashbackAmount" },
-          totalTransactions: { $sum: 1 },
-          uniqueCustomers: { $addToSet: "$customerId" }
+        $project: {
+          amount: 1,
+          cashbackAmount: 1,
+          customerId: 1,
+          txDate: { $ifNull: ["$timestamp", "$createdAt"] },
+          isCash: {
+            $regexMatch: {
+              input: { $ifNull: ["$paymentMethod", "Cash"] },
+              regex: "cash",
+              options: "i"
+            }
+          }
+        }
+      },
+      {
+        $facet: {
+          allTime: [
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                uniqueCustomers: { $addToSet: "$customerId" },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          today: [
+            { $match: { txDate: { $gte: startOfTodayUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          weekly: [
+            { $match: { txDate: { $gte: startOfWeekUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          monthly: [
+            { $match: { txDate: { $gte: startOfMonthUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          yearly: [
+            { $match: { txDate: { $gte: startOfYearUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ]
         }
       }
     ]);
 
-    const result = stats[0] || { totalRevenue: 0, totalCashbackGiven: 0, totalTransactions: 0, uniqueCustomers: [] };
-    const totalCustomersCount = result.uniqueCustomers.length;
+    const extractPeriod = (facetArr) => {
+      const row = facetArr?.[0] || {};
+      const total = row.totalRevenue || 0;
+      const cash = row.cashRevenue || 0;
+      const digital = row.digitalRevenue || 0;
+      const transactions = row.totalTransactions || 0;
+      const cashbackGiven = row.totalCashbackGiven || 0;
+      const cashPercentage = total > 0 ? Math.round((cash / total) * 100) : 0;
+      const digitalPercentage = total > 0 ? 100 - cashPercentage : 0;
+      return {
+        total,
+        cash,
+        digital,
+        transactions,
+        cashbackGiven,
+        cashPercentage,
+        digitalPercentage
+      };
+    };
+
+    const facetRes = salesStats[0] || {};
+    const allTime = facetRes.allTime?.[0] || {};
+    const todaySales = extractPeriod(facetRes.today);
+    const weeklySales = extractPeriod(facetRes.weekly);
+    const monthlySales = extractPeriod(facetRes.monthly);
+    const yearlySales = extractPeriod(facetRes.yearly);
+    const totalCustomersCount = (allTime.uniqueCustomers || []).filter(Boolean).length;
 
     res.status(200).json({
       success: true,
       data: {
-        totalRevenue: result.totalRevenue,
+        totalRevenue: allTime.totalRevenue || 0,
         totalCustomers: totalCustomersCount,
-        totalTransactions: result.totalTransactions,
-        avgRating: vendor.stats.avgRating || 0,
-        totalCashbackGiven: result.totalCashbackGiven,
-        cashbackRate: vendor.cashbackRate || 5
+        totalTransactions: allTime.totalTransactions || 0,
+        avgRating: vendor.stats?.avgRating || 0,
+        totalCashbackGiven: allTime.totalCashbackGiven || 0,
+        cashbackRate: vendor.cashbackRate || 5,
+        todaySales,
+        salesBreakdown: {
+          today: todaySales,
+          weekly: weeklySales,
+          monthly: monthlySales,
+          yearly: yearlySales
+        }
       }
     });
   } catch (error) {
     logger.error(`Error in vendor getDashboardStats: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// ─── Get Vendor Sales Analytics (Today / Weekly / Monthly / Yearly with transactions) ───
+export const getVendorSalesAnalytics = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    const { period = 'today' } = req.query; // 'today' | 'weekly' | 'monthly' | 'yearly'
+
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+
+    const startOfTodayUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset);
+    let startDateUtc;
+
+    if (period === 'weekly') {
+      startDateUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
+    } else if (period === 'monthly') {
+      startDateUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - istOffset);
+    } else if (period === 'yearly') {
+      startDateUtc = new Date(Date.UTC(istNow.getUTCFullYear(), 0, 1) - istOffset);
+    } else {
+      // today
+      startDateUtc = startOfTodayUtc;
+    }
+
+    const transactions = await Transaction.find({
+      vendorId: vendor._id,
+      status: 'Approved',
+      $or: [
+        { timestamp: { $gte: startDateUtc } },
+        { createdAt: { $gte: startDateUtc } }
+      ]
+    }).sort({ timestamp: -1, createdAt: -1 });
+
+    let totalAmount = 0;
+    let cashAmount = 0;
+    let digitalAmount = 0;
+    let totalCashback = 0;
+
+    const formattedList = transactions.map(t => {
+      const isCash = /cash/i.test(t.paymentMethod || 'Cash');
+      const amt = Number(t.amount) || 0;
+      const cb = Number(t.cashbackAmount) || 0;
+
+      totalAmount += amt;
+      totalCashback += cb;
+      if (isCash) {
+        cashAmount += amt;
+      } else {
+        digitalAmount += amt;
+      }
+
+      return {
+        id: t.transactionId,
+        _id: t._id,
+        customer: t.customerName || t.customerPhone || 'Customer',
+        phone: t.customerPhone,
+        amount: amt,
+        cashbackAmount: cb,
+        paymentMethod: t.paymentMethod || (isCash ? 'Cash' : 'Digital'),
+        isCash,
+        time: t.timestamp || t.createdAt,
+        status: t.status
+      };
+    });
+
+    const totalTxns = formattedList.length;
+    const cashPercentage = totalAmount > 0 ? Math.round((cashAmount / totalAmount) * 100) : 0;
+    const digitalPercentage = totalAmount > 0 ? 100 - cashPercentage : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        period,
+        startDate: startDateUtc,
+        summary: {
+          total: totalAmount,
+          cash: cashAmount,
+          digital: digitalAmount,
+          transactions: totalTxns,
+          cashbackGiven: totalCashback,
+          cashPercentage,
+          digitalPercentage
+        },
+        transactions: formattedList
+      }
+    });
+  } catch (error) {
+    logger.error(`Error in getVendorSalesAnalytics: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 };
@@ -1118,17 +1358,47 @@ export const verifyRazorpayPayment = async (req, res) => {
 
 export const getPendingRequests = async (req, res) => {
   try {
+    // 1. Auto-expire any cash claims whose verificationExpiresAt has passed
+    const now = new Date();
+    await CashbackRequest.updateMany(
+      {
+        vendorId: req.user.id,
+        requestType: 'cash_claim',
+        status: 'Pending',
+        verificationExpiresAt: { $lt: now }
+      },
+      {
+        status: 'Expired',
+        rejectionReason: 'Cash verification OTP expired'
+      }
+    ).catch(err => logger.warn(`Failed to auto-expire cash requests: ${err.message}`));
+
     const rawRequests = await CashbackRequest.find({
       vendorId: req.user.id,
       status: { $in: ['Pending', 'Held'] }
     }).populate('customerId', 'name phone').sort({ createdAt: -1 });
 
+    const seenCashCustomers = new Set();
     const seenBillNumbers = new Set();
-    const seenFallbackKeys = new Set();
     const duplicateIdsToReject = [];
     const uniqueRequests = [];
 
     for (const reqItem of rawRequests) {
+      if (reqItem.requestType === 'cash_claim' || reqItem.paymentMethod === 'Cash') {
+        const custId = reqItem.customerId?._id?.toString() || reqItem.customerId?.toString();
+        if (custId) {
+          if (seenCashCustomers.has(custId)) {
+            // Older pending cash request from same customer — reject/supersede
+            duplicateIdsToReject.push(reqItem._id);
+            continue;
+          }
+          seenCashCustomers.add(custId);
+        }
+        uniqueRequests.push(reqItem);
+        continue;
+      }
+
+      // Receipt claims with billNumber
       const bNum = reqItem.billNumber ? String(reqItem.billNumber).trim().toUpperCase() : null;
       if (bNum) {
         if (seenBillNumbers.has(bNum)) {
@@ -1136,24 +1406,15 @@ export const getPendingRequests = async (req, res) => {
           continue;
         }
         seenBillNumbers.add(bNum);
-      } else if (reqItem.customerId?._id && reqItem.amount) {
-        // Fallback deduplication for requests without bill numbers submitted within 2 minutes
-        const custId = reqItem.customerId._id.toString();
-        const fallbackKey = `${custId}_${reqItem.amount}_${Math.floor(new Date(reqItem.createdAt).getTime() / (120 * 1000))}`;
-        if (seenFallbackKeys.has(fallbackKey)) {
-          duplicateIdsToReject.push(reqItem._id);
-          continue;
-        }
-        seenFallbackKeys.add(fallbackKey);
       }
       uniqueRequests.push(reqItem);
     }
 
-    // Auto-clean redundant duplicate pending requests in the background
+    // Auto-clean redundant duplicate/superseded pending requests in the background
     if (duplicateIdsToReject.length > 0) {
       CashbackRequest.updateMany(
         { _id: { $in: duplicateIdsToReject } },
-        { status: 'Rejected', rejectionReason: 'Duplicate submission auto-resolved' }
+        { status: 'Cancelled', rejectionReason: 'Superseded by newer cash request' }
       ).catch(err => logger.warn(`Failed to auto-clean duplicate pending requests: ${err.message}`));
     }
 
@@ -1195,6 +1456,21 @@ export const respondToCashbackRequest = async (req, res) => {
     }
 
     if (action === 'Reject') {
+      if (claimed.requestType === 'cash_claim' || claimed.paymentMethod === 'Cash') {
+        const custId = claimed.customerId?._id || claimed.customerId;
+        if (custId) {
+          CashbackRequest.updateMany(
+            {
+              _id: { $ne: claimed._id },
+              vendorId: req.user.id,
+              customerId: custId,
+              requestType: 'cash_claim',
+              status: { $in: ['Pending', 'Held'] },
+            },
+            { status: 'Cancelled', rejectionReason: 'Superseded by rejected request' }
+          ).catch(err => logger.warn(`Failed to auto-clean customer pending cash requests: ${err.message}`));
+        }
+      }
       return res.status(200).json({ success: true, message: 'Request rejected' });
     }
 
@@ -1384,6 +1660,20 @@ export const respondToCashbackRequest = async (req, res) => {
         },
         { status: 'Rejected', rejectionReason: 'Duplicate of approved bill request' }
       ).catch(err => logger.warn(`Failed to auto-reject duplicate bill requests: ${err.message}`));
+    }
+
+    // Auto-cancel any remaining pending cash requests for this customer at this shop
+    if (claimed.requestType === 'cash_claim' || claimed.paymentMethod === 'Cash') {
+      CashbackRequest.updateMany(
+        {
+          _id: { $ne: claimed._id },
+          vendorId: vendor._id,
+          customerId: customer._id,
+          requestType: 'cash_claim',
+          status: { $in: ['Pending', 'Held'] },
+        },
+        { status: 'Cancelled', rejectionReason: 'Resolved by approved cash request' }
+      ).catch(err => logger.warn(`Failed to auto-clean customer pending cash requests: ${err.message}`));
     }
 
     return res.status(200).json({ success: true, message: 'Request approved successfully' });

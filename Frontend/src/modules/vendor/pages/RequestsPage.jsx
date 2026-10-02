@@ -22,12 +22,21 @@ export default function RequestsPage() {
         const res = await VendorAPI.getPendingRequests();
         if (res.success) {
           const raw = res.data || [];
-          const seen = new Set();
+          const seenBills = new Set();
+          const seenCashCustomers = new Set();
           const deduplicated = raw.filter(r => {
+            if (r.paymentMethod === 'Cash' || r.requestType === 'cash_claim') {
+              const custId = r.customerId?._id || r.customerId?.id || r.customerId?.phone || r.customerId?.name;
+              if (custId) {
+                if (seenCashCustomers.has(String(custId))) return false;
+                seenCashCustomers.add(String(custId));
+              }
+              return true;
+            }
             if (!r.billNumber) return true;
             const key = String(r.billNumber).trim().toUpperCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
+            if (seenBills.has(key)) return false;
+            seenBills.add(key);
             return true;
           });
           setPendingRequests(deduplicated);
@@ -44,40 +53,42 @@ export default function RequestsPage() {
     if (socket) {
       const handleNewRequest = (data) => {
         setPendingRequests((prev) => {
-          if (prev.some((r) => r._id === data.requestId)) return prev;
+          const newCustId = data.customerId?._id || data.customerId || data.customerName;
+          const filtered = prev.filter((r) => {
+            if (r._id === data.requestId) return false;
+            if (r.paymentMethod === 'Cash' || r.requestType === 'cash_claim') {
+              const prevCustId = r.customerId?._id || r.customerId?.id || r.customerId?.phone || r.customerId?.name;
+              if (prevCustId && newCustId && String(prevCustId) === String(newCustId)) {
+                return false;
+              }
+            }
+            return true;
+          });
+
           return [
             {
               _id: data.requestId,
-              customerId: { name: data.customerName },
+              customerId: typeof data.customerId === 'object' && data.customerId?.name ? data.customerId : { name: data.customerName, _id: data.customerId },
               amount: data.amount,
               cashbackAmount: data.cashbackAmount,
-              paymentMethod: 'Cash',
+              paymentMethod: data.paymentMethod || 'Cash',
               verificationCode: data.verificationCode,
               status: 'Pending',
               createdAt: new Date().toISOString(),
             },
-            ...prev,
+            ...filtered,
           ];
         });
       };
 
       const handleVerified = (data) => {
         setPendingRequests((prev) =>
-          prev.map((r) =>
-            r._id === data.requestId || r.verificationCode === data.verificationCode
-              ? { ...r, status: 'Approved' }
-              : r
+          prev.filter(
+            (r) =>
+              r._id !== data.requestId &&
+              r.verificationCode !== data.verificationCode
           )
         );
-        setTimeout(() => {
-          setPendingRequests((prev) =>
-            prev.filter(
-              (r) =>
-                r._id !== data.requestId &&
-                r.verificationCode !== data.verificationCode
-            )
-          );
-        }, 3500);
       };
 
       socket.on('new_cash_request', handleNewRequest);
@@ -95,6 +106,8 @@ export default function RequestsPage() {
     try {
       const targetReq = pendingRequests.find(req => req._id === requestId);
       const targetBillNumber = targetReq?.billNumber ? String(targetReq.billNumber).trim().toUpperCase() : null;
+      const targetCustId = targetReq?.customerId?._id || targetReq?.customerId?.id || targetReq?.customerId?.name;
+      const isCash = targetReq?.paymentMethod === 'Cash' || targetReq?.requestType === 'cash_claim';
 
       const res = await VendorAPI.respondToRequest(requestId, action);
       if (res.success) {
@@ -102,6 +115,10 @@ export default function RequestsPage() {
           if (req._id === requestId) return false;
           if (targetBillNumber && req.billNumber && String(req.billNumber).trim().toUpperCase() === targetBillNumber) {
             return false;
+          }
+          if (isCash && targetCustId) {
+            const cId = req.customerId?._id || req.customerId?.id || req.customerId?.name;
+            if (cId && String(cId) === String(targetCustId)) return false;
           }
           return true;
         }));

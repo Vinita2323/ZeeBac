@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
@@ -12,6 +12,7 @@ export default function PayVendorScreen() {
   const vendor = location.state?.vendor;
   const [amount, setAmount] = useState('');
   const [processing, setProcessing] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [rewardConfig, setRewardConfig] = useState(null);
   const updateBalance = useAuthStore((state) => state.updateBalance);
@@ -83,7 +84,8 @@ export default function PayVendorScreen() {
     });
 
   const handleConfirm = async () => {
-    if (!isValid || processing) return;
+    if (!isValid || processing || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setProcessing(true);
     
     // --- CASH FLOW (Direct API with Zero-Fraud Verification Code) ---
@@ -104,6 +106,7 @@ export default function PayVendorScreen() {
         }
       } catch (err) {
         alert(err.response?.data?.message || 'Request failed.');
+        isSubmittingRef.current = false;
         setProcessing(false);
       }
       return;
@@ -118,6 +121,7 @@ export default function PayVendorScreen() {
         if (res.success) handleSuccess(res.data);
       } catch (err) {
         alert(err.response?.data?.message || 'Wallet transaction failed.');
+        isSubmittingRef.current = false;
         setProcessing(false);
       }
       return;
@@ -128,6 +132,7 @@ export default function PayVendorScreen() {
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) {
         alert("Razorpay SDK failed to load. Are you online?");
+        isSubmittingRef.current = false;
         setProcessing(false);
         return;
       }
@@ -159,6 +164,7 @@ export default function PayVendorScreen() {
           } catch (err) {
             console.error(err);
             alert(err.response?.data?.message || "Payment verification failed");
+            isSubmittingRef.current = false;
             setProcessing(false);
           }
         },
@@ -175,6 +181,7 @@ export default function PayVendorScreen() {
       rzp.on('payment.failed', function (response) {
         console.warn("Razorpay Payment Failed/Cancelled:", response.error);
         alert(`Payment failed: ${response.error?.description || "Cancelled by user"}`);
+        isSubmittingRef.current = false;
         setProcessing(false);
       });
       rzp.open();
@@ -182,6 +189,7 @@ export default function PayVendorScreen() {
       console.error(err);
       const serverMsg = err.response?.data?.message || err.message || "Error initializing payment gateway";
       alert(serverMsg);
+      isSubmittingRef.current = false;
       setProcessing(false);
     }
   };

@@ -126,10 +126,26 @@ export default function registerChatHandlers(io, socket) {
       const isVendor = socket.user.role === 'vendor';
       const readAt = new Date();
 
+      // lastMessageIsRead means "the RECIPIENT of the last message has seen
+      // it" — this caller only counts as that recipient if the last message
+      // was sent by the OTHER role. Otherwise this is just someone
+      // re-opening a thread where they sent the last message themselves,
+      // which must not flip on a blue "seen" tick the other side never
+      // earned.
+      const conversation = await Conversation.findById(conversationId).select('lastMessageBy');
+      const recipientOfLastMessage = isVendor ? 'customer' : 'vendor';
+      const sawTheirOwnLastMessage = conversation?.lastMessageBy === recipientOfLastMessage;
+
       if (isVendor) {
-        await Conversation.findByIdAndUpdate(conversationId, { unreadByVendor: 0, lastMessageIsRead: true });
+        await Conversation.findByIdAndUpdate(conversationId, {
+          unreadByVendor: 0,
+          ...(sawTheirOwnLastMessage ? { lastMessageIsRead: true } : {}),
+        });
       } else {
-        await Conversation.findByIdAndUpdate(conversationId, { unreadByCustomer: 0, lastMessageIsRead: true });
+        await Conversation.findByIdAndUpdate(conversationId, {
+          unreadByCustomer: 0,
+          ...(sawTheirOwnLastMessage ? { lastMessageIsRead: true } : {}),
+        });
       }
 
       // Mark all unread messages from the other user in this conversation as read

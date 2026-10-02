@@ -85,13 +85,25 @@ export const getMessages = async (req, res) => {
       { isRead: true, readAt }
     );
 
+    // lastMessageIsRead means "the RECIPIENT of the last message has seen
+    // it" — only true when the party opening this conversation is actually
+    // that recipient (lastMessageBy is the OTHER role), not just because
+    // their own unread count happened to be nonzero. Without this check, a
+    // customer re-opening a thread where THEY sent the last message (with
+    // some older, unrelated unreadByCustomer count still > 0) would flip
+    // the shared flag true and show a blue "seen by vendor" tick the vendor
+    // never earned.
     if (isVendor && conversation.unreadByVendor > 0) {
       conversation.unreadByVendor = 0;
-      conversation.lastMessageIsRead = true;
+      if (conversation.lastMessageBy === 'customer') {
+        conversation.lastMessageIsRead = true;
+      }
       await conversation.save();
     } else if (!isVendor && conversation.unreadByCustomer > 0) {
       conversation.unreadByCustomer = 0;
-      conversation.lastMessageIsRead = true;
+      if (conversation.lastMessageBy === 'vendor') {
+        conversation.lastMessageIsRead = true;
+      }
       await conversation.save();
     }
 

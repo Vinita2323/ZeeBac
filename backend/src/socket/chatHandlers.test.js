@@ -106,3 +106,49 @@ describe('chatHandlers sendMessage (QA regression)', () => {
     expect(messages).toHaveLength(2); // current behavior — see comment above
   });
 });
+
+describe('chatHandlers markAsRead — blue tick only when the actual recipient reads it (QA regression)', () => {
+  // Regression test: markAsRead used to set the shared lastMessageIsRead
+  // flag to true whenever EITHER side's own unread count was simply > 0 —
+  // not whether that side was actually the recipient of the last message.
+  // So a customer re-opening a thread where THEY sent the last message
+  // (while still having an unrelated older unread count from the vendor)
+  // would incorrectly show a blue "seen by vendor" tick the vendor never
+  // earned.
+  it('the sender re-reading their own last message does not mark it seen; the real recipient reading it does', async () => {
+    const vendor = await Vendor.create({ zeebacId: 'ZBV-CHAT4', ownerName: 'Chat Vendor Owner 4', storeName: 'Chat Vendor 4', phone: '9811100004', status: 'Verified' });
+    const customer = await User.create({ name: 'Chat Customer 4', phone: '7811100004', zeebacId: 'ZBC-CHAT4' });
+    const conversation = await Conversation.create({ vendorId: vendor._id, customerId: customer._id });
+
+    const io = makeFakeIo();
+    const { socket: vendorSocket, handlers: vendorHandlers } = makeFakeSocket({ id: vendor._id.toString(), role: 'vendor' });
+    const { socket: customerSocket, handlers: customerHandlers } = makeFakeSocket({ id: customer._id.toString(), role: 'customer' });
+    registerChatHandlers(io, vendorSocket);
+    registerChatHandlers(io, customerSocket);
+
+    // Vendor messages first, leaving the customer with a real unread count.
+    await new Promise((resolve) => vendorHandlers.sendMessage({ conversationId: conversation._id.toString(), text: 'Hi, how can I help?' }, resolve));
+    // Customer then replies — they are now the sender of the LAST message.
+    await new Promise((resolve) => customerHandlers.sendMessage({ conversationId: conversation._id.toString(), text: 'Just browsing, thanks' }, resolve));
+
+    let conv = await Conversation.findById(conversation._id);
+    expect(conv.lastMessageBy).toBe('customer');
+    expect(conv.unreadByCustomer).toBe(1); // still hasn't read the vendor's earlier message
+    expect(conv.lastMessageIsRead).toBe(false);
+
+    // Customer re-opens the thread (clearing their OWN unread count from the
+    // vendor's earlier message) — this must NOT flip lastMessageIsRead,
+    // since the customer is the SENDER of the last message, not its recipient.
+    await customerHandlers.markAsRead(conversation._id.toString());
+    conv = await Conversation.findById(conversation._id);
+    expect(conv.unreadByCustomer).toBe(0);
+    expect(conv.lastMessageIsRead).toBe(false); // the bug: this used to become true here
+
+    // The vendor — the ACTUAL recipient of the customer's last message —
+    // now genuinely reads it, which correctly flips the tick blue.
+    await vendorHandlers.markAsRead(conversation._id.toString());
+    conv = await Conversation.findById(conversation._id);
+    expect(conv.unreadByVendor).toBe(0);
+    expect(conv.lastMessageIsRead).toBe(true);
+  });
+});

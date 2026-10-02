@@ -12,6 +12,7 @@ import RewardConfig from '../models/RewardConfig.js';
 import PartnerOffer from '../models/PartnerOffer.js';
 import AdminUser from '../models/AdminUser.js';
 import OtpVerification from '../models/OtpVerification.js';
+import Notification from '../models/Notification.js';
 import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
@@ -355,6 +356,44 @@ export const createCustomerTransaction = async (req, res) => {
     const lng = parseFloat(longitude);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       location = { type: 'Point', coordinates: [lng, lat] };
+    }
+
+    // Cancel and supersede any existing unverified Pending cash claims from this customer at this vendor
+    const existingPendingCash = await CashbackRequest.find({
+      customerId: customer._id,
+      vendorId: vendor._id,
+      requestType: 'cash_claim',
+      status: 'Pending',
+    });
+
+    if (existingPendingCash.length > 0) {
+      const prevIds = existingPendingCash.map(r => r._id);
+      await CashbackRequest.updateMany(
+        { _id: { $in: prevIds } },
+        { status: 'Cancelled', rejectionReason: 'Superseded by newer cash request' }
+      );
+
+      // Mark old unread notifications as read so vendor notification bell doesn't have stale OTPs
+      await Notification.updateMany(
+        { referenceId: { $in: prevIds }, recipientId: vendor._id },
+        { isRead: true, readAt: new Date() }
+      ).catch(() => {});
+
+      // Notify vendor sockets to remove old cards immediately
+      try {
+        for (const oldReq of existingPendingCash) {
+          getIO()?.to(`vendor_${vendor._id}`).emit('cash_request_verified', {
+            requestId: oldReq._id,
+            verificationCode: oldReq.verificationCode,
+          });
+          getIO()?.to(`user_${vendor._id}`).emit('cash_request_verified', {
+            requestId: oldReq._id,
+            verificationCode: oldReq.verificationCode,
+          });
+        }
+      } catch (err) {
+        logger.warn(`Failed to emit cash_request_verified for superseded requests: ${err.message}`);
+      }
     }
 
     const request = await CashbackRequest.create({

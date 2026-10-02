@@ -438,6 +438,10 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/dashboard/stats');
     return res.data;
   },
+  getSalesAnalytics: async (period = 'today') => {
+    const res = await apiClient.get(`/vendor/sales-analytics?period=${period}`);
+    return res.data;
+  },
   // Phase 3B: Products
   getProducts: async () => {
     const res = await apiClient.get('/vendor/products');

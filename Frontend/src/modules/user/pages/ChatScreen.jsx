@@ -14,6 +14,8 @@ export default function ChatScreen() {
   const { startCall } = useCall();
   
   const [conversations, setConversations] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedChat, setSelectedChat] = useState(location.state?.selectedChat || null);
   const [activeChatData, setActiveChatData] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -478,28 +480,61 @@ export default function ChatScreen() {
       
       {/* Header */}
       <header className="sticky top-0 z-50 glass-header px-4 py-3 border-b border-outline-variant/10 shadow-sm">
-        <div className="app-container flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/home')}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[24px]">arrow_back</span>
-            </button>
-            <h1 className="font-display font-black text-[20px]">Messages</h1>
-          </div>
-          <button className="text-primary w-10 h-10 rounded-full hover:bg-primary/5 transition-colors flex items-center justify-center active:scale-95 cursor-pointer">
-            <span className="material-symbols-outlined text-[22px]">search</span>
-          </button>
+        <div className="app-container flex items-center justify-between gap-2">
+          {showSearch ? (
+            <div className="flex items-center gap-2 flex-1">
+              <button
+                onClick={() => { setShowSearch(false); setSearchQuery(''); }}
+                className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+              </button>
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by store name..."
+                className="flex-1 h-10 px-3.5 rounded-full bg-surface-container-low border border-outline-variant/20 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate('/home')}
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+                </button>
+                <h1 className="font-display font-black text-[20px]">Messages</h1>
+              </div>
+              <button
+                onClick={() => setShowSearch(true)}
+                className="text-primary w-10 h-10 rounded-full hover:bg-primary/5 transition-colors flex items-center justify-center active:scale-95 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[22px]">search</span>
+              </button>
+            </>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 app-container px-4 py-6 space-y-4 text-left">
         <div className="divide-y divide-outline-variant/10">
-          {conversations.length === 0 ? (
-             <div className="text-center py-10 text-on-surface-variant text-sm">No conversations yet.</div>
-          ) : conversations.map(chat => {
+          {(() => {
+            const filteredConversations = searchQuery.trim()
+              ? conversations.filter((c) => (c.vendorId?.storeName || '').toLowerCase().includes(searchQuery.trim().toLowerCase()))
+              : conversations;
+
+            if (conversations.length === 0) {
+              return <div className="text-center py-10 text-on-surface-variant text-sm">No conversations yet.</div>;
+            }
+            if (filteredConversations.length === 0) {
+              return <div className="text-center py-10 text-on-surface-variant text-sm">No stores match "{searchQuery}".</div>;
+            }
+            return filteredConversations.map(chat => {
             const isUnread = (chat.unreadByCustomer || 0) > 0;
             const isSentByMe = chat.lastMessageBy === 'customer';
             const isLastMessageSeenByVendor = isSentByMe && (chat.lastMessageIsRead === true);
@@ -574,7 +609,8 @@ export default function ChatScreen() {
                 </div>
               </div>
             );
-          })}
+          });
+          })()}
         </div>
       </main>
 

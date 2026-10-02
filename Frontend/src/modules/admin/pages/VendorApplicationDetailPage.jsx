@@ -22,21 +22,23 @@ const HISTORY_META = {
 
 function Section({ title, icon, children }) {
   return (
-    <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-5">
+    <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-4 sm:p-5 overflow-hidden">
       <h3 className="font-title-md font-bold text-on-surface mb-4 flex items-center gap-2">
-        <span className="material-symbols-outlined text-primary text-[20px]">{icon}</span>
-        {title}
+        <span className="material-symbols-outlined text-primary text-[20px] shrink-0">{icon}</span>
+        <span className="truncate">{title}</span>
       </h3>
       {children}
     </div>
   );
 }
 
-function Row({ label, value }) {
+function Row({ label, value, className = '' }) {
   return (
-    <div>
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-[13.5px] font-bold text-on-surface mt-0.5">{value || <span className="text-gray-300 font-normal">—</span>}</p>
+    <div className={`min-w-0 ${className}`}>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">{label}</p>
+      <p className="text-[13.5px] font-bold text-on-surface mt-0.5 break-all sm:break-words">
+        {value || <span className="text-gray-300 font-normal">—</span>}
+      </p>
     </div>
   );
 }
@@ -45,11 +47,11 @@ function DocPreview({ label, doc }) {
   const [fullscreen, setFullscreen] = useState(false);
   if (!doc?.fileUrl) {
     return (
-      <div className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant/10 bg-surface-container-low opacity-60">
-        <span className="material-symbols-outlined text-outline text-[22px]">description</span>
-        <div>
-          <p className="text-[13px] font-bold text-on-surface-variant">{label}</p>
-          <p className="text-[11px] text-outline">Not provided</p>
+      <div className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant/10 bg-surface-container-low opacity-60 min-w-0">
+        <span className="material-symbols-outlined text-outline text-[22px] shrink-0">description</span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-bold text-on-surface-variant break-words leading-snug">{label}</p>
+          <p className="text-[11px] text-outline mt-0.5">Not provided</p>
         </div>
       </div>
     );
@@ -59,15 +61,15 @@ function DocPreview({ label, doc }) {
 
   return (
     <>
-      <div onClick={() => !isPdf && setFullscreen(true)} className={`flex items-center gap-3 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/40 transition-colors ${!isPdf ? 'cursor-pointer' : ''}`}>
+      <div onClick={() => !isPdf && setFullscreen(true)} className={`flex items-center gap-3 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/40 transition-colors min-w-0 ${!isPdf ? 'cursor-pointer' : ''}`}>
         <div className="w-12 h-12 rounded-lg bg-surface-container overflow-hidden flex items-center justify-center shrink-0">
           {isPdf ? <span className="material-symbols-outlined text-red-500">picture_as_pdf</span> : <img src={url} alt={label} className="w-full h-full object-cover" />}
         </div>
-        <div className="min-w-0">
-          <p className="text-[13px] font-bold text-on-surface">{label}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-bold text-on-surface break-words leading-snug">{label}</p>
           {isPdf
-            ? <a href={url} target="_blank" rel="noreferrer" className="text-[11px] text-primary font-bold hover:underline">Open PDF</a>
-            : <p className="text-[11px] text-outline truncate">Tap to view full size</p>}
+            ? <a href={url} target="_blank" rel="noreferrer" className="text-[11px] text-primary font-bold hover:underline inline-block mt-0.5">Open PDF</a>
+            : <p className="text-[11px] text-outline truncate mt-0.5">Tap to view full size</p>}
         </div>
       </div>
       {fullscreen && createPortal(
@@ -168,28 +170,28 @@ export default function VendorApplicationDetailPage() {
 
   return (
     <div className="space-y-6 animate-reveal text-left pb-10">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/admin/vendors')} className="w-9 h-9 rounded-full hover:bg-surface-container-low flex items-center justify-center cursor-pointer">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={() => navigate('/admin/vendors')} className="w-9 h-9 shrink-0 rounded-full hover:bg-surface-container-low flex items-center justify-center cursor-pointer">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display text-[22px] font-black tracking-tight text-on-surface">{vendor.storeName || vendor.ownerName}</h1>
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${STATUS_BADGE[vendor.applicationStatus] || 'bg-gray-100 text-gray-600'}`}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-display text-[20px] sm:text-[22px] font-black tracking-tight text-on-surface truncate">{vendor.storeName || vendor.ownerName}</h1>
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide shrink-0 ${STATUS_BADGE[vendor.applicationStatus] || 'bg-gray-100 text-gray-600'}`}>
                 {vendor.applicationStatus === 'RESUBMITTED' ? '🔵 Resubmitted' : vendor.applicationStatus?.replace('_', ' ')}
               </span>
             </div>
-            <p className="text-[12px] font-mono text-on-surface-variant">{vendor.zeebacId} · {vendor.phone}</p>
+            <p className="text-[12px] font-mono text-on-surface-variant break-all">{vendor.zeebacId} · {vendor.phone}</p>
           </div>
         </div>
 
         {(vendor.applicationStatus === 'PENDING_REVIEW' || vendor.applicationStatus === 'RESUBMITTED') && (
-          <div className="flex gap-2">
-            <button onClick={() => setShowReject(true)} className="px-4 h-10 rounded-xl bg-red-500/10 text-red-600 font-bold text-[13px] hover:bg-red-500 hover:text-white transition-colors cursor-pointer">
+          <div className="flex gap-2 w-full sm:w-auto shrink-0">
+            <button onClick={() => setShowReject(true)} className="flex-1 sm:flex-initial px-4 h-10 rounded-xl bg-red-500/10 text-red-600 font-bold text-[13px] hover:bg-red-500 hover:text-white transition-colors cursor-pointer">
               Reject
             </button>
-            <button onClick={() => setShowApprove(true)} className="px-4 h-10 rounded-xl bg-green-500/10 text-green-600 font-bold text-[13px] hover:bg-green-500 hover:text-white transition-colors cursor-pointer">
+            <button onClick={() => setShowApprove(true)} className="flex-1 sm:flex-initial px-4 h-10 rounded-xl bg-green-500/10 text-green-600 font-bold text-[13px] hover:bg-green-500 hover:text-white transition-colors cursor-pointer">
               Approve
             </button>
           </div>
@@ -199,24 +201,24 @@ export default function VendorApplicationDetailPage() {
       {vendor.applicationStatus === 'REJECTED' && (
         <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
           <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider mb-1">Rejection Reason</p>
-          <p className="text-[14px] text-on-surface font-medium">{vendor.rejectionReason}</p>
+          <p className="text-[14px] text-on-surface font-medium break-words">{vendor.rejectionReason}</p>
         </div>
       )}
 
       {vendor.applicationStatus === 'RESUBMITTED' && latestResubmit && (
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
           <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1">Previous Rejection Reason</p>
-          <p className="text-[13.5px] text-on-surface font-medium mb-3">{vendor.rejectionReason}</p>
+          <p className="text-[13.5px] text-on-surface font-medium mb-3 break-words">{vendor.rejectionReason}</p>
           <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-2">Changes Since Previous Submission</p>
           {latestResubmit.changedFields?.length > 0 ? (
             <div className="space-y-2">
               {latestResubmit.changedFields.map((c, idx) => (
                 <div key={idx} className="text-[13px] bg-white rounded-lg p-2.5">
                   <p className="font-bold text-on-surface mb-1">{c.field}</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-red-500 line-through decoration-red-300">{JSON.stringify(c.oldValue) || '—'}</span>
-                    <span className="material-symbols-outlined text-outline text-[14px]">arrow_forward</span>
-                    <span className="text-green-600 font-bold">{JSON.stringify(c.newValue) || '—'}</span>
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-red-500 line-through decoration-red-300 break-all">{JSON.stringify(c.oldValue) || '—'}</span>
+                    <span className="material-symbols-outlined text-outline text-[14px] shrink-0">arrow_forward</span>
+                    <span className="text-green-600 font-bold break-all">{JSON.stringify(c.newValue) || '—'}</span>
                   </div>
                 </div>
               ))}
@@ -227,23 +229,27 @@ export default function VendorApplicationDetailPage() {
 
       <div className="grid md:grid-cols-2 gap-5">
         <Section title="Vendor Account Details" icon="person">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <Row label="Owner Name" value={vendor.ownerName} />
             <Row label="Mobile" value={vendor.phone} />
-            <Row label="Account Email" value={vendor.email} />
-            <Row label="Zeebac ID" value={vendor.zeebacId} />
+            <div className="col-span-2 sm:col-span-1 min-w-0">
+              <Row label="Account Email" value={vendor.email} />
+            </div>
+            <div className="col-span-2 sm:col-span-1 min-w-0">
+              <Row label="Zeebac ID" value={vendor.zeebacId} />
+            </div>
           </div>
         </Section>
 
         <Section title="Business Details" icon="storefront">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <Row label="Shop Name" value={vendor.storeName} />
             <Row label="Type" value={vendor.shopType} />
             <Row label="Category" value={vendor.category} />
             <Row label="Sub-category" value={vendor.subCategory} />
             <Row label="GST Number" value={vendor.gstNumber} />
             <Row label="Account Status" value={vendor.status} />
-            <div className="col-span-2 p-3.5 bg-purple-50/80 border border-purple-200/80 rounded-2xl flex items-center justify-between">
+            <div className="col-span-2 p-3 sm:p-3.5 bg-purple-50/80 border border-purple-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
                 <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Proposed Customer Cashback</p>
                 <div className="flex items-center gap-2 mt-0.5">
@@ -251,11 +257,11 @@ export default function VendorApplicationDetailPage() {
                   <span className="text-[12px] font-semibold text-gray-600">offered on purchases</span>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-white rounded-full text-[11px] font-black text-purple-700 border border-purple-200 shadow-sm">
+              <span className="self-start sm:self-auto px-3 py-1 bg-white rounded-full text-[11px] font-black text-purple-700 border border-purple-200 shadow-sm">
                 Min Required: {vendor.shopType === 'Chain & Brand' ? '5%' : '2%'}
               </span>
             </div>
-            <div className="col-span-2"><Row label="Description" value={vendor.description} /></div>
+            <div className="col-span-2 min-w-0"><Row label="Description" value={vendor.description} /></div>
           </div>
         </Section>
 
@@ -263,8 +269,8 @@ export default function VendorApplicationDetailPage() {
           <p className="text-[12px] text-gray-500 mb-3">
             How many cashback requests one customer can file at this shop per day. Leave blank to use the platform default.
           </p>
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="flex-1 min-w-0">
               <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Override (blank = platform default)</label>
               <input
                 type="number"
@@ -272,13 +278,13 @@ export default function VendorApplicationDetailPage() {
                 placeholder="Platform default"
                 value={requestLimitInput}
                 onChange={(e) => setRequestLimitInput(e.target.value)}
-                className="mt-1 w-full px-3 py-2 border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50"
+                className="mt-1 w-full px-3 py-2 border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 text-sm"
               />
             </div>
             <button
               onClick={handleSaveRequestLimit}
               disabled={isSavingRequestLimit}
-              className="h-10.5 px-5 bg-primary text-white rounded-lg font-bold text-[13px] disabled:opacity-50 cursor-pointer"
+              className="h-10.5 px-5 bg-primary text-white rounded-lg font-bold text-[13px] disabled:opacity-50 cursor-pointer w-full sm:w-auto shrink-0"
             >
               {isSavingRequestLimit ? 'Saving...' : requestLimitSaved ? 'Saved ✓' : 'Save'}
             </button>
@@ -286,7 +292,7 @@ export default function VendorApplicationDetailPage() {
         </Section>
 
         <Section title="Contact Details" icon="call">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Row label="Business Contact" value={vendor.businessContactNumber} />
             <Row label="Business Email" value={vendor.businessEmail} />
           </div>
@@ -294,22 +300,22 @@ export default function VendorApplicationDetailPage() {
 
         <Section title="Subscription & Store Live Status" icon="verified_user">
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <Row label="Current Plan" value={vendor.subscription?.planType || 'None'} />
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Subscription Status</p>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Subscription Status</p>
                 <div className="mt-1">
                   {vendor.subscriptionState?.effectiveStatus === 'ACTIVE' ? (
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-green-100 text-green-700">
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-green-100 text-green-700 inline-block">
                       ● Active
                     </span>
                   ) : vendor.subscriptionState?.effectiveStatus === 'EXPIRED' ? (
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700">
-                      ● Expired {vendor.subscriptionState?.inGracePeriod ? `(24h Grace: ${vendor.subscriptionState.hoursRemainingInGrace}h left)` : '(Hidden)'}
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700 inline-block">
+                      ● Expired {vendor.subscriptionState?.inGracePeriod ? `(${vendor.subscriptionState.hoursRemainingInGrace}h grace)` : ''}
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 text-gray-700">
-                      ● None (Required)
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 text-gray-700 inline-block">
+                      ● None
                     </span>
                   )}
                 </div>
@@ -319,26 +325,26 @@ export default function VendorApplicationDetailPage() {
             </div>
 
             <div className="p-3 bg-surface-container-low rounded-xl space-y-2 border border-outline-variant/10 text-[12px]">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="font-medium text-on-surface-variant">Store Visibility:</span>
-                <span className={`font-bold px-2 py-0.5 rounded ${vendor.subscriptionState?.isStoreVisible ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                <span className={`font-bold px-2 py-0.5 rounded self-start sm:self-auto ${vendor.subscriptionState?.isStoreVisible ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {vendor.subscriptionState?.isStoreVisible ? 'Visible on Map & Search' : 'Hidden from Discovery'}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="font-medium text-on-surface-variant">Cashback Allowed:</span>
-                <span className={`font-bold px-2 py-0.5 rounded ${!vendor.subscriptionState?.cashbackBlocked ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                <span className={`font-bold px-2 py-0.5 rounded self-start sm:self-auto ${!vendor.subscriptionState?.cashbackBlocked ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {!vendor.subscriptionState?.cashbackBlocked ? 'Allowed' : (vendor.subscriptionState?.cashbackBlockedReason || 'Blocked')}
                 </span>
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-between">
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <span className="text-[11px] text-gray-500">Explicit admin override only:</span>
               <button
                 type="button"
                 onClick={() => setShowActivateModal(true)}
-                className="px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-700 hover:text-white font-bold text-[12px] transition-all cursor-pointer border border-purple-200 flex items-center gap-1.5"
+                className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-700 hover:text-white font-bold text-[12px] transition-all cursor-pointer border border-purple-200 flex items-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-[16px]">verified</span>
                 Manual Admin Activation
@@ -350,18 +356,20 @@ export default function VendorApplicationDetailPage() {
         <Section title="Location" icon="location_on">
           <div className="space-y-3">
             <Row label="Address" value={vendor.address?.fullAddress} />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <Row label="City" value={vendor.address?.city} />
               <Row label="State" value={vendor.address?.state} />
-              <Row label="Pincode" value={vendor.address?.pincode} />
+              <div className="col-span-2 sm:col-span-1 min-w-0">
+                <Row label="Pincode" value={vendor.address?.pincode} />
+              </div>
             </div>
             {vendor.location?.coordinates && (
               <a
                 href={`https://www.openstreetmap.org/?mlat=${vendor.location.coordinates[1]}&mlon=${vendor.location.coordinates[0]}#map=17/${vendor.location.coordinates[1]}/${vendor.location.coordinates[0]}`}
                 target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-[12px] font-bold text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-[12px] font-bold text-primary hover:underline break-all"
               >
-                <span className="material-symbols-outlined text-[15px]">map</span>
+                <span className="material-symbols-outlined text-[15px] shrink-0">map</span>
                 View on map ({vendor.location.coordinates[1].toFixed(5)}, {vendor.location.coordinates[0].toFixed(5)})
               </a>
             )}
@@ -369,7 +377,7 @@ export default function VendorApplicationDetailPage() {
         </Section>
 
         <Section title="Store Images" icon="photo_library">
-          <div className="flex gap-4 flex-wrap items-center">
+          <div className="flex gap-3 sm:gap-4 flex-wrap items-center">
             {vendor.storeLogo && (
               <div className="text-center">
                 <a href={getMediaUrl(vendor.storeLogo)} target="_blank" rel="noreferrer" title="Click to view full logo">
@@ -407,7 +415,7 @@ export default function VendorApplicationDetailPage() {
       </div>
 
       <Section title="Documents" icon="folder">
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DocPreview label="Owner ID / KYC (Aadhaar/PAN)" doc={vendor.documents?.aadhaarPan} />
           <DocPreview label="Shop Registration Document" doc={vendor.documents?.shopLicense} />
           <DocPreview label="GST Certificate" doc={vendor.documents?.gstCertificate} />
@@ -430,13 +438,13 @@ export default function VendorApplicationDetailPage() {
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${meta.color}`}>
                     <span className="material-symbols-outlined text-[16px]">{meta.icon}</span>
                   </div>
-                  <div className="pt-0.5">
-                    <p className="font-bold text-[13.5px] text-on-surface">
+                  <div className="pt-0.5 min-w-0 flex-1">
+                    <p className="font-bold text-[13.5px] text-on-surface break-words">
                       {h.action.charAt(0) + h.action.slice(1).toLowerCase()}
                       <span className="font-normal text-on-surface-variant"> · v{h.version} · by {h.actionByRole}</span>
                     </p>
                     <p className="text-[11px] text-outline">{new Date(h.actionAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                    {h.rejectionCategory && <p className="text-[12.5px] text-red-600 mt-1">Reason: {h.rejectionCategory}{h.rejectionComment ? ` — ${h.rejectionComment}` : ''}</p>}
+                    {h.rejectionCategory && <p className="text-[12.5px] text-red-600 mt-1 break-words">Reason: {h.rejectionCategory}{h.rejectionComment ? ` — ${h.rejectionComment}` : ''}</p>}
                     {h.changedFields?.length > 0 && <p className="text-[12px] text-on-surface-variant mt-1">{h.changedFields.length} field(s) changed</p>}
                   </div>
                 </div>

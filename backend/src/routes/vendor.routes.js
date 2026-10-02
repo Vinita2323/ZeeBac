@@ -3,6 +3,7 @@ import {
   getProfile,
   updateProfile,
   getDashboardStats,
+  getVendorSalesAnalytics,
   getProducts,
   createProduct,
   updateProduct,
@@ -70,6 +71,8 @@ router.post('/application/resubmit', upload.fields(APPLICATION_UPLOAD_FIELDS), r
 
 // Dashboard Routes
 router.get('/dashboard/stats', requireApprovedVendor, getDashboardStats);
+router.get('/sales-analytics', requireApprovedVendor, getVendorSalesAnalytics);
+router.get('/dashboard/sales-analytics', requireApprovedVendor, getVendorSalesAnalytics);
 
 // Product Routes (Phase 3B)
 router.route('/products')
