@@ -60,7 +60,11 @@ export default function ProfilePage() {
         await VendorAPI.toggleBiometricSecurity(true, bioRes.credentialId);
         updateProfileStore({
           security: {
-            ...currentUser?.security,
+            // Fresh read, not the closured `currentUser` prop — this can run
+            // right after handleSavePin's own hasPin:true update in the same
+            // PIN-setup flow, before this component re-renders, and spreading
+            // the stale prop here would silently revert hasPin to false.
+            ...useAuthStore.getState().currentUser?.security,
             biometricEnabled: true,
             biometricCredentialId: bioRes.credentialId,
           }
@@ -99,7 +103,7 @@ export default function ProfilePage() {
       try {
         const res = await VendorAPI.toggleBiometricSecurity(false);
         if (res.success) {
-          updateProfileStore({ security: { ...currentUser?.security, biometricEnabled: false } });
+          updateProfileStore({ security: { ...useAuthStore.getState().currentUser?.security, biometricEnabled: false } });
           setBiometrics(false);
           setSecurityToast('Biometric security disabled.');
           setTimeout(() => setSecurityToast(''), 3500);
@@ -132,7 +136,7 @@ export default function ProfilePage() {
       if (res.success) {
         updateProfileStore({
           security: {
-            ...currentUser?.security,
+            ...useAuthStore.getState().currentUser?.security,
             hasPin: true,
           }
         });
