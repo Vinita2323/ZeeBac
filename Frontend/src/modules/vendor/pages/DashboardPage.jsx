@@ -188,22 +188,41 @@ export default function DashboardPage() {
   };
 
   const stats = [
-    { label: t('Total Revenue'), value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString() || 0}` : '₹0', icon: 'payments', trend: t('All time'), color: 'text-green-600', bg: 'bg-green-500/10', link: '/vendor/transactions' },
-    { label: t('Cashback Given'), value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString() || 0}` : '₹0', icon: 'savings', trend: t('All time'), color: 'text-orange-500', bg: 'bg-orange-500/10', link: '/vendor/passbook' },
+    {
+      id: 'total-revenue',
+      label: t('Total Revenue'),
+      value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString('en-IN') || 0}` : '₹0',
+      icon: 'account_balance',
+      trend: t('All time'),
+      link: '/vendor/transactions'
+    },
     {
       id: 'today-sales',
       label: t("Today's Sale") || "Today's Sale",
       value: `₹${(todaySales.total || 0).toLocaleString('en-IN')}`,
       icon: 'point_of_sale',
       trend: t('Today') || 'Today',
-      trendColor: 'text-emerald-700 bg-emerald-100',
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-500/10',
+      isLive: true,
       cash: todaySales.cash || 0,
       digital: todaySales.digital || 0,
       onClick: () => setShowSalesModal(true)
     },
-    { label: t('Customers'), value: dashboardData ? dashboardData.data?.totalCustomers || 0 : '0', icon: 'groups', trend: t('Unique'), color: 'text-secondary', bg: 'bg-secondary/10', link: '/vendor/customers' },
+    {
+      id: 'cashback-given',
+      label: t('Cashback Given'),
+      value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString('en-IN') || 0}` : '₹0',
+      icon: 'savings',
+      trend: t('All time'),
+      link: '/vendor/passbook'
+    },
+    {
+      id: 'customers',
+      label: t('Customers'),
+      value: dashboardData ? (dashboardData.data?.totalCustomers || 0).toLocaleString('en-IN') : '0',
+      icon: 'groups',
+      trend: t('Unique'),
+      link: '/vendor/customers'
+    },
   ];
 
   const handleRequestAction = async (requestId, action) => {
@@ -255,49 +274,53 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 pt-2 pb-6 text-left">
+    <div className="space-y-5 sm:space-y-6 pt-1 pb-8 text-left">
 
-      {/* Top Section: Greeting */}
-      <div className="flex items-center justify-between">
+      {/* Top Section: Greeting & Store Identity */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-primary/10">
         <div>
-          <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Welcome back')}</p>
-          <h1 className="font-display text-[18px] font-black text-on-surface leading-none tracking-tight">
+          <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Welcome back')}</p>
+          <h1 className="font-display text-[20px] sm:text-[22px] font-black text-on-surface leading-none tracking-tight">
             {currentUser?.storeName || 'Vendor Store'}
           </h1>
         </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[11.5px] font-mono font-bold flex items-center gap-1.5 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+            {zeebacId}
+          </span>
+        </div>
       </div>
-
-
 
       {/* Subscription & Store Status Banners */}
       {/* Alert 1: Subscription Required / Store Inactive */}
       {subscriptionInfo?.effectiveStatus === 'NONE' && (
-        <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl p-4 shadow-sm">
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 rounded-2xl p-4 sm:p-4.5 shadow-xs">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-700 flex items-center justify-center flex-shrink-0">
               <span className="material-symbols-outlined text-[22px]">store_mall_directory</span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800">
                   Onboarding Completed
                 </span>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/20 text-red-700">
-                  Store Inactive & Hidden
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-800">
+                  Store Inactive
                 </span>
               </div>
               <h3 className="font-bold text-[14px] text-on-surface leading-tight">
                 Subscription Required to Go Live
               </h3>
               <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
-                Your store is currently hidden from user discovery and cashback issuance is blocked. Choose a subscription plan to make your store live.
+                Your store is currently hidden from customer discovery and cashback issuance is paused. Choose a plan to activate your store.
               </p>
               <div className="mt-3">
                 <button
                   onClick={() => navigate('/vendor/subscription')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-[12px] font-bold rounded-xl shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white text-[12px] font-bold rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[16px]">verified</span>
+                  <span className="material-symbols-outlined text-[15px]">verified</span>
                   <span>Choose Subscription Plan</span>
                 </button>
               </div>
@@ -308,33 +331,29 @@ export default function DashboardPage() {
 
       {/* Alert 2: Expired in 24h Grace or Expired > 24h */}
       {subscriptionInfo?.effectiveStatus === 'EXPIRED' && (
-        <div className={`rounded-2xl p-4 border shadow-sm ${
+        <div className={`rounded-2xl p-4 sm:p-4.5 border shadow-xs ${
           subscriptionInfo?.inGracePeriod
-            ? 'bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-amber-500/30'
-            : 'bg-gradient-to-r from-rose-500/15 via-red-500/10 to-rose-500/5 border-rose-500/30'
+            ? 'bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/25'
+            : 'bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border-rose-500/25'
         }`}>
           <div className="flex items-start gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              subscriptionInfo?.inGracePeriod ? 'bg-amber-500/20 text-amber-700' : 'bg-rose-500/20 text-rose-700'
+              subscriptionInfo?.inGracePeriod ? 'bg-amber-500/15 text-amber-700' : 'bg-rose-500/15 text-rose-700'
             }`}>
-              <span className="material-symbols-outlined text-[22px]">
+              <span className="material-symbols-outlined text-[20px]">
                 {subscriptionInfo?.inGracePeriod ? 'hourglass_top' : 'block'}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                  subscriptionInfo?.inGracePeriod ? 'bg-amber-500/20 text-amber-700' : 'bg-rose-500/20 text-rose-700'
+                  subscriptionInfo?.inGracePeriod ? 'bg-amber-500/15 text-amber-800' : 'bg-rose-500/15 text-rose-800'
                 }`}>
                   Subscription Expired
                 </span>
-                {subscriptionInfo?.inGracePeriod ? (
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-700">
-                    24h Grace Period ({subscriptionInfo.hoursRemainingInGrace}h remaining)
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/20 text-red-700">
-                    Store Hidden & Inactive
+                {subscriptionInfo?.inGracePeriod && (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800">
+                    24h Grace ({subscriptionInfo.hoursRemainingInGrace}h left)
                   </span>
                 )}
               </div>
@@ -345,16 +364,16 @@ export default function DashboardPage() {
               </h3>
               <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
                 {subscriptionInfo?.inGracePeriod
-                  ? 'Your subscription expired but your store is temporarily visible for 24 hours. Customer cashback is blocked. Renew immediately to prevent your store from being hidden.'
-                  : 'Your subscription expired over 24 hours ago. Your store is completely hidden from user search and map listings, and cashback is blocked.'}
+                  ? 'Your subscription expired. Renew promptly to keep your store discoverable.'
+                  : 'Your subscription expired over 24 hours ago. Renew to reactivate your store.'}
               </p>
               <div className="mt-3">
                 <button
                   onClick={() => navigate('/vendor/subscription')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white text-[12px] font-bold rounded-xl shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white text-[12px] font-bold rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[16px]">autorenew</span>
-                  <span>Renew Subscription Plan</span>
+                  <span className="material-symbols-outlined text-[15px]">autorenew</span>
+                  <span>Renew Subscription</span>
                 </button>
               </div>
             </div>
@@ -364,20 +383,20 @@ export default function DashboardPage() {
 
       {/* Alert 3: Active Subscription & Zero Wallet Warning */}
       {subscriptionInfo?.effectiveStatus === 'ACTIVE' && (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {/* Active plan chip */}
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-primary/[0.08] via-primary/[0.04] to-transparent border border-primary/20 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
               <div>
-                <p className="text-[12px] font-bold text-emerald-800 flex items-center gap-1.5">
+                <p className="text-[12px] font-bold text-on-surface flex items-center gap-1.5">
                   <span>Subscription Active</span>
-                  <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-700 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md">
                     {subscriptionInfo.planType} Plan
                   </span>
                 </p>
                 {subscriptionInfo.expiresAt && (
-                  <p className="text-[10px] text-emerald-700/80">
+                  <p className="text-[10.5px] text-on-surface-variant mt-0.5">
                     Renews on {new Date(subscriptionInfo.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 )}
@@ -385,7 +404,7 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={() => navigate('/vendor/subscription')}
-              className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+              className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer"
             >
               Manage
             </button>
@@ -393,20 +412,20 @@ export default function DashboardPage() {
 
           {/* Zero Wallet Warning */}
           {Number(subscriptionInfo.walletBalance) <= 0 && (
-            <div className="bg-gradient-to-r from-amber-500/15 via-red-500/10 to-amber-500/5 border border-amber-500/30 rounded-xl p-3 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center flex-shrink-0">
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-3 sm:p-3.5 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 flex items-center justify-center flex-shrink-0">
                 <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-bold text-on-surface">Cashback wallet balance is ₹0</p>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  Cashback is currently blocked for customers. Recharge your cashback wallet to enable cashback distribution.
+                  Recharge your cashback wallet to enable instant cashback issuance for customers.
                 </p>
                 <button
                   onClick={() => navigate('/vendor/wallet')}
-                  className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg cursor-pointer"
+                  className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-all"
                 >
-                  <span className="material-symbols-outlined text-[14px]">add_circle</span>
+                  <span className="material-symbols-outlined text-[13px]">add_circle</span>
                   <span>Recharge Wallet</span>
                 </button>
               </div>
@@ -415,89 +434,95 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 24-Hour Store Stories Widget (Instagram Style) */}
-      <div className="rounded-2xl p-3.5 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-amber-500/10 border border-purple-500/20 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] p-[2px] flex-shrink-0 shadow-sm">
-            <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-pink-600 font-bold">
-              <span className="material-symbols-outlined text-[22px]">history_toggle_off</span>
+      {/* Store Stories Widget - Aesthetic & Theme-Colored */}
+      <div className="bg-gradient-to-r from-primary/[0.07] via-white to-primary/[0.02] border border-primary/20 rounded-2xl p-3.5 sm:p-4 shadow-[0_2px_12px_rgba(96,0,218,0.04)] flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#16082f] to-[#6000da] p-0.5 flex-shrink-0 shadow-sm">
+            <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center text-primary font-bold">
+              <span className="material-symbols-outlined text-[22px]">auto_stories</span>
             </div>
           </div>
-          <div>
-            <h3 className="font-bold text-xs text-on-surface flex items-center gap-1.5">
-              <span>Add Story</span>
-
-            </h3>
-            <p className="text-[11px] text-on-surface-variant mt-0.5">
-              Post daily deals & photos to nearby customers
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-bold text-[13.5px] text-on-surface leading-tight">Store Stories</h3>
+              <span className="text-[9.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                24h Deals
+              </span>
+            </div>
+            <p className="text-[11.5px] text-on-surface-variant mt-0.5 truncate">
+              Post daily offers, deals & photos to attract nearby customers
             </p>
           </div>
         </div>
 
         <button
           onClick={() => setShowStoriesModal(true)}
-          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/95 hover:to-purple-600/95 text-white font-bold text-xs shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white font-bold text-[12px] shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer flex-shrink-0 ml-2"
         >
-          <span className="material-symbols-outlined text-[16px]">add_circle</span>
-          Add Story
+          <span className="material-symbols-outlined text-[16px]">add</span>
+          <span>Add Story</span>
         </button>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mx-auto w-full">
+      {/* Quick Actions Toolbar - Aesthetic, Theme-Branded & Responsive (2x2 mobile, 4-col desktop) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mx-auto w-full">
+        {/* 1. Scan Customer */}
         <button
           onClick={() => navigate('/vendor/scan-customer')}
-          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-secondary text-white shadow-md hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
-            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Scan Customer</p>
-          <p className="text-[7px] sm:text-[8px] text-white/70">Log Cash</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Scan Customer</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Log Cash CB</p>
         </button>
 
+        {/* 2. Store QR */}
         <button
           onClick={() => setShowQRModal(true)}
-          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-white border border-outline-variant/15 text-on-surface shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-1">
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Store QR</p>
-          <p className="text-[7px] sm:text-[8px] text-on-surface-variant">Counter QR</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Store QR</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Counter Standee</p>
         </button>
 
+        {/* 3. Accept Cash (POS) */}
         <button
           onClick={() => setShowPosModal(true)}
-          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-[#16082f] via-[#3b0764] to-[#6000da] text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
-            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">point_of_sale</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight">Accept Cash</p>
-          <p className="text-[7px] sm:text-[8px] text-amber-300 font-bold">&gt; ₹1,000 Instant</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Accept Cash</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Instant POS</p>
         </button>
 
+        {/* 4. Pay Later */}
         <button
           onClick={() => setShowPayLaterModal(true)}
-          className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white shadow-xs hover:shadow-sm active:scale-[0.98] transition-all cursor-pointer text-center"
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] sm:text-[7.5px] uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
+          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md uppercase">
             Soon
           </span>
-          <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center mb-1 text-amber-300">
-            <span className="material-symbols-outlined text-[16px]">credit_score</span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">credit_score</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] font-extrabold leading-tight text-amber-300">Pay Later</p>
-          <p className="text-[7px] sm:text-[8px] text-indigo-200">Upto ₹25k</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Pay Later</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Up to ₹25k</p>
         </button>
       </div>
 
-      {/* Stats Grid - 2x2 Compact on mobile, 4 columns on desktop */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-        {stats.map((stat, index) => (
+      {/* Stats Grid - Aesthetic Theme Accents & Responsive Layout */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+        {stats.map((stat) => (
           <div
-            key={index}
+            key={stat.id}
             onClick={() => {
               if (stat.onClick) {
                 stat.onClick();
@@ -505,100 +530,111 @@ export default function DashboardPage() {
                 navigate(stat.link);
               }
             }}
-            className={`bg-white rounded-2xl p-3 sm:p-3.5 border shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${
+            className={`bg-white rounded-2xl p-3.5 sm:p-4 border shadow-[0_2px_10px_rgba(22,8,47,0.03)] hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col justify-between group ${
               stat.id === 'today-sales'
-                ? 'border-emerald-500/30 hover:border-emerald-500/60 ring-1 ring-emerald-500/10'
-                : 'border-outline-variant/10 hover:border-primary/20'
+                ? 'border-primary/35 ring-1 ring-primary/20 bg-gradient-to-br from-white via-white to-primary/[0.04]'
+                : 'border-primary/15 hover:border-primary/35'
             }`}
           >
-            <div className="flex justify-between items-start mb-2">
-              <div className={`w-8 h-8 rounded-full ${stat.bg} ${stat.color} flex items-center justify-center`}>
-                <span className="material-symbols-outlined text-[16px]">{stat.icon}</span>
-              </div>
-              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
-                stat.trendColor || (stat.trend === 'Action needed' ? 'bg-orange-100 text-orange-700' : 'bg-surface-container text-on-surface-variant')
-              }`}>
-                {stat.id === 'today-sales' && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                )}
-                {stat.trend}
-              </span>
-            </div>
             <div>
-              <p className="text-[10px] sm:text-[11px] font-semibold text-on-surface-variant leading-tight mb-1">{stat.label}</p>
-              <h3 className="text-[18px] sm:text-[20px] font-black text-on-surface leading-none tracking-tight">{stat.value}</h3>
-              
-              {stat.id === 'today-sales' && (
-                <div className="mt-2 pt-2 border-t border-outline-variant/10 flex flex-col gap-0.5 text-[9px] sm:text-[10px] font-semibold">
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      Cash
-                    </span>
-                    <span className="font-bold">₹{(stat.cash || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-purple-700">
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                      Digital
-                    </span>
-                    <span className="font-bold">₹{(stat.digital || 0).toLocaleString('en-IN')}</span>
-                  </div>
+              <div className="flex justify-between items-start mb-2.5">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors flex items-center justify-center shadow-2xs">
+                  <span className="material-symbols-outlined text-[18px]">{stat.icon}</span>
                 </div>
-              )}
+                <span className={`text-[10px] font-bold tracking-wide px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
+                  stat.isLive
+                    ? 'text-primary bg-primary/10 border border-primary/25'
+                    : 'text-on-surface-variant bg-surface-container'
+                }`}>
+                  {stat.isLive && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                  )}
+                  {stat.trend}
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-[11.5px] font-bold text-on-surface-variant leading-tight mb-1">{stat.label}</p>
+              <h3 className="text-[20px] sm:text-[22px] font-black text-on-surface leading-none tracking-tight">{stat.value}</h3>
             </div>
+
+            {stat.id === 'today-sales' && (
+              <div className="mt-3 pt-2.5 border-t border-primary/10 flex items-center justify-between text-[11px] font-medium">
+                <span className="flex items-center gap-1 text-on-surface-variant">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>{t('Cash')}: <strong className="text-on-surface font-bold">₹{(stat.cash || 0).toLocaleString('en-IN')}</strong></span>
+                </span>
+                <span className="flex items-center gap-1 text-on-surface-variant">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                  <span>{t('Digital')}: <strong className="text-on-surface font-bold">₹{(stat.digital || 0).toLocaleString('en-IN')}</strong></span>
+                </span>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Vendor Shop & Pay Later Banner (Upto ₹25,000 Credit Limit) */}
-      <div 
-        onClick={() => setShowPayLaterModal(true)}
-        className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#2e1065] text-white rounded-2xl p-3 sm:p-4 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] border border-indigo-900/30 relative overflow-hidden"
-      >
-        <div className="flex items-center justify-between gap-2 sm:gap-4 relative z-10">
-          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 backdrop-blur-xs flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
-              <span className="material-symbols-outlined text-[19px] sm:text-[22px]">credit_score</span>
-            </div>
-            <div className="text-left min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
-                <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Store Working Capital</span>
+      {/* Credit & Working Capital Services - Signature Theme Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+        {/* Card 1: Shop & Pay Later */}
+        <div 
+          onClick={() => setShowPayLaterModal(true)}
+          className="group bg-gradient-to-br from-[#16082f] via-[#1f0a42] to-[#2e0075] text-white rounded-2xl p-4 sm:p-5 border border-primary/30 shadow-[0_4px_20px_rgba(22,8,47,0.12)] relative overflow-hidden cursor-pointer hover:border-primary/60 transition-all active:scale-[0.99] flex flex-col justify-between"
+        >
+          <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-[#6000da]/25 blur-2xl pointer-events-none"></div>
+
+          <div className="relative z-10">
+            <div className="flex items-start justify-between gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 backdrop-blur-sm flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+                <span className="material-symbols-outlined text-[20px]">credit_score</span>
               </div>
-              <p className="text-[12px] sm:text-[13.5px] font-black text-white leading-tight">Shop & Pay Later • Credit Limit Up to ₹25,000</p>
-              <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">Maintain 30 days store transactions to unlock limit based on PAN & CIBIL score</p>
+              <span className="text-[9.5px] font-bold uppercase tracking-wider bg-white/15 text-purple-100 px-2.5 py-0.5 rounded-full border border-white/15 backdrop-blur-sm">
+                Coming Soon
+              </span>
+            </div>
+            <div className="mt-3">
+              <h4 className="font-extrabold text-[15px] text-white leading-tight">Shop & Pay Later</h4>
+              <p className="text-[12px] text-purple-200/80 mt-1 leading-relaxed">
+                Instant working capital credit limit up to ₹25,000 for your daily store purchases & stock.
+              </p>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2 sm:px-3.5 py-1.5 rounded-xl font-black text-[9.5px] sm:text-[11px] shadow-xs shrink-0 transition-colors">
-            <span className="whitespace-nowrap">Check Limit</span>
-            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between relative z-10">
+            <span className="text-[11px] font-semibold text-purple-200/90">Credit Limit: Up to ₹25k</span>
+            <div className="px-3.5 py-1.5 rounded-xl bg-white text-[#16082f] font-bold text-[11.5px] shadow-sm group-hover:bg-purple-50 transition-colors flex items-center gap-1 shrink-0">
+              <span>Check Limit</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Merchant Business Loan Banner */}
-      <div 
-        onClick={() => setShowLoanModal(true)}
-        className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white rounded-2xl p-3 sm:p-4 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] relative overflow-hidden border border-indigo-900/30"
-      >
-        <div className="flex items-center justify-between gap-2 sm:gap-4 relative z-10">
-          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-              <span className="material-symbols-outlined text-[19px] sm:text-[22px]">payments</span>
-            </div>
-            <div className="text-left min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
-                <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Merchant Capital</span>
+        {/* Card 2: Merchant Business Loan */}
+        <div 
+          onClick={() => setShowLoanModal(true)}
+          className="group bg-gradient-to-br from-[#16082f] via-[#1f0a42] to-[#2e0075] text-white rounded-2xl p-4 sm:p-5 border border-primary/30 shadow-[0_4px_20px_rgba(22,8,47,0.12)] relative overflow-hidden cursor-pointer hover:border-primary/60 transition-all active:scale-[0.99] flex flex-col justify-between"
+        >
+          <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-[#6000da]/25 blur-2xl pointer-events-none"></div>
+
+          <div className="relative z-10">
+            <div className="flex items-start justify-between gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 backdrop-blur-sm flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+                <span className="material-symbols-outlined text-[20px]">payments</span>
               </div>
-              <p className="text-[12px] sm:text-[13.5px] font-black text-white leading-tight">Apply for Business Loan up to ₹25L</p>
-              <p className="text-[9px] sm:text-[10px] text-indigo-200/90 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">0% Property Collateral • Auto daily micro-deduction from sales</p>
+              <span className="text-[9.5px] font-bold uppercase tracking-wider bg-white/15 text-purple-100 px-2.5 py-0.5 rounded-full border border-white/15 backdrop-blur-sm">
+                Coming Soon
+              </span>
+            </div>
+            <div className="mt-3">
+              <h4 className="font-extrabold text-[15px] text-white leading-tight">Merchant Business Loan</h4>
+              <p className="text-[12px] text-purple-200/80 mt-1 leading-relaxed">
+                Unsecured business growth capital up to ₹25L with 0% property collateral & micro-deductions.
+              </p>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2 sm:px-3.5 py-1.5 rounded-xl font-black text-[9.5px] sm:text-[11px] shadow-xs shrink-0 transition-colors">
-            <span className="whitespace-nowrap">Apply</span>
-            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between relative z-10">
+            <span className="text-[11px] font-semibold text-purple-200/90">0% Property Collateral</span>
+            <div className="px-3.5 py-1.5 rounded-xl bg-white text-[#16082f] font-bold text-[11.5px] shadow-sm group-hover:bg-purple-50 transition-colors flex items-center gap-1 shrink-0">
+              <span>Apply Loan</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </div>
           </div>
         </div>
       </div>
@@ -606,7 +642,7 @@ export default function DashboardPage() {
       {/* Action Required (Pending Approvals) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-[16px] font-extrabold text-on-surface">{t('Action Required')}</h3>
+          <h3 className="font-display text-[16px] font-bold text-on-surface">{t('Action Required')}</h3>
           <button
             onClick={() => navigate('/vendor/requests')}
             className="text-[12px] text-primary font-bold cursor-pointer hover:underline"
@@ -617,7 +653,9 @@ export default function DashboardPage() {
 
         <div className="space-y-3">
           {pendingRequests.length === 0 ? (
-            <p className="text-[12px] text-on-surface-variant text-center py-4">{t('No pending requests')}</p>
+            <div className="bg-white rounded-2xl border border-primary/10 p-6 text-center shadow-[0_2px_8px_rgba(22,8,47,0.02)]">
+              <p className="text-[12px] text-on-surface-variant">{t('No pending requests')}</p>
+            </div>
           ) : pendingRequests.slice(0, 3).map(req => {
             const isPendingCashOtp = !!(req.verificationCode && req.status === 'Pending');
             const isApproved = req.status === 'Approved';
@@ -625,90 +663,68 @@ export default function DashboardPage() {
             return (
               <div 
                 key={req._id} 
-                className={`rounded-2xl transition-all duration-300 p-3.5 flex flex-col gap-2.5 ${
-                  isPendingCashOtp
-                    ? 'bg-gradient-to-br from-red-50/95 via-white to-rose-50/80 border-2 border-red-500 ring-2 ring-red-400/20 shadow-md'
-                    : isApproved
-                    ? 'bg-emerald-50/95 border-2 border-emerald-500 shadow-sm'
-                    : 'bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]'
-                }`}
+                className="bg-white rounded-2xl border border-primary/15 shadow-[0_2px_12px_rgba(22,8,47,0.03)] p-4 sm:p-4.5 transition-all"
               >
-                <div className="flex gap-3 items-start">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border flex-shrink-0 ${
-                    isPendingCashOtp 
-                      ? 'bg-red-500 text-white border-red-600 shadow-sm' 
-                      : isApproved
-                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                      : 'bg-orange-50 text-orange-600 border-orange-100'
-                  }`}>
+                <div className="flex gap-3.5 items-start">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-sm shrink-0">
                     {req.customerId?.name?.charAt(0) || 'C'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className="font-bold text-[14px] text-on-surface truncate">{req.customerId?.name || req.customerId?.phone}</h4>
+                          <h4 className="font-bold text-[14px] text-on-surface truncate">
+                            {req.customerId?.name || req.customerId?.phone}
+                          </h4>
                           {isPendingCashOtp && (
-                            <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[9.5px] font-bold uppercase tracking-wider">
                               Cash OTP
                             </span>
                           )}
                           {isApproved && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9.5px] font-bold uppercase tracking-wider">
                               Verified
                             </span>
                           )}
                         </div>
                         {req.billNumber && (
-                          <p className="text-[11px] font-mono font-bold text-primary mt-0.5 flex items-center gap-1">
+                          <p className="text-[11px] font-mono font-medium text-on-surface-variant mt-0.5 flex items-center gap-1">
                             <span className="material-symbols-outlined text-[13px]">tag</span>
-                            <span>Bill No: <span className="bg-primary/10 px-1 py-0.2 rounded font-mono">{req.billNumber}</span></span>
+                            <span>Bill No: <span className="text-on-surface font-bold">{req.billNumber}</span></span>
                           </p>
                         )}
                       </div>
                       
                       {/* Highlighted Amount */}
                       <div className="text-right">
-                        <span className={`text-[9px] font-black uppercase block ${
-                          isPendingCashOtp ? 'text-red-700' : isApproved ? 'text-emerald-700' : 'text-on-surface-variant'
-                        }`}>
+                        <span className="text-[9.5px] font-bold text-on-surface-variant uppercase block">
                           {t('Bill Amount')}
                         </span>
-                        <p className={`font-mono font-black text-[15px] ${
-                          isPendingCashOtp
-                            ? 'text-red-700 bg-red-100/90 px-2 py-0.5 rounded-lg border border-red-300 inline-block'
-                            : isApproved
-                            ? 'text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-300 inline-block'
-                            : 'text-on-surface'
-                        }`}>
+                        <p className="font-mono font-black text-[16px] text-on-surface">
                           ₹{req.amount?.toLocaleString()}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center mt-1">
-                      <p className="text-[11px] text-on-surface-variant">{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        isPendingCashOtp 
-                          ? 'bg-red-600 text-white' 
-                          : isApproved 
-                          ? 'bg-emerald-600 text-white' 
-                          : 'text-green-600 bg-green-50'
-                      }`}>
-                        CB: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
+                    <div className="flex justify-between items-center mt-1.5">
+                      <p className="text-[11px] text-on-surface-variant">
+                        {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}
+                      </p>
+                      <span className="text-[10.5px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md border border-primary/20">
+                        Cashback: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
                       </span>
                     </div>
 
-                    {/* Highlighted OTP Container */}
+                    {/* Highlighted OTP Container with Theme Color */}
                     {req.verificationCode && req.status === 'Pending' && (
-                      <div className="mt-2.5 bg-red-500/10 border-2 border-red-500 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
+                      <div className="mt-3 bg-gradient-to-r from-primary/[0.08] to-primary/[0.03] border border-primary/25 rounded-xl p-3 flex items-center justify-between gap-3">
                         <div>
-                          <span className="inline-block px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-black uppercase rounded mb-0.5">
+                          <span className="inline-block px-2 py-0.5 bg-primary text-white text-[9.5px] font-extrabold uppercase rounded-md tracking-wider">
                             {t('Customer OTP Code')}
                           </span>
-                          <p className="text-[11px] font-bold text-red-950">{t('Tell code to customer')}</p>
+                          <p className="text-[11.5px] font-semibold text-on-surface mt-1">{t('Tell code to customer')}</p>
                         </div>
-                        <span className="text-[22px] font-mono font-black text-red-700 tracking-[0.2em] bg-white px-3 py-1 rounded-lg border-2 border-red-500 shadow-sm select-all">
+                        <span className="text-[22px] font-mono font-black text-primary tracking-[0.25em] bg-white px-3.5 py-1.5 rounded-xl border border-primary/25 shadow-xs select-all">
                           {req.verificationCode}
                         </span>
                       </div>
@@ -717,30 +733,28 @@ export default function DashboardPage() {
                     {req.billImageUrl && (
                       <div
                         onClick={() => setViewReceiptUrl(req.billImageUrl)}
-                        className="mt-2.5 flex items-center justify-between bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-1.5 cursor-pointer active:scale-[0.98] transition-transform"
+                        className="mt-3 flex items-center justify-between bg-primary/[0.04] border border-primary/15 rounded-xl p-2.5 cursor-pointer active:scale-[0.98] transition-transform"
                       >
-                        <div className="flex items-center gap-1.5 text-on-surface-variant">
-                          <span className="material-symbols-outlined text-[14px]">receipt_long</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider">View Attached Receipt</span>
+                        <div className="flex items-center gap-1.5 text-on-surface">
+                          <span className="material-symbols-outlined text-[15px] text-primary">receipt_long</span>
+                          <span className="text-[11px] font-bold">View Attached Receipt</span>
                         </div>
                         <span className="material-symbols-outlined text-[16px] text-primary">visibility</span>
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2 mt-3">
+                    <div className="flex items-center gap-2 mt-3.5">
                       <button
                         disabled={isProcessing}
                         onClick={() => handleRequestAction(req._id, 'Reject')}
-                        className="flex-1 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer"
+                        className="flex-1 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {t('Reject')}
                       </button>
                       <button
                         disabled={isProcessing}
                         onClick={() => handleRequestAction(req._id, 'Approve')}
-                        className={`flex-1 h-8 rounded-lg font-bold text-[12px] active:scale-95 transition-transform disabled:opacity-50 cursor-pointer text-white ${
-                          isPendingCashOtp ? 'bg-red-600 hover:bg-red-700' : 'bg-primary'
-                        }`}
+                        className="flex-1 h-9 rounded-xl bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white font-bold text-[12px] active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
                       >
                         {t('Approve')}
                       </button>
@@ -755,30 +769,38 @@ export default function DashboardPage() {
 
       {/* Recent Activity */}
       <div className="space-y-3">
-        <h3 className="font-display text-[16px] font-extrabold text-on-surface">{t('Recent Activity')}</h3>
+        <h3 className="font-display text-[16px] font-bold text-on-surface">{t('Recent Activity')}</h3>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {recentTransactions.map(tx => (
-            <div key={tx.id} className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-outline-variant/10 shadow-sm">
+            <div key={tx.id} className="flex items-center justify-between bg-white p-3.5 sm:p-4 rounded-2xl border border-primary/10 shadow-[0_2px_8px_rgba(22,8,47,0.02)] hover:border-primary/25 transition-all">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${tx.status === 'Approved' ? 'bg-green-500/10 text-green-600' :
-                  tx.status === 'Rejected' ? 'bg-red-500/10 text-red-600' : 'bg-orange-500/10 text-orange-600'
-                  }`}>
-                  <span className="material-symbols-outlined text-[20px]">{tx.status === 'Approved' ? 'check_circle' : tx.status === 'Rejected' ? 'cancel' : 'pending'}</span>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  tx.status === 'Approved'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : tx.status === 'Rejected'
+                    ? 'bg-rose-50 text-rose-600'
+                    : 'bg-primary/10 text-primary'
+                }`}>
+                  <span className="material-symbols-outlined text-[19px]">
+                    {tx.status === 'Approved' ? 'check_circle' : tx.status === 'Rejected' ? 'cancel' : 'pending'}
+                  </span>
                 </div>
                 <div>
-                  <h3 className="text-[13px] font-bold text-on-surface leading-tight">{tx.customer}</h3>
+                  <h3 className="text-[13.5px] font-bold text-on-surface leading-tight">{tx.customer}</h3>
                   <p className="text-[11px] text-on-surface-variant">{tx.id} • {tx.time}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[14px] font-black text-on-surface">{tx.amount}</p>
-                <p className={`text-[10px] font-bold ${tx.status === 'Approved' ? 'text-green-600' : 'text-on-surface-variant'}`}>{tx.status}</p>
+                <p className="text-[15px] font-bold text-on-surface">{tx.amount}</p>
+                <p className={`text-[10.5px] font-bold ${
+                  tx.status === 'Approved' ? 'text-emerald-600' : 'text-on-surface-variant'
+                }`}>{tx.status}</p>
               </div>
             </div>
           ))}
           {recentTransactions.length === 0 && (
-            <div className="text-center py-6 text-on-surface-variant">
+            <div className="bg-white rounded-2xl border border-primary/10 p-6 text-center text-on-surface-variant text-xs">
               No recent transactions
             </div>
           )}
@@ -816,37 +838,38 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
 
-            <div className="flex flex-col items-center pt-2">
-              <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-4">
-                <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
+            <div className="flex flex-col items-center pt-1">
+              <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-800 mb-3">
+                <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
               </div>
-              <h3 className="font-display font-bold text-[20px] text-on-surface text-center leading-tight">Counter QR</h3>
-              <p className="text-[12px] text-on-surface-variant text-center mt-1 mb-2 px-2">
+              <h3 className="font-display font-bold text-[18px] text-slate-900 text-center leading-tight">Counter QR Standee</h3>
+              <p className="text-[12px] text-slate-500 text-center mt-1 mb-2.5 px-2">
                 Scan & Pay via PhonePe, Paytm, GPay or ZeeBac
               </p>
 
               <div className="flex items-center gap-1.5 justify-center mb-4 flex-wrap">
-                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">PhonePe</span>
-                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Paytm</span>
-                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">GPay</span>
-                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary">ZeeBac</span>
+                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">UPI</span>
+                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">PhonePe</span>
+                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">Paytm</span>
+                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">GPay</span>
+                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-900 font-semibold">ZeeBac</span>
               </div>
 
-              <div className="bg-[#fcfaff] border-2 border-secondary/20 rounded-3xl p-4 w-56 h-56 flex flex-col items-center justify-center shadow-inner mb-3 relative overflow-hidden">
+              <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 w-56 h-56 flex flex-col items-center justify-center shadow-inner mb-3 relative overflow-hidden">
                 {qrImageUrl ? (
                   <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
                 ) : qrLoading ? (
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 border-3 border-secondary/30 border-t-secondary rounded-full animate-spin" />
-                    <span className="text-[11px] font-medium text-on-surface-variant">Generating QR...</span>
+                    <div className="w-7 h-7 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
+                    <span className="text-[11px] font-medium text-slate-500">Generating QR...</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-center p-2">
-                    <span className="material-symbols-outlined text-red-500 text-[26px]">error</span>
-                    <span className="text-[11px] text-red-600 font-medium">Failed to load QR</span>
+                    <span className="material-symbols-outlined text-rose-500 text-[24px]">error</span>
+                    <span className="text-[11px] text-rose-600 font-medium">Failed to load QR</span>
                     <button
                       onClick={refreshQr}
-                      className="px-3 py-1 bg-secondary text-white text-[11px] font-bold rounded-lg shadow-sm hover:bg-secondary/90 transition-all cursor-pointer"
+                      className="px-3 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
                     >
                       Retry
                     </button>
@@ -854,27 +877,27 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="bg-surface-container py-1 px-3.5 rounded-full flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Store ID:</span>
-                <span className="text-[12px] font-black tracking-widest text-on-surface">{zeebacId}</span>
+              <div className="bg-slate-100 py-1 px-3 rounded-full flex items-center gap-2 mb-4">
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Store ID:</span>
+                <span className="text-[11.5px] font-mono font-bold text-slate-900">{zeebacId}</span>
               </div>
 
               <div className="flex gap-2 w-full">
                 <button
                   onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_Counter_QR_${zeebacId}.png`)}
                   disabled={!qrImageUrl}
-                  className="flex-1 py-2.5 px-3 bg-primary text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-2.5 px-3 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="material-symbols-outlined text-[16px]">download</span>
-                  Download
+                  <span className="material-symbols-outlined text-[15px]">download</span>
+                  <span>Download</span>
                 </button>
                 <button
                   onClick={() => qrImageUrl && shareContent(qrImageUrl, `${currentUser?.storeName || 'ZeeBac Store'} QR`, `Pay at ${currentUser?.storeName || 'my store'} (${zeebacId}) to earn instant cashback!`)}
                   disabled={!qrImageUrl}
-                  className="flex-1 py-2.5 px-3 bg-white text-primary border-2 border-primary rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-2.5 px-3 bg-white hover:bg-primary/5 text-primary border border-primary/30 rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="material-symbols-outlined text-[16px]">share</span>
-                  Share
+                  <span className="material-symbols-outlined text-[15px]">share</span>
+                  <span>Share</span>
                 </button>
               </div>
             </div>
@@ -889,29 +912,29 @@ export default function DashboardPage() {
           <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto text-left">
             <button
               onClick={() => { setShowPosModal(false); setGeneratedPosBill(null); }}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[20px]">close</span>
+              <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-[24px]">qr_code_2</span>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[20px]">point_of_sale</span>
               </div>
               <div>
-                <h3 className="font-display font-extrabold text-[16px] text-on-surface leading-tight">Cash Bill Barcode (&gt; ₹1,000)</h3>
-                <p className="text-[11px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-full inline-block mt-0.5">Instant Withdrawable Cashback</p>
+                <h3 className="font-display font-bold text-[16px] text-on-surface leading-tight">Cash Bill Barcode (&gt; ₹1,000)</h3>
+                <p className="text-[10.5px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md inline-block mt-0.5">Instant Withdrawable Cashback</p>
               </div>
             </div>
 
             {!generatedPosBill ? (
-              <div className="space-y-4 pt-1">
+              <div className="space-y-3.5 pt-1">
                 <p className="text-[12px] text-on-surface-variant leading-snug">
-                  Enter cash bill amount above ₹1,000 to generate a one-time barcode. Customer scans it with ZeeBac to earn instant withdrawable cashback.
+                  Enter cash bill amount above ₹1,000 to generate a one-time barcode for the customer to scan for instant cashback.
                 </p>
 
                 <div>
-                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
+                  <label className="text-[10.5px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
                     Cash Bill Amount (₹)
                   </label>
                   <input
@@ -919,7 +942,7 @@ export default function DashboardPage() {
                     value={posAmount}
                     onChange={(e) => setPosAmount(e.target.value)}
                     placeholder="1500"
-                    className="w-full h-12 px-4 bg-[#f3f4f6] rounded-xl outline-none border-2 border-transparent focus:border-[#6000da] text-[18px] font-black text-on-surface"
+                    className="w-full h-11 px-3.5 bg-surface-container-low rounded-xl outline-none border border-primary/20 focus:border-primary text-[17px] font-black text-on-surface"
                   />
                 </div>
 
@@ -932,8 +955,8 @@ export default function DashboardPage() {
                       onClick={() => setPosAmount(String(val))}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
                         posAmount === String(val)
-                          ? 'bg-[#6000da] text-white shadow-xs'
-                          : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                       }`}
                     >
                       ₹{val.toLocaleString()}
@@ -941,9 +964,9 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="bg-purple-50 border border-purple-100 rounded-xl p-2.5 text-[11px] text-purple-900 flex justify-between items-center">
+                <div className="bg-primary/[0.04] border border-primary/15 rounded-xl p-2.5 text-[11.5px] text-on-surface flex justify-between items-center">
                   <span>Customer Cashback ({cashbackRate}%):</span>
-                  <span className="font-black text-purple-700 text-[13px]">
+                  <span className="font-black text-primary text-[13px]">
                     ₹{((parseFloat(posAmount) || 0) * (cashbackRate / 100)).toFixed(2)}
                   </span>
                 </div>
@@ -951,19 +974,19 @@ export default function DashboardPage() {
                 <button
                   onClick={handleGeneratePosBill}
                   disabled={isGeneratingPos || !posAmount || parseFloat(posAmount) <= 0}
-                  className="w-full h-12 bg-gradient-to-r from-[#16082f] via-[#3b0764] to-[#6000da] text-white font-extrabold text-[14px] rounded-xl shadow-md hover:from-[#16082f] hover:to-[#4c00b0] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full h-11 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white font-bold text-[13px] rounded-xl shadow-xs active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {isGeneratingPos ? 'Generating One-Time Barcode...' : 'Generate Cash QR Barcode'}
+                  {isGeneratingPos ? 'Generating Barcode...' : 'Generate Cash QR Barcode'}
                 </button>
               </div>
             ) : (
-              <div className="bg-[#6000da]/5 border border-[#6000da]/20 rounded-2xl p-4 text-center space-y-3">
-                <div className="bg-white border-2 border-dashed border-[#6000da]/30 rounded-xl p-4 shadow-sm flex flex-col items-center">
-                  <span className="text-[10px] text-[#6000da] font-extrabold uppercase tracking-widest block mb-1">ONE-TIME USABLE CASH QR</span>
-                  <span className="text-[10px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-full mb-2">⚡ Instant Withdrawable</span>
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-3">
+                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-3.5 shadow-xs flex flex-col items-center">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">ONE-TIME CASH QR</span>
+                  <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full mb-2">⚡ Instant Withdrawable</span>
                   
                   {/* Scannable Visual QR Code Image */}
-                  <div className="w-44 h-44 bg-white border-2 border-[#6000da]/20 rounded-2xl p-2.5 shadow-inner flex items-center justify-center mb-2">
+                  <div className="w-40 h-40 bg-white border border-slate-200 rounded-xl p-2 shadow-inner flex items-center justify-center mb-2">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${generatedPosBill.billCode}`}
                       alt="Printed Bill QR Code"
@@ -971,7 +994,7 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  <div className="text-[18px] font-black tracking-widest text-[#16082f] bg-[#6000da]/10 py-1.5 px-4 rounded-lg my-1 select-all w-full font-mono">
+                  <div className="text-[16px] font-bold tracking-widest text-slate-900 bg-slate-100 py-1.5 px-3 rounded-lg my-1 select-all w-full font-mono">
                     {generatedPosBill.billCode}
                   </div>
                   <div className="flex justify-between w-full text-[12px] font-bold text-on-surface mt-2 px-1">
@@ -984,7 +1007,7 @@ export default function DashboardPage() {
                 </p>
                 <button
                   onClick={() => setGeneratedPosBill(null)}
-                  className="text-[12px] font-bold text-[#6000da] hover:underline cursor-pointer"
+                  className="text-[12px] font-semibold text-slate-800 hover:underline cursor-pointer"
                 >
                   Generate Another Bill
                 </button>

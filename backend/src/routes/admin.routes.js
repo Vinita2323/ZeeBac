@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getDashboardStats,
+  getAdminSalesAnalytics,
   getAllVendors,
   getVendorById,
   approveVendor,
@@ -65,6 +66,8 @@ router.use(requireRole('admin', 'super_admin'));
 
 // ─── Dashboard ───
 router.get('/dashboard/stats', getDashboardStats);
+router.get('/sales-analytics', getAdminSalesAnalytics);
+router.get('/dashboard/sales-analytics', getAdminSalesAnalytics);
 
 // ─── FCM Token ───
 router.post('/fcm-token', saveAdminFcmToken);

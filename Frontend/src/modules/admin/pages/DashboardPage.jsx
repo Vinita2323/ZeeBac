@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminAPI } from '../../../services/api';
+import SalesAnalyticsModal from '../../vendor/components/SalesAnalyticsModal';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [data, setData] = useState(null);
+  const [showSalesModal, setShowSalesModal] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [revenueChart, setRevenueChart] = useState({ labels: [], amounts: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +43,18 @@ export default function DashboardPage() {
     { label: 'Total Vendors', value: data?.totalVendors || 0, icon: 'storefront', trend: `${data?.pendingVendors || 0} pending approval`, color: 'text-orange-500', bg: 'bg-orange-500/10', path: '/admin/vendors' },
     { label: 'Support Tickets', value: data?.openSupportTickets || 0, icon: 'support_agent', trend: `${data?.openSupportTickets || 0} need attention`, color: data?.openSupportTickets > 0 ? 'text-rose-600' : 'text-purple-600', bg: data?.openSupportTickets > 0 ? 'bg-rose-500/10' : 'bg-purple-500/10', path: '/admin/support', isAlert: (data?.openSupportTickets || 0) > 0 },
     { label: 'Gross Volume', value: `₹${(data?.totalRevenue || 0).toLocaleString()}`, icon: 'payments', trend: 'Total transactions volume', color: 'text-green-600', bg: 'bg-green-500/10', path: '/admin/transactions' },
-    { label: 'Total Txns', value: data?.totalTransactions || 0, icon: 'receipt_long', trend: 'Completed transactions', color: 'text-secondary', bg: 'bg-secondary/10', path: '/admin/transactions' },
+    {
+      id: 'today-sales',
+      label: "Today's Sale",
+      value: `₹${(data?.todaySales?.total || 0).toLocaleString('en-IN')}`,
+      icon: 'point_of_sale',
+      trend: 'Today',
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-500/10',
+      cash: data?.todaySales?.cash || 0,
+      digital: data?.todaySales?.digital || 0,
+      onClick: () => setShowSalesModal(true)
+    },
   ];
 
   const pendingVendors = []; // We can fetch recent pending vendors if needed later
@@ -84,8 +99,18 @@ export default function DashboardPage() {
         {stats.map((stat, idx) => (
           <div 
             key={idx} 
-            onClick={() => stat.path && navigate(stat.path)}
-            className="bg-white p-4 rounded-xl border border-outline-variant/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-primary/20 transition-all cursor-pointer flex flex-col justify-between"
+            onClick={() => {
+              if (stat.onClick) {
+                stat.onClick();
+              } else if (stat.path) {
+                navigate(stat.path);
+              }
+            }}
+            className={`bg-white p-4 rounded-xl border shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between ${
+              stat.id === 'today-sales'
+                ? 'border-emerald-500/30 hover:border-emerald-500/60 ring-1 ring-emerald-500/10'
+                : 'border-outline-variant/10 hover:border-primary/20'
+            }`}
           >
             <div>
               <div className="flex justify-between items-start mb-2.5">
@@ -95,11 +120,31 @@ export default function DashboardPage() {
                 {stat.isAlert && (
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" title="Needs Attention"></span>
                 )}
+                {stat.id === 'today-sales' && (
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Live
+                  </span>
+                )}
               </div>
               <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">{stat.label}</p>
               <h3 className="font-display text-[22px] font-black text-on-surface leading-tight mt-1 mb-1 font-mono">{stat.value}</h3>
             </div>
-            <p className={`text-[10.5px] font-medium truncate ${stat.isAlert ? 'text-amber-600 font-bold' : stat.color === 'text-orange-500' ? 'text-orange-500 font-bold' : 'text-on-surface-variant'}`} title={stat.trend}>{stat.trend}</p>
+            
+            {stat.id === 'today-sales' ? (
+              <div className="mt-2 pt-1.5 border-t border-outline-variant/10 flex items-center justify-between text-[10px] font-medium text-on-surface-variant">
+                <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  {t('Cash')}: ₹{(stat.cash || 0).toLocaleString('en-IN')}
+                </span>
+                <span className="flex items-center gap-1 text-indigo-700 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                  {t('Digital')}: ₹{(stat.digital || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            ) : (
+              <p className={`text-[10.5px] font-medium truncate ${stat.isAlert ? 'text-amber-600 font-bold' : stat.color === 'text-orange-500' ? 'text-orange-500 font-bold' : 'text-on-surface-variant'}`} title={stat.trend}>{stat.trend}</p>
+            )}
           </div>
         ))}
       </div>
@@ -374,6 +419,15 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* Platform Sales & Collections Modal */}
+      <SalesAnalyticsModal
+        isOpen={showSalesModal}
+        onClose={() => setShowSalesModal(false)}
+        initialData={data}
+        storeName="ZeeBac Platform (All Stores)"
+        isAdmin={true}
+      />
     </div>
   );
 }

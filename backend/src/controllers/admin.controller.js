@@ -70,6 +70,132 @@ export const getDashboardStats = async (req, res) => {
     // Total Gross Inflow to Platform (Fees + Subscriptions)
     const totalGrossPlatformIncome = Math.round((totalPlatformFees + totalSubscriptionRevenue) * 100) / 100;
 
+    // Multi-period Sales & Collections with Cash vs Digital breakdown (IST based)
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+
+    const startOfTodayUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset);
+    const startOfWeekUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const startOfMonthUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - istOffset);
+    const startOfYearUtc = new Date(Date.UTC(istNow.getUTCFullYear(), 0, 1) - istOffset);
+
+    const salesStats = await Transaction.aggregate([
+      { $match: { status: { $in: ['Approved', 'Success'] } } },
+      {
+        $project: {
+          amount: 1,
+          cashbackAmount: 1,
+          txDate: { $ifNull: ["$timestamp", "$createdAt"] },
+          isCash: {
+            $regexMatch: {
+              input: { $ifNull: ["$paymentMethod", "Cash"] },
+              regex: "cash",
+              options: "i"
+            }
+          }
+        }
+      },
+      {
+        $facet: {
+          today: [
+            { $match: { txDate: { $gte: startOfTodayUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          weekly: [
+            { $match: { txDate: { $gte: startOfWeekUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          monthly: [
+            { $match: { txDate: { $gte: startOfMonthUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ],
+          yearly: [
+            { $match: { txDate: { $gte: startOfYearUtc } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalCashbackGiven: { $sum: "$cashbackAmount" },
+                totalTransactions: { $sum: 1 },
+                cashRevenue: {
+                  $sum: { $cond: ["$isCash", "$amount", 0] }
+                },
+                digitalRevenue: {
+                  $sum: { $cond: ["$isCash", 0, "$amount"] }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]);
+
+    const extractPeriod = (facetArr) => {
+      const row = facetArr?.[0] || {};
+      const total = row.totalRevenue || 0;
+      const cash = row.cashRevenue || 0;
+      const digital = row.digitalRevenue || 0;
+      const transactions = row.totalTransactions || 0;
+      const cashbackGiven = row.totalCashbackGiven || 0;
+      const cashPercentage = total > 0 ? Math.round((cash / total) * 100) : 0;
+      const digitalPercentage = total > 0 ? 100 - cashPercentage : 0;
+      return {
+        total,
+        cash,
+        digital,
+        transactions,
+        cashbackGiven,
+        cashPercentage,
+        digitalPercentage
+      };
+    };
+
+    const facetRes = salesStats[0] || {};
+    const todaySales = extractPeriod(facetRes.today);
+    const weeklySales = extractPeriod(facetRes.weekly);
+    const monthlySales = extractPeriod(facetRes.monthly);
+    const yearlySales = extractPeriod(facetRes.yearly);
+
     res.status(200).json({
       success: true,
       data: {
@@ -92,10 +218,107 @@ export const getDashboardStats = async (req, res) => {
         totalPendingPayouts,
         pendingUsersPayouts: pendingUsers,
         pendingVendorsPayouts,
+        todaySales,
+        salesBreakdown: {
+          today: todaySales,
+          weekly: weeklySales,
+          monthly: monthlySales,
+          yearly: yearlySales
+        }
       },
     });
   } catch (error) {
     logger.error(`Error in getDashboardStats: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// ─── Get Admin Sales Analytics (Platform-wide Today / Weekly / Monthly / Yearly) ───
+export const getAdminSalesAnalytics = async (req, res) => {
+  try {
+    const { period = 'today' } = req.query;
+
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+
+    const startOfTodayUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset);
+    let startDateUtc;
+
+    if (period === 'weekly') {
+      startDateUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
+    } else if (period === 'monthly') {
+      startDateUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - istOffset);
+    } else if (period === 'yearly') {
+      startDateUtc = new Date(Date.UTC(istNow.getUTCFullYear(), 0, 1) - istOffset);
+    } else {
+      startDateUtc = startOfTodayUtc;
+    }
+
+    const transactions = await Transaction.find({
+      status: { $in: ['Approved', 'Success'] },
+      $or: [
+        { timestamp: { $gte: startDateUtc } },
+        { createdAt: { $gte: startDateUtc } }
+      ]
+    }).sort({ timestamp: -1, createdAt: -1 }).limit(100);
+
+    let totalAmount = 0;
+    let cashAmount = 0;
+    let digitalAmount = 0;
+    let totalCashback = 0;
+
+    const formattedList = transactions.map(t => {
+      const isCash = /cash/i.test(t.paymentMethod || 'Cash');
+      const amt = Number(t.amount) || 0;
+      const cb = Number(t.cashbackAmount) || 0;
+
+      totalAmount += amt;
+      totalCashback += cb;
+      if (isCash) {
+        cashAmount += amt;
+      } else {
+        digitalAmount += amt;
+      }
+
+      return {
+        id: t.transactionId,
+        _id: t._id,
+        customer: t.customerName || t.customerPhone || 'Customer',
+        vendor: t.vendorName || 'Vendor Shop',
+        phone: t.customerPhone,
+        amount: amt,
+        cashbackAmount: cb,
+        paymentMethod: t.paymentMethod || (isCash ? 'Cash' : 'Digital'),
+        isCash,
+        time: t.timestamp || t.createdAt,
+        status: t.status
+      };
+    });
+
+    const totalTxns = formattedList.length;
+    const cashPercentage = totalAmount > 0 ? Math.round((cashAmount / totalAmount) * 100) : 0;
+    const digitalPercentage = totalAmount > 0 ? 100 - cashPercentage : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        period,
+        startDate: startDateUtc,
+        summary: {
+          total: totalAmount,
+          cash: cashAmount,
+          digital: digitalAmount,
+          transactions: totalTxns,
+          cashbackGiven: totalCashback,
+          cashPercentage,
+          digitalPercentage
+        },
+        transactions: formattedList
+      }
+    });
+  } catch (error) {
+    logger.error(`Error in getAdminSalesAnalytics: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 };

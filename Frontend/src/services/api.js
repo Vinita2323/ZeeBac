@@ -171,6 +171,10 @@ export const AdminAPI = {
     const res = await apiClient.get('/admin/dashboard/stats');
     return res.data;
   },
+  getSalesAnalytics: async (period = 'today') => {
+    const res = await apiClient.get(`/admin/sales-analytics?period=${period}`);
+    return res.data;
+  },
   getVendors: async (applicationStatus = '', page = 1, search = '') => {
     const res = await apiClient.get(`/admin/vendors?applicationStatus=${applicationStatus}&page=${page}&search=${encodeURIComponent(search)}`);
     return res.data;
