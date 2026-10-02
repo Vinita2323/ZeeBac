@@ -4,12 +4,21 @@ import { create } from 'zustand';
 // Centralized authentication & session state.
 // Replaces all scattered localStorage.getItem('zeebac_current_user') calls.
 
+// PIN/biometric is a customer & vendor feature only — admin sessions
+// authenticate with a password every time already, so they're excluded.
+const hasSecurityEnabled = (user) => {
+  const role = user?.role || user?.userType;
+  if (role !== 'customer' && role !== 'vendor') return false;
+  return Boolean(user?.security?.hasPin || user?.security?.biometricEnabled);
+};
+
 const useAuthStore = create((set, get) => ({
   // ── State ──
   currentUser: null,        // { role, name, phone, email, storeName, ... }
   accessToken: null,
   isAuthenticated: false,
   walletBalance: 0,
+  isAppLocked: false,       // App-open PIN/biometric gate — see AppLockScreen
 
   // ── Actions ──
 
@@ -45,6 +54,9 @@ const useAuthStore = create((set, get) => ({
           accessToken: token,
           isAuthenticated: true,
           walletBalance: balance,
+          // This runs once per fresh page load / app open — exactly the
+          // moment a PIN/biometric gate is supposed to appear.
+          isAppLocked: hasSecurityEnabled(user),
         });
 
         // Silently sync real-time wallet balance from backend in background
@@ -85,11 +97,17 @@ const useAuthStore = create((set, get) => ({
       accessToken: accessToken,
       isAuthenticated: true,
       walletBalance: balance,
+      isAppLocked: false, // just verified identity via OTP — don't immediately re-gate
     });
 
     // Fetch live balance from backend immediately on login
     get().fetchWalletBalance();
   },
+
+  lockApp: () => {
+    if (hasSecurityEnabled(get().currentUser)) set({ isAppLocked: true });
+  },
+  unlockApp: () => set({ isAppLocked: false }),
 
   setAccessToken: (token) => {
     localStorage.setItem('zeebac_access_token', token);
@@ -117,6 +135,7 @@ const useAuthStore = create((set, get) => ({
       accessToken: null,
       isAuthenticated: false,
       walletBalance: 0,
+      isAppLocked: false,
     });
 
     // 3. Fire-and-forget backend notification & socket disconnect in background

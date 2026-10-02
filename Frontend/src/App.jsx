@@ -31,6 +31,7 @@ import { playVendorCashRequestVoice, playCustomerCashbackCreditedVoice, playNoti
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from './utils/permissionPrimer.util';
 import DataConsentModal from './components/common/DataConsentModal';
 import PermissionPrimerModal from './components/common/PermissionPrimerModal';
+import AppLockScreen from './components/common/AppLockScreen';
 
 // Globally override browser alert to use toast for a better UI experience
 window.alert = (message) => {
@@ -54,9 +55,28 @@ function ScrollToTop() {
 }
 
 function App() {
-  const { accessToken, logout, currentUser } = useAuthStore();
+  const { accessToken, logout, currentUser, lockApp } = useAuthStore();
   const fetchedRef = useRef(false);
   const [isRequestingNotif, setIsRequestingNotif] = useState(false);
+
+  // Re-lock on resume, not just on cold start — switching away to another
+  // app/tab for a while and coming back should ask again, the way banking
+  // apps do, instead of only ever gating the very first load.
+  useEffect(() => {
+    if (!accessToken) return;
+    let hiddenAt = null;
+    const RELOCK_AFTER_MS = 15000;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+      } else if (document.visibilityState === 'visible' && hiddenAt) {
+        if (Date.now() - hiddenAt >= RELOCK_AFTER_MS) lockApp();
+        hiddenAt = null;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [accessToken, lockApp]);
 
   // These permission primers are for the customer/vendor-facing app only —
   // admins run an internal tool and shouldn't see a cashback-data consent
@@ -320,6 +340,7 @@ function App() {
         <div className="app-backdrop" aria-hidden="true" />
 
         {/* Global UI Overlays */}
+        <AppLockScreen />
         <Toaster position="top-center" reverseOrder={false} />
         <GlobalAlertDialog />
         <GlobalSnackbar />
