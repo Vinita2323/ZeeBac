@@ -9,6 +9,7 @@
  */
 
 
+import 'dotenv/config';
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
