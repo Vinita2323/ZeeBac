@@ -104,6 +104,44 @@ export const sendNotification = async ({
       const failed = response.responses.filter(r => !r.success);
       if (failed.length > 0) {
         logger.warn(`FCM: ${failed.length} notifications failed to send`);
+
+        // Automatically clean up expired / unregistered tokens
+        const invalidTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success && resp.error) {
+            const errCode = resp.error.code;
+            if (
+              errCode === 'messaging/registration-token-not-registered' ||
+              errCode === 'messaging/invalid-registration-token'
+            ) {
+              invalidTokens.push(fcmTokens[idx]);
+            }
+          }
+        });
+
+        if (invalidTokens.length > 0 && recipientId) {
+          try {
+            if (recipientType === 'vendor') {
+              const Vendor = (await import('../models/Vendor.js')).default;
+              await Vendor.findByIdAndUpdate(recipientId, {
+                $pull: { fcmTokens: { $in: invalidTokens } },
+              });
+            } else if (recipientType === 'admin') {
+              const AdminUser = (await import('../models/AdminUser.js')).default;
+              await AdminUser.findByIdAndUpdate(recipientId, {
+                $pull: { fcmTokens: { $in: invalidTokens } },
+              });
+            } else {
+              const User = (await import('../models/User.js')).default;
+              await User.findByIdAndUpdate(recipientId, {
+                $pull: { fcmTokens: { $in: invalidTokens } },
+              });
+            }
+            logger.info(`FCM: Cleaned up ${invalidTokens.length} expired tokens for ${recipientType} ${recipientId}`);
+          } catch (cleanErr) {
+            logger.warn(`FCM token cleanup error: ${cleanErr.message}`);
+          }
+        }
       }
       logger.info(`FCM: Sent to ${response.successCount}/${fcmTokens.length} devices`);
     }
