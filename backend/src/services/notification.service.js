@@ -81,9 +81,22 @@ export const sendNotification = async ({
           },
         },
         webpush: {
+          headers: {
+            Urgency: 'high',
+          },
           notification: {
-            icon: '/logo.png',
-            badge: '/badge.png',
+            title,
+            body: message,
+            icon: '/Logo (6).png',
+            badge: '/Logo (6).png',
+            requireInteraction: true,
+            vibrate: [200, 100, 200, 100, 200],
+            data: {
+              type,
+              referenceId: referenceId ? String(referenceId) : '',
+              referenceType: referenceType || '',
+              ...data,
+            },
           },
         },
       });
