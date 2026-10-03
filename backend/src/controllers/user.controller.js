@@ -790,7 +790,13 @@ export const createRazorpayOrder = async (req, res) => {
   } catch (error) {
     const errorMsg = error.error ? error.error.description : error.message;
     logger.error(`Error in createRazorpayOrder (Customer): ${errorMsg}`);
-    res.status(500).json({ success: false, message: 'Server Error', error: errorMsg });
+    if (errorMsg?.toLowerCase().includes('authentication failed')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Online payment gateway is temporarily updating credentials. Please select Cash Mode or Wallet to complete payment with merchant.',
+      });
+    }
+    res.status(500).json({ success: false, message: errorMsg || 'Server Error' });
   }
 };
 

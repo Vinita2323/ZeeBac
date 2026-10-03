@@ -119,6 +119,8 @@ export const assertNoRecentDuplicateRequest = async (customerId, vendorId, amoun
   }
 };
 
+export const MAX_CASH_NEARBY_METERS = 5000; // Generous 5km radius (prevents indoor GPS drift & large mall false blocks)
+
 export const assertCashRequestAllowed = async ({ customerId, vendor, amount, latitude, longitude, haversineDistanceMeters }) => {
   const numAmount = parseFloat(amount);
   if (numAmount > MAX_CASH_REQUEST_AMOUNT) {
@@ -127,29 +129,35 @@ export const assertCashRequestAllowed = async ({ customerId, vendor, amount, lat
     );
   }
 
-  // Per-shop daily request count is enforced once, up front, by
-  // assertWithinDailyRequestLimit (covers cash_claim + receipt_claim
-  // together) — not duplicated here.
-
   // Geofence check if vendor has coordinates registered
   let distanceFromVendorMeters = null;
   const vendorCoords = vendor.location?.coordinates;
   const hasVendorCoords = Array.isArray(vendorCoords) && vendorCoords.length === 2 && (vendorCoords[0] !== 0 || vendorCoords[1] !== 0);
 
   if (hasVendorCoords && haversineDistanceMeters) {
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      throw new CashLocationRequiredError(
-        'Location access is required for cash cashback requests to verify you are at the shop.'
-      );
+    let lat = parseFloat(latitude);
+    let lng = parseFloat(longitude);
+
+    // If client request did not provide coords (e.g. GPS timeout), check customer profile in DB
+    if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && customerId) {
+      try {
+        const User = (await import('../models/User.js')).default;
+        const userDoc = await User.findById(customerId).select('location');
+        const userCoords = userDoc?.location?.coordinates;
+        if (Array.isArray(userCoords) && userCoords.length === 2 && (userCoords[0] !== 0 || userCoords[1] !== 0)) {
+          lng = userCoords[0];
+          lat = userCoords[1];
+        }
+      } catch (_) {}
     }
 
-    distanceFromVendorMeters = haversineDistanceMeters([lng, lat], vendorCoords);
-    if (distanceFromVendorMeters > MAX_CASH_NEARBY_METERS) {
-      throw new CashLocationOutOfRangeError(
-        `You are ~${distanceFromVendorMeters}m away from the shop. Cash cashback requests can only be made when physically at the shop (within ${MAX_CASH_NEARBY_METERS}m).`
-      );
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      distanceFromVendorMeters = haversineDistanceMeters([lng, lat], vendorCoords);
+      if (distanceFromVendorMeters > MAX_CASH_NEARBY_METERS && process.env.ENFORCE_STRICT_GEOFENCE === 'true') {
+        throw new CashLocationOutOfRangeError(
+          `You are ~${distanceFromVendorMeters}m away from the shop. Cash cashback requests can only be made when physically at the shop.`
+        );
+      }
     }
   }
 

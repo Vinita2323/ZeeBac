@@ -75,11 +75,40 @@ export default function PayVendorScreen() {
 
   const getCurrentLocation = () =>
     new Promise((resolve) => {
-      if (!navigator.geolocation) return resolve({ latitude: null, longitude: null });
+      let cachedCoords = { latitude: null, longitude: null };
+      try {
+        const stored = localStorage.getItem('zeebac_location');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && Number.isFinite(parsed.latitude) && Number.isFinite(parsed.longitude)) {
+            cachedCoords = { latitude: parsed.latitude, longitude: parsed.longitude };
+          }
+        }
+      } catch (_) {}
+
+      if (!cachedCoords.latitude) {
+        const profileCoords = currentUser?.location?.coordinates;
+        if (Array.isArray(profileCoords) && profileCoords.length === 2 && (profileCoords[0] !== 0 || profileCoords[1] !== 0)) {
+          cachedCoords = { latitude: profileCoords[1], longitude: profileCoords[0] };
+        }
+      }
+
+      if (!navigator.geolocation) {
+        return resolve(cachedCoords);
+      }
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-        () => resolve({ latitude: null, longitude: null }),
-        { enableHighAccuracy: true, timeout: 5000 }
+        (pos) => {
+          const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          try {
+            localStorage.setItem('zeebac_location', JSON.stringify(coords));
+          } catch (_) {}
+          resolve(coords);
+        },
+        () => {
+          resolve(cachedCoords);
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
       );
     });
 
