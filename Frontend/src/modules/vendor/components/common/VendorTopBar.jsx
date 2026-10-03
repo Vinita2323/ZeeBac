@@ -26,6 +26,17 @@ export default function VendorTopBar() {
           onClick={() => navigate('/vendor')}
         />
         <div className="flex items-center gap-1.5 ml-auto">
+          {/* Switch to Customer App */}
+          <button
+            type="button"
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-[11.5px] font-black cursor-pointer transition-all active:scale-95 shadow-xs"
+            title="Switch to Customer / User App"
+          >
+            <span className="material-symbols-outlined text-[15px]">person</span>
+            <span>User App</span>
+          </button>
+
           {/* Language Switcher */}
           <button 
             type="button"

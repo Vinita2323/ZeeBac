@@ -1186,13 +1186,23 @@ export default function ProfilePage() {
           </button>
         </div>
 
+        {/* Switch to Customer App Button */}
+        <button 
+          type="button"
+          onClick={() => navigate('/home')} 
+          className="w-full py-3.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-xs mt-3"
+        >
+          <span className="material-symbols-outlined text-[20px] text-purple-600">account_circle</span>
+          Switch to Customer App / यूजर ऐप खोलें
+        </button>
+
         {/* Logout Account Button */}
         <button 
           onClick={() => {
-            logout();
+            logout('vendor');
             window.location.replace('/vendor-app/login');
           }} 
-          className="w-full py-4 bg-[#fff5f5] hover:bg-[#ffebeb] text-red-600 border border-red-100 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-sm mt-3"
+          className="w-full py-4 bg-[#fff5f5] hover:bg-[#ffebeb] text-red-600 border border-red-100 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-sm mt-2"
         >
           <span className="material-symbols-outlined text-[18px] text-red-600" style={{ fontVariationSettings: "'wght' 700" }}>logout</span>
           {t('Logout Account')}

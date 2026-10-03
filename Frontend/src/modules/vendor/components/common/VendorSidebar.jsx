@@ -29,6 +29,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Profile', icon: 'person', path: '/vendor/profile' },
     { label: 'Ratings', icon: 'star_rate', path: '/vendor/ratings' },
     { label: 'Notifications', icon: 'notifications', path: '/vendor/notifications' },
+    { label: 'User App', icon: 'account_circle', path: '/home', badge: 'Switch' },
   ];
 
   const handleNavClick = (path) => {
