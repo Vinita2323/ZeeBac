@@ -2512,6 +2512,9 @@ export const toggleBiometricSecurity = async (req, res) => {
   }
 };
 
+// In-memory failed attempts tracker for vendors
+const failedVendorPinAttempts = new Map();
+
 // ─── Vendor Security: Verify Security PIN ───
 export const verifySecurityPin = async (req, res) => {
   try {
@@ -2528,14 +2531,41 @@ export const verifySecurityPin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No Security PIN is configured on this account' });
     }
 
-    const isMatch = await bcrypt.compare(String(pin).trim(), vendor.security.securityPin);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Incorrect Security PIN. Please try again.' });
+    const isMatch = await bcrypt.compare(cleanPin, vendor.security.securityPin);
+
+    // CRITICAL FIX: If PIN is correct, ALWAYS allow login/unlock and reset any failed attempts!
+    if (isMatch) {
+      failedVendorPinAttempts.delete(String(vendor._id));
+      return res.status(200).json({
+        success: true,
+        message: 'PIN verified successfully',
+      });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: 'PIN verified successfully',
+    // IF PIN IS INCORRECT: track attempts
+    const vendorId = String(vendor._id);
+    const now = Date.now();
+    const tracker = failedVendorPinAttempts.get(vendorId) || { count: 0, lastAttempt: now };
+
+    if (now - tracker.lastAttempt > 60 * 1000) {
+      tracker.count = 0;
+    }
+
+    tracker.count += 1;
+    tracker.lastAttempt = now;
+    failedVendorPinAttempts.set(vendorId, tracker);
+
+    const remaining = Math.max(0, 5 - tracker.count);
+    if (tracker.count >= 5) {
+      return res.status(401).json({
+        success: false,
+        message: 'Too many incorrect PIN attempts. Please enter your correct PIN or wait 1 minute.',
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: `Incorrect Security PIN. (${remaining} attempts remaining)`,
     });
   } catch (error) {
     logger.error(`[Vendor verifySecurityPin] Error: ${error.message}`);

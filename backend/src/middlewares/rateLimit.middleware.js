@@ -55,13 +55,14 @@ const pinKeyGenerator = (req) => {
 
 export const pinLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  limit: 5, // 5 attempts per 1 minute per user or vendor
+  limit: 50, // Generous network limit so genuine users never get blocked
+  skipSuccessfulRequests: true, // Never block successful PIN entries
   keyGenerator: pinKeyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    message: 'Too many PIN attempts. Maximum 5 attempts per minute allowed. Please wait 1 minute before trying again.'
+    message: 'Too many PIN requests. Please wait a moment before trying again.'
   },
 });
 
