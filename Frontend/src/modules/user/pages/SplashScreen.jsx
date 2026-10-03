@@ -4,22 +4,40 @@ import useAuthStore from '../../../store/useAuthStore';
 
 export default function SplashScreen() {
   const navigate = useNavigate();
-  const { accessToken, currentUser } = useAuthStore();
 
   useEffect(() => {
-    // Check for existing session using AuthStore (not localStorage)
+    // Check for existing session across all roles
     const timer = setTimeout(() => {
-      if (accessToken && currentUser?.role === 'vendor') {
-        navigate('/vendor', { replace: true });
-      } else if (accessToken && currentUser?.role === 'customer') {
+      const state = useAuthStore.getState();
+      const hasVendor = Boolean(
+        state.vendorToken ||
+        localStorage.getItem('zeebac_vendor_token') ||
+        (localStorage.getItem('zeebac_current_user')?.includes('"vendor"') && localStorage.getItem('zeebac_access_token'))
+      );
+      const hasCustomer = Boolean(
+        state.customerToken ||
+        localStorage.getItem('zeebac_customer_token') ||
+        (localStorage.getItem('zeebac_current_user')?.includes('"customer"') && localStorage.getItem('zeebac_access_token'))
+      );
+      const hasAdmin = Boolean(
+        state.adminToken ||
+        localStorage.getItem('zeebac_admin_token') ||
+        (localStorage.getItem('zeebac_current_user')?.includes('"admin"') && localStorage.getItem('zeebac_access_token'))
+      );
+
+      if (hasCustomer) {
         navigate('/home', { replace: true });
+      } else if (hasVendor) {
+        navigate('/vendor', { replace: true });
+      } else if (hasAdmin) {
+        navigate('/admin', { replace: true });
       } else {
         navigate('/login', { replace: true });
       }
-    }, 2200);
+    }, 1800);
 
     return () => clearTimeout(timer);
-  }, [navigate, accessToken, currentUser]);
+  }, [navigate]);
 
   return (
     <div className="flex items-center justify-center min-h-screen mesh-gradient relative overflow-hidden select-none">

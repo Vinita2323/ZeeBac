@@ -12,7 +12,7 @@ export default function VendorTopBar() {
   const { unreadCount } = useNotifications();
 
   const handleLogout = () => {
-    useAuthStore.getState().logout();
+    useAuthStore.getState().logout('vendor');
     window.location.replace('/vendor-app');
   };
 

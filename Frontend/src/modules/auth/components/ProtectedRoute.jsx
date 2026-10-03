@@ -27,7 +27,6 @@ export default function ProtectedRoute({ children, allowedRole }) {
     if (!hasVendor) {
       return <Navigate to="/vendor-app/login" replace />;
     }
-    syncRoleForRoute('/vendor');
     return children;
   }
 
@@ -35,7 +34,6 @@ export default function ProtectedRoute({ children, allowedRole }) {
     if (!hasAdmin) {
       return <Navigate to="/admin/login" replace />;
     }
-    syncRoleForRoute('/admin');
     return children;
   }
 
@@ -44,7 +42,6 @@ export default function ProtectedRoute({ children, allowedRole }) {
     if (!hasCustomer) {
       return <Navigate to="/login" replace />;
     }
-    syncRoleForRoute('/home');
     return children;
   }
 

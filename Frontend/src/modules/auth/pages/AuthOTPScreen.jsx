@@ -65,15 +65,15 @@ export default function AuthOTPScreen() {
 
           setVerified(true);
 
-          // Set current user session via global store (including tokens)
+          // Set current user session via global store (including tokens and explicit role)
           const login = useAuthStore.getState().login;
-          login(account, accessToken, refreshToken);
+          login(account, accessToken, refreshToken, role);
 
           // Show success snackbar
           useUIStore.getState().showSnackbar('Logged in successfully!', 'success');
 
           setTimeout(() => {
-            if (account.role === 'vendor') {
+            if (role === 'vendor' || account.role === 'vendor') {
               navigate('/vendor', { replace: true });
             } else {
               navigate('/home', { replace: true });

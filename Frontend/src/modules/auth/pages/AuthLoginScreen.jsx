@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import useAuthStore from '../../../store/useAuthStore';
 import { AuthAPI } from '../../../services/api';
 
 export default function AuthLoginScreen({ role = 'customer' }) {
@@ -9,6 +10,27 @@ export default function AuthLoginScreen({ role = 'customer' }) {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const isVendor = role === 'vendor';
+
+  // If already authenticated for this role, auto-redirect immediately so returning mobile users are not shown the login screen
+  useEffect(() => {
+    const state = useAuthStore.getState();
+    const hasVendor = Boolean(
+      state.vendorToken ||
+      localStorage.getItem('zeebac_vendor_token') ||
+      (localStorage.getItem('zeebac_current_user')?.includes('"vendor"') && localStorage.getItem('zeebac_access_token'))
+    );
+    const hasCustomer = Boolean(
+      state.customerToken ||
+      localStorage.getItem('zeebac_customer_token') ||
+      (localStorage.getItem('zeebac_current_user')?.includes('"customer"') && localStorage.getItem('zeebac_access_token'))
+    );
+
+    if (isVendor && hasVendor) {
+      navigate('/vendor', { replace: true });
+    } else if (!isVendor && hasCustomer) {
+      navigate('/home', { replace: true });
+    }
+  }, [isVendor, navigate]);
 
   const handleInputChange = (e) => {
     const value = e.target.value.replace(/[^0-9]/g, '');

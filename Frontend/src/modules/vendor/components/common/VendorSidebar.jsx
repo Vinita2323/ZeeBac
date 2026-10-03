@@ -11,7 +11,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
 
   const handleLogout = (e) => {
     if (e) e.stopPropagation();
-    useAuthStore.getState().logout();
+    useAuthStore.getState().logout('vendor');
     window.location.replace('/vendor-app');
   };
 

@@ -243,8 +243,12 @@ export const refreshAccessToken = async (req, res) => {
     if (!account) account = await Vendor.findById(decoded.id);
     if (!account) account = await AdminUser.findById(decoded.id);
 
-    if (!account || account.refreshToken !== refreshToken) {
-      return res.status(403).json({ message: 'Invalid refresh token' });
+    if (!account) {
+      return res.status(403).json({ message: 'Account not found' });
+    }
+
+    if (account.status === 'Suspended' || account.status === 'Banned') {
+      return res.status(403).json({ message: 'Account is suspended or banned' });
     }
 
     // Issue new access token

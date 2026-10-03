@@ -22,7 +22,15 @@ import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
 import VendorLoanPage from './pages/VendorLoanPage';
 
 export default function VendorRoutes() {
-  const status = useAuthStore((s) => s.currentUser?.status);
+  const vendorUser = useAuthStore((s) => s.vendorUser) || (() => {
+    try {
+      const raw = localStorage.getItem('zeebac_vendor_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const status = vendorUser?.status || useAuthStore((s) => s.currentUser?.status);
 
   // A vendor whose application isn't yet approved never reaches the real
   // dashboard — they only see their application status/rejection/resubmit flow.

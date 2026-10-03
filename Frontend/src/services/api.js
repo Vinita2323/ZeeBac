@@ -143,7 +143,12 @@ apiClient.interceptors.response.use(
         // AND logout ONLY the affected role, never all sessions!
         if (err.response?.status === 401 || err.response?.status === 403) {
           const reqUrl = originalRequest.url || '';
-          const failedRole = reqUrl.includes('/vendor') ? 'vendor' : reqUrl.includes('/admin') ? 'admin' : 'customer';
+          let failedRole = 'customer';
+          if (reqUrl.includes('/vendor') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/vendor'))) {
+            failedRole = 'vendor';
+          } else if (reqUrl.includes('/admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))) {
+            failedRole = 'admin';
+          }
           console.warn(`[apiClient] Refresh token rejected for ${failedRole}. Logging out only ${failedRole}.`);
           useAuthStore.getState().logout(failedRole);
         }

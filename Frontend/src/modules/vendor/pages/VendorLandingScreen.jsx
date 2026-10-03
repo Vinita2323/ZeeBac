@@ -9,20 +9,16 @@ export default function VendorLandingScreen() {
 
   useEffect(() => {
     // Check if already logged in as vendor
-    if (currentUser?.role === 'vendor') {
+    const state = useAuthStore.getState();
+    const hasVendor = Boolean(
+      state.vendorToken ||
+      localStorage.getItem('zeebac_vendor_token') ||
+      (localStorage.getItem('zeebac_current_user')?.includes('"vendor"') && localStorage.getItem('zeebac_access_token'))
+    );
+
+    if (hasVendor || currentUser?.role === 'vendor') {
       navigate('/vendor', { replace: true });
       return;
-    }
-
-    const user = localStorage.getItem('zeebac_current_user');
-    if (user) {
-      try {
-        const parsed = JSON.parse(user);
-        if (parsed?.role === 'vendor') {
-          navigate('/vendor', { replace: true });
-          return;
-        }
-      } catch (e) {}
     }
     setShow(true);
   }, [navigate, currentUser]);
