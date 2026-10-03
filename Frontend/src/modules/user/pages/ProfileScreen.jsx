@@ -668,14 +668,65 @@ export default function ProfileScreen() {
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </div>
             </div>
+          </div>
+        </div>
 
+        {/* Multi-Panel Switcher (Same Phone / Same Browser) */}
+        <div className="glass-panel rounded-2xl p-4 space-y-3 border border-purple-200/50 shadow-sm bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-purple-600">swap_horizontal_circle</span>
+              <h3 className="font-extrabold text-[14px] text-slate-800">Switch Panel / पैनल बदलें</h3>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Multi-Role</span>
+          </div>
+          <p className="text-[12px] text-slate-500">
+            Ek hi phone aur browser mein bina logout kiye Partner ya Admin panel mein switch karein:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            {/* Vendor / Partner Panel */}
+            <button
+              type="button"
+              onClick={() => navigate('/vendor')}
+              className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-purple-100 hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">storefront</span>
+                </div>
+                <div className="text-left">
+                  <p className="text-[12.5px] font-black text-slate-800 leading-tight">Partner Panel</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Merchant Dashboard</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-purple-600">arrow_forward</span>
+            </button>
+
+            {/* Admin Panel */}
+            <button
+              type="button"
+              onClick={() => navigate('/admin')}
+              className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-indigo-100 hover:border-indigo-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                </div>
+                <div className="text-left">
+                  <p className="text-[12.5px] font-black text-slate-800 leading-tight">Admin Portal</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Management Console</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-indigo-600">arrow_forward</span>
+            </button>
           </div>
         </div>
 
         {/* Logout */}
         <button 
           onClick={() => {
-            logout();
+            logout('customer');
             window.location.replace('/login');
           }}
           className="w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"

@@ -34,11 +34,15 @@ const hasSecurityEnabled = (user) => {
 };
 
 const UNLOCK_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
-const LAST_UNLOCKED_AT_KEY = 'zeebac_app_last_unlocked_at';
 
-const isWithinUnlockGracePeriod = () => {
+const getUnlockKey = (role = null) => {
+  return role ? `zeebac_${role}_last_unlocked_at` : 'zeebac_app_last_unlocked_at';
+};
+
+const isWithinUnlockGracePeriod = (role = null) => {
   try {
-    const raw = localStorage.getItem(LAST_UNLOCKED_AT_KEY) || sessionStorage.getItem(LAST_UNLOCKED_AT_KEY);
+    const key = getUnlockKey(role);
+    const raw = localStorage.getItem(key) || sessionStorage.getItem(key) || localStorage.getItem('zeebac_app_last_unlocked_at');
     if (!raw) return false;
     const timestamp = parseInt(raw, 10);
     if (isNaN(timestamp)) return false;
@@ -48,18 +52,24 @@ const isWithinUnlockGracePeriod = () => {
   }
 };
 
-const markUnlockedThisSession = () => {
+const markUnlockedThisSession = (role = null) => {
   try {
     const now = String(Date.now());
-    localStorage.setItem(LAST_UNLOCKED_AT_KEY, now);
-    sessionStorage.setItem(LAST_UNLOCKED_AT_KEY, now);
+    const key = getUnlockKey(role);
+    localStorage.setItem(key, now);
+    sessionStorage.setItem(key, now);
+    localStorage.setItem('zeebac_app_last_unlocked_at', now);
   } catch { /* ignore */ }
 };
 
-const clearUnlockedThisSession = () => {
+const clearUnlockedThisSession = (role = null) => {
   try {
-    localStorage.removeItem(LAST_UNLOCKED_AT_KEY);
-    sessionStorage.removeItem(LAST_UNLOCKED_AT_KEY);
+    const key = getUnlockKey(role);
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+    if (!role || role === 'all') {
+      localStorage.removeItem('zeebac_app_last_unlocked_at');
+    }
   } catch { /* ignore */ }
 };
 
@@ -280,7 +290,10 @@ const useAuthStore = create((set, get) => ({
             accessToken: token,
             isAuthenticated: true,
             walletBalance: balance,
-            isAppLocked: hasSecurityEnabled(user) && !isWithinUnlockGracePeriod(),
+            isAppLocked: hasSecurityEnabled(user) && !isWithinUnlockGracePeriod(desiredRole),
+            ...(desiredRole === 'vendor' ? { vendorUser: user, vendorToken: token } : {}),
+            ...(desiredRole === 'customer' ? { customerUser: user, customerToken: token } : {}),
+            ...(desiredRole === 'admin' ? { adminUser: user, adminToken: token } : {}),
           });
           get().fetchWalletBalance();
         }
@@ -288,17 +301,19 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
-  lockApp: (force = false) => {
+  lockApp: (force = false, role = null) => {
+    const targetRole = role || (get().currentUser?.role === 'vendor' ? 'vendor' : 'customer');
     if (!hasSecurityEnabled(get().currentUser)) return;
-    if (!force && isWithinUnlockGracePeriod()) {
+    if (!force && isWithinUnlockGracePeriod(targetRole)) {
       return;
     }
-    clearUnlockedThisSession();
+    clearUnlockedThisSession(targetRole);
     set({ isAppLocked: true });
   },
 
-  unlockApp: () => {
-    markUnlockedThisSession();
+  unlockApp: (role = null) => {
+    const targetRole = role || (get().currentUser?.role === 'vendor' ? 'vendor' : 'customer');
+    markUnlockedThisSession(targetRole);
     set({ isAppLocked: false });
   },
 
