@@ -19,7 +19,7 @@ export const DUPLICATE_WINDOW_MINUTES = 10;
 
 // Cash mode anti-fraud rules
 export const MAX_CASH_REQUEST_AMOUNT = 1000;
-export const MAX_CASH_NEARBY_METERS = 300;
+export const MAX_CASH_NEARBY_METERS = 5000; // Generous 5km radius (prevents indoor GPS drift & large mall false blocks)
 
 export class DailyLimitExceededError extends Error {
   constructor(message) {
@@ -118,8 +118,6 @@ export const assertNoRecentDuplicateRequest = async (customerId, vendorId, amoun
     throw new DuplicateRequestError('You already submitted a very similar request a few minutes ago.');
   }
 };
-
-export const MAX_CASH_NEARBY_METERS = 5000; // Generous 5km radius (prevents indoor GPS drift & large mall false blocks)
 
 export const assertCashRequestAllowed = async ({ customerId, vendor, amount, latitude, longitude, haversineDistanceMeters }) => {
   const numAmount = parseFloat(amount);
