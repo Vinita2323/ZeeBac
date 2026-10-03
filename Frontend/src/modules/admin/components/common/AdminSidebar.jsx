@@ -55,7 +55,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
 
   const executeLogout = () => {
     setShowLogoutConfirm(false);
-    useAuthStore.getState().logout();
+    useAuthStore.getState().logout('admin');
     window.location.replace('/admin/login');
   };
 
