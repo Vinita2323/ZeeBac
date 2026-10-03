@@ -34,7 +34,7 @@ const notificationSchema = new mongoose.Schema(
     },
     referenceType: {
       type: String,
-      enum: ['transaction', 'cashback_request', 'vendor', 'referral', null],
+      enum: ['transaction', 'cashback_request', 'vendor', 'referral', 'conversation', null],
     },
     isRead: {
       type: Boolean,

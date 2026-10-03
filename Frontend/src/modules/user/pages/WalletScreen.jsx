@@ -6,10 +6,12 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
 import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
-
+import useLanguageStore from '../../../store/useLanguageStore';
+import FourDigitPinInput from '../../../components/common/FourDigitPinInput';
 
 export default function WalletScreen() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const location = useLocation();
   const authBalance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
@@ -171,7 +173,7 @@ export default function WalletScreen() {
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
-            <span className="font-display text-title-md text-primary font-bold ml-1">Rewards Wallet</span>
+            <span className="font-display text-title-md text-primary font-bold ml-1">{t('Rewards Wallet')}</span>
           </div>
         </div>
       </header>
@@ -182,12 +184,12 @@ export default function WalletScreen() {
         {/* Available rewards banner card */}
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
           <div className="space-y-sm">
-            <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-widest leading-none">Total Cashback Reward</p>
+            <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-widest leading-none">{t('Total Cashback Reward')}</p>
             <h2 className="text-[44px] font-display font-black text-primary leading-none">₹{balance.toFixed(2)}</h2>
             {lockedBalance > 0 && (
               <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-[11px] font-bold">
                 <span className="material-symbols-outlined text-[14px]">lock_clock</span>
-                <span>₹{lockedBalance.toFixed(2)} locked (24-hr) · Withdrawable: ₹{withdrawableBalance.toFixed(2)}</span>
+                <span>₹{lockedBalance.toFixed(2)} {t('locked (24-hr)')} · {t('Withdrawable:')} ₹{withdrawableBalance.toFixed(2)}</span>
               </div>
             )}
           </div>
@@ -201,7 +203,7 @@ export default function WalletScreen() {
               <div className="w-11 h-11 bg-secondary/10 rounded-full flex items-center justify-center text-secondary group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">account_balance</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Withdrawal</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">{t('Withdrawal')}</span>
             </button>
             <button 
               onClick={() => setSubView('perks')}
@@ -210,7 +212,7 @@ export default function WalletScreen() {
               <div className="w-11 h-11 bg-green-500/10 rounded-full flex items-center justify-center text-green-600 group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">stars</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">Rewards</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">{t('Rewards')}</span>
             </button>
             <button 
               onClick={() => navigate('/passbook')}
@@ -219,7 +221,7 @@ export default function WalletScreen() {
               <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">history</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">History</span>
+              <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">{t('History')}</span>
             </button>
           </div>
         </div>
@@ -234,8 +236,8 @@ export default function WalletScreen() {
               <span className="material-symbols-outlined text-[20px]">history_edu</span>
             </div>
             <div className="text-left">
-              <p className="font-title-md text-on-surface font-extrabold text-body-sm leading-none">Cashback Requests</p>
-              <p className="font-caption text-[11px] text-on-surface-variant mt-1.5">View status of submitted bills & receipts</p>
+              <p className="font-title-md text-on-surface font-extrabold text-body-sm leading-none">{t('Cashback Requests')}</p>
+              <p className="font-caption text-[11px] text-on-surface-variant mt-1.5">{t('View status of submitted bills & receipts')}</p>
             </div>
           </div>
           <span className="material-symbols-outlined text-outline text-body-lg">chevron_right</span>
@@ -243,15 +245,15 @@ export default function WalletScreen() {
 
         {/* Recent rewards transaction list */}
         <div className="space-y-md">
-          <h3 className="font-display text-title-md text-on-surface font-extrabold">Recent Wallet Activity</h3>
+          <h3 className="font-display text-title-md text-on-surface font-extrabold">{t('Recent Wallet Activity')}</h3>
           
           {activities.length === 0 ? (
             <div className="glass-card rounded-2xl py-8 px-4 flex flex-col items-center text-center gap-1.5">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-1">
                 <span className="material-symbols-outlined text-primary text-[24px]">receipt_long</span>
               </div>
-              <p className="font-bold text-on-surface text-[13.5px]">No activity yet</p>
-              <p className="text-on-surface-variant text-[12px] max-w-[220px]">Your cashback credits and cashouts will show up here</p>
+              <p className="font-bold text-on-surface text-[13.5px]">{t('No activity yet')}</p>
+              <p className="text-on-surface-variant text-[12px] max-w-[220px]">{t('Your cashback credits and cashouts will show up here')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-md">
@@ -266,7 +268,7 @@ export default function WalletScreen() {
                     <span className="material-symbols-outlined">{act.icon}</span>
                   </div>
                   <div className="flex-grow text-left space-y-0.5">
-                    <h4 className="font-title-md text-on-surface font-bold text-body-lg">{act.name}</h4>
+                    <h4 className="font-title-md text-on-surface font-bold text-body-lg">{t(act.name)}</h4>
                     <p className="text-caption text-on-surface-variant text-[12px]">{act.time}</p>
                     {act.utr && (
                       <p className="text-[11px] font-bold text-primary/70 bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-0.5">
@@ -278,7 +280,7 @@ export default function WalletScreen() {
                     <p className={`font-display font-black text-body-lg ${
                       act.status === 'Credited' ? 'text-green-600' : 'text-red-600'
                     }`}>{act.amount}</p>
-                    <span className="text-[10px] uppercase font-semibold text-outline tracking-wider">{act.status}</span>
+                    <span className="text-[10px] uppercase font-semibold text-outline tracking-wider">{t(act.status)}</span>
                   </div>
                 </div>
               ))}
@@ -301,15 +303,15 @@ export default function WalletScreen() {
                 <span className="material-symbols-outlined text-[24px]">receipt_long</span>
               </div>
 
-              <h3 className="font-display font-bold text-[18px] text-on-surface leading-tight">Claim UPI Cashback</h3>
+              <h3 className="font-display font-bold text-[18px] text-on-surface leading-tight">{t('Claim UPI Cashback')}</h3>
               <p className="text-[12px] text-on-surface-variant mt-1 mb-4 leading-relaxed">
-                If Google Pay or your UPI app didn't share your contact number, enter the 12-digit UPI Reference No. (UTR) from your payment receipt to claim your cashback!
+                {t("If Google Pay or your UPI app didn't share your contact number, enter the 12-digit UPI Reference No. (UTR) from your payment receipt to claim your cashback!")}
               </p>
 
               <div className="space-y-3">
                 <div>
                   <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
-                    12-Digit UPI Ref No. / UTR
+                    {t('12-Digit UPI Ref No. / UTR')}
                   </label>
                   <input
                     autoFocus
@@ -339,7 +341,7 @@ export default function WalletScreen() {
                   ) : (
                     <>
                       <span className="material-symbols-outlined text-[18px]">redeem</span>
-                      Verify & Claim Cashback
+                      {t('Verify & Claim Cashback')}
                     </>
                   )}
                 </button>
@@ -924,20 +926,16 @@ function CashoutSubView({
                 </div>
               ) : (
                 <form onSubmit={handleVerifyPinAndWithdraw} className="space-y-3.5 py-1 text-left">
-                  <div>
-                    <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                      Enter Security PIN / Password
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider text-center">
+                      Enter 4-Digit Security PIN
                     </label>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={8}
-                      autoFocus
-                      required
+                    <FourDigitPinInput
                       value={authPin}
-                      onChange={(e) => { setAuthPin(e.target.value.replace(/\D/g, '')); setAuthError(''); }}
-                      placeholder="Enter 4-8 digit PIN"
-                      className="w-full h-12 px-4 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[16px] font-bold tracking-widest text-on-surface text-center"
+                      onChange={(val) => { setAuthPin(val); setAuthError(''); }}
+                      autoFocus={true}
+                      hasError={Boolean(authError)}
+                      idPrefix="user-wallet-pin"
                     />
                   </div>
 
@@ -950,8 +948,8 @@ function CashoutSubView({
                   <div className="space-y-2 pt-1">
                     <button
                       type="submit"
-                      disabled={isVerifyingSecurity || !authPin}
-                      className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                      disabled={isVerifyingSecurity || authPin.length !== 4}
+                      className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       {isVerifyingSecurity ? (
                         <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -1735,22 +1733,20 @@ function RechargeSubView({ balance, currentUser, onBack, setBalance, onRechargeS
 
             {authMode === 'pin' ? (
               <form onSubmit={handleVerifyPinAndRecharge} className="space-y-4 my-4">
-                <input
-                  type="password"
-                  maxLength={6}
-                  autoFocus
+                <FourDigitPinInput
                   value={authPin}
-                  onChange={(e) => {
-                    setAuthPin(e.target.value.replace(/\D/g, ''));
+                  onChange={(val) => {
+                    setAuthPin(val);
                     setAuthError('');
                   }}
-                  placeholder="Enter PIN"
-                  className="w-full h-12 text-center font-mono font-black text-2xl bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-primary outline-none tracking-widest"
+                  autoFocus={true}
+                  hasError={Boolean(authError)}
+                  idPrefix="user-recharge-pin"
                 />
                 <button
                   type="submit"
-                  disabled={authPin.length < 4 || isVerifyingSecurity}
-                  className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-sm shadow-md cursor-pointer disabled:opacity-50"
+                  disabled={authPin.length !== 4 || isVerifyingSecurity}
+                  className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-sm shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isVerifyingSecurity ? 'Verifying PIN...' : 'Confirm Recharge'}
                 </button>

@@ -26,7 +26,20 @@ export const requestNotificationPermission = async (role = 'customer') => {
       return null;
     }
 
-    const tokenOptions = VAPID_KEY ? { vapidKey: VAPID_KEY } : undefined;
+    let registration = null;
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Firebase Service Worker registered successfully:', registration.scope);
+      } catch (swErr) {
+        console.warn('Service worker registration fallback:', swErr);
+      }
+    }
+
+    const tokenOptions = {
+      ...(VAPID_KEY ? { vapidKey: VAPID_KEY } : {}),
+      ...(registration ? { serviceWorkerRegistration: registration } : {}),
+    };
     const token = await getToken(messaging, tokenOptions);
     if (!token) {
       console.log('No FCM token obtained from Firebase');

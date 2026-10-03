@@ -16,7 +16,8 @@ export default function ProtectedRoute({ children, allowedRole }) {
     : currentUser.role === allowedRole;
 
   if (allowedRole && !isRoleValid) {
-    // Logged in but trying to access the wrong role's pages
+    // Logged in with different role: if trying to open admin, send to admin login
+    if (allowedRole === 'admin') return <Navigate to="/admin/login" replace />;
     if (allowedRole === 'vendor') return <Navigate to="/vendor-app" replace />;
     if (currentUser.role === 'vendor') return <Navigate to="/vendor" replace />;
     if (currentUser.role === 'admin' || currentUser.role === 'super_admin') return <Navigate to="/admin" replace />;

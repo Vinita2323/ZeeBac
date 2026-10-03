@@ -15,7 +15,17 @@ export default class ErrorBoundary extends React.Component {
   }
 
   handleReload = () => {
-    window.location.href = '/login';
+    window.location.reload();
+  };
+
+  handleBackToLogin = () => {
+    if (window.location.pathname.startsWith('/admin')) {
+      window.location.href = '/admin/login';
+    } else if (window.location.pathname.startsWith('/vendor')) {
+      window.location.href = '/vendor-app/login';
+    } else {
+      window.location.href = '/login';
+    }
   };
 
   render() {
@@ -31,13 +41,28 @@ export default class ErrorBoundary extends React.Component {
               <p className="text-slate-400 text-sm leading-relaxed">
                 An unexpected error occurred while loading this page. Please refresh or return to login.
               </p>
+              {this.state.error?.message && (
+                <div className="mt-3 p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs text-rose-300 font-mono text-left break-all select-all">
+                  {this.state.error.message}
+                </div>
+              )}
             </div>
-            <button
-              onClick={this.handleReload}
-              className="w-full py-3.5 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm tracking-wide transition-all cursor-pointer shadow-lg shadow-purple-600/30"
-            >
-              Back to Sign In
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={this.handleReload}
+                className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm tracking-wide transition-all cursor-pointer border border-slate-700"
+              >
+                Reload Page
+              </button>
+              <button
+                type="button"
+                onClick={this.handleBackToLogin}
+                className="flex-1 py-3 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm tracking-wide transition-all cursor-pointer shadow-lg shadow-purple-600/30"
+              >
+                Sign In
+              </button>
+            </div>
           </div>
         </div>
       );

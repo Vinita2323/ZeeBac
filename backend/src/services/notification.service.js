@@ -49,8 +49,12 @@ export const sendNotification = async ({
     // 2. Push the notification over the live socket connection so the
     // notification bell updates instantly instead of waiting on polling.
     try {
-      const room = recipientType === 'vendor' ? `vendor_${recipientId}` : `user_${recipientId}`;
-      getIO().to(room).emit('new_notification', notification);
+      const idStr = String(recipientId);
+      const room = recipientType === 'vendor' ? `vendor_${idStr}` : `user_${idStr}`;
+      const rooms = [room, `user_${idStr}`, `vendor_${idStr}`, `customer_${idStr}`];
+      [...new Set(rooms)].forEach((r) => {
+        getIO().to(r).emit('new_notification', notification);
+      });
     } catch (ioErr) {
       logger.warn(`sendNotification: socket emit skipped (${ioErr.message})`);
     }

@@ -556,7 +556,7 @@ export const getVendorSalesAnalytics = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
-    const { period = 'today' } = req.query; // 'today' | 'weekly' | 'monthly' | 'yearly'
+    const { period = 'today', startDate, endDate } = req.query; // 'today' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
@@ -564,8 +564,19 @@ export const getVendorSalesAnalytics = async (req, res) => {
 
     const startOfTodayUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset);
     let startDateUtc;
+    let endDateUtc = null;
 
-    if (period === 'weekly') {
+    if (period === 'custom' && startDate) {
+      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+      startDateUtc = new Date(Date.UTC(sYear, sMonth - 1, sDay) - istOffset);
+
+      if (endDate) {
+        const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+        endDateUtc = new Date(Date.UTC(eYear, eMonth - 1, eDay, 23, 59, 59, 999) - istOffset);
+      } else {
+        endDateUtc = new Date(Date.UTC(sYear, sMonth - 1, sDay, 23, 59, 59, 999) - istOffset);
+      }
+    } else if (period === 'weekly') {
       startDateUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
     } else if (period === 'monthly') {
       startDateUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - istOffset);
@@ -576,12 +587,17 @@ export const getVendorSalesAnalytics = async (req, res) => {
       startDateUtc = startOfTodayUtc;
     }
 
+    const dateFilter = { $gte: startDateUtc };
+    if (endDateUtc) {
+      dateFilter.$lte = endDateUtc;
+    }
+
     const transactions = await Transaction.find({
       vendorId: vendor._id,
       status: 'Approved',
       $or: [
-        { timestamp: { $gte: startDateUtc } },
-        { createdAt: { $gte: startDateUtc } }
+        { timestamp: dateFilter },
+        { createdAt: dateFilter }
       ]
     }).sort({ timestamp: -1, createdAt: -1 });
 
@@ -2411,8 +2427,8 @@ export const setupSecurityPin = async (req, res) => {
     const { pin, currentPin } = req.body;
     const cleanPin = String(pin || '').trim();
 
-    if (!cleanPin || cleanPin.length < 4 || cleanPin.length > 8 || !/^\d+$/.test(cleanPin)) {
-      return res.status(400).json({ success: false, message: 'Security PIN must be between 4 and 8 digits' });
+    if (!cleanPin || !/^\d{4}$/.test(cleanPin)) {
+      return res.status(400).json({ success: false, message: 'Security PIN must be exactly 4 digits' });
     }
 
     const vendor = await Vendor.findById(req.user.id);
@@ -2500,8 +2516,9 @@ export const toggleBiometricSecurity = async (req, res) => {
 export const verifySecurityPin = async (req, res) => {
   try {
     const { pin } = req.body;
-    if (!pin) {
-      return res.status(400).json({ success: false, message: 'Security PIN is required' });
+    const cleanPin = String(pin || '').trim();
+    if (!cleanPin || !/^\d{4}$/.test(cleanPin)) {
+      return res.status(400).json({ success: false, message: 'Security PIN must be exactly 4 digits' });
     }
 
     const vendor = await Vendor.findById(req.user.id);

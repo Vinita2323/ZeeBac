@@ -9,6 +9,7 @@ import { getBiometricSupportStatus, describeBiometricUnsupportedReason, register
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
+import SecurityPinModal from '../../../components/common/SecurityPinModal';
 import { useBackableSubview } from '../../../utils/navigationUtils';
 
 export default function ProfileScreen() {
@@ -100,9 +101,6 @@ export default function ProfileScreen() {
   const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
-  const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '', currentPin: '' });
-  const [pinError, setPinError] = useState('');
-  const [isSubmittingPin, setIsSubmittingPin] = useState(false);
   const [securityToast, setSecurityToast] = useState('');
 
   useEffect(() => {
@@ -179,8 +177,6 @@ export default function ProfileScreen() {
       // If user hasn't configured a backup PIN yet, prompt PIN setup first
       if (!currentUser?.security?.hasPin) {
         setPinMode('setup');
-        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
-        setPinError('');
         setShowPinModal(true);
         return;
       }
@@ -200,46 +196,21 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSavePin = async (e) => {
-    e.preventDefault();
-    setPinError('');
-    if (!pinForm.pin || pinForm.pin.length < 4 || pinForm.pin.length > 8) {
-      setPinError('PIN must be 4 to 8 digits.');
-      return;
-    }
-    if (pinForm.pin !== pinForm.confirmPin) {
-      setPinError('PINs do not match.');
-      return;
-    }
-    if (pinMode === 'change' && !pinForm.currentPin) {
-      setPinError('Current PIN is required.');
-      return;
-    }
-
-    setIsSubmittingPin(true);
-    try {
-      const res = await UserAPI.setupSecurityPin(pinForm.pin, pinForm.currentPin || null);
-      if (res.success) {
-        updateProfileStore({
-          security: {
-            ...useAuthStore.getState().currentUser?.security,
-            hasPin: true,
-          }
-        });
-        setShowPinModal(false);
-        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
-
-        if (pinMode === 'setup') {
-          await enrollBiometrics();
-        } else {
-          setSecurityToast('✅ Security PIN updated successfully.');
-          setTimeout(() => setSecurityToast(''), 3500);
-        }
+  const handlePinSubmit = async (pin, currentPin) => {
+    const res = await UserAPI.setupSecurityPin(pin, currentPin || null);
+    if (res.success) {
+      updateProfileStore({
+        security: {
+          ...useAuthStore.getState().currentUser?.security,
+          hasPin: true,
+        },
+      });
+      if (pinMode === 'setup') {
+        await enrollBiometrics();
+      } else {
+        setSecurityToast('✅ 4-Digit Security PIN updated successfully.');
+        setTimeout(() => setSecurityToast(''), 3500);
       }
-    } catch (err) {
-      setPinError(err.response?.data?.message || err.message || 'Failed to set PIN.');
-    } finally {
-      setIsSubmittingPin(false);
     }
   };
 
@@ -322,6 +293,7 @@ export default function ProfileScreen() {
         initialProfile={profile} 
         onSave={handleProfileSave}
         onBack={() => window.history.back()}
+        t={t}
       />
     );
   }
@@ -335,6 +307,7 @@ export default function ProfileScreen() {
         userName={currentUser?.name || profile.name}
         onSave={handleSavePaymentDetails}
         onBack={() => window.history.back()}
+        t={t}
       />
     );
   }
@@ -344,6 +317,7 @@ export default function ProfileScreen() {
     return (
       <SupportSubView
         onBack={() => window.history.back()}
+        t={t}
       />
     );
   }
@@ -354,6 +328,7 @@ export default function ProfileScreen() {
       <QRCodeSubView
         profile={profile}
         onBack={() => window.history.back()}
+        t={t}
       />
     );
   }
@@ -364,6 +339,7 @@ export default function ProfileScreen() {
       <ReferEarnSubView
         profile={profile}
         onBack={() => window.history.back()}
+        t={t}
       />
     );
   }
@@ -374,6 +350,7 @@ export default function ProfileScreen() {
       <PendingAuditsSubView
         onBack={() => window.history.back()}
         onSelectRequest={(reqId) => navigate(`/request/${reqId}`)}
+        t={t}
       />
     );
   }
@@ -384,7 +361,7 @@ export default function ProfileScreen() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-5 py-3 border-b border-outline-variant/10 shadow-sm">
         <div className="app-container flex items-center justify-between">
-          <span className="font-display text-title-md text-primary font-black">My Profile</span>
+          <span className="font-display text-title-md text-primary font-black">{t('My Profile')}</span>
         </div>
       </header>
 
@@ -449,16 +426,16 @@ export default function ProfileScreen() {
             <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-4 py-3 border-b border-outline-variant/10 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-                <span className="text-[12px] font-bold text-on-surface uppercase tracking-wider">Identity Verified</span>
-                <span className="ml-auto text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">KYC Done</span>
+                <span className="text-[12px] font-bold text-on-surface uppercase tracking-wider">{t('Identity Verified')}</span>
+                <span className="ml-auto text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{t('KYC Done')}</span>
               </div>
               <div className="p-4 grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Aadhaar</p>
+                  <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Aadhaar')}</p>
                   <p className="text-[13px] font-bold text-on-surface font-label-mono tracking-wider">{maskedAadhaar}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">PAN Card</p>
+                  <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('PAN Card')}</p>
                   <p className="text-[13px] font-bold text-on-surface font-label-mono tracking-wider uppercase">{maskedPan}</p>
                 </div>
               </div>
@@ -474,12 +451,12 @@ export default function ProfileScreen() {
             title="View Wallet Passbook"
           >
             <div className="flex items-center justify-between">
-              <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">Total Cashback</span>
+              <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">{t('Total Cashback')}</span>
               <span className="material-symbols-outlined text-[14px] text-[#0F4C81] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
             </div>
             <div>
               <h3 className="font-display text-base font-black text-[#0f4c81] leading-none">₹{stats.totalEarned}</h3>
-              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">In your wallet</p>
+              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">{t('In your wallet')}</p>
             </div>
           </div>
           <div 
@@ -488,19 +465,19 @@ export default function ProfileScreen() {
             title="View Pending Audits & Requests"
           >
             <div className="flex items-center justify-between">
-              <span className="font-caption text-[9px] text-[#1B5E20] uppercase tracking-wider font-bold">Pending Audits</span>
+              <span className="font-caption text-[9px] text-[#1B5E20] uppercase tracking-wider font-bold">{t('Pending Audits')}</span>
               <span className="material-symbols-outlined text-[14px] text-[#1B5E20] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
             </div>
             <div>
-              <h3 className="font-display text-base font-black text-[#1b5e20]">{stats.pendingRequests} Request{stats.pendingRequests !== 1 && 's'}</h3>
-              <p className="text-[8px] text-[#1B5E20]/80 font-medium mt-0.5">Awaiting review</p>
+              <h3 className="font-display text-base font-black text-[#1b5e20]">{stats.pendingRequests} {t('Request')}{stats.pendingRequests !== 1 && 's'}</h3>
+              <p className="text-[8px] text-[#1B5E20]/80 font-medium mt-0.5">{t('Awaiting review')}</p>
             </div>
           </div>
         </div>
 
         {/* Settings Group 1: General Options */}
         <div className="space-y-sm">
-          <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Accounts & History</h3>
+          <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">{t('Accounts & History')}</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
         
 
@@ -511,8 +488,8 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">account_balance</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Withdrawal Accounts</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Manage linked bank details & UPI</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('Withdrawal Accounts')}</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">{t('Manage linked bank details & UPI')}</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
@@ -525,8 +502,8 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">wallet</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Rewards Wallet</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Check balance status, withdrawal & rewards</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('Rewards Wallet')}</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">{t('Check balance status, withdrawal & rewards')}</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
@@ -536,7 +513,7 @@ export default function ProfileScreen() {
 
         {/* Settings Group 1.5: Rewards & Invites */}
         <div className="space-y-sm">
-          <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Rewards & Invites</h3>
+          <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">{t('Rewards & Invites', 'Rewards & Invites')}</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
             <div 
               onClick={() => setSubView('qr-code')}
@@ -545,8 +522,8 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">qr_code_2</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">My QR Code</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Receive cashback or payments instantly</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('My QR Code')}</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">{t('Receive cashback or payments instantly')}</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
@@ -559,8 +536,8 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">card_giftcard</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Refer & Earn</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">Get ₹150 reward for each friend you invite</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('Refer & Earn')}</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">{t('Get ₹150 reward for each friend you invite')}</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
@@ -570,7 +547,7 @@ export default function ProfileScreen() {
 
         {/* Settings Group 2: Preferences & Support */}
         <div className="space-y-sm">
-          <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">Preferences</h3>
+          <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">{t('Preferences')}</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm p-sm space-y-md">
             
             {/* Preference: App Language (English & Hindi) */}
@@ -581,12 +558,16 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">translate</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">App Language</p>
-                  <p className="font-caption text-[10px] text-on-surface-variant">Hindi &amp; English</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('App Language')}</p>
+                  <p className="font-caption text-[10px] text-on-surface-variant">{t('Hindi & English', 'Hindi & English')}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-[12px] font-bold text-primary">
-                <span>{language === 'hi' ? 'हिन्दी' : 'English'}</span>
+              <div className="flex items-center gap-1 text-[12px] font-bold">
+                <span className="leading-none text-[12px] font-bold flex items-center tracking-tight">
+                  <span className={language === 'en' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>Eng</span>
+                  <span className="text-slate-300 mx-0.5 font-normal">/</span>
+                  <span className={language === 'hi' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>हि</span>
+                </span>
                 <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
               </div>
             </div>
@@ -596,16 +577,16 @@ export default function ProfileScreen() {
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">notifications_active</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">Push Notifications</p>
-                  <p className="font-caption text-[10px] text-on-surface-variant">Alerts on cashback audits and rewards</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('Push Notifications')}</p>
+                  <p className="font-caption text-[10px] text-on-surface-variant">{t('Alerts on cashback audits and rewards')}</p>
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
-                  type="checkbox"
-                  checked={notifications}
-                  onChange={handleToggleNotifications}
-                  className="sr-only peer"
+                  type="checkbox" 
+                  checked={notifications} 
+                  onChange={handleToggleNotifications} 
+                  className="sr-only peer" 
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
               </label>
@@ -620,12 +601,12 @@ export default function ProfileScreen() {
                   </div>
                   <div>
                     <p className="font-title-md text-on-surface font-bold text-body-sm flex items-center gap-1.5">
-                      Biometric Security
+                      {t('Biometric Security')}
                       {biometrics && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">{t('Active')}</span>
                       )}
                     </p>
-                    <p className="font-caption text-[10px] text-on-surface-variant">Protect cashouts with Fingerprint, Face ID or PIN</p>
+                    <p className="font-caption text-[10px] text-on-surface-variant">{t('Protect cashouts with Fingerprint, Face ID or PIN')}</p>
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -650,20 +631,18 @@ export default function ProfileScreen() {
               {/* Backup PIN Manager */}
               <div className="flex items-center justify-between pl-11 pr-1 text-[11px]">
                 <span className="text-on-surface-variant font-medium">
-                  Backup PIN: <strong className="text-on-surface">{currentUser?.security?.hasPin ? 'Configured ✅' : 'Not Set'}</strong>
+                  {t('Backup PIN:')} <strong className="text-on-surface">{currentUser?.security?.hasPin ? t('Configured ✅') : t('Not Set')}</strong>
                 </span>
                 <button
                   type="button"
                   onClick={() => {
                     setPinMode(currentUser?.security?.hasPin ? 'change' : 'setup');
-                    setPinForm({ pin: '', confirmPin: '', currentPin: '' });
-                    setPinError('');
                     setShowPinModal(true);
                   }}
                   className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-0.5"
                 >
                   <span className="material-symbols-outlined text-[14px]">key</span>
-                  {currentUser?.security?.hasPin ? 'Change PIN' : 'Set PIN'}
+                  {currentUser?.security?.hasPin ? t('Change PIN') : t('Set PIN')}
                 </button>
               </div>
             </div>
@@ -679,10 +658,10 @@ export default function ProfileScreen() {
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <p className="font-title-md text-on-surface font-extrabold text-body-sm">Help &amp; FAQ Support</p>
+                    <p className="font-title-md text-on-surface font-extrabold text-body-sm">{t('Help & FAQ Support')}</p>
                     <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase">24x7</span>
                   </div>
-                  <p className="font-caption text-[11px] text-emerald-800 font-semibold">WhatsApp Chat &amp; Customer Care Helpline</p>
+                  <p className="font-caption text-[11px] text-emerald-800 font-semibold">{t('WhatsApp Chat & Customer Care Helpline')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1 text-emerald-700 font-bold text-[12px]">
@@ -702,7 +681,7 @@ export default function ProfileScreen() {
           className="w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
-          Logout Account
+          {t('Logout Account')}
         </button>
 
       </main>
@@ -717,7 +696,7 @@ export default function ProfileScreen() {
             >
               <span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span>
             </button>
-            <h3 className="font-display text-title-md font-bold mb-6 text-on-surface">Change Profile Photo</h3>
+            <h3 className="font-display text-title-md font-bold mb-6 text-on-surface">{t('Change Profile Photo')}</h3>
             
             <div className="flex justify-around gap-4 mb-6">
               <button 
@@ -727,7 +706,7 @@ export default function ProfileScreen() {
                 <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center text-[#7c3aed]">
                   <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
                 </div>
-                <span className="text-[12px] font-bold text-[#7c3aed]">Take Photo</span>
+                <span className="text-[12px] font-bold text-[#7c3aed]">{t('Take Photo')}</span>
               </button>
 
               <button 
@@ -737,7 +716,7 @@ export default function ProfileScreen() {
                 <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center text-secondary">
                   <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
                 </div>
-                <span className="text-[12px] font-bold text-secondary">Choose Gallery</span>
+                <span className="text-[12px] font-bold text-secondary">{t('Choose Gallery')}</span>
               </button>
             </div>
             {profile.profileImage && (
@@ -751,7 +730,7 @@ export default function ProfileScreen() {
                 className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold bg-red-50 hover:bg-red-100 transition-colors active:scale-95"
               >
                 <span className="material-symbols-outlined text-[20px]">delete</span>
-                Remove Photo
+                {t('Remove Photo')}
               </button>
             )}
           </div>
@@ -759,114 +738,12 @@ export default function ProfileScreen() {
       )}
 
       {/* Security PIN Setup / Change Modal */}
-      {showPinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-reveal">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-left">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[24px]">key</span>
-                </div>
-                <div>
-                  <h3 className="font-display font-extrabold text-[17px] text-on-surface">
-                    {pinMode === 'setup' ? 'Set Security PIN' : 'Change Security PIN'}
-                  </h3>
-                  <p className="text-[11px] text-on-surface-variant">Backup for Biometrics & Cashouts</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setShowPinModal(false); setPinError(''); }}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <p className="text-[12px] text-on-surface-variant leading-relaxed">
-              {pinMode === 'setup'
-                ? 'Create a 4 to 8 digit Security PIN. You can use this PIN to withdraw cash if your fingerprint or Face ID is unavailable.'
-                : 'Enter your current PIN and choose a new 4 to 8 digit Security PIN.'}
-            </p>
-
-            <form onSubmit={handleSavePin} className="space-y-3">
-              {pinMode === 'change' && (
-                <div>
-                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Current PIN</label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={8}
-                    required
-                    value={pinForm.currentPin}
-                    onChange={(e) => setPinForm({ ...pinForm, currentPin: e.target.value.replace(/\D/g, '') })}
-                    placeholder="Enter current PIN"
-                    className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                  {pinMode === 'setup' ? 'Create PIN (4-8 digits)' : 'New PIN (4-8 digits)'}
-                </label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  required
-                  value={pinForm.pin}
-                  onChange={(e) => setPinForm({ ...pinForm, pin: e.target.value.replace(/\D/g, '') })}
-                  placeholder="e.g. 1234"
-                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Confirm PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  required
-                  value={pinForm.confirmPin}
-                  onChange={(e) => setPinForm({ ...pinForm, confirmPin: e.target.value.replace(/\D/g, '') })}
-                  placeholder="Re-enter PIN"
-                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
-                />
-              </div>
-
-              {pinError && (
-                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px]">error</span>
-                  <span>{pinError}</span>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="flex-1 h-11 rounded-xl border border-outline-variant/30 font-bold text-[13px] text-on-surface-variant hover:bg-gray-50 active:scale-95 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingPin || !pinForm.pin || !pinForm.confirmPin}
-                  className="flex-1 h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-md hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1"
-                >
-                  {isSubmittingPin ? (
-                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    pinMode === 'setup' ? 'Save & Continue' : 'Update PIN'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SecurityPinModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        mode={pinMode}
+        onSubmit={handlePinSubmit}
+      />
 
       {/* Loan Coming Soon Modal */}
       <LoanComingSoonModal
@@ -887,7 +764,7 @@ export default function ProfileScreen() {
 }
 
 // SUBPAGE 1: EDIT PROFILE COMPONENT
-function EditProfileSubView({ initialProfile, onSave, onBack }) {
+function EditProfileSubView({ initialProfile, onSave, onBack, t }) {
   const [name, setName] = useState(initialProfile.name);
   const [email, setEmail] = useState(initialProfile.email);
   const [phone, setPhone] = useState(initialProfile.phone);
@@ -911,7 +788,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
-            <span className="font-display text-title-md text-primary ml-2">Edit Profile</span>
+            <span className="font-display text-title-md text-primary ml-2">{t ? t('Edit Profile') : 'Edit Profile'}</span>
           </div>
         </div>
       </header>
@@ -919,7 +796,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
       <main className="flex-grow app-container px-container-margin py-xl flex flex-col justify-between text-left">
         <form onSubmit={handleSubmit} className="space-y-md flex-grow">
           <div>
-            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Full Name</label>
+            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">{t ? t('Full Name') : 'Full Name'}</label>
             <input 
               autoFocus
               type="text"
@@ -930,18 +807,18 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
           </div>
 
           <div>
-            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Phone Number</label>
+            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">{t ? t('Phone Number') : 'Phone Number'}</label>
             <input 
               disabled
               type="text"
               value={phone}
               className="w-full h-[52px] px-md bg-gray-100 border border-outline-variant/20 rounded-xl text-on-surface-variant/80 outline-none text-body-lg cursor-not-allowed"
             />
-            <p className="text-[10px] text-on-surface-variant/60 mt-1 pl-1">Phone number cannot be modified.</p>
+            <p className="text-[10px] text-on-surface-variant/60 mt-1 pl-1">{t ? t('Phone number cannot be modified.') : 'Phone number cannot be modified.'}</p>
           </div>
 
           <div>
-            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">Email Address</label>
+            <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-xs">{t ? t('Email Address') : 'Email Address'}</label>
             <input 
               type="email"
               value={email}
@@ -960,7 +837,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
               : 'bg-outline-variant/60 text-on-surface/40 cursor-not-allowed opacity-50'
           }`}
         >
-          Save Changes
+          {t ? t('Save Changes') : 'Save Changes'}
         </button>
       </main>
     </div>
@@ -968,7 +845,7 @@ function EditProfileSubView({ initialProfile, onSave, onBack }) {
 }
 
 // SUBPAGE 2: LINKED ACCOUNTS COMPONENT WITH REGISTERED MOBILE OTP VERIFICATION
-function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, onBack }) {
+function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, onBack, t }) {
   const [accountHolderName, setAccountHolderName] = useState(initialPayments.accountHolderName || userName || '');
   const [bankName, setBankName] = useState(initialPayments.bankName || '');
   const [accNo, setAccNo] = useState(initialPayments.accNo || '');
@@ -1142,12 +1019,12 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
-            <span className="font-display text-title-md text-primary ml-2">Linked Accounts</span>
+            <span className="font-display text-title-md text-primary ml-2">{t ? t('Linked Accounts') : 'Linked Accounts'}</span>
           </div>
           {isVerified && (
             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
               <span className="material-symbols-outlined text-xs">verified_user</span>
-              Verified
+              {t ? t('Verified') : 'Verified'}
             </span>
           )}
         </div>
@@ -1163,17 +1040,17 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
             <div className="space-y-2 relative z-10">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-white/70 tracking-widest uppercase font-semibold">
-                  PRIMARY RECEIVING BANK
+                  {t ? t('PRIMARY RECEIVING BANK', 'PRIMARY RECEIVING BANK') : 'PRIMARY RECEIVING BANK'}
                 </span>
                 {isVerified ? (
                   <span className="bg-emerald-400/90 text-emerald-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
                     <span className="material-symbols-outlined text-[12px]">check_circle</span>
-                    Verified
+                    {t ? t('Verified') : 'Verified'}
                   </span>
                 ) : (
                   <span className="bg-amber-400 text-amber-950 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-0.5">
                     <span className="material-symbols-outlined text-[12px]">schedule</span>
-                    Unverified
+                    {t ? t('Unverified', 'Unverified') : 'Unverified'}
                   </span>
                 )}
               </div>
@@ -1185,14 +1062,14 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
 
               <div className="pt-2 border-t border-white/15 flex justify-between items-end text-body-sm">
                 <div>
-                  <span className="text-[9px] text-white/60 uppercase block tracking-wider">Account Number</span>
+                  <span className="text-[9px] text-white/60 uppercase block tracking-wider">{t ? t('Account Number') : 'Account Number'}</span>
                   <p className="font-label-mono tracking-widest font-bold">
                     {accNo ? (accNo.length > 4 ? `•••• •••• ${accNo.slice(-4)}` : accNo) : '•••• •••• ••••'}
                   </p>
                 </div>
                 {ifscCode && (
                   <div className="text-right">
-                    <span className="text-[9px] text-white/60 uppercase block tracking-wider">IFSC</span>
+                    <span className="text-[9px] text-white/60 uppercase block tracking-wider">{t ? t('IFSC Code') : 'IFSC'}</span>
                     <p className="font-label-mono text-xs font-semibold">{ifscCode}</p>
                   </div>
                 )}
@@ -1211,12 +1088,12 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
           <div className="space-y-3.5 bg-white p-5 rounded-2xl border border-outline-variant/30 shadow-sm">
             <h4 className="text-body-sm font-bold text-on-surface flex items-center gap-1.5 mb-1">
               <span className="material-symbols-outlined text-primary text-base">lock</span>
-              Bank Account Details
+              {t ? t('Bank Details') : 'Bank Account Details'}
             </h4>
 
             <div>
               <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
-                Account Holder Name
+                {t ? t('Account Holder Name') : 'Account Holder Name'}
               </label>
               <input 
                 type="text"
@@ -1229,7 +1106,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
 
             <div>
               <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
-                Receiving Bank Name *
+                {t ? t('Bank Name') : 'Receiving Bank Name *'}
               </label>
               <input 
                 type="text"
@@ -1242,7 +1119,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
 
             <div>
               <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
-                Bank Account Number *
+                {t ? t('Bank Account Number') : 'Bank Account Number *'}
               </label>
               <input 
                 type="text"
@@ -1255,7 +1132,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
 
             <div>
               <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
-                Bank IFSC Code
+                {t ? t('IFSC Code') : 'Bank IFSC Code'}
               </label>
               <input 
                 type="text"
@@ -1269,7 +1146,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
 
             <div>
               <label className="block text-caption text-on-surface-variant font-bold tracking-wider uppercase mb-1">
-                UPI ID / VPA (Optional)
+                {t ? t('UPI ID') : 'UPI ID / VPA (Optional)'}
               </label>
               <input 
                 type="text"
@@ -1308,12 +1185,12 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
             {isSendingOtp ? (
               <>
                 <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                <span>Sending OTP...</span>
+                <span>{t ? t('Sending OTP...') : 'Sending OTP...'}</span>
               </>
             ) : (
               <>
                 <span className="material-symbols-outlined text-xl">phonelink_lock</span>
-                <span>Verify with Mobile OTP</span>
+                <span>{t ? t('Verify with Mobile OTP') : 'Verify with Mobile OTP'}</span>
               </>
             )}
           </button>
@@ -1341,10 +1218,10 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
             </div>
 
             <h3 className="font-display font-black text-lg text-on-surface">
-              Verify Bank Linking
+              {t ? t('Verify Bank Linking') : 'Verify Bank Linking'}
             </h3>
             <p className="text-caption text-on-surface-variant mt-1 px-2">
-              Enter the 4-digit code sent to your registered mobile number:
+              {t ? t('Enter the 4-digit code sent to your registered mobile number:') : 'Enter the 4-digit code sent to your registered mobile number:'}
             </p>
             <p className="font-mono font-bold text-sm text-primary mt-0.5">
               {maskedPhone}
@@ -1378,7 +1255,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
             {/* Resend OTP */}
             <div className="text-xs text-on-surface-variant mb-5">
               {resendTimer > 0 ? (
-                <span>Resend OTP in <span className="font-bold font-mono text-primary">{resendTimer}s</span></span>
+                <span>{t ? t('Resend OTP in') : 'Resend OTP in'} <span className="font-bold font-mono text-primary">{resendTimer}s</span></span>
               ) : (
                 <button
                   type="button"
@@ -1386,7 +1263,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
                   disabled={isSendingOtp}
                   className="text-primary font-bold hover:underline cursor-pointer"
                 >
-                  {isSendingOtp ? 'Sending...' : 'Resend OTP via SMS'}
+                  {isSendingOtp ? (t ? t('Sending OTP...') : 'Sending...') : (t ? t('Resend OTP via SMS') : 'Resend OTP via SMS')}
                 </button>
               )}
             </div>
@@ -1405,10 +1282,10 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
               {isVerifyingOtp ? (
                 <>
                   <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  <span>Verifying...</span>
+                  <span>{t ? t('Verifying...') : 'Verifying...'}</span>
                 </>
               ) : (
-                'Confirm & Link Account'
+                t ? t('Confirm & Link Account') : 'Confirm & Link Account'
               )}
             </button>
           </div>
@@ -1419,7 +1296,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
 }
 
 // SUBPAGE 3: HELP & SUPPORT COMPONENT
-function SupportSubView({ onBack }) {
+function SupportSubView({ onBack, t }) {
   const [tickets, setTickets] = useState([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -1516,15 +1393,15 @@ function SupportSubView({ onBack }) {
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary ml-4">Help & FAQ Support</span>
+        <span className="font-display text-title-md text-primary ml-4">{t ? t('Help & FAQ Support') : 'Help & FAQ Support'}</span>
       </header>
 
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
         <div className="space-y-lg flex-grow">
           <div className="text-center space-y-xs pb-2 border-b border-outline-variant/10">
             <span className="material-symbols-outlined text-[#7c3aed] text-[48px] animate-bounce">contact_support</span>
-            <h2 className="text-headline-sm font-extrabold text-on-surface">Frequently Asked Questions</h2>
-            <p className="text-body-sm text-on-surface-variant">Quick answers to common questions about Zeebac rewards.</p>
+            <h2 className="text-headline-sm font-extrabold text-on-surface">{t ? t('Frequently Asked Questions', 'Frequently Asked Questions') : 'Frequently Asked Questions'}</h2>
+            <p className="text-body-sm text-on-surface-variant">{t ? t('Quick answers to common questions about Zeebac rewards.', 'Quick answers to common questions about Zeebac rewards.') : 'Quick answers to common questions about Zeebac rewards.'}</p>
           </div>
 
           {/* Direct WhatsApp Support Card */}
@@ -1749,7 +1626,7 @@ function SupportSubView({ onBack }) {
 }
 
 // SUBPAGE 4: MY QR CODE COMPONENT
-function QRCodeSubView({ profile, onBack }) {
+function QRCodeSubView({ profile, onBack, t }) {
   const [copied, setCopied] = useState(false);
   const currentUser = useAuthStore(state => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBC-0000';
@@ -1783,7 +1660,7 @@ function QRCodeSubView({ profile, onBack }) {
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary ml-4">My Zeebac QR</span>
+        <span className="font-display text-title-md text-primary ml-4">{t ? t('My Zeebac QR') : 'My Zeebac QR'}</span>
       </header>
 
       <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-3 flex flex-col justify-between items-center text-center">
@@ -1827,7 +1704,7 @@ function QRCodeSubView({ profile, onBack }) {
           {/* Zeebac ID Box */}
           <div className="w-full max-w-[280px] bg-white border border-outline-variant/20 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
             <div className="text-left">
-              <p className="text-[8px] text-on-surface-variant uppercase tracking-wider font-bold">Zeebac ID</p>
+              <p className="text-[8px] text-on-surface-variant uppercase tracking-wider font-bold">{t ? t('Zeebac ID') : 'Zeebac ID'}</p>
               <p className="text-xs font-mono font-bold text-on-surface select-all mt-0.5">{zeebacId}</p>
             </div>
             <button 
@@ -1835,12 +1712,12 @@ function QRCodeSubView({ profile, onBack }) {
               className="px-2.5 py-1 rounded-lg bg-[#7c3aed]/10 hover:bg-[#7c3aed]/20 text-[#7c3aed] text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined text-sm">{copied ? 'done' : 'content_copy'}</span>
-              <span>{copied ? 'Copied' : 'Copy'}</span>
+              <span>{copied ? (t ? t('Copied') : 'Copied') : (t ? t('Copy') : 'Copy')}</span>
             </button>
           </div>
 
           <p className="text-[9px] text-on-surface-variant/85 max-w-[260px] leading-snug mt-1">
-            Show this QR to vendors for instant wallet cashback transactions. No receipt needed!
+            {t ? t('Show this QR to vendors for instant wallet cashback transactions. No receipt needed!') : 'Show this QR to vendors for instant wallet cashback transactions. No receipt needed!'}
           </p>
         </div>
 
@@ -1850,14 +1727,14 @@ function QRCodeSubView({ profile, onBack }) {
             className="flex-1 h-11 bg-white text-primary border border-primary/30 rounded-xl font-title-md flex items-center justify-center gap-xs shadow-sm active:scale-95 transition-transform cursor-pointer text-sm"
           >
             <span className="material-symbols-outlined text-base">download</span>
-            Download
+            {t ? t('Download') : 'Download'}
           </button>
           <button 
             onClick={handleShare}
             className="flex-1 h-11 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-xs shadow-md active:scale-95 transition-transform cursor-pointer text-sm"
           >
             <span className="material-symbols-outlined text-base">share</span>
-            Share
+            {t ? t('Share') : 'Share'}
           </button>
         </div>
       </main>
@@ -1868,7 +1745,7 @@ function QRCodeSubView({ profile, onBack }) {
 
 
 // SUBPAGE 5: REFER & EARN COMPONENT
-function ReferEarnSubView({ profile, onBack }) {
+function ReferEarnSubView({ profile, onBack, t }) {
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [stats, setStats] = useState({
@@ -1948,7 +1825,7 @@ function ReferEarnSubView({ profile, onBack }) {
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary ml-4">Refer & Earn</span>
+        <span className="font-display text-title-md text-primary ml-4">{t ? t('Refer & Earn') : 'Refer & Earn'}</span>
       </header>
 
       <main className="flex-grow max-w-[460px] mx-auto w-full px-container-margin py-lg flex flex-col justify-between text-left space-y-6">
@@ -1958,13 +1835,13 @@ function ReferEarnSubView({ profile, onBack }) {
             <span className="material-symbols-outlined absolute right-[-12px] bottom-[-14px] text-white/10 text-[115px] pointer-events-none select-none">card_giftcard</span>
             <div className="flex-grow z-10">
               <span className="text-[10px] text-amber-300 font-extrabold tracking-wider uppercase bg-amber-400/20 border border-amber-300/30 px-2.5 py-1 rounded-full">
-                INSTANT CASH REWARD
+                {t ? t('INSTANT CASH REWARD', 'INSTANT CASH REWARD') : 'INSTANT CASH REWARD'}
               </span>
               <h2 className="text-title-md font-black mt-2 leading-tight">
-                Invite Friends &amp; Earn ₹{stats.rewardAmount}!
+                {t ? t('Invite Friends & Earn', 'Invite Friends & Earn') : 'Invite Friends & Earn'} ₹{stats.rewardAmount}!
               </h2>
               <p className="text-[11px] text-white/90 mt-1 leading-relaxed">
-                When your friend signs up and completes their first bill cashback or QR payment, ₹{stats.rewardAmount} is directly deposited from Zeebac Admin into your rewards wallet.
+                {t ? t('When your friend signs up and completes their first bill cashback or QR payment, reward is credited to your wallet.', 'When your friend signs up and completes their first bill cashback or QR payment, reward is credited to your wallet.') : `When your friend signs up and completes their first bill cashback or QR payment, ₹${stats.rewardAmount} is directly deposited into your rewards wallet.`}
               </p>
             </div>
           </div>
@@ -1972,15 +1849,15 @@ function ReferEarnSubView({ profile, onBack }) {
           {/* Referral Stats Summary */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-4 flex flex-col text-left shadow-xs">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Friends Invited</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t ? t('Friends Invited') : 'Friends Invited'}</span>
               <h3 className="font-display text-title-md font-black text-[#7c3aed] mt-1">{stats.invited}</h3>
-              <span className="text-[10px] text-slate-400 mt-0.5">Total successful joins</span>
+              <span className="text-[10px] text-slate-400 mt-0.5">{t ? t('Total successful joins', 'Total successful joins') : 'Total successful joins'}</span>
             </div>
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-4 flex flex-col text-left shadow-xs">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Total Bonus Earned</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{t ? t('Total Bonus Earned') : 'Total Bonus Earned'}</span>
               <h3 className="font-display text-title-md font-black text-emerald-600 mt-1">₹{stats.earned}</h3>
               <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-0.5">
-                <span className="material-symbols-outlined text-[12px]">verified</span> Credited to wallet
+                <span className="material-symbols-outlined text-[12px]">verified</span> {t ? t('Credited to wallet', 'Credited to wallet') : 'Credited to wallet'}
               </span>
             </div>
           </div>
@@ -1990,7 +1867,7 @@ function ReferEarnSubView({ profile, onBack }) {
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold block">
-                  Your Unique Referral Code
+                  {t ? t('Your Unique Referral Code') : 'Your Unique Referral Code'}
                 </span>
                 <span className="font-display text-lg font-black tracking-widest text-[#7c3aed] uppercase select-all">
                   {stats.code || 'GENERATING...'}
@@ -2001,14 +1878,14 @@ function ReferEarnSubView({ profile, onBack }) {
                 className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200/60 text-[#7c3aed] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
               >
                 <span className="material-symbols-outlined text-[16px]">{copied ? 'done' : 'content_copy'}</span>
-                <span>{copied ? 'Copied' : 'Copy Code'}</span>
+                <span>{copied ? (t ? t('Copied') : 'Copied') : (t ? t('Copy Code') : 'Copy Code')}</span>
               </button>
             </div>
 
             {/* Direct Link */}
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Invite Link (Auto-Applies Code)</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">{t ? t('Invite Link (Auto-Applies Code)') : 'Invite Link (Auto-Applies Code)'}</span>
                 <p className="text-[11px] text-slate-600 truncate font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/60 mt-0.5 select-all">
                   {inviteLink}
                 </p>
@@ -2018,7 +1895,7 @@ function ReferEarnSubView({ profile, onBack }) {
                 className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
               >
                 <span className="material-symbols-outlined text-[14px]">{copiedLink ? 'check' : 'link'}</span>
-                <span>{copiedLink ? 'Copied' : 'Copy Link'}</span>
+                <span>{copiedLink ? (t ? t('Copied') : 'Copied') : (t ? t('Copy Link') : 'Copy Link')}</span>
               </button>
             </div>
           </div>
@@ -2027,21 +1904,21 @@ function ReferEarnSubView({ profile, onBack }) {
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-display text-xs font-black text-slate-800 uppercase tracking-wider">
-                Invited Friends ({stats.history.length})
+                {t ? t('Invited Friends') : 'Invited Friends'} ({stats.history.length})
               </h3>
-              <span className="text-[10px] text-purple-600 font-bold">Auto-updates</span>
+              <span className="text-[10px] text-purple-600 font-bold">{t ? t('Auto-updates', 'Auto-updates') : 'Auto-updates'}</span>
             </div>
 
             {loading ? (
               <div className="py-6 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200/60">
-                Loading referral status...
+                {t ? t('Loading...') : 'Loading referral status...'}
               </div>
             ) : stats.history.length === 0 ? (
               <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-5 text-center text-slate-400 space-y-1">
                 <span className="material-symbols-outlined text-[32px] text-purple-300">group_add</span>
-                <p className="text-xs font-bold text-slate-700">No friends invited yet</p>
+                <p className="text-xs font-bold text-slate-700">{t ? t('No friends invited yet', 'No friends invited yet') : 'No friends invited yet'}</p>
                 <p className="text-[10px] text-slate-400 max-w-[240px] mx-auto">
-                  Share your invite link below. When friends join and do their first transaction, you get ₹{stats.rewardAmount} each!
+                  {t ? t('Share your invite link below. When friends join and do their first transaction, you get rewards!', 'Share your invite link below. When friends join and do their first transaction, you get rewards!') : `Share your invite link below. When friends join and do their first transaction, you get ₹${stats.rewardAmount} each!`}
                 </p>
               </div>
             ) : (
@@ -2066,12 +1943,12 @@ function ReferEarnSubView({ profile, onBack }) {
                       {item.rewardStatus === 'Credited' ? (
                         <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
                           <span className="material-symbols-outlined text-[12px]">check_circle</span>
-                          +₹{item.rewardAmount} Credited
+                          +₹{item.rewardAmount} {t ? t('Credited') : 'Credited'}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px]">
                           <span className="material-symbols-outlined text-[12px]">schedule</span>
-                          Pending 1st Bill
+                          {t ? t('Pending 1st Bill', 'Pending 1st Bill') : 'Pending 1st Bill'}
                         </span>
                       )}
                     </div>
@@ -2084,30 +1961,30 @@ function ReferEarnSubView({ profile, onBack }) {
           {/* How It Works Timeline */}
           <div className="space-y-2">
             <h3 className="font-display text-xs font-black text-slate-800 uppercase tracking-wider pl-1">
-              How Referral Payout Works
+              {t ? t('How Referral Payout Works') : 'How Referral Payout Works'}
             </h3>
             <div className="bg-white border border-outline-variant/20 rounded-2xl p-4 space-y-3.5 shadow-2xs">
               <div className="flex gap-3">
                 <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">1</div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Share your invite link</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Send your link to friends. The code auto-fills when they tap it.</p>
+                  <h4 className="text-xs font-bold text-slate-900">{t ? t('Share your invite link') : 'Share your invite link'}</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{t ? t('Send your link to friends. The code auto-fills when they tap it.', 'Send your link to friends. The code auto-fills when they tap it.') : 'Send your link to friends. The code auto-fills when they tap it.'}</p>
                 </div>
               </div>
 
               <div className="flex gap-3 border-t border-slate-100 pt-3">
                 <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">2</div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Friend completes first cashback</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">They do their first POS/bill scan or QR payment and get cashback.</p>
+                  <h4 className="text-xs font-bold text-slate-900">{t ? t('Friend completes first cashback') : 'Friend completes first cashback'}</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{t ? t('They do their first POS/bill scan or QR payment and get cashback.', 'They do their first POS/bill scan or QR payment and get cashback.') : 'They do their first POS/bill scan or QR payment and get cashback.'}</p>
                 </div>
               </div>
 
               <div className="flex gap-3 border-t border-slate-100 pt-3">
                 <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs flex-shrink-0">3</div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Instant Admin Wallet Payout</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">₹{stats.rewardAmount} is debited from Zeebac Admin pool and credited to your Rewards Wallet.</p>
+                  <h4 className="text-xs font-bold text-slate-900">{t ? t('Instant Admin Wallet Payout') : 'Instant Admin Wallet Payout'}</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{t ? t('Reward is debited from Zeebac Admin pool and credited to your Rewards Wallet.', 'Reward is debited from Zeebac Admin pool and credited to your Rewards Wallet.') : `₹${stats.rewardAmount} is debited from Zeebac Admin pool and credited to your Rewards Wallet.`}</p>
                 </div>
               </div>
             </div>
@@ -2120,7 +1997,7 @@ function ReferEarnSubView({ profile, onBack }) {
             className="w-full h-13 bg-gradient-to-r from-purple-600 via-purple-700 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 active:scale-98 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">share</span>
-            Share Invite Link &amp; Earn ₹{stats.rewardAmount}
+            {t ? t('Share Invite Link & Earn') : 'Share Invite Link & Earn'} ₹{stats.rewardAmount}
           </button>
         </div>
       </main>
@@ -2129,7 +2006,7 @@ function ReferEarnSubView({ profile, onBack }) {
 }
 
 // SUBPAGE 6: PENDING AUDITS & CASHBACK REQUESTS COMPONENT
-function PendingAuditsSubView({ onBack, onSelectRequest }) {
+function PendingAuditsSubView({ onBack, onSelectRequest, t }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all' | 'approved' | 'rejected'
@@ -2172,7 +2049,7 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
-            <span className="font-display text-title-md text-primary font-black ml-2">Cashback Audits &amp; Requests</span>
+            <span className="font-display text-title-md text-primary font-black ml-2">{t ? t('Cashback Audits & Requests') : 'Cashback Audits & Requests'}</span>
           </div>
         </div>
       </header>
@@ -2189,7 +2066,7 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
                 : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
             }`}
           >
-            <span>Pending Audits</span>
+            <span>{t ? t('Pending Audits') : 'Pending Audits'}</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${filter === 'pending' ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
               {pendingCount}
             </span>
@@ -2203,7 +2080,7 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
                 : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
             }`}
           >
-            All Requests ({requests.length})
+            {t ? t('All Requests') : 'All Requests'} ({requests.length})
           </button>
           <button
             type="button"
@@ -2214,7 +2091,7 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
                 : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
             }`}
           >
-            Approved ({approvedCount})
+            {t ? t('Approved') : 'Approved'} ({approvedCount})
           </button>
         </div>
 
@@ -2222,16 +2099,16 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-on-surface-variant font-medium">Loading your cashback requests...</p>
+            <p className="text-xs text-on-surface-variant font-medium">{t ? t('Loading...') : 'Loading your cashback requests...'}</p>
           </div>
         ) : filteredRequests.length === 0 ? (
           <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-outline-variant/30 p-6 space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-[32px]">fact_check</span>
             </div>
-            <h3 className="font-bold text-sm text-on-surface">No {filter === 'pending' ? 'Pending' : ''} Requests Found</h3>
+            <h3 className="font-bold text-sm text-on-surface">{filter === 'pending' ? (t ? t('No Pending Requests Found') : 'No Pending Requests Found') : (t ? t('No Requests Found') : 'No Requests Found')}</h3>
             <p className="text-xs text-on-surface-variant max-w-xs mx-auto leading-relaxed">
-              When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.
+              {t ? t('When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.', 'When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.') : 'When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.'}
             </p>
           </div>
         ) : (
@@ -2260,7 +2137,7 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
                         </h4>
                         <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5 mt-0.5">
                           <span className="uppercase font-semibold tracking-wider">
-                            {req.requestType === 'cash_claim' ? 'Cash Claim' : 'Bill Receipt'}
+                            {req.requestType === 'cash_claim' ? (t ? t('Cash Claim') : 'Cash Claim') : (t ? t('Bill Receipt') : 'Bill Receipt')}
                           </span>
                           <span>•</span>
                           <span>{new Date(req.createdAt).toLocaleDateString()}</span>
@@ -2279,19 +2156,19 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
                         : 'bg-amber-100 text-amber-800 border border-amber-300/40'
                     }`}>
                       <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                      {isApproved ? 'Approved' : isHeld ? 'Held (Review)' : isRejected ? 'Declined' : 'Pending Audit'}
+                      {isApproved ? (t ? t('Approved') : 'Approved') : isHeld ? (t ? t('Held (Review)') : 'Held (Review)') : isRejected ? (t ? t('Declined') : 'Declined') : (t ? t('Pending Audit') : 'Pending Audit')}
                     </span>
                   </div>
 
                   {/* Amounts Row */}
                   <div className="flex items-center justify-between p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
                     <div>
-                      <span className="text-[10px] text-on-surface-variant block uppercase font-bold tracking-wider">Bill Amount</span>
+                      <span className="text-[10px] text-on-surface-variant block uppercase font-bold tracking-wider">{t ? t('Bill Amount') : 'Bill Amount'}</span>
                       <span className="font-bold text-on-surface font-mono">₹{req.amount}</span>
                     </div>
                     {req.cashbackAmount && (
                       <div className="text-right">
-                        <span className="text-[10px] text-emerald-700 block uppercase font-bold tracking-wider">Cashback</span>
+                        <span className="text-[10px] text-emerald-700 block uppercase font-bold tracking-wider">{t ? t('Cashback') : 'Cashback'}</span>
                         <span className="font-black text-emerald-700 font-mono">+₹{req.cashbackAmount}</span>
                       </div>
                     )}
@@ -2301,7 +2178,7 @@ function PendingAuditsSubView({ onBack, onSelectRequest }) {
                   <div className="flex items-center justify-between pt-1 text-primary text-xs font-bold">
                     <span className="flex items-center gap-1">
                       <span className="material-symbols-outlined text-[16px]">timeline</span>
-                      Track Verification Timeline
+                      {t ? t('Track Verification Timeline') : 'Track Verification Timeline'}
                     </span>
                     <span className="material-symbols-outlined text-[18px]">chevron_right</span>
                   </div>

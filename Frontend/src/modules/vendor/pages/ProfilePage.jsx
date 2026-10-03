@@ -9,12 +9,13 @@ import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
+import SecurityPinModal from '../../../components/common/SecurityPinModal';
 import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { language } = useLanguageStore();
+  const { language, t } = useLanguageStore();
   const [showLangModal, setShowLangModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,9 +30,6 @@ export default function ProfilePage() {
   const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
-  const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '', currentPin: '' });
-  const [pinError, setPinError] = useState('');
-  const [isSubmittingPin, setIsSubmittingPin] = useState(false);
   const [securityToast, setSecurityToast] = useState('');
 
   useEffect(() => {
@@ -88,8 +86,6 @@ export default function ProfilePage() {
       // If vendor hasn't configured a backup PIN yet, prompt PIN setup first
       if (!currentUser?.security?.hasPin) {
         setPinMode('setup');
-        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
-        setPinError('');
         setShowPinModal(true);
         return;
       }
@@ -109,46 +105,21 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSavePin = async (e) => {
-    e.preventDefault();
-    setPinError('');
-    if (!pinForm.pin || pinForm.pin.length < 4 || pinForm.pin.length > 8) {
-      setPinError('PIN must be 4 to 8 digits.');
-      return;
-    }
-    if (pinForm.pin !== pinForm.confirmPin) {
-      setPinError('PINs do not match.');
-      return;
-    }
-    if (pinMode === 'change' && !pinForm.currentPin) {
-      setPinError('Current PIN is required.');
-      return;
-    }
-
-    setIsSubmittingPin(true);
-    try {
-      const res = await VendorAPI.setupSecurityPin(pinForm.pin, pinForm.currentPin || null);
-      if (res.success) {
-        updateProfileStore({
-          security: {
-            ...useAuthStore.getState().currentUser?.security,
-            hasPin: true,
-          }
-        });
-        setShowPinModal(false);
-        setPinForm({ pin: '', confirmPin: '', currentPin: '' });
-
-        if (pinMode === 'setup') {
-          await enrollBiometrics();
-        } else {
-          setSecurityToast('✅ Security PIN updated successfully.');
-          setTimeout(() => setSecurityToast(''), 3500);
-        }
+  const handlePinSubmit = async (pin, currentPin) => {
+    const res = await VendorAPI.setupSecurityPin(pin, currentPin || null);
+    if (res.success) {
+      updateProfileStore({
+        security: {
+          ...useAuthStore.getState().currentUser?.security,
+          hasPin: true,
+        },
+      });
+      if (pinMode === 'setup') {
+        await enrollBiometrics();
+      } else {
+        setSecurityToast('✅ 4-Digit Security PIN updated successfully.');
+        setTimeout(() => setSecurityToast(''), 3500);
       }
-    } catch (err) {
-      setPinError(err.response?.data?.message || err.message || 'Failed to set PIN.');
-    } finally {
-      setIsSubmittingPin(false);
     }
   };
 
@@ -378,14 +349,14 @@ export default function ProfilePage() {
           <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
             <span className="material-symbols-outlined text-primary">arrow_back</span>
           </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Profile</span>
+          <span className="font-display text-title-md text-primary font-bold ml-1">{t('Profile')}</span>
         </div>
         <button 
           onClick={handleEditSave}
           className="flex items-center gap-1.5 px-3.5 py-1.5 border border-primary text-primary rounded-full font-bold text-[12px] sm:text-[13px] hover:bg-primary/5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
         >
           <span className="material-symbols-outlined text-[16px]">{isEditing ? 'save' : 'edit'}</span>
-          {isEditing ? 'Save' : 'Edit'}
+          {isEditing ? t('Save') : t('Edit')}
         </button>
       </header>
 
@@ -457,7 +428,7 @@ export default function ProfilePage() {
 
         {/* Business Growth & Credit Section */}
         <div className="space-y-3 px-1">
-          <h3 className="font-display text-[15px] font-black text-on-surface">Store Credit & Growth</h3>
+          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Store Credit & Growth')}</h3>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Shop & Pay Later (Credit Limit Upto ₹25,000) */}
@@ -471,10 +442,10 @@ export default function ProfilePage() {
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
-                    <span className="text-[9.5px] font-bold text-indigo-200">Store BNPL Credit</span>
+                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">{t('Coming Soon')}</span>
+                    <span className="text-[9.5px] font-bold text-indigo-200">{t('Store BNPL Credit')}</span>
                   </div>
-                  <p className="text-[12.5px] font-black text-white leading-tight">Shop & Pay Later</p>
+                  <p className="text-[12.5px] font-black text-white leading-tight">{t('Shop & Pay Later')}</p>
                   <p className="text-[9.5px] text-indigo-200/80 leading-tight mt-0.5 truncate">Credit limit up to ₹25,000 based on PAN & CIBIL</p>
                 </div>
               </div>
@@ -495,10 +466,10 @@ export default function ProfilePage() {
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
-                    <span className="text-[9.5px] font-bold text-indigo-200">Merchant Capital</span>
+                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">{t('Coming Soon')}</span>
+                    <span className="text-[9.5px] font-bold text-indigo-200">{t('Merchant Capital')}</span>
                   </div>
-                  <p className="text-[12.5px] font-black text-white leading-tight">Apply for Business Loan</p>
+                  <p className="text-[12.5px] font-black text-white leading-tight">{t('Apply for Business Loan')}</p>
                   <p className="text-[9.5px] text-indigo-200/80 leading-tight mt-0.5 truncate">Up to ₹25L collateral-free • Auto daily sales deductions</p>
                 </div>
               </div>
@@ -514,7 +485,7 @@ export default function ProfilePage() {
 
         {/* Business Information Section */}
         <div className="space-y-4 px-1">
-          <h3 className="font-display text-[15px] font-black text-on-surface">Business Information</h3>
+          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Business Information')}</h3>
           
           <div className="divide-y divide-outline-variant/10">
             <div className="flex justify-between items-center py-2.5">
@@ -522,7 +493,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">storefront</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Business Name</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Business Name')}</span>
               </div>
               <span className="text-[12.5px] font-extrabold text-on-surface">{storeName}</span>
             </div>
@@ -532,7 +503,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">sell</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Category</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Category')}</span>
               </div>
               <span className="text-[12.5px] font-extrabold text-on-surface">{category}</span>
             </div>
@@ -542,7 +513,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">call</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Contact Number</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Contact Number')}</span>
               </div>
               <span className="text-[12.5px] font-extrabold text-on-surface">{phone}</span>
             </div>
@@ -552,7 +523,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">mail</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Business Email</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Business Email')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -572,13 +543,13 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">pin_drop</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Store Address</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Store Address')}</span>
               </div>
               {isEditing ? (
                 <div className="w-full space-y-3 mt-2 bg-surface-variant/20 p-3 rounded-xl border border-outline-variant/20">
                   
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Street Address / Area</label>
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Street Address / Area')}</label>
                     <textarea 
                       value={formData.fullAddress} 
                       onChange={(e) => setFormData({ ...formData, fullAddress: e.target.value })}
@@ -588,7 +559,7 @@ export default function ProfilePage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Landmark</label>
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Landmark')}</label>
                     <input 
                       type="text" 
                       value={formData.landmark} 
@@ -600,7 +571,7 @@ export default function ProfilePage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">City</label>
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('City')}</label>
                       <input 
                         type="text" 
                         value={formData.city} 
@@ -610,7 +581,7 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">State</label>
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('State')}</label>
                       <input 
                         type="text" 
                         value={formData.state} 
@@ -622,7 +593,7 @@ export default function ProfilePage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">PIN Code</label>
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('PIN Code')}</label>
                     <input 
                       type="text" 
                       value={formData.pincode} 
@@ -642,7 +613,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">description</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Description</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Description')}</span>
               </div>
               {isEditing ? (
                 <textarea 
@@ -661,7 +632,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">schedule</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Store Hours</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Store Hours')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -682,7 +653,7 @@ export default function ProfilePage() {
 
         {/* Bank Details Section */}
         <div className="space-y-4 px-1 mt-6">
-          <h3 className="font-display text-[15px] font-black text-on-surface">Bank Details</h3>
+          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Bank Details')}</h3>
           
           <div className="divide-y divide-outline-variant/10">
             {/* Account Holder Name */}
@@ -691,7 +662,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">badge</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Account Name</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Account Holder Name')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -712,7 +683,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">account_balance</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Bank Name</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Bank Name')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -733,7 +704,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">money</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Account Number</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Account Number')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -756,7 +727,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">tag</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">IFSC Code</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('IFSC Code')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -777,7 +748,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">qr_code</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">UPI ID</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('UPI ID')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -1047,30 +1018,30 @@ export default function ProfilePage() {
 
           <div className="grid grid-cols-2 gap-4 pt-1">
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-on-surface-variant/70 tracking-widest uppercase">Aadhaar / PAN</span>
+              <span className="text-[10px] font-bold text-on-surface-variant/70 tracking-widest uppercase">{t('Aadhaar / PAN')}</span>
               {vendorData?.documents?.aadhaarPan?.fileUrl ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="material-symbols-outlined text-[14px] text-green-600">check_circle</span>
-                  <p className="text-[12px] font-black text-on-surface">Uploaded</p>
+                  <p className="text-[12px] font-black text-on-surface">{t('Uploaded')}</p>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="material-symbols-outlined text-[14px] text-orange-500">pending</span>
-                  <p className="text-[12px] font-black text-on-surface text-orange-600">Not Uploaded</p>
+                  <p className="text-[12px] font-black text-on-surface text-orange-600">{t('Not Uploaded')}</p>
                 </div>
               )}
             </div>
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-on-surface-variant/70 tracking-widest uppercase">GST Certificate</span>
+              <span className="text-[10px] font-bold text-on-surface-variant/70 tracking-widest uppercase">{t('GST Certificate')}</span>
               {vendorData?.documents?.gstCertificate?.fileUrl ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="material-symbols-outlined text-[14px] text-green-600">check_circle</span>
-                  <p className="text-[12px] font-black text-on-surface">Uploaded</p>
+                  <p className="text-[12px] font-black text-on-surface">{t('Uploaded')}</p>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="material-symbols-outlined text-[14px] text-orange-500">pending</span>
-                  <p className="text-[12px] font-black text-on-surface text-orange-600">Not Uploaded</p>
+                  <p className="text-[12px] font-black text-on-surface text-orange-600">{t('Not Uploaded')}</p>
                 </div>
               )}
             </div>
@@ -1088,12 +1059,12 @@ export default function ProfilePage() {
               </div>
               <div className="text-left">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="font-display text-[14px] font-black text-on-surface">Biometric Security</h4>
+                  <h4 className="font-display text-[14px] font-black text-on-surface">{t('Biometric Security')}</h4>
                   {biometrics && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">{t('Active')}</span>
                   )}
                 </div>
-                <p className="text-[11px] text-on-surface-variant font-medium">Protect withdrawals &amp; store funds with Fingerprint, Face ID or PIN</p>
+                <p className="text-[11px] text-on-surface-variant font-medium">{t('Protect withdrawals & store funds with Fingerprint, Face ID or PIN')}</p>
               </div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -1118,20 +1089,18 @@ export default function ProfilePage() {
           {/* Backup PIN Manager */}
           <div className="flex items-center justify-between pl-1 pr-1 text-[11px] border-t border-outline-variant/10 pt-2.5">
             <span className="text-on-surface-variant font-medium">
-              Backup Security PIN: <strong className="text-on-surface">{currentUser?.security?.hasPin ? 'Configured ✅' : 'Not Set'}</strong>
+              {t('Backup Security PIN:')} <strong className="text-on-surface">{currentUser?.security?.hasPin ? `${t('Configured')} ✅` : t('Not Set')}</strong>
             </span>
             <button
               type="button"
               onClick={() => {
                 setPinMode(currentUser?.security?.hasPin ? 'change' : 'setup');
-                setPinForm({ pin: '', confirmPin: '', currentPin: '' });
-                setPinError('');
                 setShowPinModal(true);
               }}
               className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-0.5"
             >
               <span className="material-symbols-outlined text-[14px]">key</span>
-              {currentUser?.security?.hasPin ? 'Change PIN' : 'Set PIN'}
+              {currentUser?.security?.hasPin ? t('Change PIN') : t('Set PIN')}
             </button>
           </div>
         </div>
@@ -1146,12 +1115,16 @@ export default function ProfilePage() {
               <span className="material-symbols-outlined text-[22px]">translate</span>
             </div>
             <div className="text-left">
-              <h4 className="font-display text-[14px] font-black text-on-surface">App Language</h4>
-              <p className="text-[11px] text-on-surface-variant font-medium">Currently available in English &amp; Hindi</p>
+              <h4 className="font-display text-[14px] font-black text-on-surface">{t('App Language')}</h4>
+              <p className="text-[11px] text-on-surface-variant font-medium">{t('Currently available in English & Hindi')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[12px] font-bold text-primary">
-            <span>{language === 'hi' ? 'हिन्दी' : 'English'}</span>
+          <div className="flex items-center gap-1.5 text-[12px] font-bold">
+            <span className="leading-none text-[12px] font-bold flex items-center tracking-tight">
+              <span className={language === 'en' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>Eng</span>
+              <span className="text-slate-300 mx-0.5 font-normal">/</span>
+              <span className={language === 'hi' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>हि</span>
+            </span>
             <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
           </div>
         </div>
@@ -1165,10 +1138,10 @@ export default function ProfilePage() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h4 className="font-display text-[15px] font-black text-on-surface">Help &amp; Support</h4>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">24x7 Active</span>
+                  <h4 className="font-display text-[15px] font-black text-on-surface">{t('Help & Support')}</h4>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">{t('24x7 Active')}</span>
                 </div>
-                <p className="text-[11.5px] text-on-surface-variant font-medium mt-0.5">Direct WhatsApp, Helpline &amp; FAQs</p>
+                <p className="text-[11.5px] text-on-surface-variant font-medium mt-0.5">{t('Direct WhatsApp, Helpline & FAQs')}</p>
               </div>
             </div>
           </div>
@@ -1183,13 +1156,13 @@ export default function ProfilePage() {
               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
                 <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
               </svg>
-              <span>WhatsApp Chat</span>
+              <span>{t('WhatsApp Chat')}</span>
             </a>
             <button
               onClick={() => navigate('/vendor/support')}
               className="py-2.5 px-3 bg-white hover:bg-surface-container-low border border-outline-variant/30 text-primary rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
-              <span>Help &amp; FAQs</span>
+              <span>{t('Help & FAQs')}</span>
               <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
             </button>
           </div>
@@ -1202,14 +1175,14 @@ export default function ProfilePage() {
             className="flex flex-col items-center justify-center py-2.5 bg-white rounded-xl border border-outline-variant/10 shadow-sm hover:bg-surface-container-low active:scale-95 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-primary">share</span>
-            <span className="text-[9px] font-bold text-on-surface-variant mt-1">Share Store</span>
+            <span className="text-[9px] font-bold text-on-surface-variant mt-1">{t('Share Store')}</span>
           </button>
           <button 
             onClick={() => navigate('/vendor/support')} 
             className="flex flex-col items-center justify-center py-2.5 bg-emerald-50/60 rounded-xl border border-emerald-300/60 shadow-sm hover:bg-emerald-100/60 active:scale-95 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-emerald-600">support_agent</span>
-            <span className="text-[9px] font-black text-emerald-800 mt-1">Help &amp; Support</span>
+            <span className="text-[9px] font-black text-emerald-800 mt-1">{t('Help & Support')}</span>
           </button>
         </div>
 
@@ -1222,7 +1195,7 @@ export default function ProfilePage() {
           className="w-full py-4 bg-[#fff5f5] hover:bg-[#ffebeb] text-red-600 border border-red-100 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-sm mt-3"
         >
           <span className="material-symbols-outlined text-[18px] text-red-600" style={{ fontVariationSettings: "'wght' 700" }}>logout</span>
-          Logout Account
+          {t('Logout Account')}
         </button>
 
       </div>
@@ -1560,115 +1533,12 @@ export default function ProfilePage() {
       />
 
       {/* Security PIN Setup / Change Modal */}
-      {showPinModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-reveal">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-left border border-gray-150">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[24px]">key</span>
-                </div>
-                <div>
-                  <h3 className="font-display font-extrabold text-[16px] text-on-surface">
-                    {pinMode === 'setup' ? 'Set Security PIN' : 'Change Security PIN'}
-                  </h3>
-                  <p className="text-[11px] text-on-surface-variant">Backup for Biometrics &amp; Cashouts</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setShowPinModal(false); setPinError(''); }}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <p className="text-[12px] text-on-surface-variant leading-relaxed">
-              {pinMode === 'setup'
-                ? 'Create a 4 to 8 digit Security PIN. You can use this PIN to withdraw wallet funds if your fingerprint or Face ID is unavailable.'
-                : 'Enter your current PIN and choose a new 4 to 8 digit Security PIN.'}
-            </p>
-
-            <form onSubmit={handleSavePin} className="space-y-3">
-              {pinMode === 'change' && (
-                <div>
-                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Current PIN</label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={8}
-                    required
-                    value={pinForm.currentPin}
-                    onChange={(e) => setPinForm({ ...pinForm, currentPin: e.target.value.replace(/\D/g, '') })}
-                    placeholder="Enter current PIN"
-                    className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                  {pinMode === 'setup' ? 'Create PIN (4-8 digits)' : 'New PIN (4-8 digits)'}
-                </label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  required
-                  value={pinForm.pin}
-                  onChange={(e) => setPinForm({ ...pinForm, pin: e.target.value.replace(/\D/g, '') })}
-                  placeholder="e.g. 1234"
-                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Confirm PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  required
-                  value={pinForm.confirmPin}
-                  onChange={(e) => setPinForm({ ...pinForm, confirmPin: e.target.value.replace(/\D/g, '') })}
-                  placeholder="Re-enter PIN"
-                  className="w-full h-11 px-3.5 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[15px] font-bold tracking-widest text-on-surface"
-                />
-              </div>
-
-              {pinError && (
-                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px]">error</span>
-                  <span>{pinError}</span>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="flex-1 h-11 rounded-xl border border-outline-variant/30 font-bold text-[13px] text-on-surface-variant hover:bg-gray-50 active:scale-95 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingPin || !pinForm.pin || !pinForm.confirmPin}
-                  className="flex-1 h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-md hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1"
-                >
-                  {isSubmittingPin ? (
-                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    pinMode === 'setup' ? 'Save & Continue' : 'Update PIN'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      <SecurityPinModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        mode={pinMode}
+        onSubmit={handlePinSubmit}
+      />
 
       {/* Language Selector Modal */}
       <LanguageSelectorModal

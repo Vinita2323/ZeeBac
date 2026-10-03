@@ -81,7 +81,10 @@ export default function AppLockScreen() {
     }
   };
 
-  if (!isAppLocked) return null;
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+
+  if (!isAppLocked || isAdmin || isAdminRoute) return null;
 
   return (
     <div className="fixed inset-0 z-[300] bg-white flex flex-col items-center justify-center p-6 select-none">
@@ -136,7 +139,7 @@ export default function AppLockScreen() {
             <PinKeypad value={pin} onChange={(v) => { setPin(v); setError(''); }} autoFocusError={!!error} />
             <button
               type="submit"
-              disabled={isVerifying || pin.length < 4}
+              disabled={isVerifying || pin.length !== 4}
               className="w-full h-12 btn-primary-gradient text-white rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40 cursor-pointer"
             >
               {isVerifying ? (

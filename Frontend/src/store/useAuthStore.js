@@ -12,20 +12,37 @@ const hasSecurityEnabled = (user) => {
   return Boolean(user?.security?.hasPin || user?.security?.biometricEnabled);
 };
 
-// Tracks "already unlocked" for THIS browser tab only (sessionStorage, not
-// localStorage) — survives a page refresh within the same tab so the lock
-// doesn't nag on every reload, but disappears on a genuine close/reopen
-// (new tab = fresh sessionStorage) or whenever App.jsx's background-resume
-// check explicitly clears it.
-const SESSION_UNLOCK_KEY = 'zeebac_app_unlocked_session';
-const wasUnlockedThisSession = () => {
-  try { return sessionStorage.getItem(SESSION_UNLOCK_KEY) === '1'; } catch { return false; }
+// Tracks "already unlocked" with a 5-minute grace period across tabs and app switching.
+// Once a user successfully enters their PIN/biometric (or logs in), they are not
+// prompted again for 5 minutes (300,000 ms), regardless of tab switching, minimization, or navigation.
+const UNLOCK_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
+const LAST_UNLOCKED_AT_KEY = 'zeebac_app_last_unlocked_at';
+
+const isWithinUnlockGracePeriod = () => {
+  try {
+    const raw = localStorage.getItem(LAST_UNLOCKED_AT_KEY) || sessionStorage.getItem(LAST_UNLOCKED_AT_KEY);
+    if (!raw) return false;
+    const timestamp = parseInt(raw, 10);
+    if (isNaN(timestamp)) return false;
+    return (Date.now() - timestamp) < UNLOCK_GRACE_PERIOD_MS;
+  } catch {
+    return false;
+  }
 };
+
 const markUnlockedThisSession = () => {
-  try { sessionStorage.setItem(SESSION_UNLOCK_KEY, '1'); } catch { /* ignore */ }
+  try {
+    const now = String(Date.now());
+    localStorage.setItem(LAST_UNLOCKED_AT_KEY, now);
+    sessionStorage.setItem(LAST_UNLOCKED_AT_KEY, now);
+  } catch { /* ignore */ }
 };
+
 const clearUnlockedThisSession = () => {
-  try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(LAST_UNLOCKED_AT_KEY);
+    sessionStorage.removeItem(LAST_UNLOCKED_AT_KEY);
+  } catch { /* ignore */ }
 };
 
 const useAuthStore = create((set, get) => ({
@@ -71,9 +88,8 @@ const useAuthStore = create((set, get) => ({
           isAuthenticated: true,
           walletBalance: balance,
           // Runs on every fresh page load, including a plain refresh — only
-          // actually gate if this tab hasn't already been unlocked this
-          // session, so refreshing mid-use doesn't re-prompt every time.
-          isAppLocked: hasSecurityEnabled(user) && !wasUnlockedThisSession(),
+          // actually gate if security is enabled and the 5-minute unlock window has expired.
+          isAppLocked: hasSecurityEnabled(user) && !isWithinUnlockGracePeriod(),
         });
 
         // Silently sync real-time wallet balance from backend in background
@@ -122,17 +138,19 @@ const useAuthStore = create((set, get) => ({
     get().fetchWalletBalance();
   },
 
-  // Re-gate on resume (App.jsx's background-timer calls this) — clears the
-  // tab's "already unlocked" flag so the lock actually re-engages instead of
-  // immediately passing itself via hydrate's session check.
-  lockApp: () => {
-    if (hasSecurityEnabled(get().currentUser)) {
-      clearUnlockedThisSession();
-      set({ isAppLocked: true });
+  // Re-gate on resume (App.jsx calls this on visibility resume) —
+  // respects the 5-minute grace period: if user entered PIN/biometric within the last 5 minutes,
+  // tab switching or navigation will NOT re-prompt for PIN/biometric.
+  lockApp: (force = false) => {
+    if (!hasSecurityEnabled(get().currentUser)) return;
+    if (!force && isWithinUnlockGracePeriod()) {
+      return; // Within 5-minute unlock window — keep app unlocked!
     }
+    clearUnlockedThisSession();
+    set({ isAppLocked: true });
   },
   unlockApp: () => {
-    markUnlockedThisSession();
+    markUnlockedThisSession(); // Grants fresh 5-minute unlock access
     set({ isAppLocked: false });
   },
 

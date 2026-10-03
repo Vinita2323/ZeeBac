@@ -193,6 +193,29 @@ describe('Vendor Biometric Security & PIN Protection', () => {
     await verifySecurityPin({ user: { id: vendor._id.toString() }, body: { pin: '9988' } }, correctRes);
     expect(correctRes.statusCode).toBe(200);
     expect(correctRes.body.success).toBe(true);
+
+    // Non-4-digit verification
+    const invalidRes = mockRes();
+    await verifySecurityPin({ user: { id: vendor._id.toString() }, body: { pin: '123' } }, invalidRes);
+    expect(invalidRes.statusCode).toBe(400);
+    expect(invalidRes.body.message).toBe('Security PIN must be exactly 4 digits');
+  });
+
+  it('rejects vendor PIN setup when PIN is not exactly 4 digits', async () => {
+    const vendor = await makeVendor({
+      zeebacId: 'ZBV-SEC10',
+      phone: '9711111111',
+    });
+
+    const res5 = mockRes();
+    await setupSecurityPin({ user: { id: vendor._id.toString() }, body: { pin: '12345' } }, res5);
+    expect(res5.statusCode).toBe(400);
+    expect(res5.body.message).toBe('Security PIN must be exactly 4 digits');
+
+    const res3 = mockRes();
+    await setupSecurityPin({ user: { id: vendor._id.toString() }, body: { pin: '999' } }, res3);
+    expect(res3.statusCode).toBe(400);
+    expect(res3.body.message).toBe('Security PIN must be exactly 4 digits');
   });
 
   it('getProfile never exposes the PIN hash, but reports hasPin correctly', async () => {

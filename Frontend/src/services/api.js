@@ -171,8 +171,11 @@ export const AdminAPI = {
     const res = await apiClient.get('/admin/dashboard/stats');
     return res.data;
   },
-  getSalesAnalytics: async (period = 'today') => {
-    const res = await apiClient.get(`/admin/sales-analytics?period=${period}`);
+  getSalesAnalytics: async (period = 'today', startDate = '', endDate = '') => {
+    let url = `/admin/sales-analytics?period=${period}`;
+    if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+    if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
+    const res = await apiClient.get(url);
     return res.data;
   },
   getVendors: async (applicationStatus = '', page = 1, search = '') => {
@@ -442,8 +445,11 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/dashboard/stats');
     return res.data;
   },
-  getSalesAnalytics: async (period = 'today') => {
-    const res = await apiClient.get(`/vendor/sales-analytics?period=${period}`);
+  getSalesAnalytics: async (period = 'today', startDate = '', endDate = '') => {
+    let url = `/vendor/sales-analytics?period=${period}`;
+    if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+    if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
+    const res = await apiClient.get(url);
     return res.data;
   },
   // Phase 3B: Products

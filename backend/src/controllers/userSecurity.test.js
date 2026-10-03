@@ -144,9 +144,30 @@ describe('User Biometric Security & PIN Protection', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain('exactly 4 digits');
 
     const unchanged = await User.findById(user._id);
     expect(unchanged.security?.securityPin).toBeFalsy();
+  });
+
+  it('rejects a PIN with more than 4 or less than 4 digits on setup and verification', async () => {
+    const user = await User.create({
+      zeebacId: 'ZBC-SEC07',
+      name: 'Rohan Sharma',
+      phone: '9877777777',
+    });
+
+    // 5 digits
+    const res5 = mockRes();
+    await setupSecurityPin({ user: { id: user._id.toString() }, body: { pin: '12345' } }, res5);
+    expect(res5.statusCode).toBe(400);
+    expect(res5.body.message).toBe('Security PIN must be exactly 4 digits');
+
+    // 3 digits
+    const res3 = mockRes();
+    await setupSecurityPin({ user: { id: user._id.toString() }, body: { pin: '123' } }, res3);
+    expect(res3.statusCode).toBe(400);
+    expect(res3.body.message).toBe('Security PIN must be exactly 4 digits');
   });
 
   it('getUserProfile does not expose plaintext or hashed PIN, but returns hasPin boolean', async () => {

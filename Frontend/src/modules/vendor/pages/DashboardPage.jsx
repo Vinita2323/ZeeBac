@@ -708,10 +708,10 @@ export default function DashboardPage() {
 
                     <div className="flex justify-between items-center mt-1.5">
                       <p className="text-[11px] text-on-surface-variant">
-                        {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}
+                        {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span className="mx-1">•</span> <span className="font-bold text-primary">{req.paymentMethod === 'Cash' || req.requestType === 'cash_claim' || !req.paymentMethod || String(req.paymentMethod).toLowerCase().includes('cash') ? t('Cash transaction') : t('Digital transaction')}</span>
                       </p>
                       <span className="text-[10.5px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md border border-primary/20">
-                        Cashback: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
+                        {t('Cashback')}: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
                       </span>
                     </div>
 

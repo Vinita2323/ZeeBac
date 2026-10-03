@@ -54,24 +54,54 @@ function ScrollToTop() {
   return null;
 }
 
+function PwaInstallManager() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const isAdminPath = pathname.startsWith('/admin');
+    const existing = document.querySelector('link[rel="manifest"]');
+
+    if (isAdminPath) {
+      if (existing) existing.remove();
+    } else {
+      if (!existing) {
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = '/manifest.json';
+        document.head.appendChild(link);
+      }
+    }
+  }, [pathname]);
+
+  // Prevent browser's native "Install App / Download App" prompt on admin routes
+  useEffect(() => {
+    const handleBeforeInstall = (e) => {
+      if (window.location.pathname.startsWith('/admin')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  return null;
+}
+
 function App() {
   const { accessToken, logout, currentUser, lockApp } = useAuthStore();
   const fetchedRef = useRef(false);
   const [isRequestingNotif, setIsRequestingNotif] = useState(false);
 
-  // Re-lock on resume, not just on cold start — switching away to another
-  // app/tab for a while and coming back should ask again, the way banking
-  // apps do, instead of only ever gating the very first load.
+  // Re-lock on resume when switching tabs/apps, respecting the 5-minute grace period.
+  // Once the user has entered their PIN/biometric, switching tabs will NOT re-prompt
+  // for 5 minutes.
   useEffect(() => {
     if (!accessToken) return;
-    let hiddenAt = null;
-    const RELOCK_AFTER_MS = 15000;
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        hiddenAt = Date.now();
-      } else if (document.visibilityState === 'visible' && hiddenAt) {
-        if (Date.now() - hiddenAt >= RELOCK_AFTER_MS) lockApp();
-        hiddenAt = null;
+      if (document.visibilityState === 'visible') {
+        // Check if 5-minute unlock window has expired
+        lockApp();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -110,9 +140,27 @@ function App() {
 
   useEffect(() => {
     if (!accessToken || isAdmin || typeof Notification === 'undefined') return;
-    if (Notification.permission === 'default') return;
     const role = useAuthStore.getState().currentUser?.role || 'customer';
-    requestNotificationPermission(role).catch(console.error);
+
+    if (Notification.permission === 'granted') {
+      requestNotificationPermission(role).catch(console.error);
+    } else if (Notification.permission === 'default') {
+      const promptOnGesture = () => {
+        Notification.requestPermission().then((perm) => {
+          if (perm === 'granted') {
+            requestNotificationPermission(role).catch(console.error);
+          }
+        }).catch(() => {});
+        window.removeEventListener('click', promptOnGesture);
+        window.removeEventListener('touchstart', promptOnGesture);
+      };
+      window.addEventListener('click', promptOnGesture, { once: true });
+      window.addEventListener('touchstart', promptOnGesture, { once: true });
+      return () => {
+        window.removeEventListener('click', promptOnGesture);
+        window.removeEventListener('touchstart', promptOnGesture);
+      };
+    }
   }, [accessToken, isAdmin]);
 
   const handleAllowNotifications = async () => {
@@ -274,27 +322,101 @@ function App() {
       }
     };
 
-    const handleIncomingChatMessage = (data) => {
-      // Don't ring if user is already actively looking at this conversation
-      if (window.location.pathname.includes('/chat')) return;
+    // Mobile-style Heads-Up Top Notification Banner (styled like native mobile push notification)
+    const showTopMobileNotification = ({ title, body, icon = 'notifications', onClick, id }) => {
+      // 1. Audio chime
       playNotificationChime('incoming');
-      toast.custom((t) => (
-        <div
-          onClick={() => {
-            toast.dismiss(t.id);
-            window.location.href = '/chat';
-          }}
-          className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-sm w-full bg-slate-900 text-white shadow-2xl rounded-2xl p-3.5 border border-purple-500/30 flex items-center gap-3 cursor-pointer`}
-        >
-          <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-[20px]">chat</span>
+
+      // 2. Mobile vibration
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate([150, 75, 150]); } catch (e) {}
+      }
+
+      // 3. Heads-Up Top Banner (drops down smoothly at the top of the mobile screen)
+      toast.custom(
+        (t) => (
+          <div
+            onClick={() => {
+              toast.dismiss(t.id);
+              if (onClick) onClick();
+            }}
+            className={`${
+              t.visible ? 'animate-enter' : 'animate-leave'
+            } pointer-events-auto w-full max-w-[390px] mx-auto bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl p-3.5 shadow-2xl border border-white/20 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform hover:bg-slate-800 ring-2 ring-primary/25`}
+            style={{
+              boxShadow: '0 20px 40px -10px rgba(0,0,0,0.6), 0 0 25px 0 rgba(124,58,237,0.35)',
+            }}
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-primary flex items-center justify-center text-white shrink-0 shadow-md">
+              <span className="material-symbols-outlined text-[20px]">{icon}</span>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-center justify-between gap-1.5">
+                <p className="text-[13px] font-black text-white truncate leading-tight">{title}</p>
+                <span className="text-[10px] text-purple-300 font-bold bg-purple-950/80 px-1.5 py-0.5 rounded-full shrink-0 border border-purple-500/30">Just now</span>
+              </div>
+              <p className="text-[12px] text-slate-300 truncate mt-0.5 font-medium leading-normal">{body}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-xs font-bold text-white truncate">New Message</p>
-            <p className="text-[11px] text-slate-300 truncate">{data.text || 'You received a new message'}</p>
-          </div>
-        </div>
-      ), { duration: 5000, id: `chat-${data.conversationId || Date.now()}` });
+        ),
+        { duration: 5500, id: id || `top-notif-${Date.now()}` }
+      );
+
+      // 4. Native OS system notification (shows on phone lock screen or status bar)
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const nativeNotif = new Notification(title, {
+            body,
+            icon: '/Logo (6).png',
+            badge: '/Logo (6).png',
+            tag: id || `sys-notif-${Date.now()}`,
+          });
+          nativeNotif.onclick = () => {
+            window.focus();
+            if (onClick) onClick();
+          };
+        } catch (e) {}
+      }
+    };
+
+    const handleIncomingChatMessage = (data) => {
+      const isVendor = role === 'vendor';
+      const chatRoute = isVendor ? '/vendor/chat' : '/chat';
+
+      // Don't ring if user is already actively looking at THIS exact conversation
+      if (window.__ACTIVE_CONVERSATION_ID__ && window.__ACTIVE_CONVERSATION_ID__ === String(data.conversationId)) {
+        return;
+      }
+
+      showTopMobileNotification({
+        title: data.senderName ? `💬 ${data.senderName}` : '💬 New Message',
+        body: data.text || 'Sent an attachment',
+        icon: 'chat',
+        id: `chat-${data.conversationId || Date.now()}`,
+        onClick: () => {
+          window.location.href = chatRoute;
+        },
+      });
+    };
+
+    const handleNewNotification = (notif) => {
+      // Avoid duplicate popup if it's a chat message notification and already popped
+      if (notif.referenceType === 'conversation') return;
+
+      const isVendor = role === 'vendor';
+      const targetUrl = notif.referenceType === 'transaction' || notif.type === 'credit'
+        ? (isVendor ? '/vendor/wallet' : '/wallet')
+        : (isVendor ? '/vendor/notifications' : '/notifications');
+
+      showTopMobileNotification({
+        title: notif.title || '🔔 Notification',
+        body: notif.message || '',
+        icon: notif.icon || 'notifications',
+        id: `notif-${notif._id || Date.now()}`,
+        onClick: () => {
+          window.location.href = targetUrl;
+        },
+      });
     };
 
     const handleCashRequestSent = (data) => {
@@ -306,9 +428,10 @@ function App() {
     socket.on('cash_request_verified', handleCashRequestVerified);
     socket.on('cashback_approved', handleCashbackApproved);
     socket.on('incomingChatMessage', handleIncomingChatMessage);
+    socket.on('new_notification', handleNewNotification);
     socket.on('cash_request_sent', handleCashRequestSent);
 
-    // Listen for foreground notifications (when app is open)
+    // Listen for foreground push notifications (when app is open)
     const unsubscribe = onForegroundMessage((payload) => {
       const { title, body } = payload.notification || {};
       const notifData = payload.data || {};
@@ -320,7 +443,20 @@ function App() {
         } else if (notifData.isChat === 'true') {
           playNotificationChime('incoming');
         }
-        useUIStore.getState().showSnackbar(`🔔 ${title}: ${body}`, 'info');
+        showTopMobileNotification({
+          title,
+          body,
+          icon: notifData.icon || 'notifications',
+          id: `fcm-${Date.now()}`,
+          onClick: () => {
+            const isVendor = role === 'vendor';
+            if (notifData.isChat === 'true') {
+              window.location.href = isVendor ? '/vendor/chat' : '/chat';
+            } else {
+              window.location.href = isVendor ? '/vendor/notifications' : '/notifications';
+            }
+          },
+        });
       }
     });
 
@@ -329,6 +465,7 @@ function App() {
       socket.off('cash_request_verified', handleCashRequestVerified);
       socket.off('cashback_approved', handleCashbackApproved);
       socket.off('incomingChatMessage', handleIncomingChatMessage);
+      socket.off('new_notification', handleNewNotification);
       socket.off('cash_request_sent', handleCashRequestSent);
       if (unsubscribe) unsubscribe();
     };
@@ -337,6 +474,7 @@ function App() {
     <BrowserRouter>
       <CallProvider>
         <ScrollToTop />
+        <PwaInstallManager />
         <div className="app-backdrop" aria-hidden="true" />
 
         {/* Global UI Overlays */}

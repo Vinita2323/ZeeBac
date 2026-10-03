@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../services/api';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
@@ -12,7 +14,6 @@ export default function TransactionsPage() {
   const tabs = ['All', 'Pending', 'Approved', 'Rejected'];
 
   const [transactions, setTransactions] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,16 +21,26 @@ export default function TransactionsPage() {
       try {
         const res = await VendorAPI.getTransactions();
         if (res.success) {
-          const formatted = res.data.map(t => ({
-            id: t.transactionId,
-            customer: t.customerName || t.customerPhone,
-            amount: `₹${t.amount.toLocaleString()}`,
-            rawAmount: t.amount,
-            time: new Date(t.timestamp).toLocaleString(),
-            status: t.status,
-            hasReceipt: t.hasReceipt,
-            receiptUrl: t.receiptUrl
-          }));
+          const formatted = res.data.map(trx => {
+            const isCash = trx.isCash ?? (
+              trx.paymentMethod === 'Cash' ||
+              trx.requestType === 'cash_claim' ||
+              !trx.paymentMethod ||
+              String(trx.paymentMethod).toLowerCase().includes('cash')
+            );
+            return {
+              id: trx.transactionId || trx._id,
+              customer: trx.customerName || trx.customerPhone || 'Customer',
+              amount: `₹${(trx.amount || 0).toLocaleString()}`,
+              rawAmount: trx.amount || 0,
+              time: new Date(trx.timestamp || trx.createdAt || Date.now()).toLocaleString(),
+              status: trx.status,
+              hasReceipt: trx.hasReceipt,
+              receiptUrl: trx.receiptUrl,
+              isCash,
+              paymentMethod: isCash ? 'Cash' : (trx.paymentMethod || 'Digital')
+            };
+          });
           setTransactions(formatted);
         }
       } catch (err) {
@@ -47,7 +58,7 @@ export default function TransactionsPage() {
 
   const filteredTransactions = transactions.filter(t => {
     const matchesTab = activeTab === 'All' || t.status === activeTab;
-    const matchesSearch = t.customer.toLowerCase().includes(searchQuery.toLowerCase()) || t.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (t.customer || '').toLowerCase().includes(searchQuery.toLowerCase()) || (t.id || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
 
@@ -68,22 +79,22 @@ export default function TransactionsPage() {
         <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Store Sales & Bills</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">{t('Store Sales & Bills')}</span>
       </header>
 
       <div className="space-y-3.5 pt-1">
         {/* Total Store Sales Summary Card */}
         <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Total Store Sales (Revenue)</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">{t('Total Store Sales (Revenue)')}</p>
             <h2 className="text-2xl font-black font-display mt-0.5">₹{totalApprovedSales.toLocaleString('en-IN')}</h2>
-            <p className="text-[11px] text-emerald-100/90 mt-0.5">{transactions.filter(t => t.status === 'Approved').length} Approved Customer Orders</p>
+            <p className="text-[11px] text-emerald-100/90 mt-0.5">{transactions.filter(t => t.status === 'Approved').length} {t('Approved Customer Orders')}</p>
           </div>
           <button 
             onClick={() => navigate('/vendor/passbook')}
             className="self-start sm:self-auto text-[11px] font-bold bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1 transition-colors cursor-pointer"
           >
-            <span>Passbook</span>
+            <span>{t('Passbook')}</span>
             <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
           </button>
         </div>
@@ -94,7 +105,7 @@ export default function TransactionsPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by ID or customer..."
+            placeholder={t('Search by ID or customer...')}
             className="w-full pl-11 pr-4 py-3 bg-white border border-outline-variant/10 focus:border-primary rounded-2xl outline-none transition-all text-[14px] font-medium shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
           />
         </div>
@@ -110,7 +121,7 @@ export default function TransactionsPage() {
                   : 'text-on-surface-variant'
                 }`}
             >
-              {tab}
+              {t(tab)}
             </button>
           ))}
         </div>
@@ -136,13 +147,20 @@ export default function TransactionsPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-black text-on-surface text-[16px]">{trx.amount}</p>
+                  <span className={`inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-md mt-1 ${
+                    trx.isCash 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  }`}>
+                    {trx.isCash ? t('Cash transaction') : t('Digital transaction')}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-outline-variant/5">
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/5">
                 <span className="text-on-surface-variant text-[12px]">{trx.time}</span>
                 <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${getStatusColor(trx.status)}`}>
-                  {trx.status}
+                  {t(trx.status)}
                 </span>
               </div>
 
@@ -156,7 +174,7 @@ export default function TransactionsPage() {
                 >
                   <div className="flex items-center gap-1.5 text-on-surface-variant">
                     <span className="material-symbols-outlined text-[14px]">receipt_long</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider">View Attached Receipt</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{t('View Attached Receipt')}</span>
                   </div>
                   <span className="material-symbols-outlined text-[14px] text-primary">visibility</span>
                 </div>
@@ -168,13 +186,13 @@ export default function TransactionsPage() {
                     onClick={() => alert(`Please use the 'Requests' page to approve or reject pending cashback claims.`)}
                     className="flex-1 py-2.5 rounded-xl text-red-600 bg-red-50 hover:bg-red-100 text-[13px] font-bold transition-colors active:scale-[0.97]"
                   >
-                    Reject
+                    {t('Reject')}
                   </button>
                   <button
                     onClick={() => alert(`Please use the 'Requests' page to approve or reject pending cashback claims.`)}
                     className="flex-1 py-2.5 rounded-xl bg-primary text-white hover:bg-primary-fixed-variant text-[13px] font-bold shadow-sm transition-colors shadow-primary/20 active:scale-[0.97]"
                   >
-                    Approve
+                    {t('Approve')}
                   </button>
                 </div>
               )}
@@ -182,8 +200,8 @@ export default function TransactionsPage() {
           )) : (
             <div className="py-12 text-center text-on-surface-variant">
               <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">search_off</span>
-              <p className="font-bold text-[16px]">No transactions found</p>
-              <p className="text-[14px]">Try changing your filters.</p>
+              <p className="font-bold text-[16px]">{t('No transactions found')}</p>
+              <p className="text-[14px]">{t('Try changing your filters.')}</p>
             </div>
           )}
         </div>

@@ -12,6 +12,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -22,6 +23,7 @@ L.Icon.Default.mergeOptions({
 
 export default function ExploreScreen() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showMap, setShowMap] = useState(false);
@@ -200,8 +202,8 @@ export default function ExploreScreen() {
       <PermissionPrimerModal
         open={showLocationPrimer}
         visual={<LocationPreview />}
-        title="Find deals near you"
-        message="Allow location access to see the best cashback offers from stores around you."
+        title={t('Find deals near you')}
+        message={t('Allow location access to see the best cashback offers from stores around you.')}
         onAllow={handleAllowLocation}
         onSkip={handleSkipLocation}
       />
@@ -214,7 +216,7 @@ export default function ExploreScreen() {
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
               <input 
                 className="w-full h-11 pl-10 pr-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-body-lg font-body-lg placeholder:text-outline transition-all"
-                placeholder="Search local shops and brands..."
+                placeholder={t('Search local shops and brands...')}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -240,7 +242,7 @@ export default function ExploreScreen() {
                     : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-variant'
                 }`}
               >
-                {cat}
+                {cat === 'All' ? t('All') : cat}
               </button>
             ))}
           </div>
@@ -274,8 +276,8 @@ export default function ExploreScreen() {
                     <Popup>
                       <div className="p-1 text-left cursor-pointer" onClick={() => handleVendorClick(vendor)}>
                         <h4 className="font-bold text-sm text-primary">{vendor.storeName}</h4>
-                        <p className="text-xs text-gray-600">{vendor.category} &bull; Flat {vendor.cashbackRate}% Cashback</p>
-                        <p className="text-[11px] font-bold text-green-700 mt-1">Tap to View Store</p>
+                        <p className="text-xs text-gray-600">{vendor.category} &bull; {t('Flat')} {vendor.cashbackRate}% {t('Cashback')}</p>
+                        <p className="text-[11px] font-bold text-green-700 mt-1">{t('Tap to View Store')}</p>
                       </div>
                     </Popup>
                   </Marker>
@@ -293,8 +295,8 @@ export default function ExploreScreen() {
             ) : vendors.length === 0 ? (
               <div className="py-20 text-center space-y-xs">
                 <span className="material-symbols-outlined text-outline text-[48px]">storefront</span>
-                <p className="font-title-md text-on-surface font-bold">No vendors found</p>
-                <p className="text-body-sm text-on-surface-variant">Try searching for other categories or names</p>
+                <p className="font-title-md text-on-surface font-bold">{t('No vendors found')}</p>
+                <p className="text-body-sm text-on-surface-variant">{t('Try searching for other categories or names')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-md">
@@ -337,13 +339,13 @@ export default function ExploreScreen() {
                       {/* Bottom Info inside image */}
                       <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
                         <div className="bg-primary text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm uppercase tracking-wide">
-                          FLAT {vendor.cashbackRate}% CASHBACK
+                          {t('FLAT')} {vendor.cashbackRate}% {t('CASHBACK')}
                         </div>
                         <div className="bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
                           <span className="material-symbols-outlined text-[12px]">directions_walk</span>
                           {location && vendor.location?.coordinates ? 
-                            `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km` 
-                            : 'Nearby'}
+                            `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} ${t('km')}` 
+                            : t('Nearby')}
                         </div>
                       </div>
                     </div>

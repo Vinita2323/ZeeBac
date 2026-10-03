@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminSidebar from './AdminSidebar';
 import AdminTopBar from './AdminTopBar';
 
 export default function AdminLayout({ children }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.lang = 'en';
+  }, []);
 
   return (
     <div className="h-[100dvh] bg-[#f8fafc] text-on-surface font-body-lg flex overflow-hidden">

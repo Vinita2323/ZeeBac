@@ -5,9 +5,12 @@ import { VendorAPI } from '../../../services/api';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
+import useLanguageStore from '../../../store/useLanguageStore';
+import FourDigitPinInput from '../../../components/common/FourDigitPinInput';
 
 export default function WalletPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const globalBalance = useAuthStore((state) => state.walletBalance);
   const updateBalance = useAuthStore((state) => state.updateBalance);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
@@ -429,7 +432,7 @@ export default function WalletPage() {
           >
             <span className="material-symbols-outlined text-primary">arrow_back</span>
           </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Wallet & Payouts</span>
+          <span className="font-display text-title-md text-primary font-bold ml-1">{t('Wallet & Payouts')}</span>
         </header>
 
         {/* Success Alert Banner */}
@@ -453,14 +456,14 @@ export default function WalletPage() {
                 <div className="relative z-10 flex justify-between items-start">
                   <div className="flex items-center gap-1.5 opacity-90">
                     <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-                    <span className="text-[11px] font-bold tracking-wider uppercase">Cashback Wallet</span>
+                    <span className="text-[11px] font-bold tracking-wider uppercase">{t('Cashback Wallet')}</span>
                   </div>
                   <span className="material-symbols-outlined text-[18px] opacity-60">contactless</span>
                 </div>
 
                 {/* Balance Amount */}
                 <div className="relative z-10 my-2">
-                  <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">Available Balance</p>
+                  <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">{t('Available Balance')}</p>
                   <h2 className="text-[30px] font-display font-black leading-none tracking-tight mt-0.5">
                     {loading ? '...' : `₹${displayBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </h2>
@@ -480,7 +483,7 @@ export default function WalletPage() {
                   className="py-2.5 px-1 sm:px-2 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  Add Funds
+                  {t('Add Money')}
                 </button>
 
                 <button
@@ -488,7 +491,7 @@ export default function WalletPage() {
                   className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                  Withdraw
+                  {t('Withdraw')}
                 </button>
 
                 <button
@@ -496,7 +499,7 @@ export default function WalletPage() {
                   className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">receipt_long</span>
-                  Ledger
+                  {t('Passbook')}
                 </button>
               </div>
             </div>
@@ -1325,20 +1328,16 @@ export default function WalletPage() {
               </div>
             ) : (
               <form onSubmit={handleVerifyPinAndWithdraw} className="space-y-3.5 py-1 text-left">
-                <div>
-                  <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                    Enter Security PIN / Password
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider text-center">
+                    Enter 4-Digit Security PIN
                   </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={8}
-                    autoFocus
-                    required
+                  <FourDigitPinInput
                     value={authPin}
-                    onChange={(e) => { setAuthPin(e.target.value.replace(/\D/g, '')); setAuthError(''); }}
-                    placeholder="Enter 4-8 digit PIN"
-                    className="w-full h-12 px-4 bg-gray-50 rounded-xl border border-outline-variant/30 focus:border-primary outline-none text-[16px] font-bold tracking-widest text-on-surface text-center"
+                    onChange={(val) => { setAuthPin(val); setAuthError(''); }}
+                    autoFocus={true}
+                    hasError={Boolean(authError)}
+                    idPrefix="vendor-wallet-pin"
                   />
                 </div>
 
@@ -1351,8 +1350,8 @@ export default function WalletPage() {
                 <div className="space-y-2 pt-1">
                   <button
                     type="submit"
-                    disabled={isVerifyingSecurity || !authPin}
-                    className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                    disabled={isVerifyingSecurity || authPin.length !== 4}
+                    className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     {isVerifyingSecurity ? (
                       <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />

@@ -236,7 +236,7 @@ export const getDashboardStats = async (req, res) => {
 // ─── Get Admin Sales Analytics (Platform-wide Today / Weekly / Monthly / Yearly) ───
 export const getAdminSalesAnalytics = async (req, res) => {
   try {
-    const { period = 'today' } = req.query;
+    const { period = 'today', startDate, endDate } = req.query;
 
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
@@ -244,8 +244,19 @@ export const getAdminSalesAnalytics = async (req, res) => {
 
     const startOfTodayUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset);
     let startDateUtc;
+    let endDateUtc = null;
 
-    if (period === 'weekly') {
+    if (period === 'custom' && startDate) {
+      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+      startDateUtc = new Date(Date.UTC(sYear, sMonth - 1, sDay) - istOffset);
+
+      if (endDate) {
+        const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+        endDateUtc = new Date(Date.UTC(eYear, eMonth - 1, eDay, 23, 59, 59, 999) - istOffset);
+      } else {
+        endDateUtc = new Date(Date.UTC(sYear, sMonth - 1, sDay, 23, 59, 59, 999) - istOffset);
+      }
+    } else if (period === 'weekly') {
       startDateUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
     } else if (period === 'monthly') {
       startDateUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - istOffset);
@@ -255,13 +266,18 @@ export const getAdminSalesAnalytics = async (req, res) => {
       startDateUtc = startOfTodayUtc;
     }
 
+    const dateFilter = { $gte: startDateUtc };
+    if (endDateUtc) {
+      dateFilter.$lte = endDateUtc;
+    }
+
     const transactions = await Transaction.find({
       status: { $in: ['Approved', 'Success'] },
       $or: [
-        { timestamp: { $gte: startDateUtc } },
-        { createdAt: { $gte: startDateUtc } }
+        { timestamp: dateFilter },
+        { createdAt: dateFilter }
       ]
-    }).sort({ timestamp: -1, createdAt: -1 }).limit(100);
+    }).sort({ timestamp: -1, createdAt: -1 }).limit(period === 'custom' || period === 'yearly' ? 500 : 150);
 
     let totalAmount = 0;
     let cashAmount = 0;

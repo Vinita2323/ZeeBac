@@ -7,7 +7,7 @@ import useNotifications from '../../../../hooks/useNotifications';
 
 export default function VendorTopBar() {
   const navigate = useNavigate();
-  const { language } = useLanguageStore();
+  const { language, setLanguage } = useLanguageStore();
   const [showLangModal, setShowLangModal] = useState(false);
   const { unreadCount } = useNotifications();
 
@@ -29,12 +29,15 @@ export default function VendorTopBar() {
           {/* Language Switcher */}
           <button 
             type="button"
-            onClick={() => setShowLangModal(true)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface-variant hover:text-primary text-[11px] font-semibold cursor-pointer transition-all active:scale-95"
-            title="Change App Language"
+            onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+            className="flex items-center justify-center px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface-variant hover:text-primary text-[12px] font-bold cursor-pointer transition-all active:scale-95 shadow-xs"
+            title={language === 'en' ? 'Switch to Hindi / हिन्दी में बदलें' : 'Switch to English / अंग्रेज़ी में बदलें'}
           >
-            <span className="material-symbols-outlined text-[13px] text-primary">translate</span>
-            <span className="leading-none">{language === 'hi' ? 'हिन्दी' : 'English'}</span>
+            <span className="leading-none flex items-center tracking-tight">
+              <span className={language === 'en' ? 'text-primary font-black' : 'text-on-surface-variant/50 font-medium'}>Eng</span>
+              <span className="text-outline-variant/60 font-normal">/</span>
+              <span className={language === 'hi' ? 'text-primary font-black' : 'text-on-surface-variant/50 font-medium'}>हि</span>
+            </span>
           </button>
 
           <button 

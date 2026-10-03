@@ -229,7 +229,7 @@ export default function WalletPassbookScreen() {
               <div className="min-w-[220px] bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] rounded-[14px] p-3 text-white shadow-md shadow-primary/20 relative overflow-hidden flex flex-col justify-between h-[96px]">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-bold text-xs tracking-wide">ZeeBac Wallet</h3>
+                    <h3 className="font-bold text-xs tracking-wide">{t('ZeeBac Wallet')}</h3>
                     <p className="text-[9px] text-white/80 mt-0.5">
                       A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}
                     </p>
@@ -242,7 +242,7 @@ export default function WalletPassbookScreen() {
                   onClick={() => navigate('/wallet')}
                   className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98] cursor-pointer"
                 >
-                  Check Balance
+                  {t('Check Balance')}
                 </button>
               </div>
             </div>
@@ -261,8 +261,8 @@ export default function WalletPassbookScreen() {
             <span className="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
           </div>
           <div className="flex-1 text-left">
-            <p className="font-bold text-[13px] text-on-surface leading-tight">Missing Cashback?</p>
-            <p className="text-[10.5px] text-on-surface-variant">Upload your receipt to claim it</p>
+            <p className="font-bold text-[13px] text-on-surface leading-tight">{t('Missing Cashback?')}</p>
+            <p className="text-[10.5px] text-on-surface-variant">{t('Upload your receipt to claim it')}</p>
           </div>
           <span className="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
         </button>
@@ -291,7 +291,7 @@ export default function WalletPassbookScreen() {
             <span className="material-symbols-outlined text-gray-400 text-[18px]">search</span>
             <input
               type="text"
-              placeholder="Search by name, cashback or tag..."
+              placeholder={t('Search by name, cashback or tag...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-transparent border-none outline-none flex-1 text-[13px] text-gray-800 placeholder-gray-400"
@@ -490,13 +490,13 @@ export default function WalletPassbookScreen() {
                   </span>
                   <p className="text-sm font-bold">
                     {activeTab === 'Cashback'
-                      ? 'No gained cashback found'
-                      : 'No transactions found'}
+                      ? t('No gained cashback found')
+                      : t('No transactions found')}
                   </p>
                   <p className="text-[11px] text-on-surface-variant">
                     {activeTab === 'Cashback'
-                      ? 'Shop at partner stores or scan receipts to earn instant cashback!'
-                      : 'Your wallet transactions and withdrawals will show here.'}
+                      ? t('Shop at partner stores or scan receipts to earn instant cashback!')
+                      : t('Your wallet transactions and withdrawals will show here.')}
                   </p>
                 </div>
               )}

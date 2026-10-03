@@ -10,9 +10,11 @@ import ShopAndPayLaterModal from '../components/ShopAndPayLaterModal';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function HomeScreen() {
   const navigate = useNavigate();
+  const { language, setLanguage, t } = useLanguageStore();
   const bellRef = useRef(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { unreadCount } = useNotifications();
@@ -172,7 +174,21 @@ export default function HomeScreen() {
             src="/Logo (6).png"
             onClick={() => navigate('/home')}
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Language Switcher */}
+            <button 
+              type="button"
+              onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+              className="flex items-center justify-center px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface-variant hover:text-primary text-[12px] font-bold cursor-pointer transition-all active:scale-95 shadow-xs"
+              title={language === 'en' ? 'Switch to Hindi / हिन्दी में बदलें' : 'Switch to English / अंग्रेज़ी में बदलें'}
+            >
+              <span className="leading-none flex items-center tracking-tight">
+                <span className={language === 'en' ? 'text-primary font-black' : 'text-on-surface-variant/50 font-medium'}>Eng</span>
+                <span className="text-outline-variant/60 font-normal">/</span>
+                <span className={language === 'hi' ? 'text-primary font-black' : 'text-on-surface-variant/50 font-medium'}>हि</span>
+              </span>
+            </button>
+
             <button onClick={() => navigate('/chat')} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-9 h-9 rounded-full hover:bg-primary/5">
               <span className="material-symbols-outlined text-[24px]">chat_bubble</span>
             </button>
@@ -200,9 +216,9 @@ export default function HomeScreen() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-[19px] font-black text-on-surface leading-tight">
-              Hi, {(currentUser?.name || 'there').split(' ')[0]} 👋
+              {t('Hi,')} {(currentUser?.name || 'there').split(' ')[0]} 👋
             </h1>
-            <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">Let's find you some cashback today</p>
+            <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">{t("Let's find you some cashback today")}</p>
           </div>
         </div>
 
@@ -216,8 +232,8 @@ export default function HomeScreen() {
               <span className="material-symbols-outlined text-white text-[20px]">account_balance_wallet</span>
             </div>
             <div>
-              <p className="text-[10px] text-white/75 font-bold uppercase tracking-wider leading-none">Rewards Wallet</p>
-              <p className="text-white font-display font-black text-[18px] mt-1 leading-none">View Balance</p>
+              <p className="text-[10px] text-white/75 font-bold uppercase tracking-wider leading-none">{t('Rewards Wallet')}</p>
+              <p className="text-white font-display font-black text-[18px] mt-1 leading-none">{t('View Balance')}</p>
             </div>
           </div>
           <span className="material-symbols-outlined text-white/80 text-[20px]">chevron_right</span>
@@ -226,10 +242,10 @@ export default function HomeScreen() {
         {/* Quick Actions Row */}
         <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
           {[
-            { label: 'Scan & Pay', icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-            { label: 'Upload Bill', icon: 'receipt_long', onClick: () => navigate('/request-cashback'), bg: 'from-[#260060] to-[#7000ff]' },
-            { label: 'Find Vendor', icon: 'storefront', onClick: () => navigate('/find-vendor'), bg: 'from-[#16082f] to-[#4c00b0]' },
-            { label: 'Shop & Pay Later', icon: 'credit_score', onClick: () => setShowPayLaterModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: 'Soon' },
+            { label: t('Scan & Pay'), icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            { label: t('Upload Bill'), icon: 'receipt_long', onClick: () => navigate('/request-cashback'), bg: 'from-[#260060] to-[#7000ff]' },
+            { label: t('Find Vendor'), icon: 'storefront', onClick: () => navigate('/find-vendor'), bg: 'from-[#16082f] to-[#4c00b0]' },
+            { label: t('Shop & Pay Later'), icon: 'credit_score', onClick: () => setShowPayLaterModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: t('Soon') },
           ].map((action) => (
             <button
               key={action.label}
@@ -254,9 +270,9 @@ export default function HomeScreen() {
         {/* Secondary Quick Actions Row - Exact same UI style as above */}
         <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
           {[
-            { label: 'Claim by UTR', icon: 'receipt_long', onClick: () => { setShowUtrModal(true); setUtrError(''); setUtrSuccess(''); setUtrInput(''); }, bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-            { label: 'Mobile Recharge', icon: 'phonelink_ring', onClick: () => navigate('/wallet', { state: { subView: 'recharge' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-            { label: 'Personal Loan', icon: 'payments', onClick: () => setShowLoanModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: 'Soon' },
+            { label: t('Claim by UTR'), icon: 'receipt_long', onClick: () => { setShowUtrModal(true); setUtrError(''); setUtrSuccess(''); setUtrInput(''); }, bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            { label: t('Mobile Recharge'), icon: 'phonelink_ring', onClick: () => navigate('/wallet', { state: { subView: 'recharge' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            { label: t('Personal Loan'), icon: 'payments', onClick: () => setShowLoanModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: t('Soon') },
           ].map((action) => (
             <button
               key={action.label}
@@ -300,7 +316,7 @@ export default function HomeScreen() {
         {/* Recently Visited */}
         {recentVendors.length > 0 && (
           <div className="space-y-2">
-            <h3 className="font-display text-headline-sm text-on-surface font-black tracking-tight">Recently Visited</h3>
+            <h3 className="font-display text-headline-sm text-on-surface font-black tracking-tight">{t('Recently Visited')}</h3>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
               {recentVendors.map((vendor) => (
                 <div
@@ -327,12 +343,12 @@ export default function HomeScreen() {
         {/* Nearby Vendors List */}
         <div className="space-y-md">
           <div className="flex items-center justify-between">
-            <h3 className="font-display text-headline-sm text-on-surface font-black tracking-tight">Nearby Partner Vendors</h3>
+            <h3 className="font-display text-headline-sm text-on-surface font-black tracking-tight">{t('Nearby Partner Vendors')}</h3>
             <button
               onClick={() => navigate('/explore')}
               className="text-body-sm text-primary font-bold hover:underline cursor-pointer"
             >
-              See All
+              {t('See All')}
             </button>
           </div>
 
@@ -346,13 +362,13 @@ export default function HomeScreen() {
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-1">
                   <span className="material-symbols-outlined text-primary text-[24px]">storefront</span>
                 </div>
-                <p className="font-bold text-on-surface text-[13.5px]">No nearby vendors yet</p>
-                <p className="text-on-surface-variant text-[12px] max-w-[220px]">Explore the full directory to find partner stores near you</p>
+                <p className="font-bold text-on-surface text-[13.5px]">{t('No nearby vendors yet')}</p>
+                <p className="text-on-surface-variant text-[12px] max-w-[220px]">{t('Explore the full directory to find partner stores near you')}</p>
                 <button
                   onClick={() => navigate('/explore')}
                   className="mt-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-[12px] font-bold hover:bg-primary/15 transition-colors cursor-pointer"
                 >
-                  Browse Explore
+                  {t('Browse Explore')}
                 </button>
               </div>
             ) : (
@@ -370,13 +386,13 @@ export default function HomeScreen() {
                     )}
                   </div>
                   <div className="flex-grow text-left space-y-0.5">
-                    <span className="bg-primary/10 text-primary font-label-mono text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase">FLAT {vendor.cashbackRate}% CASHBACK</span>
+                    <span className="bg-primary/10 text-primary font-label-mono text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase">{t('FLAT')} {vendor.cashbackRate}% {t('CASHBACK')}</span>
                     <h4 className="font-title-md text-on-surface font-bold text-[14px] pt-0.5 leading-tight">{vendor.storeName}</h4>
                     <div className="flex items-center gap-xs text-caption text-on-surface-variant text-[11px]">
                       <span className="material-symbols-outlined text-[12px]">distance</span>
                       {location && vendor.location?.coordinates ?
-                        `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km away`
-                        : 'Nearby'}
+                        `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} ${t('km away')}`
+                        : t('Nearby')}
                       <span>•</span>
                       {vendor.category}
                     </div>
@@ -418,13 +434,13 @@ export default function HomeScreen() {
                 <span className="material-symbols-outlined text-[26px]">receipt_long</span>
               </div>
               <div>
-                <h3 className="font-display font-black text-[17px] text-on-surface leading-tight">Claim by UTR</h3>
-                <p className="text-[11px] text-on-surface-variant">Instant 12-Digit UPI Claim</p>
+                <h3 className="font-display font-black text-[17px] text-on-surface leading-tight">{t('Claim by UTR')}</h3>
+                <p className="text-[11px] text-on-surface-variant">{t('Instant 12-Digit UPI Claim')}</p>
               </div>
             </div>
 
             <p className="text-[12px] text-on-surface-variant leading-relaxed">
-              If Google Pay, PhonePe, or Paytm didn't send your phone number, enter your 12-digit UPI Reference / UTR number from your payment receipt to claim cashback:
+              {t("If Google Pay, PhonePe, or Paytm didn't send your phone number, enter your 12-digit UPI Reference / UTR number from your payment receipt to claim cashback:")}
             </p>
 
             <div className="space-y-3">
@@ -462,7 +478,7 @@ export default function HomeScreen() {
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[18px]">redeem</span>
-                    Verify & Claim Cashback
+                    {t('Verify & Claim Cashback')}
                   </>
                 )}
               </button>

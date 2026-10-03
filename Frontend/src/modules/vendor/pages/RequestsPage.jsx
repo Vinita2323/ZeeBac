@@ -177,7 +177,7 @@ export default function RequestsPage() {
       <div className="hidden md:flex justify-between items-end mb-6">
         <div>
           <h1 className="font-display text-[24px] font-black text-on-surface leading-none tracking-tight">{t('Pending Requests')}</h1>
-          <p className="text-on-surface-variant text-[12px] font-bold mt-1">{t('Review and approve cashback claims', 'कैशबैक दावों की समीक्षा करें और स्वीकृत करें')}</p>
+          <p className="text-on-surface-variant text-[12px] font-bold mt-1">{t('Review and approve cashback claims')}</p>
         </div>
       </div>
 
@@ -231,10 +231,10 @@ export default function RequestsPage() {
                     <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-red-200">
                       <span className="px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-red-600 text-white flex items-center gap-1 shadow-xs">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                        Cash Mode • OTP Required
+                        {t('Cash Mode • OTP Required')}
                       </span>
                       <span className="text-[11px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-md">
-                        Share Code to Approve
+                        {t('Share Code to Approve')}
                       </span>
                     </div>
                   )}
@@ -243,10 +243,10 @@ export default function RequestsPage() {
                     <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-emerald-200">
                       <span className="px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-emerald-600 text-white flex items-center gap-1 shadow-xs">
                         <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                        Cashback Successful
+                        {t('Cashback Successful')}
                       </span>
                       <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                        Verified via OTP
+                        {t('Verified via OTP')}
                       </span>
                     </div>
                   )}
@@ -280,7 +280,7 @@ export default function RequestsPage() {
 
                   <div className="flex justify-between items-center mt-2 flex-wrap gap-1">
                     <p className="text-[12px] text-on-surface-variant font-medium">
-                      {new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> {req.paymentMethod || 'Cash'}
+                      {new Date(req.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} <span className="mx-1">•</span> <span className="font-bold text-primary">{req.paymentMethod === 'Cash' || req.requestType === 'cash_claim' || !req.paymentMethod || String(req.paymentMethod).toLowerCase().includes('cash') ? t('Cash transaction') : t('Digital transaction')}</span>
                     </p>
                     <div className={`px-2.5 py-0.5 rounded-lg font-black text-[12px] ${
                       isPendingCashOtp 
@@ -289,7 +289,7 @@ export default function RequestsPage() {
                         ? 'bg-emerald-600 text-white shadow-xs'
                         : 'text-green-700 bg-green-50 border border-green-200'
                     }`}>
-                      Cashback: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
+                      {t('Cashback')}: ₹{(req.amount * (cashbackRate / 100)).toFixed(2)}
                     </div>
                   </div>
 
@@ -321,14 +321,14 @@ export default function RequestsPage() {
                   <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-2.5 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-red-700 text-[11px] font-bold">
                       <span className="material-symbols-outlined text-[16px]">pause_circle</span>
-                      <span>On Hold: {req.holdReason || 'Flagged for verification'}</span>
+                      <span>{t('On Hold')}: {req.holdReason || 'Flagged for verification'}</span>
                     </div>
                     <button
                       disabled={isProcessing}
                       onClick={() => handleUnhold(req._id)}
                       className="text-[11px] font-bold text-primary bg-white border border-primary/30 px-2.5 py-1 rounded-lg hover:bg-primary/5 active:scale-95 cursor-pointer"
                     >
-                      Release Hold
+                      {t('Release Hold')}
                     </button>
                   </div>
                 )}

@@ -37,6 +37,14 @@ export default function ChatScreen() {
     });
   };
 
+  // Track active conversation so foreground notifications for this specific chat are suppressed
+  useEffect(() => {
+    window.__ACTIVE_CONVERSATION_ID__ = selectedChat?._id ? String(selectedChat._id) : null;
+    return () => {
+      window.__ACTIVE_CONVERSATION_ID__ = null;
+    };
+  }, [selectedChat]);
+
   // Initialize Socket
   useEffect(() => {
     if (token) {

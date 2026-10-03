@@ -1,9 +1,5 @@
-// Big-target on-screen number pad + digit-box display for entering a PIN.
-// Replaces a plain <input type="password"> — typing a 4-8 digit PIN on a
-// cramped mobile keyboard (autocomplete bar, tiny keys, keyboard popping
-// the layout around) is the friction this removes. Supports variable
-// length (4-8 digits) since existing PINs aren't a fixed size.
-export default function PinKeypad({ value, onChange, maxLength = 8, autoFocusError = false }) {
+// Big-target on-screen number pad + digit-box display for entering a 4-digit PIN.
+export default function PinKeypad({ value, onChange, maxLength = 4, autoFocusError = false }) {
   const digits = value.split('');
 
   const press = (d) => {
@@ -14,18 +10,19 @@ export default function PinKeypad({ value, onChange, maxLength = 8, autoFocusErr
 
   return (
     <div className="space-y-5">
-      <div className={`flex items-center justify-center gap-2.5 ${autoFocusError ? 'animate-shake' : ''}`}>
-        {Array.from({ length: Math.max(maxLength, value.length) }).map((_, i) => {
-          if (i >= maxLength) return null;
+      <div className={`flex items-center justify-center gap-3 ${autoFocusError ? 'animate-shake' : ''}`}>
+        {Array.from({ length: maxLength }).map((_, i) => {
           const filled = i < digits.length;
           return (
             <div
               key={i}
-              className={`w-9 h-11 rounded-xl border-2 flex items-center justify-center transition-colors ${
-                filled ? 'border-primary bg-primary/5' : 'border-outline-variant/30 bg-surface-container-low'
+              className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-2 flex items-center justify-center transition-all ${
+                filled
+                  ? 'border-primary bg-primary/10 shadow-xs scale-105'
+                  : 'border-outline-variant/30 bg-surface-container-low'
               }`}
             >
-              {filled && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}
+              {filled && <span className="w-3.5 h-3.5 rounded-full bg-primary animate-pop" />}
             </div>
           );
         })}

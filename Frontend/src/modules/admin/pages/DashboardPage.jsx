@@ -2,11 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminAPI } from '../../../services/api';
 import SalesAnalyticsModal from '../../vendor/components/SalesAnalyticsModal';
-import useLanguageStore from '../../../store/useLanguageStore';
-
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { t } = useLanguageStore();
   const [data, setData] = useState(null);
   const [showSalesModal, setShowSalesModal] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -135,11 +132,11 @@ export default function DashboardPage() {
               <div className="mt-2 pt-1.5 border-t border-outline-variant/10 flex items-center justify-between text-[10px] font-medium text-on-surface-variant">
                 <span className="flex items-center gap-1 text-emerald-700 font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  {t('Cash')}: ₹{(stat.cash || 0).toLocaleString('en-IN')}
+                  Cash: ₹{(stat.cash || 0).toLocaleString('en-IN')}
                 </span>
                 <span className="flex items-center gap-1 text-indigo-700 font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-                  {t('Digital')}: ₹{(stat.digital || 0).toLocaleString('en-IN')}
+                  Digital: ₹{(stat.digital || 0).toLocaleString('en-IN')}
                 </span>
               </div>
             ) : (

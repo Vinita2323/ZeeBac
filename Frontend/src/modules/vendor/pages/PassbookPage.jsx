@@ -4,9 +4,11 @@ import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI } from '../../../services/api';
 import { generatePassbookPDF } from '../../../utils/exportUtils';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function PassbookPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [dateFilter, setDateFilter] = useState('This Month');
   const [typeFilter, setTypeFilter] = useState('All');
   const balance = useAuthStore((state) => state.walletBalance);
@@ -88,14 +90,14 @@ export default function PassbookPage() {
           <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
             <span className="material-symbols-outlined text-primary">arrow_back</span>
           </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">Wallet Passbook</span>
+          <span className="font-display text-title-md text-primary font-bold ml-1">{t('Wallet Passbook')}</span>
         </div>
         <button 
           onClick={() => generatePassbookPDF(filteredLedger, currentUser?.storeName || currentUser?.name, dateFilter)}
           className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-outline-variant/20 text-primary rounded-lg font-bold text-[12px] active:scale-[0.97] transition-all shadow-sm cursor-pointer shrink-0"
         >
           <span className="material-symbols-outlined text-[16px]">download</span>
-          Export
+          {t('Export')}
         </button>
       </header>
 
@@ -111,12 +113,12 @@ export default function PassbookPage() {
             <span className="material-symbols-outlined text-[20px]">receipt_long</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-bold text-on-surface leading-tight truncate">Looking for Store Sales / Revenue?</p>
-            <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">View customer bill transactions & gross sales history</p>
+            <p className="text-[13px] font-bold text-on-surface leading-tight truncate">{t('Looking for Store Sales / Revenue?')}</p>
+            <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">{t('View customer bill transactions & gross sales history')}</p>
           </div>
         </div>
         <div className="flex items-center gap-1 text-primary text-[12px] font-bold shrink-0 self-start sm:self-auto">
-          <span>View Bills</span>
+          <span>{t('View Bills')}</span>
           <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
         </div>
       </div>
@@ -124,7 +126,7 @@ export default function PassbookPage() {
       {/* Summary Cards */}
       <div className="space-y-3">
         <div className="bg-[#D4E9FC] p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-[#0F4C81]">
-          <p className="text-[11px] font-bold opacity-80 mb-0.5">Current Wallet Balance</p>
+          <p className="text-[11px] font-bold opacity-80 mb-0.5">{t('Current Wallet Balance')}</p>
           <p className="text-[22px] font-black">₹{balance.toLocaleString('en-IN')}</p>
         </div>
       </div>
@@ -132,16 +134,16 @@ export default function PassbookPage() {
       {/* Filter Header */}
       <div className="space-y-2 bg-white rounded-2xl p-4 border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-[14px] text-on-surface">Wallet Ledger</h3>
+          <h3 className="font-bold text-[14px] text-on-surface">{t('Wallet Ledger')}</h3>
           <select 
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
             className="bg-surface-container-low border border-outline-variant/10 text-on-surface text-[12px] font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-primary appearance-none cursor-pointer"
           >
-            <option>Today</option>
-            <option>This Week</option>
-            <option>This Month</option>
-            <option>Last Month</option>
+            <option value="Today">{t('Today')}</option>
+            <option value="This Week">{t('This Week')}</option>
+            <option value="This Month">{t('This Month')}</option>
+            <option value="Last Month">{t('Last Month')}</option>
           </select>
         </div>
 
@@ -157,7 +159,7 @@ export default function PassbookPage() {
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {tab === 'Cashback' ? 'Cashback Given (-₹)' : (tab === 'Recharge' ? 'Recharges (+₹)' : (tab === 'Payments' ? 'Payments (+₹)' : 'All Entries'))}
+              {tab === 'Cashback' ? t('Cashback Given (-₹)') : (tab === 'Recharge' ? t('Recharges (+₹)') : (tab === 'Payments' ? t('Payments (+₹)') : t('All Entries')))}
             </button>
           ))}
         </div>
@@ -166,7 +168,7 @@ export default function PassbookPage() {
       {/* Ledger Entries */}
       <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-on-surface-variant font-bold">Loading ledger...</div>
+          <div className="p-8 text-center text-on-surface-variant font-bold">{t('Loading ledger...')}</div>
         ) : filteredLedger.length > 0 ? (
           filteredLedger.map((entry, index) => (
             <div key={entry.id} className={`p-4 active:bg-surface-container-low/50 transition-colors ${
@@ -174,7 +176,7 @@ export default function PassbookPage() {
             }`}>
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1 min-w-0 mr-3">
-                  <h4 className="font-bold text-[14px] text-on-surface truncate">{entry.desc}</h4>
+                  <h4 className="font-bold text-[14px] text-on-surface truncate">{t(entry.desc)}</h4>
                   <p className="text-[11px] text-on-surface-variant mt-0.5">{entry.date} • {entry.time}</p>
                 </div>
                 <p className={`font-black font-label-mono text-[15px] whitespace-nowrap ${entry.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
@@ -182,13 +184,13 @@ export default function PassbookPage() {
                 </p>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-outline-variant/5 text-[11px]">
-                <span className="text-on-surface-variant font-label-mono">Ref: {entry.ref}</span>
-                <span className="font-bold text-on-surface font-label-mono">Bal: {entry.balance}</span>
+                <span className="text-on-surface-variant font-label-mono">{t('Ref:')} {entry.ref}</span>
+                <span className="font-bold text-on-surface font-label-mono">{t('Bal:')} {entry.balance}</span>
               </div>
             </div>
           ))
         ) : (
-          <div className="p-8 text-center text-on-surface-variant font-bold">No ledger entries found</div>
+          <div className="p-8 text-center text-on-surface-variant font-bold">{t('No ledger entries found')}</div>
         )}
       </div>
 

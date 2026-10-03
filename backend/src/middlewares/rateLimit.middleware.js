@@ -42,14 +42,26 @@ export const adminLoginLimiter = rateLimit({
   message: { success: false, message: 'Too many login attempts. Please try again in a few minutes.' },
 });
 
-// Security PIN setup/verification guards a short numeric secret (as few as
-// 4 digits = 10,000 combinations) — needs brute-force protection of its own,
-// tighter than the general login limiter.
+// Security PIN setup/verification rate limiter:
+// Allows strictly 5 attempts per 1 minute window, scoped per user/vendor ID
+const pinKeyGenerator = (req) => {
+  const userId = req.user?._id || req.user?.id;
+  const role = req.user?.role || 'user';
+  if (userId) {
+    return `${role}_${userId}`;
+  }
+  return req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+};
+
 export const pinLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: isDev ? 100 : 15,
+  windowMs: 1 * 60 * 1000, // 1 minute
+  limit: 5, // 5 attempts per 1 minute per user or vendor
+  keyGenerator: pinKeyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many PIN attempts. Please try again in a few minutes.' },
+  message: {
+    success: false,
+    message: 'Too many PIN attempts. Maximum 5 attempts per minute allowed. Please wait 1 minute before trying again.'
+  },
 });
 

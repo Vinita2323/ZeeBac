@@ -1,13 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import useLanguageStore, { SUPPORTED_LANGUAGES } from '../../store/useLanguageStore';
 
 export default function LanguageSelectorModal({ isOpen, onClose }) {
   const { language, setLanguage, t } = useLanguageStore();
 
+  // Prevent background scrolling while modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const origOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = origOverflow;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-reveal">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+      onClick={onClose}
+    >
       <div 
         className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-outline-variant/20 space-y-5"
         onClick={(e) => e.stopPropagation()}
@@ -19,10 +33,10 @@ export default function LanguageSelectorModal({ isOpen, onClose }) {
             </div>
             <div>
               <h3 className="font-display font-black text-[17px] text-on-surface leading-tight">
-                {t('select_language', 'Select Language')}
+                {t('select language', 'Select Language')}
               </h3>
               <p className="text-[11px] text-on-surface-variant font-medium mt-0.5">
-                {t('language_desc', 'Currently available in English and Hindi')}
+                {t('currently available in english & hindi', 'Currently available in English and Hindi')}
               </p>
             </div>
           </div>
@@ -83,10 +97,11 @@ export default function LanguageSelectorModal({ isOpen, onClose }) {
             onClick={onClose}
             className="w-full h-11 rounded-xl bg-surface-container text-on-surface font-bold text-[13px] hover:bg-surface-container-high transition-colors cursor-pointer"
           >
-            {t('save', 'Done')}
+            {t('done', 'Done')}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

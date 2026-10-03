@@ -4,9 +4,11 @@ import { createPortal } from 'react-dom';
 import { VendorAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function StorefrontPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [activeTab, setActiveTab] = useState('catalog');
   const [showStoriesModal, setShowStoriesModal] = useState(false);
 
@@ -285,22 +287,27 @@ export default function StorefrontPage() {
         <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Storefront</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">{t('Storefront')}</span>
       </header>
 
       {/* Internal Tabs */}
       <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-[57px] md:top-0 z-30 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
-        {['catalog', 'media', 'promotions', 'stories'].map((tab) => (
+        {[
+          { key: 'catalog', label: t('catalog / products', 'Catalog') },
+          { key: 'media', label: t('photos & videos', 'Media') },
+          { key: 'promotions', label: t('promotions', 'Promotions') },
+          { key: 'stories', label: t('store stories', 'Stories') },
+        ].map((item) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={item.key}
+            onClick={() => setActiveTab(item.key)}
             className={`flex-1 py-3 sm:py-3.5 px-2 sm:px-3 font-title-md text-[13px] sm:text-[14px] capitalize cursor-pointer border-b-2 text-center whitespace-nowrap transition-all ${
-              activeTab === tab 
+              activeTab === item.key 
                 ? 'border-primary text-primary font-bold' 
                 : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest'
             }`}
           >
-            {tab}
+            {item.label}
           </button>
         ))}
       </nav>
