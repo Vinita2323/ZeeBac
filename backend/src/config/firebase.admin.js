@@ -24,12 +24,26 @@ let firebaseInitialized = false;
 
 try {
   let serviceAccount = null;
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    serviceAccount = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
-      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-      : process.env.FIREBASE_SERVICE_ACCOUNT;
-  } else if (existsSync(serviceAccountPath)) {
-    serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+
+  // 1. Check direct serviceAccountKey.json file first (most reliable, no dotenv escaping issues)
+  if (existsSync(serviceAccountPath)) {
+    try {
+      serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+      logger.info('Loaded Firebase service account from serviceAccountKey.json');
+    } catch (fErr) {
+      logger.warn(`Failed reading serviceAccountKey.json: ${fErr.message}`);
+    }
+  }
+
+  // 2. Fall back to FIREBASE_SERVICE_ACCOUNT environment variable if file not used
+  if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+      serviceAccount = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      logger.info('Loaded Firebase service account from FIREBASE_SERVICE_ACCOUNT env');
+    } catch (envErr) {
+      logger.warn(`Failed parsing FIREBASE_SERVICE_ACCOUNT env: ${envErr.message}`);
+    }
   }
 
   if (serviceAccount) {
@@ -37,10 +51,9 @@ try {
       credential: cert(serviceAccount),
     });
     firebaseInitialized = true;
-    logger.info('Firebase Admin initialized successfully');
+    logger.info(`Firebase Admin initialized successfully for project: ${serviceAccount.project_id}`);
   } else {
     logger.warn('Firebase Admin: serviceAccountKey.json or FIREBASE_SERVICE_ACCOUNT env not found. Push notifications will be disabled.');
-    logger.warn('Provide FIREBASE_SERVICE_ACCOUNT in .env or download serviceAccountKey.json from Firebase Console.');
   }
 } catch (error) {
   logger.error(`Firebase Admin init error: ${error.message}`);
