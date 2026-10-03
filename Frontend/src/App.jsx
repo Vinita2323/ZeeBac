@@ -54,6 +54,17 @@ function ScrollToTop() {
   return null;
 }
 
+function RoleRouteSync() {
+  const { pathname } = useLocation();
+  const syncRoleForRoute = useAuthStore((s) => s.syncRoleForRoute);
+
+  useEffect(() => {
+    syncRoleForRoute(pathname);
+  }, [pathname, syncRoleForRoute]);
+
+  return null;
+}
+
 function PwaInstallManager() {
   const { pathname } = useLocation();
 
@@ -198,15 +209,12 @@ function App() {
           }
         } catch (err) {
           console.warn("Session profile sync error:", err?.message || err);
-          // Only log out if the backend explicitly returned 401/403 (token genuinely revoked)
-          if (err.response?.status === 401 || err.response?.status === 403) {
-            logout();
-          }
+          // Do not force logout on profile sync error to keep session saved
         }
       }
     };
     fetchUser();
-  }, [accessToken, logout]);
+  }, [accessToken]);
 
   // Request notification permission and connect real-time sockets when user is authenticated
   useEffect(() => {
@@ -474,6 +482,7 @@ function App() {
     <BrowserRouter>
       <CallProvider>
         <ScrollToTop />
+        <RoleRouteSync />
         <PwaInstallManager />
         <div className="app-backdrop" aria-hidden="true" />
 

@@ -26,7 +26,34 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken || localStorage.getItem('zeebac_access_token');
+  const url = config.url || '';
+  let token = null;
+
+  // 1. Role-specific token resolution based on target endpoint
+  if (url.startsWith('/vendor') || url.startsWith('vendor') || url.includes('/vendor/')) {
+    token = useAuthStore.getState().vendorToken || localStorage.getItem('zeebac_vendor_token');
+  } else if (url.startsWith('/admin') || url.startsWith('admin') || url.includes('/admin/')) {
+    token = useAuthStore.getState().adminToken || localStorage.getItem('zeebac_admin_token');
+  } else if (url.startsWith('/user') || url.startsWith('user') || url.includes('/user/')) {
+    token = useAuthStore.getState().customerToken || localStorage.getItem('zeebac_customer_token');
+  }
+
+  // 2. Location-based fallback if generic endpoint (e.g. /chat, /notifications)
+  if (!token && typeof window !== 'undefined') {
+    if (window.location.pathname.startsWith('/vendor')) {
+      token = useAuthStore.getState().vendorToken || localStorage.getItem('zeebac_vendor_token');
+    } else if (window.location.pathname.startsWith('/admin')) {
+      token = useAuthStore.getState().adminToken || localStorage.getItem('zeebac_admin_token');
+    } else {
+      token = useAuthStore.getState().customerToken || localStorage.getItem('zeebac_customer_token');
+    }
+  }
+
+  // 3. Fallback to active access token
+  if (!token) {
+    token = useAuthStore.getState().accessToken || localStorage.getItem('zeebac_access_token');
+  }
+
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -81,21 +108,44 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('zeebac_refresh_token');
+        const reqUrl = originalRequest.url || '';
+        let targetRole = 'customer';
+        if (reqUrl.includes('/vendor')) targetRole = 'vendor';
+        else if (reqUrl.includes('/admin')) targetRole = 'admin';
+        else if (typeof window !== 'undefined' && window.location.pathname.startsWith('/vendor')) targetRole = 'vendor';
+        else if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) targetRole = 'admin';
+
+        let refreshToken = null;
+        if (targetRole === 'vendor') {
+          refreshToken = localStorage.getItem('zeebac_vendor_refresh_token');
+        } else if (targetRole === 'admin') {
+          refreshToken = localStorage.getItem('zeebac_admin_refresh_token');
+        } else {
+          refreshToken = localStorage.getItem('zeebac_customer_refresh_token') || localStorage.getItem('zeebac_refresh_token');
+        }
+
+        if (!refreshToken) {
+          refreshToken = localStorage.getItem('zeebac_refresh_token') || localStorage.getItem('zeebac_customer_refresh_token') || localStorage.getItem('zeebac_vendor_refresh_token');
+        }
+
         if (!refreshToken) throw new Error('No refresh token');
 
         const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
         const newAccessToken = data.accessToken;
-        useAuthStore.getState().setAccessToken(newAccessToken);
+        useAuthStore.getState().setAccessToken(newAccessToken, targetRole);
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
         processQueue(null, newAccessToken);
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);
-        // Only logout if refresh token was rejected by server (401 or 403) or missing
-        if (err.response?.status === 401 || err.response?.status === 403 || err.message === 'No refresh token') {
-          useAuthStore.getState().logout();
+        // ONLY log out if the refresh token itself was genuinely rejected (401 or 403)
+        // AND logout ONLY the affected role, never all sessions!
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          const reqUrl = originalRequest.url || '';
+          const failedRole = reqUrl.includes('/vendor') ? 'vendor' : reqUrl.includes('/admin') ? 'admin' : 'customer';
+          console.warn(`[apiClient] Refresh token rejected for ${failedRole}. Logging out only ${failedRole}.`);
+          useAuthStore.getState().logout(failedRole);
         }
         return Promise.reject(err);
       } finally {
