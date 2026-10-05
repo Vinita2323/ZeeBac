@@ -150,7 +150,7 @@ All temporary mocks, dummy values, and hardcoded fallbacks identified across the
 While the software architecture is 100% feature-complete and tested, the following external production configurations must be updated when migrating from local staging to public hosting:
 
 ### 1. Payment Gateway: Razorpay Live Keys
-- **Current State**: Test Mode active with test keys (`rzp_test_Sp9r61lI2A4BxN`).
+- **Current State**: Test Mode active with test keys (`rzp_test_Tk8Eo3bZcaGXrc`).
 - **Production Action**:
   - Replace in `backend/.env`:
     ```env
