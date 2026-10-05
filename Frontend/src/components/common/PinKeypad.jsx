@@ -3,7 +3,10 @@ export default function PinKeypad({ value, onChange, maxLength = 4, autoFocusErr
   const digits = value.split('');
 
   const press = (d) => {
-    if (value.length >= maxLength) return;
+    if (value.length >= maxLength) {
+      onChange(d);
+      return;
+    }
     onChange(value + d);
   };
   const backspace = () => onChange(value.slice(0, -1));

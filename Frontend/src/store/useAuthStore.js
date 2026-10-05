@@ -42,7 +42,13 @@ const getUnlockKey = (role = null) => {
 const isWithinUnlockGracePeriod = (role = null) => {
   try {
     const key = getUnlockKey(role);
-    const raw = localStorage.getItem(key) || sessionStorage.getItem(key) || localStorage.getItem('zeebac_app_last_unlocked_at');
+    const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+    if (!raw && !role) {
+      const fallback = localStorage.getItem('zeebac_app_last_unlocked_at') || sessionStorage.getItem('zeebac_app_last_unlocked_at');
+      if (!fallback) return false;
+      const ts = parseInt(fallback, 10);
+      return !isNaN(ts) && (Date.now() - ts) < UNLOCK_GRACE_PERIOD_MS;
+    }
     if (!raw) return false;
     const timestamp = parseInt(raw, 10);
     if (isNaN(timestamp)) return false;
@@ -59,16 +65,25 @@ const markUnlockedThisSession = (role = null) => {
     localStorage.setItem(key, now);
     sessionStorage.setItem(key, now);
     localStorage.setItem('zeebac_app_last_unlocked_at', now);
+    sessionStorage.setItem('zeebac_app_last_unlocked_at', now);
   } catch { /* ignore */ }
 };
 
 const clearUnlockedThisSession = (role = null) => {
   try {
-    const key = getUnlockKey(role);
-    localStorage.removeItem(key);
-    sessionStorage.removeItem(key);
     if (!role || role === 'all') {
       localStorage.removeItem('zeebac_app_last_unlocked_at');
+      localStorage.removeItem('zeebac_customer_last_unlocked_at');
+      localStorage.removeItem('zeebac_vendor_last_unlocked_at');
+      sessionStorage.removeItem('zeebac_app_last_unlocked_at');
+      sessionStorage.removeItem('zeebac_customer_last_unlocked_at');
+      sessionStorage.removeItem('zeebac_vendor_last_unlocked_at');
+    } else {
+      const key = getUnlockKey(role);
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+      localStorage.removeItem('zeebac_app_last_unlocked_at');
+      sessionStorage.removeItem('zeebac_app_last_unlocked_at');
     }
   } catch { /* ignore */ }
 };
@@ -201,7 +216,7 @@ const useAuthStore = create((set, get) => ({
         vendorToken: vToken,
         adminUser: aUser,
         adminToken: aToken,
-        isAppLocked: hasSecurityEnabled(activeUser) && !isWithinUnlockGracePeriod(),
+        isAppLocked: hasSecurityEnabled(activeUser) && !isWithinUnlockGracePeriod(activeRole),
       });
 
       if (activeUser) {

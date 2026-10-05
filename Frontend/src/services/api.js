@@ -90,7 +90,10 @@ apiClient.interceptors.response.use(
                            originalRequest.url?.includes('/auth/refresh') ||
                            originalRequest.url?.includes('/auth/send-otp') ||
                            originalRequest.url?.includes('/auth/customer/login') ||
-                           originalRequest.url?.includes('/auth/vendor-app/login');
+                           originalRequest.url?.includes('/auth/vendor-app/login') ||
+                           originalRequest.url?.includes('/security/verify-pin') ||
+                           originalRequest.url?.includes('/security/setup-pin') ||
+                           originalRequest.url?.includes('/security/toggle-biometric');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {

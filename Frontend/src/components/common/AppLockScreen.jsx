@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import useAuthStore from '../../store/useAuthStore';
 import { UserAPI, VendorAPI } from '../../services/api';
 import { verifyBiometricCredential } from '../../utils/biometric.util';
@@ -15,7 +15,13 @@ export default function AppLockScreen() {
   const unlockApp = useAuthStore((s) => s.unlockApp);
   const logout = useAuthStore((s) => s.logout);
 
-  const isVendor = (currentUser?.role || currentUser?.userType) === 'vendor';
+  const isVendorRoute = typeof window !== 'undefined' && (window.location.pathname.startsWith('/vendor') || window.location.pathname.startsWith('/vendor-app'));
+  const isVendor = currentUser?.role === 'vendor'
+    ? true
+    : currentUser?.role === 'customer'
+      ? false
+      : Boolean((currentUser?.role || currentUser?.userType) === 'vendor' || isVendorRoute);
+
   const API = isVendor ? VendorAPI : UserAPI;
 
   const [mode, setMode] = useState('biometric'); // 'biometric' | 'pin'
@@ -23,21 +29,20 @@ export default function AppLockScreen() {
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     if (!isAppLocked) {
       setPin('');
       setError('');
       setAttempted(false);
+      isSubmittingRef.current = false;
       return;
     }
     const biometricReady = !!currentUser?.security?.biometricEnabled;
     setMode(biometricReady ? 'biometric' : 'pin');
     if (biometricReady && !attempted) {
       setAttempted(true);
-      // Fire within the same tick the lock screen mounts — not inside a
-      // timeout — so this still counts as within the user-activation window
-      // on browsers (iOS Safari) that require that for WebAuthn prompts.
       triggerBiometric();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,7 +54,7 @@ export default function AppLockScreen() {
     try {
       const res = await verifyBiometricCredential(currentUser?.security?.biometricCredentialId);
       if (res.success) {
-        unlockApp();
+        unlockApp(isVendor ? 'vendor' : 'customer');
       } else {
         setError(res.error || 'Biometric validation failed. Use your PIN.');
         setMode('pin');
@@ -62,22 +67,49 @@ export default function AppLockScreen() {
     }
   };
 
-  const handleVerifyPin = async (e) => {
-    e.preventDefault();
-    if (!pin.trim()) return;
+  const handleVerifyPin = async (e, pinToVerify = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const candidatePin = String(pinToVerify !== null ? pinToVerify : pin).trim();
+    if (!candidatePin || candidatePin.length !== 4) return;
+    if (isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
     setIsVerifying(true);
     setError('');
+
     try {
-      const res = await API.verifySecurityPin(pin.trim());
+      const res = await API.verifySecurityPin(candidatePin);
       if (res.success) {
-        unlockApp();
+        unlockApp(isVendor ? 'vendor' : 'customer');
       } else {
         setError(res.message || 'Incorrect PIN. Try again.');
+        setPin(''); // Reset pin so user can cleanly type their next attempt
       }
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Incorrect Security PIN.');
+      setPin(''); // Reset pin so keypad doesn't stay blocked
     } finally {
       setIsVerifying(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const handlePinChange = (newVal) => {
+    setPin(newVal);
+    if (error) setError('');
+    // Auto-verify when all 4 digits are entered
+    if (newVal.length === 4) {
+      handleVerifyPin(null, newVal);
+    }
+  };
+
+  const handleNotYouLogout = () => {
+    const isVendorNow = isVendor;
+    // Log out all sessions cleanly so no secondary account is exposed without PIN
+    logout('all');
+    // Immediately redirect to login screen
+    if (typeof window !== 'undefined') {
+      window.location.replace(isVendorNow ? '/vendor-app/login' : '/login');
     }
   };
 
@@ -85,6 +117,9 @@ export default function AppLockScreen() {
   const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
 
   if (!isAppLocked || isAdmin || isAdminRoute) return null;
+
+  const displayName = currentUser?.name || currentUser?.ownerName || currentUser?.storeName || '';
+  const firstName = displayName ? displayName.split(' ')[0] : '';
 
   return (
     <div className="fixed inset-0 z-[300] bg-white flex flex-col items-center justify-center p-6 select-none">
@@ -96,7 +131,9 @@ export default function AppLockScreen() {
         </div>
 
         <div>
-          <h1 className="text-[18px] font-black text-on-surface">Welcome back{currentUser?.name ? `, ${currentUser.name.split(' ')[0]}` : ''}</h1>
+          <h1 className="text-[18px] font-black text-on-surface">
+            Welcome back{firstName ? `, ${firstName}` : ''}
+          </h1>
           <p className="text-[13px] text-on-surface-variant mt-1">
             {mode === 'biometric' ? 'Verify it’s you to continue' : 'Enter your Security PIN to continue'}
           </p>
@@ -135,8 +172,12 @@ export default function AppLockScreen() {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleVerifyPin} className="space-y-4">
-            <PinKeypad value={pin} onChange={(v) => { setPin(v); setError(''); }} autoFocusError={!!error} />
+          <form onSubmit={(e) => handleVerifyPin(e)} className="space-y-4">
+            <PinKeypad
+              value={pin}
+              onChange={handlePinChange}
+              autoFocusError={!!error}
+            />
             <button
               type="submit"
               disabled={isVerifying || pin.length !== 4}
@@ -160,7 +201,7 @@ export default function AppLockScreen() {
 
         <button
           type="button"
-          onClick={logout}
+          onClick={handleNotYouLogout}
           className="text-on-surface-variant font-semibold text-[12px] underline underline-offset-2 cursor-pointer"
         >
           Not you? Logout
