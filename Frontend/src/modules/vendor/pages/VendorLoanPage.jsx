@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function VendorLoanPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const [registered, setRegistered] = useState(false);
   const [storeName, setStoreName] = useState(currentUser?.storeName || '');
@@ -22,14 +24,14 @@ export default function VendorLoanPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-display text-[20px] sm:text-[22px] font-black text-on-surface leading-tight">
-              Merchant Business Loans
+              {t('Merchant Business Loans')}
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider">
-              Coming Soon
+              {t('Coming Soon')}
             </span>
           </div>
           <p className="text-xs text-on-surface-variant mt-1">
-            Collateral-free working capital tailored for Zeebac merchant store expansion.
+            {t('Collateral-free working capital tailored for Zeebac merchant store expansion.')}
           </p>
         </div>
       </div>
@@ -41,32 +43,32 @@ export default function VendorLoanPage() {
 
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-3">
           <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
-          Merchant Capital • Coming Soon
+          {t('Merchant Capital • Coming Soon')}
         </div>
 
         <h2 className="text-[20px] sm:text-[24px] font-black tracking-tight leading-snug">
-          Working Capital up to ₹25,00,000
+          {t('Working Capital up to ₹25,00,000')}
         </h2>
         <p className="text-indigo-200 text-xs mt-1.5 max-w-xl leading-relaxed">
-          Unlock instant store credit lines based on your daily Zeebac QR collections. Zero property collateral and flexible micro-daily auto deductions from sales.
+          {t('Unlock instant store credit lines based on your daily Zeebac QR collections. Zero property collateral and flexible micro-daily auto deductions from sales.')}
         </p>
 
         <div className="mt-6 pt-4 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div>
-            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Maximum Limit</p>
+            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">{t('Maximum Limit')}</p>
             <p className="text-[22px] font-black text-amber-400 leading-none mt-1">₹25 Lakhs</p>
           </div>
           <div>
-            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Collateral</p>
-            <p className="text-[20px] font-extrabold text-emerald-400 leading-none mt-1">Zero Security</p>
+            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">{t('Collateral')}</p>
+            <p className="text-[20px] font-extrabold text-emerald-400 leading-none mt-1">{t('Zero Security')}</p>
           </div>
           <div>
-            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Repayment Mode</p>
-            <p className="text-[18px] font-extrabold text-white leading-none mt-1">Daily / Weekly EDD</p>
+            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">{t('Repayment Mode')}</p>
+            <p className="text-[18px] font-extrabold text-white leading-none mt-1">{t('Daily / Weekly EDD')}</p>
           </div>
           <div>
-            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">KYC Speed</p>
-            <p className="text-[18px] font-extrabold text-white leading-none mt-1">100% Digital</p>
+            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">{t('KYC Speed')}</p>
+            <p className="text-[18px] font-extrabold text-white leading-none mt-1">{t('100% Digital')}</p>
           </div>
         </div>
       </div>
@@ -77,9 +79,9 @@ export default function VendorLoanPage() {
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-[22px]">inventory_2</span>
           </div>
-          <h3 className="font-bold text-sm text-gray-900 leading-tight">Stock & Inventory</h3>
+          <h3 className="font-bold text-sm text-gray-900 leading-tight">{t('Stock & Inventory')}</h3>
           <p className="text-xs text-gray-500 leading-snug">
-            Buy wholesale goods and seasonal stock without draining your cash flow.
+            {t('Buy wholesale goods and seasonal stock without draining your cash flow.')}
           </p>
         </div>
 
@@ -87,9 +89,9 @@ export default function VendorLoanPage() {
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-[22px]">currency_rupee</span>
           </div>
-          <h3 className="font-bold text-sm text-gray-900 leading-tight">Sales-Based Micro EMIs</h3>
+          <h3 className="font-bold text-sm text-gray-900 leading-tight">{t('Sales-Based Micro EMIs')}</h3>
           <p className="text-xs text-gray-500 leading-snug">
-            Repay automatically in tiny slices from everyday store QR collections.
+            {t('Repay automatically in tiny slices from everyday store QR collections.')}
           </p>
         </div>
 
@@ -97,7 +99,7 @@ export default function VendorLoanPage() {
           <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
           </div>
-          <h3 className="font-bold text-sm text-gray-900 leading-tight">QR Turnover Score</h3>
+          <h3 className="font-bold text-sm text-gray-900 leading-tight">{t('QR Turnover Score')}</h3>
           <p className="text-xs text-gray-500 leading-snug">
             The more customer sales you accept on Zeebac, the higher your pre-approved limit.
           </p>
@@ -107,7 +109,7 @@ export default function VendorLoanPage() {
           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-[22px]">verified_user</span>
           </div>
-          <h3 className="font-bold text-sm text-gray-900 leading-tight">Licensed NBFCs</h3>
+          <h3 className="font-bold text-sm text-gray-900 leading-tight">{t('Licensed NBFCs')}</h3>
           <p className="text-xs text-gray-500 leading-snug">
             Direct disbursals from RBI-registered MSME lending partners to your current account.
           </p>
@@ -121,7 +123,7 @@ export default function VendorLoanPage() {
             <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
               <span className="material-symbols-outlined text-[32px]">check_circle</span>
             </div>
-            <h3 className="text-lg font-bold text-emerald-950">Store Pre-Registered! 🎉</h3>
+            <h3 className="text-lg font-bold text-emerald-950">{t('Store Pre-Registered! 🎉')}</h3>
             <p className="text-xs text-emerald-700 max-w-md mx-auto leading-relaxed">
               Your merchant account has been queued for VIP priority review. Our lending desk will reach out with pre-approved credit limits when merchant loans launch.
             </p>
@@ -129,13 +131,13 @@ export default function VendorLoanPage() {
               onClick={() => navigate('/vendor')}
               className="mt-4 px-6 py-2.5 rounded-xl bg-indigo-900 hover:bg-indigo-950 text-white text-xs font-bold transition-colors cursor-pointer"
             >
-              Back to Dashboard
+              {t('Back to Dashboard')}
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <h3 className="text-base font-bold text-gray-900">Pre-Register for Early Merchant Credit</h3>
+              <h3 className="text-base font-bold text-gray-900">{t('Pre-Register for Early Merchant Credit')}</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Tell us your store requirements to get highest priority when loans are activated.
               </p>
@@ -144,7 +146,7 @@ export default function VendorLoanPage() {
             <div className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Business / Store Name
+                  {t('Business / Store Name')}
                 </label>
                 <input
                   type="text"
@@ -157,7 +159,7 @@ export default function VendorLoanPage() {
 
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Required Loan Amount
+                  {t('Required Loan Amount')}
                 </label>
                 <select
                   value={loanAmount}
@@ -173,7 +175,7 @@ export default function VendorLoanPage() {
 
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Primary Purpose
+                  {t('Primary Purpose')}
                 </label>
                 <select
                   value={purpose}
@@ -191,7 +193,7 @@ export default function VendorLoanPage() {
                 type="submit"
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-800 text-white font-bold text-xs hover:opacity-95 active:scale-98 transition-all shadow-md shadow-indigo-950/20 cursor-pointer mt-2"
               >
-                Join Merchant VIP Waitlist
+                {t('Join Merchant VIP Waitlist')}
               </button>
             </div>
             <p className="text-[10px] text-gray-400 text-center">

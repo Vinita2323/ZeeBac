@@ -35,7 +35,6 @@ const walletTransactionSchema = new mongoose.Schema(
     balanceAfter: {
       type: Number,
       required: true,
-      min: 0,
     },
     referenceId: {
       type: mongoose.Schema.Types.ObjectId,

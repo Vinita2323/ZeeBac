@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import useLanguageStore from '../../../store/useLanguageStore';
 import { VendorAPI } from '../../../services/api';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function VendorLogTransactionScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguageStore();
   const customer = location.state?.customer;
   const [amount, setAmount] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -26,8 +28,8 @@ export default function VendorLogTransactionScreen() {
       <div className="animate-reveal text-left">
         <div className="text-center py-20 space-y-4">
           <span className="material-symbols-outlined text-[48px] text-on-surface-variant">error</span>
-          <p className="text-on-surface-variant font-bold">No customer selected</p>
-          <button onClick={() => navigate('/vendor/scan-customer')} className="text-secondary font-bold hover:underline cursor-pointer">Find Customer</button>
+          <p className="text-on-surface-variant font-bold">{t('No customer selected')}</p>
+          <button onClick={() => navigate('/vendor/scan-customer')} className="text-secondary font-bold hover:underline cursor-pointer">{t('Find Customer')}</button>
         </div>
       </div>
     );
@@ -67,14 +69,14 @@ export default function VendorLogTransactionScreen() {
             <div className="w-24 h-24 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-green-600 text-[56px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
             </div>
-            <h1 className="text-[24px] font-black text-on-surface tracking-tight">Transaction Logged!</h1>
+            <h1 className="text-[24px] font-black text-on-surface tracking-tight">{t('Transaction Logged!')}</h1>
             <p className="text-on-surface-variant text-[14px]">
-              ₹{purchaseAmount.toLocaleString()} purchase from <strong>{customer.name}</strong>
+              ₹{purchaseAmount.toLocaleString()} {t('purchase from')} <strong>{customer.name}</strong>
             </p>
             <div className="bg-green-50 border border-green-200 rounded-2xl p-5 w-full">
-              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Cashback Credited to Customer</p>
+              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">{t('Cashback Credited to Customer')}</p>
               <p className="text-[32px] font-black text-green-600 leading-none">₹{txnData?.cashbackAmount?.toFixed(2)}</p>
-              <p className="text-[11px] text-green-600/70 mt-1">{txnData?.cashbackPercent}% cashback on ₹{purchaseAmount.toLocaleString()}</p>
+              <p className="text-[11px] text-green-600/70 mt-1">{txnData?.cashbackPercent}% {t('cashback on')} ₹{purchaseAmount.toLocaleString()}</p>
             </div>
             <div className="flex gap-3 w-full mt-4">
               <button
@@ -82,14 +84,14 @@ export default function VendorLogTransactionScreen() {
                 className="flex-1 h-[52px] rounded-xl border-2 border-outline-variant/20 text-on-surface font-title-md hover:bg-surface-container active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">home</span>
-                Home
+                {t('Home')}
               </button>
               <button
                 onClick={() => navigate('/vendor/scan-customer')}
                 className="flex-1 h-[52px] rounded-xl bg-secondary text-white font-title-md shadow-lg hover:bg-secondary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
-                Scan
+                {t('Scan')}
               </button>
             </div>
           </div>
@@ -106,7 +108,7 @@ export default function VendorLogTransactionScreen() {
         <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Log Transaction</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">{t('Log Transaction')}</span>
       </header>
 
       <div className="space-y-6 w-full pt-1">
@@ -118,7 +120,7 @@ export default function VendorLogTransactionScreen() {
               <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Customer</p>
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Customer')}</p>
               <h2 className="text-[16px] font-black text-on-surface truncate">{customer.name}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{customer.zeebacId}</span>
@@ -131,8 +133,8 @@ export default function VendorLogTransactionScreen() {
         {/* Amount Entry */}
         <div className="flex flex-col items-center py-6 space-y-6">
           <div className="text-center space-y-1">
-            <p className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Purchase Amount</p>
-            <p className="text-[11px] text-on-surface-variant/70">Enter the customer's bill amount</p>
+            <p className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Purchase Amount')}</p>
+            <p className="text-[11px] text-on-surface-variant/70">{t("Enter the customer's bill amount")}</p>
           </div>
 
           <div className="flex items-baseline gap-1 justify-center">
@@ -171,11 +173,11 @@ export default function VendorLogTransactionScreen() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-green-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>savings</span>
-                  <span className="text-[13px] font-bold text-green-800">Customer earns</span>
+                  <span className="text-[13px] font-bold text-green-800">{t('Customer earns')}</span>
                 </div>
                 <span className="text-[20px] font-black text-green-600">₹{cashbackAmount.toFixed(2)}</span>
               </div>
-              <p className="text-[10px] text-green-600/70 mt-1 text-right">{cashbackRate}% of ₹{purchaseAmount.toLocaleString()}</p>
+              <p className="text-[10px] text-green-600/70 mt-1 text-right">{cashbackRate}% {t('of')} ₹{purchaseAmount.toLocaleString()}</p>
             </div>
           )}
         </div>
@@ -193,12 +195,12 @@ export default function VendorLogTransactionScreen() {
           {processing ? (
             <>
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Processing...
+              {t('Processing...')}
             </>
           ) : (
             <>
               <span className="material-symbols-outlined text-[20px]">receipt_long</span>
-              Log & Credit Cashback
+              {t('Log & Credit Cashback')}
             </>
           )}
         </button>

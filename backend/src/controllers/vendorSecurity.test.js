@@ -126,7 +126,7 @@ describe('Vendor Biometric Security & PIN Protection', () => {
 
     await setupSecurityPin(req, res);
 
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
 
     const unchanged = await Vendor.findById(vendor._id);
@@ -186,7 +186,7 @@ describe('Vendor Biometric Security & PIN Protection', () => {
 
     const wrongRes = mockRes();
     await verifySecurityPin({ user: { id: vendor._id.toString() }, body: { pin: '1111' } }, wrongRes);
-    expect(wrongRes.statusCode).toBe(401);
+    expect(wrongRes.statusCode).toBe(400);
     expect(wrongRes.body.success).toBe(false);
 
     const correctRes = mockRes();

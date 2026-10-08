@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../../../hooks/useNotifications';
 import useAuthStore from '../../../store/useAuthStore';
+import useLanguageStore from '../../../store/useLanguageStore';
 import NotificationItemCard from '../../../components/common/NotificationItemCard';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const { currentUser } = useAuthStore();
   const { notifications, isLoading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
   const hasAutoReadRef = useRef(false);
@@ -43,7 +45,7 @@ export default function NotificationsPage() {
           >
             <span className="material-symbols-outlined text-[24px] font-bold">arrow_back</span>
           </button>
-          <h1 className="font-bold text-[20px] text-[#3b0764] tracking-tight">Notifications</h1>
+          <h1 className="font-bold text-[20px] text-[#3b0764] tracking-tight">{t('Notifications')}</h1>
         </div>
 
         <div className="flex items-center gap-3">
@@ -52,7 +54,7 @@ export default function NotificationsPage() {
               onClick={markAllAsRead}
               className="text-[#3b0764] text-[13px] font-semibold hover:opacity-80 active:scale-95 transition-all cursor-pointer"
             >
-              Mark all
+              {t('Mark all')}
             </button>
           )}
 
@@ -72,16 +74,16 @@ export default function NotificationsPage() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
             <div className="w-8 h-8 border-2 border-[#4c1d95] border-t-transparent rounded-full animate-spin" />
-            <p className="text-[13px] font-medium">Loading notifications...</p>
+            <p className="text-[13px] font-medium">{t('Loading notifications...')}</p>
           </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-1">
               <span className="material-symbols-outlined text-[36px] text-slate-400">notifications_off</span>
             </div>
-            <p className="font-bold text-[16px] text-slate-700">No notifications</p>
+            <p className="font-bold text-[16px] text-slate-700">{t('No notifications')}</p>
             <p className="text-[13px] text-slate-500 max-w-xs">
-              You're all caught up! Customer OTPs and cashback approval alerts will show here.
+              {t("You're all caught up! Customer OTPs and cashback approval alerts will show here.")}
             </p>
           </div>
         ) : (

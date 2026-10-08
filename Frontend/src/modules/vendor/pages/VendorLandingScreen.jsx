@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function VendorLandingScreen() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [show, setShow] = useState(false);
   const currentUser = useAuthStore((s) => s.currentUser);
 
@@ -48,17 +50,17 @@ export default function VendorLandingScreen() {
           />
           <div className="flex items-center gap-2 px-4 py-1.5 bg-secondary/10 rounded-full">
             <span className="material-symbols-outlined text-secondary text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-            <span className="text-[12px] font-black text-secondary uppercase tracking-widest">Vendor Partner</span>
+            <span className="text-[12px] font-black text-secondary uppercase tracking-widest">{t('Vendor Partner')}</span>
           </div>
         </div>
 
         {/* Hero Text */}
         <div className="text-center max-w-[340px] mb-8 animate-reveal" style={{ animationDelay: '100ms' }}>
           <h1 className="text-[24px] font-black tracking-tight text-on-surface leading-tight mb-2">
-            Grow your business with Zeebac
+            {t('Grow your business with Zeebac')}
           </h1>
           <p className="text-[13px] text-on-surface-variant leading-relaxed px-4">
-            List your store, offer cashback to customers, and watch your customer base grow.
+            {t('List your store, offer cashback to customers, and watch your customer base grow.')}
           </p>
         </div>
 
@@ -72,7 +74,7 @@ export default function VendorLandingScreen() {
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-1.5 px-3 py-2 bg-white rounded-full border border-outline-variant/15 shadow-sm">
               <span className="material-symbols-outlined text-secondary text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>{item.icon}</span>
-              <span className="text-[11px] font-bold text-on-surface">{item.label}</span>
+              <span className="text-[11px] font-bold text-on-surface">{t(item.label)}</span>
             </div>
           ))}
         </div>
@@ -85,7 +87,7 @@ export default function VendorLandingScreen() {
           className="w-full h-[56px] rounded-xl font-title-md text-white shadow-lg bg-secondary hover:bg-secondary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           <span className="material-symbols-outlined text-[20px]">login</span>
-          Sign In to Vendor Portal
+          {t('Sign In to Vendor Portal')}
         </button>
 
         <button
@@ -93,7 +95,7 @@ export default function VendorLandingScreen() {
           className="w-full h-[52px] rounded-xl font-title-md border-2 border-secondary/20 text-secondary bg-secondary/5 hover:bg-secondary/10 transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
         >
           <span className="material-symbols-outlined text-[20px]">store</span>
-          Register Your Business
+          {t('Register Your Business')}
         </button>
 
 

@@ -183,14 +183,14 @@ export default function RequestsPage() {
 
       <div className="space-y-3 pb-[100px] md:pb-6">
         {isLoading ? (
-          <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">Loading...</p>
+          <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading...')}</p>
         ) : pendingRequests.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="material-symbols-outlined text-[28px] text-on-surface-variant">check_circle</span>
             </div>
-            <h3 className="font-bold text-on-surface text-[15px] mb-1">All Caught Up!</h3>
-            <p className="text-on-surface-variant text-[13px]">No pending requests require your attention.</p>
+            <h3 className="font-bold text-on-surface text-[15px] mb-1">{t('All Caught Up!')}</h3>
+            <p className="text-on-surface-variant text-[13px]">{t('No pending requests require your attention.')}</p>
           </div>
         ) : (
           pendingRequests.map(req => {

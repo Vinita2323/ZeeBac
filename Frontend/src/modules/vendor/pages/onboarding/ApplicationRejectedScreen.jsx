@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
+import useLanguageStore from '../../../../store/useLanguageStore';
 
 export default function ApplicationRejectedScreen() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const logout = useAuthStore((s) => s.logout);
   const [vendor, setVendor] = useState(useAuthStore.getState().currentUser);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,12 +36,12 @@ export default function ApplicationRejectedScreen() {
         </div>
 
         <div>
-          <h1 className="text-[22px] font-black text-gray-900">Application Rejected</h1>
-          <p className="text-[13.5px] text-gray-500 mt-2">Your vendor application needs a few corrections before it can be approved.</p>
+          <h1 className="text-[22px] font-black text-gray-900">{t('Application Rejected')}</h1>
+          <p className="text-[13.5px] text-gray-500 mt-2">{t('Your vendor application needs a few corrections before it can be approved.')}</p>
         </div>
 
         <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-left space-y-1.5">
-          <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider">Reason</p>
+          <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider">{t('Reason')}</p>
           {vendor?.rejectionCategory && (
             <span className="inline-block text-[11px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full mb-1">{vendor.rejectionCategory}</span>
           )}
@@ -54,14 +56,14 @@ export default function ApplicationRejectedScreen() {
           onClick={() => navigate('/vendor/application/resubmit')}
           className="w-full h-13 rounded-xl btn-primary-gradient text-white font-bold text-[15px] shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
-          Review & Update Application <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          {t('Review & Update Application')} <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
         </button>
 
         <button
           onClick={() => { logout(); window.location.replace('/vendor-app'); }}
           className="w-full h-11 rounded-xl border border-gray-200 text-gray-500 font-bold text-[13px] hover:bg-gray-50 transition-colors cursor-pointer"
         >
-          Log Out
+          {t('Log Out')}
         </button>
       </div>
     </div>

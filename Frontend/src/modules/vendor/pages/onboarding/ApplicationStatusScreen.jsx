@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
+import useLanguageStore from '../../../../store/useLanguageStore';
 
 const STATUS_META = {
   DRAFT: { icon: 'edit_note', color: 'text-gray-500', bg: 'bg-gray-100', label: 'Draft', message: 'Your application is not yet submitted. Continue where you left off.' },
@@ -12,6 +13,7 @@ const STATUS_META = {
 
 export default function ApplicationStatusScreen() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const logout = useAuthStore((s) => s.logout);
   const [vendor, setVendor] = useState(useAuthStore.getState().currentUser);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,23 +46,23 @@ export default function ApplicationStatusScreen() {
         </div>
 
         <div>
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Application Status</p>
-          <h1 className="text-[22px] font-black text-gray-900">{meta.label}</h1>
-          <p className="text-[13.5px] text-gray-500 mt-3 leading-relaxed">{meta.message}</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">{t('Application Status')}</p>
+          <h1 className="text-[22px] font-black text-gray-900">{t(meta.label)}</h1>
+          <p className="text-[13.5px] text-gray-500 mt-3 leading-relaxed">{t(meta.message)}</p>
         </div>
 
         <div className="bg-white/70 rounded-2xl p-4 space-y-2 text-left text-[13px]">
           <div className="flex justify-between">
-            <span className="text-gray-500">Approved Cashback</span>
+            <span className="text-gray-500">{t('Approved Cashback')}</span>
             <span className="font-bold text-purple-700">{vendor?.cashbackRate ? `${vendor.cashbackRate}% to users` : '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Submitted On</span>
+            <span className="text-gray-500">{t('Submitted On')}</span>
             <span className="font-bold text-gray-900">{vendor?.submittedAt ? new Date(vendor.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Store Status</span>
-            <span className="font-bold text-rose-600">Subscription Required</span>
+            <span className="text-gray-500">{t('Store Status')}</span>
+            <span className="font-bold text-rose-600">{t('Subscription Required')}</span>
           </div>
         </div>
 
@@ -70,7 +72,7 @@ export default function ApplicationStatusScreen() {
             className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined text-[20px]">card_membership</span>
-            Choose Subscription Plan
+            {t('Choose Subscription Plan')}
           </button>
         )}
 
@@ -79,7 +81,7 @@ export default function ApplicationStatusScreen() {
             onClick={() => navigate('/vendor-app/signup')}
             className="w-full h-12 rounded-xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg active:scale-[0.98] transition-all cursor-pointer"
           >
-            Continue Application
+            {t('Continue Application')}
           </button>
         )}
 
@@ -87,7 +89,7 @@ export default function ApplicationStatusScreen() {
           onClick={() => { logout(); window.location.replace('/vendor-app'); }}
           className="w-full h-11 rounded-xl border border-gray-200 text-gray-500 font-bold text-[13px] hover:bg-gray-50 transition-colors cursor-pointer"
         >
-          Log Out
+          {t('Log Out')}
         </button>
       </div>
     </div>

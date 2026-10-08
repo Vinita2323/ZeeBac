@@ -51,11 +51,22 @@ export const debitWallet = async ({
     wallet = created[0];
   }
 
-  const updatedWallet = await Wallet.findOneAndUpdate(
+  let updatedWallet = await Wallet.findOneAndUpdate(
     { _id: wallet._id, balance: { $gte: amount } },
     { $inc: { balance: -amount, totalWithdrawn: amount } },
     { returnDocument: 'after', session, runValidators: true }
   );
+
+  if (!updatedWallet) {
+    // If vendor is providing cashback, allow debit without blocking customer
+    if (resolvedOwnerType === 'Vendor') {
+      updatedWallet = await Wallet.findOneAndUpdate(
+        { _id: wallet._id },
+        { $inc: { balance: -amount, totalWithdrawn: amount } },
+        { returnDocument: 'after', session, runValidators: false }
+      );
+    }
+  }
 
   if (!updatedWallet) {
     throw new InsufficientBalanceError(`Insufficient wallet balance for ${ownerType} ${ownerId}`);

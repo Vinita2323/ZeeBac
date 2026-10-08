@@ -5,12 +5,14 @@ import { VendorAPI } from '../../../services/api';
 import PermissionPrimerModal from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 const CAMERA_REGION_ID = 'zeebac-scan-customer-camera';
 const FILE_REGION_ID = 'zeebac-scan-customer-file';
 
 export default function VendorScanCustomerScreen() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const fileInputRef = useRef(null);
   const cameraScannerRef = useRef(null);
   const fileScannerRef = useRef(null);
@@ -170,10 +172,10 @@ export default function VendorScanCustomerScreen() {
       <PermissionPrimerModal
         open={showCameraPrimer}
         icon="qr_code_scanner"
-        title="Scan Customer QR"
-        message="Zeebac needs camera access to scan the customer's QR code and log their transaction."
-        allowLabel="Enable Camera"
-        skipLabel="I'll enter their ID"
+        title={t('Scan Customer QR')}
+        message={t("Zeebac needs camera access to scan the customer's QR code and log their transaction.")}
+        allowLabel={t('Enable Camera')}
+        skipLabel={t("I'll enter their ID")}
         onAllow={handleAllowCamera}
         onSkip={handleSkipCamera}
       />
@@ -196,12 +198,12 @@ export default function VendorScanCustomerScreen() {
               {cameraStatus === 'denied' ? 'videocam_off' : 'qr_code_scanner'}
             </span>
             <p className="text-[14px] font-semibold text-neutral-300">
-              {cameraStatus === 'denied' ? 'Camera access denied' : 'Starting camera…'}
+              {cameraStatus === 'denied' ? t('Camera access denied') : t('Starting camera…')}
             </p>
             <p className="text-[11px] text-neutral-500 max-w-[240px] mx-auto leading-relaxed">
               {cameraStatus === 'denied'
-                ? 'Allow camera access in your browser, or use the options below to enter their ID manually'
-                : "Point your camera at the customer's Zeebac QR code once it starts"}
+                ? t('Allow camera access in your browser, or use the options below to enter their ID manually')
+                : t("Point your camera at the customer's Zeebac QR code once it starts")}
             </p>
           </div>
         )}
@@ -235,7 +237,7 @@ export default function VendorScanCustomerScreen() {
           <span
             className={`w-2 h-2 rounded-full ${cameraStatus === 'active' ? 'bg-green-400' : cameraStatus === 'denied' ? 'bg-red-400' : 'bg-amber-400 animate-pulse'}`}
           />
-          {cameraStatus === 'active' ? 'Camera Ready' : cameraStatus === 'denied' ? 'No Camera Access' : 'Starting…'}
+          {cameraStatus === 'active' ? t('Camera Ready') : cameraStatus === 'denied' ? t('No Camera Access') : t('Starting…')}
         </div>
 
         <div className="w-10 h-10" />
@@ -258,7 +260,7 @@ export default function VendorScanCustomerScreen() {
             }`}
         >
           <span className="material-symbols-outlined text-[18px]">dialpad</span>
-          Enter ID
+          {t('Enter ID')}
         </button>
 
         <div className="w-12 h-12" />
@@ -270,7 +272,7 @@ export default function VendorScanCustomerScreen() {
           <div className="bg-white rounded-2xl p-4 shadow-2xl max-w-[400px] mx-auto text-left">
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-secondary text-[20px]">badge</span>
-              <span className="text-[13px] font-bold text-on-surface">Enter Customer's Zeebac ID</span>
+              <span className="text-[13px] font-bold text-on-surface">{t("Enter Customer's Zeebac ID")}</span>
             </div>
 
             <div className="flex gap-2">
@@ -299,15 +301,15 @@ export default function VendorScanCustomerScreen() {
             {error && (
               <p className="text-error text-[11px] mt-2 flex items-center gap-1 font-bold animate-reveal">
                 <span className="material-symbols-outlined text-[14px]">error</span>
-                {error}
+                {t(error)}
               </p>
             )}
 
             {/* Recent Customers Quick Select */}
             <div className="mt-4 pt-3 border-t border-outline-variant/10">
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Recent Customers</p>
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">{t('Recent Customers')}</p>
               {recentCustomers.length === 0 ? (
-                <p className="text-[11px] text-on-surface-variant/60">No recent transactions yet</p>
+                <p className="text-[11px] text-on-surface-variant/60">{t('No recent transactions yet')}</p>
               ) : (
                 <div className="flex gap-2 overflow-x-auto scroll-hide pb-1">
                   {recentCustomers.map((c, idx) => {

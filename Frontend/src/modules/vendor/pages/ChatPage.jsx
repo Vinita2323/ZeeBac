@@ -6,9 +6,11 @@ import useAuthStore from '../../../store/useAuthStore';
 import { useCall } from '../../../context/CallContext';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import MediaLightboxModal from '../../user/components/MediaLightboxModal';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function ChatPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const token = useAuthStore(state => state.accessToken);
   const currentUser = useAuthStore(state => state.currentUser);
   const { startCall } = useCall();
@@ -281,7 +283,7 @@ export default function ChatPage() {
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
+      return t('Yesterday');
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
@@ -326,13 +328,13 @@ export default function ChatPage() {
             <h3 className="font-bold text-[15px] text-on-surface truncate leading-tight">{activeChatData.customerId?.name}</h3>
             <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
-              Online
+              {t('Online')}
             </p>
           </div>
           
           <button 
             onClick={handleCall}
-            title="Call Customer"
+            title={t('Call Customer')}
             className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/15 flex items-center justify-center text-primary active:scale-95 cursor-pointer transition-colors shadow-sm ml-2"
           >
             <span className="material-symbols-outlined text-[20px]">call</span>
@@ -398,7 +400,7 @@ export default function ChatPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-[13px] leading-tight">
-                          {msg.text.includes('Missed') ? 'Missed Voice Call' : msg.text.includes('Declined') ? 'Declined Call' : 'Voice Call'}
+                          {msg.text.includes('Missed') ? t('Missed Voice Call') : msg.text.includes('Declined') ? t('Declined Call') : t('Voice Call')}
                         </p>
                         <p className={`text-[11px] mt-0.5 ${isMe ? 'text-white/80' : 'text-on-surface-variant'}`}>
                           {msg.text.replace('📞', '').trim()}
@@ -419,7 +421,7 @@ export default function ChatPage() {
                           title={`Seen by customer at ${formatTime(msg.readAt || msg.updatedAt)}`}
                         >
                           <span className="text-[9.5px] text-sky-200 font-bold tracking-tight">
-                            Seen {formatTime(msg.readAt || msg.updatedAt)}
+                            {t('Seen')} {formatTime(msg.readAt || msg.updatedAt)}
                           </span>
                           <span className="material-symbols-outlined text-[15px] text-[#38bdf8] font-bold leading-none">
                             done_all
@@ -430,7 +432,7 @@ export default function ChatPage() {
                           className="flex items-center gap-0.5 text-slate-300 bg-black/10 px-1.5 py-0.5 rounded-full" 
                           title="Sent (Unseen by customer)"
                         >
-                          <span className="text-[9.5px] opacity-85">Sent</span>
+                          <span className="text-[9.5px] opacity-85">{t('Sent')}</span>
                           <span className="material-symbols-outlined text-[15px] text-slate-300 font-medium leading-none">
                             done_all
                           </span>
@@ -452,7 +454,7 @@ export default function ChatPage() {
         {/* Input Bar */}
         <div className="bg-white border-t border-outline-variant/10">
           {isUploading && (
-            <div className="px-4 py-1 text-xs text-primary animate-pulse">Uploading image...</div>
+            <div className="px-4 py-1 text-xs text-primary animate-pulse">{t('Uploading image...')}</div>
           )}
           <form onSubmit={handleSendMessage} className="p-3 flex gap-2 items-center px-4">
             <input 
@@ -474,7 +476,7 @@ export default function ChatPage() {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Type a message..."
+              placeholder={t('Type a message...')}
               disabled={isUploading}
               className="flex-1 h-11 px-4 bg-[#F3F4F6] rounded-xl border-none focus:ring-2 focus:ring-primary focus:bg-white text-[13.5px] placeholder:text-outline transition-all disabled:opacity-50"
             />
@@ -508,7 +510,7 @@ export default function ChatPage() {
               autoFocus
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by customer name..."
+              placeholder={t('Search by customer name...')}
               className="flex-1 h-10 px-3.5 rounded-full bg-surface-container-low border border-outline-variant/20 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -518,7 +520,7 @@ export default function ChatPage() {
               <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
                 <span className="material-symbols-outlined text-primary">arrow_back</span>
               </button>
-              <span className="font-display text-title-md text-primary font-bold ml-1">Messages</span>
+              <span className="font-display text-title-md text-primary font-bold ml-1">{t('Messages')}</span>
             </div>
             <button
               onClick={() => setShowSearch(true)}
@@ -568,7 +570,7 @@ export default function ChatPage() {
                 <div className="flex-grow min-w-0">
                   <div className="flex justify-between items-baseline mb-1">
                     <h3 className={`text-[15px] truncate pr-2 ${isUnread ? 'font-black text-on-surface' : 'font-bold text-on-surface/90'}`}>
-                      {chat.customerId?.name || 'Customer'}
+                      {chat.customerId?.name || t('Customer')}
                     </h3>
                     <span className={`text-[11.5px] whitespace-nowrap ml-2 ${isUnread ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
                       {formatListDate(chat.lastMessageAt)}
@@ -590,10 +592,10 @@ export default function ChatPage() {
                               done_all
                             </span>
                           )}
-                          <span className="ml-1 text-[12px] opacity-80">You:</span>
+                          <span className="ml-1 text-[12px] opacity-80">{t('You:')}</span>
                         </span>
                       )}
-                      <span className="truncate">{chat.lastMessage || 'Start a conversation...'}</span>
+                      <span className="truncate">{chat.lastMessage || t('Start a conversation...')}</span>
                     </p>
 
                     {/* Unread Badge Counter */}
@@ -612,12 +614,12 @@ export default function ChatPage() {
         {conversations.length === 0 && (
           <div className="py-12 text-center text-on-surface-variant">
             <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">forum</span>
-            <p className="font-bold text-[16px]">No messages yet</p>
-            <p className="text-[14px]">When customers contact you, chats will appear here.</p>
+            <p className="font-bold text-[16px]">{t('No messages yet')}</p>
+            <p className="text-[14px]">{t('When customers contact you, chats will appear here.')}</p>
           </div>
         )}
         {conversations.length > 0 && searchQuery.trim() && !conversations.some((c) => (c.customerId?.name || '').toLowerCase().includes(searchQuery.trim().toLowerCase())) && (
-          <div className="py-12 text-center text-on-surface-variant text-sm">No customers match "{searchQuery}".</div>
+          <div className="py-12 text-center text-on-surface-variant text-sm">{t('No customers match')} "{searchQuery}".</div>
         )}
       </div>
 

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function VendorLoanModal({ isOpen, onClose }) {
+  const { t } = useLanguageStore();
   const [registered, setRegistered] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [monthlyTurnover, setMonthlyTurnover] = useState('₹1,00,000 - ₹5,00,000');
@@ -33,24 +35,24 @@ export default function VendorLoanModal({ isOpen, onClose }) {
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-3">
             <span className="material-symbols-outlined text-[14px]">rocket_launch</span>
-            Merchant Capital • Coming Soon
+            {t('Merchant Capital • Coming Soon')}
           </div>
 
           <h2 className="text-[20px] sm:text-[22px] font-black tracking-tight leading-snug">
-            Zeebac Merchant Business Loan
+            {t('Zeebac Merchant Business Loan')}
           </h2>
           <p className="text-indigo-200 text-xs mt-1 font-medium">
-            Collateral-free working capital loan up to ₹25 Lakhs to expand your store & purchase inventory.
+            {t('Collateral-free working capital loan up to ₹25 lakhs to expand your store & purchase inventory.')}
           </p>
 
           <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Credit Line Limit</p>
-              <p className="text-[20px] sm:text-[24px] font-black text-amber-400 leading-none mt-0.5">Up to ₹25 Lakhs</p>
+              <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">{t('Credit Line Limit')}</p>
+              <p className="text-[20px] sm:text-[24px] font-black text-amber-400 leading-none mt-0.5">{t('Up to ₹25 Lakhs')}</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Collateral Needed</p>
-              <p className="text-[15px] sm:text-[17px] font-extrabold text-emerald-400 leading-none mt-0.5">0% (Zero Security)</p>
+              <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">{t('Collateral Needed')}</p>
+              <p className="text-[15px] sm:text-[17px] font-extrabold text-emerald-400 leading-none mt-0.5">{t('0% (Zero Security)')}</p>
             </div>
           </div>
         </div>
@@ -119,7 +121,7 @@ export default function VendorLoanModal({ isOpen, onClose }) {
                 onClick={onClose}
                 className="mt-3 w-full py-2.5 rounded-xl bg-indigo-900 hover:bg-indigo-950 text-white text-xs font-bold transition-colors cursor-pointer"
               >
-                Done
+                {t('Done')}
               </button>
             </div>
           ) : (

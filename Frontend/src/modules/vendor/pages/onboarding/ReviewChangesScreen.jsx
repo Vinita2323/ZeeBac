@@ -1,3 +1,5 @@
+import useLanguageStore from '../../../../store/useLanguageStore';
+
 const FIELD_LABELS = {
   storeName: 'Business Name',
   shopType: 'Business Type',
@@ -78,6 +80,7 @@ function readPrevious(previous, path) {
 }
 
 export default function ReviewChangesScreen({ previous, current, onEdit, onResubmit, isSubmitting }) {
+  const { t } = useLanguageStore();
   const sectionsWithDiffs = SECTIONS.map(section => {
     const changes = section.fields
       .map(path => ({ path, oldValue: readPrevious(previous, path), newValue: readCurrent(current, path) }))
@@ -93,10 +96,10 @@ export default function ReviewChangesScreen({ previous, current, onEdit, onResub
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">difference</span>
         </div>
-        <h1 className="text-[24px] font-black tracking-tight text-gray-900 leading-tight mb-1">Review Changes</h1>
+        <h1 className="text-[24px] font-black tracking-tight text-gray-900 leading-tight mb-1">{t('Review Changes')}</h1>
         <p className="text-[13.5px] text-gray-500">
           {totalChanges === 0
-            ? "You haven't changed anything yet — go back and update the field the admin flagged."
+            ? t("You haven't changed anything yet — go back and update the field the admin flagged.")
             : `You changed ${totalChanges} field${totalChanges > 1 ? 's' : ''}. Here's what will be resubmitted.`}
         </p>
       </div>
@@ -104,18 +107,18 @@ export default function ReviewChangesScreen({ previous, current, onEdit, onResub
       {sectionsWithDiffs.map(section => (
         <div key={section.title} className="bg-white/70 rounded-2xl border border-white/60 p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[13px] font-black text-gray-700 uppercase tracking-wider">{section.title}</h3>
+            <h3 className="text-[13px] font-black text-gray-700 uppercase tracking-wider">{t(section.title)}</h3>
             <button type="button" onClick={() => onEdit(section.title === 'Documents' || section.title === 'Store' ? 3 : 2)} className="text-[12px] font-bold text-[#7c3aed] hover:underline cursor-pointer flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-[14px]">edit</span> Edit
+              <span className="material-symbols-outlined text-[14px]">edit</span> {t('Edit')}
             </button>
           </div>
           {section.changes.length === 0 ? (
-            <p className="text-[13px] text-gray-400 italic">No changes</p>
+            <p className="text-[13px] text-gray-400 italic">{t('No changes')}</p>
           ) : (
             <div className="space-y-2.5">
               {section.changes.map(c => (
                 <div key={c.path} className="text-[13px]">
-                  <p className="font-bold text-gray-700 mb-0.5">{FIELD_LABELS[c.path] || c.path}</p>
+                  <p className="font-bold text-gray-700 mb-0.5">{t(FIELD_LABELS[c.path] || c.path)}</p>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-red-500 line-through decoration-red-300">{c.oldValue}</span>
                     <span className="material-symbols-outlined text-gray-400 text-[14px]">arrow_forward</span>
@@ -135,7 +138,7 @@ export default function ReviewChangesScreen({ previous, current, onEdit, onResub
           totalChanges > 0 && !isSubmitting ? 'btn-primary-gradient text-white active:scale-[0.98] cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
         }`}
       >
-        {isSubmitting ? <span className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <>Resubmit Application <span className="material-symbols-outlined text-[18px]">send</span></>}
+        {isSubmitting ? <span className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <>{t('Resubmit Application')} <span className="material-symbols-outlined text-[18px]">send</span></>}
       </button>
     </div>
   );

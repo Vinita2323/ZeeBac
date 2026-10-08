@@ -80,27 +80,7 @@ export default function AdminTopBar({ onMenuClick }) {
 
       {/* Right side: Actions & Profile */}
       <div className="flex items-center gap-3 ml-auto">
-        {/* Quick Switch to User / Partner Panels */}
-        <div className="hidden sm:flex items-center gap-1.5 mr-1">
-          <button
-            type="button"
-            onClick={() => navigate('/home')}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11.5px] font-bold cursor-pointer transition-all active:scale-95 shadow-xs"
-            title="Open Customer App"
-          >
-            <span className="material-symbols-outlined text-[14px]">person</span>
-            <span>User App</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/vendor')}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11.5px] font-bold cursor-pointer transition-all active:scale-95 shadow-xs"
-            title="Open Partner Panel"
-          >
-            <span className="material-symbols-outlined text-[14px]">storefront</span>
-            <span>Partner</span>
-          </button>
-        </div>
+       
 
         <div className="relative">
           <button 

@@ -31,12 +31,25 @@ export default function ProfilePage() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
   const [securityToast, setSecurityToast] = useState('');
+  // Checked once on mount so an unsupported device (e.g. Play Services FIDO
+  // module missing/outdated — common on older/budget Android phones) shows a
+  // disabled toggle with the real reason upfront, instead of letting the
+  // vendor go through PIN setup only to have biometric enrollment fail after.
+  const [biometricSupport, setBiometricSupport] = useState({ checked: false, supported: true, reason: null, detail: null });
 
   useEffect(() => {
     if (currentUser?.security) {
       setBiometrics(!!currentUser.security.biometricEnabled);
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getBiometricSupportStatus().then((status) => {
+      if (!cancelled) setBiometricSupport({ checked: true, ...status });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const enrollBiometrics = async () => {
     try {
@@ -767,7 +780,7 @@ export default function ProfilePage() {
 
         {/* Social Links Section */}
         <div className="space-y-4 px-1 mt-6">
-          <h3 className="font-display text-[15px] font-black text-on-surface">Social Links</h3>
+          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Social Links')}</h3>
           
           <div className="divide-y divide-outline-variant/10">
             {/* Website */}
@@ -776,7 +789,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">language</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Website</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Website')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -797,7 +810,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-pink-500/10 text-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">photo_camera</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Instagram</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Instagram')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -818,7 +831,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-blue-600/10 text-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">thumb_up</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">Facebook</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Facebook')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -839,7 +852,7 @@ export default function ProfilePage() {
                 <div className="w-8 h-8 bg-green-500/10 text-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">chat</span>
                 </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">WhatsApp</span>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('WhatsApp')}</span>
               </div>
               {isEditing ? (
                 <input 
@@ -866,9 +879,9 @@ export default function ProfilePage() {
         {/* Store Performance Section */}
         <div className="space-y-3 px-1">
           <div className="flex justify-between items-center">
-            <h3 className="font-display text-[15px] font-black text-on-surface">Store Performance</h3>
+            <h3 className="font-display text-[15px] font-black text-on-surface">{t('Store Performance')}</h3>
             <div className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant bg-surface-container-low px-2.5 py-1 rounded-full cursor-pointer">
-              All Time
+              {t('All Time')}
             </div>
           </div>
 
@@ -878,7 +891,7 @@ export default function ProfilePage() {
                 <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
                   <span className="material-symbols-outlined text-[11px]">trending_up</span>
                 </div>
-                <span className="text-[10px] text-on-surface-variant font-bold">Revenue</span>
+                <span className="text-[10px] text-on-surface-variant font-bold">{t('Revenue')}</span>
               </div>
               <p className="text-[14px] font-black text-on-surface">₹{stats.totalRevenue.toLocaleString()}</p>
             </div>
@@ -888,7 +901,7 @@ export default function ProfilePage() {
                 <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
                   <span className="material-symbols-outlined text-[11px]">shopping_bag</span>
                 </div>
-                <span className="text-[10px] text-on-surface-variant font-bold">Orders</span>
+                <span className="text-[10px] text-on-surface-variant font-bold">{t('Orders')}</span>
               </div>
               <p className="text-[14px] font-black text-on-surface">{stats.totalTransactions}</p>
             </div>
@@ -898,7 +911,7 @@ export default function ProfilePage() {
                 <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
                   <span className="material-symbols-outlined text-[11px]">payments</span>
                 </div>
-                <span className="text-[10px] text-on-surface-variant font-bold">Cashback</span>
+                <span className="text-[10px] text-on-surface-variant font-bold">{t('Cashback')}</span>
               </div>
               <p className="text-[14px] font-black text-on-surface">₹{stats.totalCashbackGiven.toLocaleString()}</p>
             </div>
@@ -914,8 +927,8 @@ export default function ProfilePage() {
               <span className="material-symbols-outlined text-[24px]">folder</span>
             </div>
             <div className="flex flex-col">
-              <h4 className="font-display text-[15px] font-black text-on-surface">Documents</h4>
-              <span className="text-[11px] text-on-surface-variant font-bold">KYC & business proofs</span>
+              <h4 className="font-display text-[15px] font-black text-on-surface">{t('Documents')}</h4>
+              <span className="text-[11px] text-on-surface-variant font-bold">{t('KYC & business proofs')}</span>
             </div>
           </div>
 
@@ -925,10 +938,10 @@ export default function ProfilePage() {
                 <span className={`material-symbols-outlined font-bold text-[20px] ${vendorData?.documents?.gstCertificate?.fileUrl ? 'text-green-600' : 'text-orange-500'}`}>
                   {vendorData?.documents?.gstCertificate?.fileUrl ? 'check_circle' : 'pending'}
                 </span>
-                <span className="text-[12.5px] font-bold text-on-surface">GST Certificate</span>
+                <span className="text-[12.5px] font-bold text-on-surface">{t('GST Certificate')}</span>
               </div>
               <button onClick={() => setPreviewDoc('gst')} className="text-[12.5px] font-extrabold text-[#4f27e3] hover:underline cursor-pointer">
-                {vendorData?.documents?.gstCertificate?.fileUrl ? 'View' : 'Upload'}
+                {vendorData?.documents?.gstCertificate?.fileUrl ? t('View') : t('Upload')}
               </button>
             </div>
 
@@ -937,10 +950,10 @@ export default function ProfilePage() {
                 <span className={`material-symbols-outlined font-bold text-[20px] ${vendorData?.documents?.aadhaarPan?.fileUrl ? 'text-green-600' : 'text-orange-500'}`}>
                   {vendorData?.documents?.aadhaarPan?.fileUrl ? 'check_circle' : 'pending'}
                 </span>
-                <span className="text-[12.5px] font-bold text-on-surface">Owner PAN Card</span>
+                <span className="text-[12.5px] font-bold text-on-surface">{t('Owner PAN Card')}</span>
               </div>
               <button onClick={() => setPreviewDoc('pan')} className="text-[12.5px] font-extrabold text-[#4f27e3] hover:underline cursor-pointer">
-                {vendorData?.documents?.aadhaarPan?.fileUrl ? 'View' : 'Upload'}
+                {vendorData?.documents?.aadhaarPan?.fileUrl ? t('View') : t('Upload')}
               </button>
             </div>
 
@@ -949,13 +962,13 @@ export default function ProfilePage() {
                 <span className={`material-symbols-outlined font-bold text-[20px] ${chequeUploaded ? 'text-green-600' : 'text-orange-500'}`}>
                   {chequeUploaded ? 'check_circle' : 'pending'}
                 </span>
-                <span className="text-[12.5px] font-bold text-on-surface">Bank Cheque</span>
+                <span className="text-[12.5px] font-bold text-on-surface">{t('Bank Cheque')}</span>
               </div>
               <button 
                 onClick={() => chequeUploaded ? setPreviewDoc('cheque') : chequeInputRef.current?.click()} 
                 className="text-[12.5px] font-extrabold text-[#4f27e3] hover:underline cursor-pointer"
               >
-                {chequeUploaded ? 'View' : 'Upload'}
+                {chequeUploaded ? t('View') : t('Upload')}
               </button>
               <input 
                 type="file" 
@@ -977,8 +990,8 @@ export default function ProfilePage() {
               <span className="material-symbols-outlined text-[24px]">pin_drop</span>
             </div>
             <div className="flex flex-col">
-              <h4 className="font-display text-[15px] font-black text-on-surface">Location</h4>
-              <span className="text-[11px] text-on-surface-variant font-bold">Pinned for customers</span>
+              <h4 className="font-display text-[15px] font-black text-on-surface">{t('Location')}</h4>
+              <span className="text-[11px] text-on-surface-variant font-bold">{t('Pinned for customers')}</span>
             </div>
           </div>
 
@@ -1005,12 +1018,12 @@ export default function ProfilePage() {
                 <span className="material-symbols-outlined text-[24px]">verified_user</span>
               </div>
               <div className="flex flex-col">
-                <h4 className="font-display text-[15px] font-black text-on-surface">Owner Identity</h4>
-                <span className="text-[11px] text-on-surface-variant font-bold">KYC verified documents</span>
+                <h4 className="font-display text-[15px] font-black text-on-surface">{t('Owner Identity')}</h4>
+                <span className="text-[11px] text-on-surface-variant font-bold">{t('KYC verified documents')}</span>
               </div>
             </div>
             <span className="bg-[#e8f5e9] text-[#2e7d32] px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
-              Verified
+              {t('Verified')}
             </span>
           </div>
 
@@ -1064,15 +1077,20 @@ export default function ProfilePage() {
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">{t('Active')}</span>
                   )}
                 </div>
-                <p className="text-[11px] text-on-surface-variant font-medium">{t('Protect withdrawals & store funds with Fingerprint, Face ID or PIN')}</p>
+                <p className="text-[11px] text-on-surface-variant font-medium">
+                  {biometricSupport.checked && !biometricSupport.supported
+                    ? describeBiometricUnsupportedReason(biometricSupport.reason, biometricSupport.detail)
+                    : t('Protect withdrawals & store funds with Fingerprint, Face ID or PIN')}
+                </p>
               </div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
-              <input 
-                type="checkbox" 
-                checked={biometrics} 
-                onChange={handleToggleBiometrics} 
-                className="sr-only peer" 
+            <label className={`relative inline-flex items-center shrink-0 ${biometricSupport.checked && !biometricSupport.supported && !biometrics ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+              <input
+                type="checkbox"
+                checked={biometrics}
+                onChange={handleToggleBiometrics}
+                disabled={biometricSupport.checked && !biometricSupport.supported && !biometrics}
+                className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
             </label>
@@ -1193,7 +1211,7 @@ export default function ProfilePage() {
           className="w-full py-3.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-xs mt-3"
         >
           <span className="material-symbols-outlined text-[20px] text-purple-600">account_circle</span>
-          Switch to Customer App / यूजर ऐप खोलें
+          {t('Switch to Customer App')}
         </button>
 
         {/* Logout Account Button */}
@@ -1218,9 +1236,9 @@ export default function ProfilePage() {
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-low">
               <span className="font-display font-black text-[13px] text-on-surface">
-                {previewDoc === 'gst' && 'GST Registration Certificate'}
-                {previewDoc === 'pan' && 'Owner PAN Card'}
-                {previewDoc === 'cheque' && 'Bank Cheque Preview'}
+                {previewDoc === 'gst' && t('GST Registration Certificate')}
+                {previewDoc === 'pan' && t('Owner PAN Card')}
+                {previewDoc === 'cheque' && t('Bank Cheque Preview')}
               </span>
               <button 
                 onClick={() => setPreviewDoc(null)}
@@ -1441,7 +1459,7 @@ export default function ProfilePage() {
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-low">
               <span className="font-display font-black text-[14px] text-on-surface flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-primary text-[18px]">support_agent</span>
-                Customer Support
+                {t('Customer Support')}
               </span>
               <button 
                 onClick={() => setSupportModalOpen(false)}
@@ -1453,7 +1471,7 @@ export default function ProfilePage() {
 
             {/* Modal Body */}
             <div className="p-5 space-y-3 bg-gray-50">
-              <p className="text-[11px] text-on-surface-variant leading-tight mb-2">Need help? Choose a support channel to connect with our team instantly.</p>
+              <p className="text-[11px] text-on-surface-variant leading-tight mb-2">{t('Need help? Choose a support channel to connect with our team instantly.')}</p>
 
               <button 
                 onClick={() => {
@@ -1466,8 +1484,8 @@ export default function ProfilePage() {
                   <span className="material-symbols-outlined text-[20px]">chat</span>
                 </div>
                 <div>
-                  <p className="text-[12.5px] font-black text-on-surface">In-App Chat Support</p>
-                  <p className="text-[10px] text-on-surface-variant/70">Chat with support agents now</p>
+                  <p className="text-[12.5px] font-black text-on-surface">{t('In-App Chat Support')}</p>
+                  <p className="text-[10px] text-on-surface-variant/70">{t('Chat with support agents now')}</p>
                 </div>
               </button>
 
@@ -1484,7 +1502,7 @@ export default function ProfilePage() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-[12.5px] font-black text-on-surface">WhatsApp Support</p>
+                  <p className="text-[12.5px] font-black text-on-surface">{t('WhatsApp Support')}</p>
                   <p className="text-[10px] text-emerald-600 font-semibold">+91 91119 66732 · Direct Chat</p>
                 </div>
               </a>
@@ -1498,8 +1516,8 @@ export default function ProfilePage() {
                   <span className="material-symbols-outlined text-[20px]">phone_iphone</span>
                 </div>
                 <div>
-                  <p className="text-[12.5px] font-black text-on-surface">Call Helpline</p>
-                  <p className="text-[10px] text-on-surface-variant/70">Toll-free 1800-ZEEBAC</p>
+                  <p className="text-[12.5px] font-black text-on-surface">{t('Call Helpline')}</p>
+                  <p className="text-[10px] text-on-surface-variant/70">{t('Toll-free 1800-ZEEBAC')}</p>
                 </div>
               </a>
 
@@ -1512,8 +1530,8 @@ export default function ProfilePage() {
                   <span className="material-symbols-outlined text-[20px]">mail</span>
                 </div>
                 <div>
-                  <p className="text-[12.5px] font-black text-on-surface">Email Support</p>
-                  <p className="text-[10px] text-on-surface-variant/70">Write us at support@zeebac.com</p>
+                  <p className="text-[12.5px] font-black text-on-surface">{t('Email Support')}</p>
+                  <p className="text-[10px] text-on-surface-variant/70">{t('Write us at support@zeebac.com')}</p>
                 </div>
               </a>
             </div>
@@ -1592,10 +1610,10 @@ function VendorStoreQrCard({ zeebacId }) {
         <div className="space-y-1">
           <h3 className="font-display text-[15px] font-black text-on-surface flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
-            Counter QR
+            {t('Counter QR')}
           </h3>
-          <p className="text-[10px] text-primary font-bold leading-tight">PhonePe • Paytm • GPay • ZeeBac</p>
-          <p className="text-[11px] text-on-surface-variant leading-tight">Customers earn instant wallet cashback</p>
+          <p className="text-[10px] text-primary font-bold leading-tight">{t('PhonePe • Paytm • GPay • ZeeBac')}</p>
+          <p className="text-[11px] text-on-surface-variant leading-tight">{t('Customers earn instant wallet cashback')}</p>
         </div>
 
         <div className="flex gap-1.5">
@@ -1605,7 +1623,7 @@ function VendorStoreQrCard({ zeebacId }) {
             className="flex-1 py-1.5 px-1 bg-primary text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 shadow-sm active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[13px]">download</span>
-            Download
+            {t('Download')}
           </button>
           <button
             onClick={() => qrImageUrl && shareContent(qrImageUrl, 'Scan & Pay via ZeeBac', 'Scan this QR at my store to pay and earn instant cashback!')}
@@ -1613,7 +1631,7 @@ function VendorStoreQrCard({ zeebacId }) {
             className="flex-1 py-1.5 px-1 bg-white text-primary border border-primary rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[13px]">share</span>
-            Share
+            {t('Share')}
           </button>
         </div>
       </div>

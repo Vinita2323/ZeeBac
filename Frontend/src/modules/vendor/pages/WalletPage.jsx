@@ -513,19 +513,19 @@ export default function WalletPage() {
                       <span className="material-symbols-outlined text-[20px]">account_balance</span>
                     </div>
                     <div>
-                      <h4 className="text-[14px] font-bold text-gray-900">Payout Bank Account</h4>
-                      <p className="text-[11px] text-gray-500">Withdrawal money is transferred here</p>
+                      <h4 className="text-[14px] font-bold text-gray-900">{t('Payout Bank Account')}</h4>
+                      <p className="text-[11px] text-gray-500">{t('Withdrawal money is transferred here')}</p>
                     </div>
                   </div>
                   {bankDetails?.accountNumber ? (
                     <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-green-100 text-green-700 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                      Verified
+                      {t('Verified')}
                     </span>
                   ) : (
                     <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[13px]">warning</span>
-                      Not Linked
+                      {t('Not Linked')}
                     </span>
                   )}
                 </div>
@@ -533,35 +533,35 @@ export default function WalletPage() {
                 {bankDetails?.accountNumber ? (
                   <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 space-y-2 text-[12.5px]">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Bank Name:</span>
+                      <span className="text-gray-500 font-medium">{t('Bank Name')}:</span>
                       <span className="font-bold text-gray-900">{bankDetails.bankName}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Account Number:</span>
+                      <span className="text-gray-500 font-medium">{t('Account Number')}:</span>
                       <span className="font-mono font-black text-gray-900">
                         •••• •••• {bankDetails.accountNumber.slice(-4)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">IFSC Code:</span>
+                      <span className="text-gray-500 font-medium">{t('IFSC Code')}:</span>
                       <span className="font-mono font-bold text-purple-700">{bankDetails.ifscCode}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Account Holder:</span>
+                      <span className="text-gray-500 font-medium">{t('Account Holder Name')}:</span>
                       <span className="font-bold text-gray-800">{bankDetails.accountHolderName}</span>
                     </div>
                     {bankDetails.upiId && (
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500 font-medium">UPI ID:</span>
+                        <span className="text-gray-500 font-medium">{t('UPI ID')}:</span>
                         <span className="font-mono text-gray-700">{bankDetails.upiId}</span>
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="py-4 px-3 bg-purple-50/50 rounded-2xl border border-dashed border-purple-200 text-center space-y-1">
-                    <p className="text-[13px] font-bold text-purple-900">No Bank Account Linked</p>
+                    <p className="text-[13px] font-bold text-purple-900">{t('No Bank Account Linked')}</p>
                     <p className="text-[11.5px] text-gray-500 max-w-[280px] mx-auto">
-                      Link your bank account with mobile OTP verification to securely withdraw your earnings.
+                      {t('Link your bank account with mobile OTP verification to securely withdraw your earnings.')}
                     </p>
                   </div>
                 )}
@@ -575,7 +575,7 @@ export default function WalletPage() {
                 <span className="material-symbols-outlined text-[18px]">
                   {bankDetails?.accountNumber ? 'edit' : 'add_circle'}
                 </span>
-                <span>{bankDetails?.accountNumber ? 'Update Bank Account' : 'Add Bank Account'}</span>
+                <span>{bankDetails?.accountNumber ? t('Update Bank Account') : t('Add Bank Account')}</span>
               </button>
             </div>
           </div>
@@ -593,15 +593,15 @@ export default function WalletPage() {
                 </div>
                 <div className="text-left min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className="text-[8px] sm:text-[8.5px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Coming Soon</span>
-                    <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">Store Working Capital</span>
+                    <span className="text-[8px] sm:text-[8.5px] font-black uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">{t('Coming Soon')}</span>
+                    <span className="text-[9.5px] sm:text-[10.5px] font-bold text-indigo-200">{t('Store Working Capital')}</span>
                   </div>
-                  <p className="text-[12px] sm:text-[13.5px] font-bold text-white leading-tight">Shop & Pay Later • Credit Limit Up to ₹25,000</p>
-                  <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">Maintain 30 days store transactions to unlock limit based on PAN & CIBIL score</p>
+                  <p className="text-[12px] sm:text-[13.5px] font-bold text-white leading-tight">{t('Shop & Pay Later • Credit Limit Up to ₹25,000')}</p>
+                  <p className="text-[9px] sm:text-[10px] text-indigo-200/80 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">{t('Maintain 30 days store transactions to unlock limit based on PAN & CIBIL score')}</p>
                 </div>
               </div>
               <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-[9.5px] sm:text-xs shrink-0 transition-colors">
-                <span className="whitespace-nowrap">Check Limit</span>
+                <span className="whitespace-nowrap">{t('Check Limit')}</span>
                 <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
               </div>
             </div>
@@ -611,33 +611,33 @@ export default function WalletPage() {
           <div className="grid grid-cols-2 gap-3 max-w-4xl">
             <div className="bg-white rounded-2xl p-3 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">Earnings</span>
+                <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">{t('Earnings')}</span>
                 <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
                   <span className="material-symbols-outlined text-[12px]">trending_up</span>
                 </div>
               </div>
               <p className="text-[16px] font-black text-on-surface leading-none tracking-tight">₹{totalEarned.toLocaleString()}</p>
-              <p className="text-[9px] font-medium text-on-surface-variant mt-1">All Time</p>
+              <p className="text-[9px] font-medium text-on-surface-variant mt-1">{t('All Time')}</p>
             </div>
 
             <div className="bg-white rounded-2xl p-3 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">Cashback Sent</span>
+                <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">{t('Cashback Sent')}</span>
                 <div className="w-5.5 h-5.5 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center">
                   <span className="material-symbols-outlined text-[12px]">redeem</span>
                 </div>
               </div>
               <p className="text-[16px] font-black text-on-surface leading-none tracking-tight">₹{totalWithdrawn.toLocaleString()}</p>
-              <p className="text-[9px] font-medium text-on-surface-variant mt-1">All Time</p>
+              <p className="text-[9px] font-medium text-on-surface-variant mt-1">{t('All Time')}</p>
             </div>
           </div>
 
           {/* Wallet Activity */}
           <div className="space-y-3 max-w-4xl">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-[18px] font-extrabold text-on-surface">Recent Activity</h3>
+              <h3 className="font-display text-[18px] font-extrabold text-on-surface">{t('Recent Activity')}</h3>
               <button onClick={() => navigate('/vendor/passbook')} className="text-[14px] text-primary font-medium hover:underline cursor-pointer">
-                See All
+                {t('See All')}
               </button>
             </div>
 
@@ -706,7 +706,7 @@ export default function WalletPage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowAddModal(false)} />
           <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-display text-[22px] font-black text-on-surface">Add Funds</h3>
+              <h3 className="font-display text-[22px] font-black text-on-surface">{t('Add Funds')}</h3>
               <button
                 onClick={() => !isProcessing && setShowAddModal(false)}
                 className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors active:scale-95 cursor-pointer"
@@ -717,7 +717,7 @@ export default function WalletPage() {
 
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Enter Amount</label>
+                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Enter Amount')}</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[24px] font-black text-primary">₹</span>
                   <input
@@ -732,7 +732,7 @@ export default function WalletPage() {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Quick Select</label>
+                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Quick Select')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => setAmount('1000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors cursor-pointer">+ ₹1,000</button>
                   <button onClick={() => setAmount('5000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors cursor-pointer">+ ₹5,000</button>
@@ -751,10 +751,10 @@ export default function WalletPage() {
                 {isProcessing ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing...
+                    {t('Processing...')}
                   </>
                 ) : (
-                  <>Proceed to Pay {addAmount ? `₹${addAmount}` : ''}</>
+                  <>{t('Proceed to Pay')} {addAmount ? `₹${addAmount}` : ''}</>
                 )}
               </button>
             </div>
@@ -768,7 +768,7 @@ export default function WalletPage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowWithdrawModal(false)} />
           <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-[22px] font-black text-on-surface">Withdraw Funds</h3>
+              <h3 className="font-display text-[22px] font-black text-on-surface">{t('Withdraw Funds')}</h3>
               <button
                 onClick={() => !isProcessing && setShowWithdrawModal(false)}
                 className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors active:scale-95 cursor-pointer"
@@ -779,7 +779,7 @@ export default function WalletPage() {
 
             <div className="space-y-5">
               <div className="bg-surface-container-low p-4 rounded-2xl flex justify-between items-center">
-                <span className="text-[12px] font-bold text-on-surface-variant">Available Balance</span>
+                <span className="text-[12px] font-bold text-on-surface-variant">{t('Available Balance')}</span>
                 <span className="text-[18px] font-black text-primary">₹{(wallet?.balance || 0).toLocaleString()}</span>
               </div>
 
@@ -788,10 +788,10 @@ export default function WalletPage() {
                 <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl space-y-2.5 text-left">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                      Destination Bank Account
+                      {t('Destination Bank Account')}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-200/70 text-emerald-900 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">verified</span> Verified
+                      <span className="material-symbols-outlined text-[13px]">verified</span> {t('Verified')}
                     </span>
                   </div>
 
@@ -821,17 +821,17 @@ export default function WalletPage() {
 
                   <div className="pt-2 border-t border-emerald-200/60 flex items-center gap-1.5 text-[11px] text-emerald-800 font-medium">
                     <span className="material-symbols-outlined text-[14px]">info</span>
-                    <span>Payout will be sent strictly to this verified bank account.</span>
+                    <span>{t('Transferred to linked bank')}</span>
                   </div>
                 </div>
               ) : (
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left space-y-2.5">
                   <div className="flex items-center gap-2 text-amber-800 font-bold text-[13px]">
                     <span className="material-symbols-outlined text-[18px] text-amber-600">warning</span>
-                    <span>Bank Account Required</span>
+                    <span>{t('Bank Account Required')}</span>
                   </div>
                   <p className="text-[11.5px] text-amber-700">
-                    You must link and verify your bank account with OTP before requesting a withdrawal.
+                    {t('You must link and verify your bank account with otp before requesting a withdrawal.')}
                   </p>
                   <button
                     type="button"
@@ -842,14 +842,14 @@ export default function WalletPage() {
                     className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-[12px] transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                    Link Bank Account Now
+                    {t('Link Bank Account Now')}
                   </button>
                 </div>
               )}
 
               {/* Amount Input */}
               <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Withdraw Amount</label>
+                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Withdraw Amount')}</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[24px] font-black text-primary">₹</span>
                   <input
@@ -869,34 +869,34 @@ export default function WalletPage() {
                   <div className="flex items-center justify-between text-[11px] font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-purple-100">
                     <span className="flex items-center gap-1 text-purple-900">
                       <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
-                      Payout Breakdown
+                      {t('Payout Breakdown')}
                     </span>
                   </div>
 
                   <div className="flex justify-between text-[13px] text-gray-700">
-                    <span>Withdrawal Amount:</span>
+                    <span>{t('Withdrawal Amount:')}</span>
                     <span className="font-bold text-gray-900 font-mono">₹{withdrawNum.toFixed(2)}</span>
                   </div>
 
                   <div className="flex justify-between text-[13px] text-gray-700">
-                    <span>Withdrawal Fee:</span>
+                    <span>{t('Withdrawal Fee:')}</span>
                     <span className="font-bold text-rose-600 font-mono">-₹{withdrawalFixedFee.toFixed(2)}</span>
                   </div>
 
                   <div className="flex justify-between text-[13px] text-gray-700">
-                    <span>Platform Fee (2%):</span>
+                    <span>{t('Platform Fee (2%):')}</span>
                     <span className="font-bold text-rose-600 font-mono">-₹{withdrawPlatformFeeAmount.toFixed(2)}</span>
                   </div>
 
                   <div className="flex justify-between text-[13px] text-rose-600 font-bold pt-1 border-t border-purple-100">
-                    <span>Total Fee Deduction:</span>
+                    <span>{t('Total Fee Deduction:')}</span>
                     <span className="font-mono font-bold">-₹{withdrawFeeAmount.toFixed(2)}</span>
                   </div>
 
                   <div className="pt-2 border-t border-purple-200 flex justify-between items-center">
                     <div>
-                      <span className="text-[13px] font-black text-gray-900 block leading-tight">Net Bank Payout:</span>
-                      <span className="text-[10.5px] text-emerald-600 font-bold">Transferred to linked bank</span>
+                      <span className="text-[13px] font-black text-gray-900 block leading-tight">{t('Net Bank Payout:')}</span>
+                      <span className="text-[10.5px] text-emerald-600 font-bold">{t('Transferred to linked bank')}</span>
                     </div>
                     <span className="font-display font-black text-[22px] text-emerald-600 font-mono">
                       ₹{withdrawNetPayout.toFixed(2)}
@@ -906,7 +906,7 @@ export default function WalletPage() {
               )}
 
               <div className="text-[11px] text-on-surface-variant/70 text-center">
-                Withdrawals are reviewed by Admin and credited to your verified bank account within 24-48 business hours.
+                {t('Withdrawals are reviewed by Admin and credited to your verified bank account within 24-48 business hours.')}
               </div>
 
               <button
@@ -922,12 +922,12 @@ export default function WalletPage() {
                 {isProcessing ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing...
+                    {t('Processing...')}
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                    Withdraw Net ₹{withdrawNetPayout > 0 ? withdrawNetPayout.toFixed(2) : '0.00'}
+                    {t('Withdraw Net')} ₹{withdrawNetPayout > 0 ? withdrawNetPayout.toFixed(2) : '0.00'}
                   </>
                 )}
               </button>
@@ -948,43 +948,43 @@ export default function WalletPage() {
 
             <div>
               <h3 className="font-display text-[20px] font-black text-gray-900">
-                Withdrawal Submitted!
+                {t('Withdrawal Submitted!')}
               </h3>
               <p className="text-[12.5px] text-gray-500 mt-1">
-                Your request has been received and will be processed to your bank within 24-48 business hours.
+                {t('Your request has been received and will be processed to your bank within 24-48 business hours.')}
               </p>
             </div>
 
             {/* Receipt Card */}
             <div className="bg-[#fcfaff] border border-purple-100 rounded-2xl p-4 text-left space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-purple-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                <span>Transaction Receipt</span>
+                <span>{t('Transaction Receipt')}</span>
                 <span className="font-mono text-purple-700">{withdrawalReceipt.referenceId?.toString().slice(-8)}</span>
               </div>
 
               <div className="space-y-1.5 text-[12.5px]">
                 <div className="flex justify-between text-gray-600">
-                  <span>Gross Withdrawal:</span>
+                  <span>{t('Gross Withdrawal:')}</span>
                   <span className="font-bold text-gray-900 font-mono">₹{withdrawalReceipt.grossAmount.toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-gray-600">
-                  <span>Withdrawal Fee:</span>
+                  <span>{t('Withdrawal Fee:')}</span>
                   <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.withdrawalFee ?? 5).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-gray-600">
-                  <span>Platform Fee (2%):</span>
+                  <span>{t('Platform Fee (2%):')}</span>
                   <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.platformFee ?? 0).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-purple-100">
-                  <span>Total Fee Deduction:</span>
+                  <span>{t('Total Fee Deduction:')}</span>
                   <span className="font-mono">-₹{withdrawalReceipt.feeAmount.toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between items-center pt-2 border-t border-purple-200">
-                  <span className="font-black text-gray-900 text-[13.5px]">Net Bank Transfer:</span>
+                  <span className="font-black text-gray-900 text-[13.5px]">{t('Net Bank Transfer:')}</span>
                   <span className="font-black font-mono text-[18px] text-emerald-600">
                     ₹{withdrawalReceipt.netPayout.toFixed(2)}
                   </span>
@@ -995,10 +995,10 @@ export default function WalletPage() {
               <div className="bg-white rounded-xl p-2.5 border border-purple-100/80 text-[11.5px] space-y-1 mt-2">
                 <div className="flex items-center gap-1.5 text-purple-900 font-bold">
                   <span className="material-symbols-outlined text-[15px] text-purple-600">account_balance</span>
-                  <span>Destination Account</span>
+                  <span>{t('Destination Account')}</span>
                 </div>
                 <div className="text-gray-600 pl-5">
-                  <p className="font-semibold text-gray-800">{withdrawalReceipt.bankName || 'Verified Bank'}</p>
+                  <p className="font-semibold text-gray-800">{withdrawalReceipt.bankName || t('Verified Bank')}</p>
                   <p className="font-mono text-[11px] text-gray-500">
                     A/C: •••• {withdrawalReceipt.accountNumber ? withdrawalReceipt.accountNumber.slice(-4) : '****'} • IFSC: {withdrawalReceipt.ifscCode || 'N/A'}
                   </p>
@@ -1010,7 +1010,7 @@ export default function WalletPage() {
               onClick={() => setShowWithdrawSuccessModal(false)}
               className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-[14.5px] transition-all shadow-md active:scale-[0.98] cursor-pointer"
             >
-              Done & Return to Wallet
+              {t('Done & Return to Wallet')}
             </button>
           </div>
         </div>
@@ -1029,10 +1029,10 @@ export default function WalletPage() {
                 </div>
                 <div>
                   <h3 className="font-display text-[18px] font-black text-gray-900">
-                    {bankStep === 'FORM' ? (bankDetails?.accountNumber ? 'Update Bank Account' : 'Link Bank Account') : 'Verify Mobile OTP'}
+                    {bankStep === 'FORM' ? (bankDetails?.accountNumber ? t('Update Bank Account') : t('Link Bank Account')) : t('Verify Mobile OTP')}
                   </h3>
                   <p className="text-[11.5px] text-gray-500">
-                    {bankStep === 'FORM' ? 'Secure bank details for withdrawal payouts' : 'Two-step security verification'}
+                    {bankStep === 'FORM' ? t('Secure bank details for withdrawal payouts') : t('Two-step security verification')}
                   </p>
                 </div>
               </div>
@@ -1058,7 +1058,7 @@ export default function WalletPage() {
               <form onSubmit={handleSendBankOtp} className="space-y-3.5 text-left">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Account Holder Name *
+                    {t('Account Holder Name *')}
                   </label>
                   <input
                     type="text"
@@ -1072,7 +1072,7 @@ export default function WalletPage() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Bank Name *
+                    {t('Bank Name *')}
                   </label>
                   <input
                     type="text"
@@ -1087,7 +1087,7 @@ export default function WalletPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Account Number *
+                      {t('Account Number *')}
                     </label>
                     <input
                       type="text"
@@ -1102,7 +1102,7 @@ export default function WalletPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Confirm Account *
+                      {t('Confirm Account *')}
                     </label>
                     <input
                       type="password"
@@ -1119,7 +1119,7 @@ export default function WalletPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      IFSC Code *
+                      {t('IFSC Code *')}
                     </label>
                     <input
                       type="text"
@@ -1134,7 +1134,7 @@ export default function WalletPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      UPI ID (Optional)
+                      {t('UPI ID (Optional)')}
                     </label>
                     <input
                       type="text"
@@ -1150,8 +1150,8 @@ export default function WalletPage() {
                 <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 flex items-start gap-2.5 text-[11.5px] text-purple-900">
                   <span className="material-symbols-outlined text-[18px] text-purple-600 shrink-0 mt-0.5">verified_user</span>
                   <span>
-                    To protect your payouts, a 4-digit verification code will be sent to your registered mobile number{' '}
-                    <strong>{maskedPhone || 'registered phone'}</strong>.
+                    {t('To protect your payouts, a 4-digit verification code will be sent to your registered mobile number')}{' '}
+                    <strong>{maskedPhone || t('registered phone')}</strong>.
                   </span>
                 </div>
 
@@ -1164,11 +1164,11 @@ export default function WalletPage() {
                     {isBankLoading ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Sending OTP...</span>
+                        <span>{t('Sending OTP...')}</span>
                       </>
                     ) : (
                       <>
-                        <span>Continue to OTP Verification</span>
+                        <span>{t('Continue to OTP Verification')}</span>
                         <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                       </>
                     )}
@@ -1184,16 +1184,16 @@ export default function WalletPage() {
                   <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 mx-auto flex items-center justify-center mb-2">
                     <span className="material-symbols-outlined text-[20px]">sms</span>
                   </div>
-                  <p className="text-[13px] font-bold text-gray-900">Enter Verification Code</p>
+                  <p className="text-[13px] font-bold text-gray-900">{t('Enter Verification Code')}</p>
                   <p className="text-[12px] text-gray-600">
-                    We sent a 4-digit code to{' '}
-                    <strong className="text-purple-700">{maskedPhone || 'your registered number'}</strong>
+                    {t('We sent a 4-digit code to')}{' '}
+                    <strong className="text-purple-700">{maskedPhone || t('your registered number')}</strong>
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 text-center">
-                    4-Digit OTP
+                    {t('4-Digit OTP')}
                   </label>
                   <input
                     type="text"
@@ -1217,7 +1217,7 @@ export default function WalletPage() {
                     className="text-gray-500 hover:text-gray-800 font-bold flex items-center gap-1 cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                    Edit Bank Details
+                    {t('Edit Bank Details')}
                   </button>
 
                   <button
@@ -1226,7 +1226,7 @@ export default function WalletPage() {
                     disabled={resendCountdown > 0 || isBankLoading}
                     className="text-purple-700 font-bold hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer"
                   >
-                    {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend Code'}
+                    {resendCountdown > 0 ? `${t('Resend code in')} ${resendCountdown}s` : t('Resend Code')}
                   </button>
                 </div>
 
@@ -1239,12 +1239,12 @@ export default function WalletPage() {
                     {isBankLoading ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Verifying OTP & Saving...</span>
+                        <span>{t('Verifying OTP & Saving...')}</span>
                       </>
                     ) : (
                       <>
                         <span className="material-symbols-outlined text-[18px]">verified</span>
-                        <span>Verify & Link Account</span>
+                        <span>{t('Verify & Link Account')}</span>
                       </>
                     )}
                   </button>
@@ -1265,7 +1265,7 @@ export default function WalletPage() {
                     {authMode === 'biometric' ? 'fingerprint' : 'lock'}
                   </span>
                 </div>
-                <h3 className="font-display font-bold text-[15px] text-on-surface">Security Authorization</h3>
+                <h3 className="font-display font-bold text-[15px] text-on-surface">{t('Security Authorization')}</h3>
               </div>
               <button
                 type="button"
@@ -1278,9 +1278,9 @@ export default function WalletPage() {
 
             {/* Amount badge */}
             <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-2xl">
-              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Withdrawing</p>
+              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">{t('Withdrawing')}</p>
               <p className="text-[26px] font-black text-primary">₹{parseFloat(addAmount || 0).toFixed(2)}</p>
-              <p className="text-[10px] text-on-surface-variant font-medium">To {bankDetails?.bankName || 'Linked Bank'}</p>
+              <p className="text-[10px] text-on-surface-variant font-medium">{t('To')} {bankDetails?.bankName || t('Linked Bank')}</p>
             </div>
 
             {authMode === 'biometric' ? (
@@ -1289,8 +1289,8 @@ export default function WalletPage() {
                   <span className="material-symbols-outlined text-[44px] animate-pulse">fingerprint</span>
                 </div>
                 <div>
-                  <p className="font-bold text-[14px] text-on-surface">Touch Fingerprint or Face ID</p>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">Authorize transfer on your device</p>
+                  <p className="font-bold text-[14px] text-on-surface">{t('Touch Fingerprint or Face ID')}</p>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">{t('Authorize transfer on your device')}</p>
                 </div>
 
                 {authError && (
@@ -1311,7 +1311,7 @@ export default function WalletPage() {
                     ) : (
                       <>
                         <span className="material-symbols-outlined text-[18px]">fingerprint</span>
-                        Verify with Biometrics
+                        {t('Verify with Biometrics')}
                       </>
                     )}
                   </button>
@@ -1322,7 +1322,7 @@ export default function WalletPage() {
                     className="w-full h-10 border border-outline-variant/30 text-on-surface font-bold text-[12px] rounded-xl hover:bg-gray-50 active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                   >
                     <span className="material-symbols-outlined text-[16px] text-primary">pin</span>
-                    Use PIN / Password Instead
+                    {t('Use PIN / Password Instead')}
                   </button>
                 </div>
               </div>
@@ -1330,7 +1330,7 @@ export default function WalletPage() {
               <form onSubmit={handleVerifyPinAndWithdraw} className="space-y-3.5 py-1 text-left">
                 <div className="space-y-2">
                   <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider text-center">
-                    Enter 4-Digit Security PIN
+                    {t('Enter 4-Digit Security PIN')}
                   </label>
                   <FourDigitPinInput
                     value={authPin}
@@ -1356,7 +1356,7 @@ export default function WalletPage() {
                     {isVerifyingSecurity ? (
                       <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     ) : (
-                      'Verify & Confirm Cashout'
+                      t('Verify & Confirm Cashout')
                     )}
                   </button>
 
@@ -1367,7 +1367,7 @@ export default function WalletPage() {
                       className="w-full py-1 text-[11px] text-primary font-bold hover:underline cursor-pointer flex items-center justify-center gap-1"
                     >
                       <span className="material-symbols-outlined text-[14px]">fingerprint</span>
-                      Switch back to Biometrics
+                      {t('Switch back to Biometrics')}
                     </button>
                   )}
                 </div>

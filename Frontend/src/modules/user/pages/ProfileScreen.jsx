@@ -102,6 +102,11 @@ export default function ProfileScreen() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
   const [securityToast, setSecurityToast] = useState('');
+  // Checked once on mount so an unsupported device (e.g. Play Services FIDO
+  // module missing/outdated — common on older/budget Android phones) shows a
+  // disabled toggle with the real reason upfront, instead of letting the user
+  // go through PIN setup only to have biometric enrollment fail afterwards.
+  const [biometricSupport, setBiometricSupport] = useState({ checked: false, supported: true, reason: null, detail: null });
 
   useEffect(() => {
     if (currentUser?.security) {
@@ -111,6 +116,14 @@ export default function ProfileScreen() {
       setNotifications(currentUser.preferences.pushNotifications ?? true);
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getBiometricSupportStatus().then((status) => {
+      if (!cancelled) setBiometricSupport({ checked: true, ...status });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleToggleNotifications = async (e) => {
     const next = e.target.checked;
@@ -606,15 +619,20 @@ export default function ProfileScreen() {
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">{t('Active')}</span>
                       )}
                     </p>
-                    <p className="font-caption text-[10px] text-on-surface-variant">{t('Protect cashouts with Fingerprint, Face ID or PIN')}</p>
+                    <p className="font-caption text-[10px] text-on-surface-variant">
+                      {biometricSupport.checked && !biometricSupport.supported
+                        ? describeBiometricUnsupportedReason(biometricSupport.reason, biometricSupport.detail)
+                        : t('Protect cashouts with Fingerprint, Face ID or PIN')}
+                    </p>
                   </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={biometrics} 
-                    onChange={handleToggleBiometrics} 
-                    className="sr-only peer" 
+                <label className={`relative inline-flex items-center ${biometricSupport.checked && !biometricSupport.supported && !biometrics ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                  <input
+                    type="checkbox"
+                    checked={biometrics}
+                    onChange={handleToggleBiometrics}
+                    disabled={biometricSupport.checked && !biometricSupport.supported && !biometrics}
+                    className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
                 </label>

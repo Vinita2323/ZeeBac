@@ -303,17 +303,17 @@ export default function DashboardPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800">
-                  Onboarding Completed
+                  {t('Onboarding Completed')}
                 </span>
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-800">
-                  Store Inactive
+                  {t('Store Inactive')}
                 </span>
               </div>
               <h3 className="font-bold text-[14px] text-on-surface leading-tight">
-                Subscription Required to Go Live
+                {t('Subscription Required to Go Live')}
               </h3>
               <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
-                Your store is currently hidden from customer discovery and cashback issuance is paused. Choose a plan to activate your store.
+                {t('Your store is currently hidden from customer discovery and cashback issuance is paused. Choose a plan to activate your store.')}
               </p>
               <div className="mt-3">
                 <button
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white text-[12px] font-bold rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[15px]">verified</span>
-                  <span>Choose Subscription Plan</span>
+                  <span>{t('Choose Subscription Plan')}</span>
                 </button>
               </div>
             </div>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
                 <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
                   subscriptionInfo?.inGracePeriod ? 'bg-amber-500/15 text-amber-800' : 'bg-rose-500/15 text-rose-800'
                 }`}>
-                  Subscription Expired
+                  {t('Subscription Expired')}
                 </span>
                 {subscriptionInfo?.inGracePeriod && (
                   <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800">
@@ -359,13 +359,13 @@ export default function DashboardPage() {
               </div>
               <h3 className="font-bold text-[14px] text-on-surface leading-tight">
                 {subscriptionInfo?.inGracePeriod
-                  ? 'Cashback Blocked • Store visible in 24h Grace Period'
-                  : 'Store Inactive • Hidden from Users'}
+                  ? t('Cashback Blocked • Store visible in 24h Grace Period')
+                  : t('Store Inactive • Hidden from Users')}
               </h3>
               <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
                 {subscriptionInfo?.inGracePeriod
-                  ? 'Your subscription expired. Renew promptly to keep your store discoverable.'
-                  : 'Your subscription expired over 24 hours ago. Renew to reactivate your store.'}
+                  ? t('Your subscription expired. Renew promptly to keep your store discoverable.')
+                  : t('Your subscription expired over 24 hours ago. Renew to reactivate your store.')}
               </p>
               <div className="mt-3">
                 <button
@@ -373,7 +373,7 @@ export default function DashboardPage() {
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white text-[12px] font-bold rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[15px]">autorenew</span>
-                  <span>Renew Subscription</span>
+                  <span>{t('Renew Subscription')}</span>
                 </button>
               </div>
             </div>
@@ -390,7 +390,7 @@ export default function DashboardPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
               <div>
                 <p className="text-[12px] font-bold text-on-surface flex items-center gap-1.5">
-                  <span>Subscription Active</span>
+                  <span>{t('Subscription Active')}</span>
                   <span className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md">
                     {subscriptionInfo.planType} Plan
                   </span>
@@ -406,7 +406,7 @@ export default function DashboardPage() {
               onClick={() => navigate('/vendor/subscription')}
               className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer"
             >
-              Manage
+              {t('Manage')}
             </button>
           </div>
 
@@ -417,16 +417,16 @@ export default function DashboardPage() {
                 <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold text-on-surface">Cashback wallet balance is ₹0</p>
+                <p className="text-[12px] font-bold text-on-surface">{t('Cashback wallet balance is ₹0')}</p>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  Recharge your cashback wallet to enable instant cashback issuance for customers.
+                  {t('Recharge your cashback wallet to enable instant cashback issuance for customers.')}
                 </p>
                 <button
                   onClick={() => navigate('/vendor/wallet')}
                   className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-all"
                 >
                   <span className="material-symbols-outlined text-[13px]">add_circle</span>
-                  <span>Recharge Wallet</span>
+                  <span>{t('Recharge Wallet')}</span>
                 </button>
               </div>
             </div>
@@ -444,13 +444,13 @@ export default function DashboardPage() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="font-bold text-[13.5px] text-on-surface leading-tight">Store Stories</h3>
+              <h3 className="font-bold text-[13.5px] text-on-surface leading-tight">{t('Store Stories')}</h3>
               <span className="text-[9.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                24h Deals
+                {t('24h Deals')}
               </span>
             </div>
             <p className="text-[11.5px] text-on-surface-variant mt-0.5 truncate">
-              Post daily offers, deals & photos to attract nearby customers
+              {t('Post daily offers, deals & photos to attract nearby customers')}
             </p>
           </div>
         </div>
@@ -460,7 +460,7 @@ export default function DashboardPage() {
           className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white font-bold text-[12px] shadow-sm hover:shadow active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer flex-shrink-0 ml-2"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
-          <span>Add Story</span>
+          <span>{t('Add Story')}</span>
         </button>
       </div>
 
@@ -474,8 +474,8 @@ export default function DashboardPage() {
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
             <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Scan Customer</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Log Cash CB</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Scan Customer')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Log Cash CB')}</p>
         </button>
 
         {/* 2. Store QR */}
@@ -486,8 +486,8 @@ export default function DashboardPage() {
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
             <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Store QR</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Counter Standee</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Store QR')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Counter Standee')}</p>
         </button>
 
         {/* 3. Accept Cash (POS) */}
@@ -498,8 +498,8 @@ export default function DashboardPage() {
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
             <span className="material-symbols-outlined text-[20px]">point_of_sale</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Accept Cash</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Instant POS</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Accept Cash')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Instant POS')}</p>
         </button>
 
         {/* 4. Pay Later */}
@@ -508,13 +508,13 @@ export default function DashboardPage() {
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
         >
           <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md uppercase">
-            Soon
+            {t('Soon')}
           </span>
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
             <span className="material-symbols-outlined text-[20px]">credit_score</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Pay Later</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">Up to ₹25k</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Pay Later')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Up to ₹25k')}</p>
         </button>
       </div>
 
@@ -587,20 +587,20 @@ export default function DashboardPage() {
                 <span className="material-symbols-outlined text-[20px]">credit_score</span>
               </div>
               <span className="text-[9.5px] font-bold uppercase tracking-wider bg-white/15 text-purple-100 px-2.5 py-0.5 rounded-full border border-white/15 backdrop-blur-sm">
-                Coming Soon
+                {t('Coming Soon')}
               </span>
             </div>
             <div className="mt-3">
-              <h4 className="font-extrabold text-[15px] text-white leading-tight">Shop & Pay Later</h4>
+              <h4 className="font-extrabold text-[15px] text-white leading-tight">{t('Shop & Pay Later')}</h4>
               <p className="text-[12px] text-purple-200/80 mt-1 leading-relaxed">
-                Instant working capital credit limit up to ₹25,000 for your daily store purchases & stock.
+                {t('Instant working capital credit limit up to ₹25,000 for your daily store purchases & stock.')}
               </p>
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between relative z-10">
-            <span className="text-[11px] font-semibold text-purple-200/90">Credit Limit: Up to ₹25k</span>
+            <span className="text-[11px] font-semibold text-purple-200/90">{t('Credit Limit: Up to ₹25k')}</span>
             <div className="px-3.5 py-1.5 rounded-xl bg-white text-[#16082f] font-bold text-[11.5px] shadow-sm group-hover:bg-purple-50 transition-colors flex items-center gap-1 shrink-0">
-              <span>Check Limit</span>
+              <span>{t('Check Limit')}</span>
               <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
             </div>
           </div>
@@ -619,20 +619,20 @@ export default function DashboardPage() {
                 <span className="material-symbols-outlined text-[20px]">payments</span>
               </div>
               <span className="text-[9.5px] font-bold uppercase tracking-wider bg-white/15 text-purple-100 px-2.5 py-0.5 rounded-full border border-white/15 backdrop-blur-sm">
-                Coming Soon
+                {t('Coming Soon')}
               </span>
             </div>
             <div className="mt-3">
-              <h4 className="font-extrabold text-[15px] text-white leading-tight">Merchant Business Loan</h4>
+              <h4 className="font-extrabold text-[15px] text-white leading-tight">{t('Merchant Business Loan')}</h4>
               <p className="text-[12px] text-purple-200/80 mt-1 leading-relaxed">
-                Unsecured business growth capital up to ₹25L with 0% property collateral & micro-deductions.
+                {t('Unsecured business growth capital up to ₹25L with 0% property collateral & micro-deductions.')}
               </p>
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between relative z-10">
-            <span className="text-[11px] font-semibold text-purple-200/90">0% Property Collateral</span>
+            <span className="text-[11px] font-semibold text-purple-200/90">{t('0% Property Collateral')}</span>
             <div className="px-3.5 py-1.5 rounded-xl bg-white text-[#16082f] font-bold text-[11.5px] shadow-sm group-hover:bg-purple-50 transition-colors flex items-center gap-1 shrink-0">
-              <span>Apply Loan</span>
+              <span>{t('Apply Loan')}</span>
               <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
             </div>
           </div>
@@ -842,9 +842,9 @@ export default function DashboardPage() {
               <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-800 mb-3">
                 <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
               </div>
-              <h3 className="font-display font-bold text-[18px] text-slate-900 text-center leading-tight">Counter QR Standee</h3>
+              <h3 className="font-display font-bold text-[18px] text-slate-900 text-center leading-tight">{t('Counter QR Standee')}</h3>
               <p className="text-[12px] text-slate-500 text-center mt-1 mb-2.5 px-2">
-                Scan & Pay via PhonePe, Paytm, GPay or ZeeBac
+                {t('Scan & Pay via PhonePe, Paytm, GPay or ZeeBac')}
               </p>
 
               <div className="flex items-center gap-1.5 justify-center mb-4 flex-wrap">
@@ -861,24 +861,24 @@ export default function DashboardPage() {
                 ) : qrLoading ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-7 h-7 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
-                    <span className="text-[11px] font-medium text-slate-500">Generating QR...</span>
+                    <span className="text-[11px] font-medium text-slate-500">{t('Generating QR...')}</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-center p-2">
                     <span className="material-symbols-outlined text-rose-500 text-[24px]">error</span>
-                    <span className="text-[11px] text-rose-600 font-medium">Failed to load QR</span>
+                    <span className="text-[11px] text-rose-600 font-medium">{t('Failed to load QR')}</span>
                     <button
                       onClick={refreshQr}
                       className="px-3 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
                     >
-                      Retry
+                      {t('Retry')}
                     </button>
                   </div>
                 )}
               </div>
 
               <div className="bg-slate-100 py-1 px-3 rounded-full flex items-center gap-2 mb-4">
-                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Store ID:</span>
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{t('Store ID:')}</span>
                 <span className="text-[11.5px] font-mono font-bold text-slate-900">{zeebacId}</span>
               </div>
 
@@ -889,7 +889,7 @@ export default function DashboardPage() {
                   className="flex-1 py-2.5 px-3 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-[15px]">download</span>
-                  <span>Download</span>
+                  <span>{t('Download')}</span>
                 </button>
                 <button
                   onClick={() => qrImageUrl && shareContent(qrImageUrl, `${currentUser?.storeName || 'ZeeBac Store'} QR`, `Pay at ${currentUser?.storeName || 'my store'} (${zeebacId}) to earn instant cashback!`)}
@@ -897,7 +897,7 @@ export default function DashboardPage() {
                   className="flex-1 py-2.5 px-3 bg-white hover:bg-primary/5 text-primary border border-primary/30 rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-[15px]">share</span>
-                  <span>Share</span>
+                  <span>{t('Share')}</span>
                 </button>
               </div>
             </div>
@@ -922,20 +922,20 @@ export default function DashboardPage() {
                 <span className="material-symbols-outlined text-[20px]">point_of_sale</span>
               </div>
               <div>
-                <h3 className="font-display font-bold text-[16px] text-on-surface leading-tight">Cash Bill Barcode (&gt; ₹1,000)</h3>
-                <p className="text-[10.5px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md inline-block mt-0.5">Instant Withdrawable Cashback</p>
+                <h3 className="font-display font-bold text-[16px] text-on-surface leading-tight">{t('Cash Bill Barcode (> ₹1,000)')}</h3>
+                <p className="text-[10.5px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md inline-block mt-0.5">{t('Instant Withdrawable Cashback')}</p>
               </div>
             </div>
 
             {!generatedPosBill ? (
               <div className="space-y-3.5 pt-1">
                 <p className="text-[12px] text-on-surface-variant leading-snug">
-                  Enter cash bill amount above ₹1,000 to generate a one-time barcode for the customer to scan for instant cashback.
+                  {t('Enter cash bill amount above ₹1,000 to generate a one-time barcode for the customer to scan for instant cashback.')}
                 </p>
 
                 <div>
                   <label className="text-[10.5px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
-                    Cash Bill Amount (₹)
+                    {t('Cash Bill Amount (₹)')}
                   </label>
                   <input
                     type="number"
@@ -965,7 +965,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="bg-primary/[0.04] border border-primary/15 rounded-xl p-2.5 text-[11.5px] text-on-surface flex justify-between items-center">
-                  <span>Customer Cashback ({cashbackRate}%):</span>
+                  <span>{t('Customer Cashback')} ({cashbackRate}%):</span>
                   <span className="font-black text-primary text-[13px]">
                     ₹{((parseFloat(posAmount) || 0) * (cashbackRate / 100)).toFixed(2)}
                   </span>
@@ -976,14 +976,14 @@ export default function DashboardPage() {
                   disabled={isGeneratingPos || !posAmount || parseFloat(posAmount) <= 0}
                   className="w-full h-11 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white font-bold text-[13px] rounded-xl shadow-xs active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {isGeneratingPos ? 'Generating Barcode...' : 'Generate Cash QR Barcode'}
+                  {isGeneratingPos ? t('Generating Barcode...') : t('Generate Cash QR Barcode')}
                 </button>
               </div>
             ) : (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-3">
                 <div className="bg-white border border-dashed border-slate-300 rounded-xl p-3.5 shadow-xs flex flex-col items-center">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">ONE-TIME CASH QR</span>
-                  <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full mb-2">⚡ Instant Withdrawable</span>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">{t('ONE-TIME CASH QR')}</span>
+                  <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full mb-2">⚡ {t('Instant Withdrawable')}</span>
                   
                   {/* Scannable Visual QR Code Image */}
                   <div className="w-40 h-40 bg-white border border-slate-200 rounded-xl p-2 shadow-inner flex items-center justify-center mb-2">
@@ -998,18 +998,18 @@ export default function DashboardPage() {
                     {generatedPosBill.billCode}
                   </div>
                   <div className="flex justify-between w-full text-[12px] font-bold text-on-surface mt-2 px-1">
-                    <span>Bill: ₹{generatedPosBill.amount}</span>
-                    <span className="text-green-600 font-black">Cashback: ₹{((generatedPosBill.amount * (generatedPosBill.cashbackRate / 100))).toFixed(2)}</span>
+                    <span>{t('Bill')}: ₹{generatedPosBill.amount}</span>
+                    <span className="text-green-600 font-black">{t('Cashback')}: ₹{((generatedPosBill.amount * (generatedPosBill.cashbackRate / 100))).toFixed(2)}</span>
                   </div>
                 </div>
                 <p className="text-[11px] text-on-surface-variant leading-tight">
-                  Ask customer to scan this QR code with <b>Scan & Pay</b> in ZeeBac App to gain instant withdrawable cashback!
+                  {t('Ask customer to scan this qr code with scan & pay in zeebac app to gain instant withdrawable cashback!')}
                 </p>
                 <button
                   onClick={() => setGeneratedPosBill(null)}
                   className="text-[12px] font-semibold text-slate-800 hover:underline cursor-pointer"
                 >
-                  Generate Another Bill
+                  {t('Generate Another Bill')}
                 </button>
               </div>
             )}

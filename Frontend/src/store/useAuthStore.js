@@ -27,13 +27,19 @@ export const ROLE_STORAGE = {
   }
 };
 
+// The app-open lock screen is gated on the "Biometric Security" toggle alone,
+// NOT on hasPin — a PIN can exist purely as a withdrawal/change-PIN credential
+// (see SecurityPinModal's "Secures withdrawals & biometrics" copy) without the
+// user ever having opted into an app-open lock. Treating hasPin as its own
+// trigger meant turning the biometric toggle off didn't stop the PIN prompt
+// on every app open, which looked like a broken "off" switch.
 const hasSecurityEnabled = (user) => {
   const role = user?.role || user?.userType;
   if (role !== 'customer' && role !== 'vendor') return false;
-  return Boolean(user?.security?.hasPin || user?.security?.biometricEnabled);
+  return Boolean(user?.security?.biometricEnabled);
 };
 
-const UNLOCK_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
+const UNLOCK_GRACE_PERIOD_MS = 10 * 60 * 1000; // 10 minutes
 
 const getUnlockKey = (role = null) => {
   return role ? `zeebac_${role}_last_unlocked_at` : 'zeebac_app_last_unlocked_at';

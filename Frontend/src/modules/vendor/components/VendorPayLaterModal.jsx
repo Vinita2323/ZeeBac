@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 export default function VendorPayLaterModal({ isOpen, onClose }) {
+  const { t } = useLanguageStore();
   const [storePan, setStorePan] = useState('');
   const [storeName, setStoreName] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -31,31 +33,31 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
 
           <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/30 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-2">
             <span className="material-symbols-outlined text-[12px]">schedule</span>
-            Coming Soon • Vendor Credit
+            {t('Coming Soon • Vendor Credit')}
           </div>
 
           <h3 className="text-[19px] sm:text-[20px] font-black tracking-tight leading-snug">
-            Vendor Shop & Pay Later
+            {t('Vendor Shop & Pay Later')}
           </h3>
 
           {/* Subdued Feature Callout */}
           <div className="mt-2 p-2.5 rounded-xl bg-white/10 backdrop-blur-xs border border-white/15">
             <p className="text-[12px] font-extrabold text-amber-300 leading-snug">
-              Maintain 30 days transactions & get credit limit upto ₹25,000
+              {t('Maintain 30 days transactions & get credit limit upto ₹25,000')}
             </p>
             <p className="text-[10.5px] text-indigo-200/90 mt-0.5 leading-relaxed">
-              30 din regular transactions aur cashback distribution par business PAN & CIBIL score ke according credit limit unlock hogi.
+              {t('Maintain 30 days store transactions to unlock limit based on PAN & CIBIL score')}
             </p>
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-white/15 flex items-center justify-between text-[11px]">
             <div>
-              <p className="text-[9.5px] text-indigo-200 uppercase font-bold tracking-wider">Credit Limit</p>
-              <p className="text-[16px] font-black text-amber-300 leading-tight">Upto ₹25,000</p>
+              <p className="text-[9.5px] text-indigo-200 uppercase font-bold tracking-wider">{t('Credit Limit')}</p>
+              <p className="text-[16px] font-black text-amber-300 leading-tight">{t('Upto ₹25,000')}</p>
             </div>
             <div className="text-right">
-              <p className="text-[9.5px] text-indigo-200 uppercase font-bold tracking-wider">Collateral</p>
-              <p className="text-[14px] font-bold text-emerald-400 leading-tight">0% (Collateral-Free)</p>
+              <p className="text-[9.5px] text-indigo-200 uppercase font-bold tracking-wider">{t('Collateral')}</p>
+              <p className="text-[14px] font-bold text-emerald-400 leading-tight">{t('0% (Collateral-Free)')}</p>
             </div>
           </div>
         </div>
@@ -67,9 +69,9 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
             <div className="flex items-center justify-between text-[11px] mb-1">
               <span className="font-bold text-slate-800 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[15px] text-indigo-600">storefront</span>
-                30-Day Store Streak
+                {t('30-Day Store Streak')}
               </span>
-              <span className="font-black text-indigo-700">{activeStreakDays}/30 Days</span>
+              <span className="font-black text-indigo-700">{activeStreakDays}/30 {t('Days')}</span>
             </div>
             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
               <div 
@@ -78,7 +80,7 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
               />
             </div>
             <p className="text-[9.5px] text-slate-500 mt-1">
-              Store par regular customer payments log karein ya cashback issue karein.
+              {t('Store par regular customer payments log karein ya cashback issue karein.')}
             </p>
           </div>
 
@@ -87,17 +89,17 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
             <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
               <div className="flex items-center gap-1.5 text-indigo-600 mb-0.5">
                 <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-                <span className="text-[11px] font-bold text-slate-900">Inventory Stock</span>
+                <span className="text-[11px] font-bold text-slate-900">{t('Inventory Stock')}</span>
               </div>
-              <p className="text-[9.5px] text-slate-500 leading-tight">Purchase stock on credit</p>
+              <p className="text-[9.5px] text-slate-500 leading-tight">{t('Purchase stock on credit')}</p>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
               <div className="flex items-center gap-1.5 text-emerald-600 mb-0.5">
                 <span className="material-symbols-outlined text-[16px]">verified</span>
-                <span className="text-[11px] font-bold text-slate-900">PAN & CIBIL</span>
+                <span className="text-[11px] font-bold text-slate-900">{t('PAN & CIBIL')}</span>
               </div>
-              <p className="text-[9.5px] text-slate-500 leading-tight">Instant paperless approval</p>
+              <p className="text-[9.5px] text-slate-500 leading-tight">{t('Instant paperless approval')}</p>
             </div>
           </div>
 
@@ -105,22 +107,22 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
           {submitted ? (
             <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-1">
               <span className="material-symbols-outlined text-[24px] text-emerald-600">check_circle</span>
-              <h4 className="text-[13px] font-bold text-emerald-900">Store Registered for Early Access!</h4>
+              <h4 className="text-[13px] font-bold text-emerald-900">{t('Store Registered for Early Access!')}</h4>
               <p className="text-[10.5px] text-emerald-700 leading-relaxed">
-                Aapki details receive ho gayi hain. Feature live hote hi aur 30-day streak par aapki ₹25,000 credit limit unlock ho jayegi.
+                {t('Aapki details receive ho gayi hain. Feature live hote hi aur 30-day streak par aapki ₹25,000 credit limit unlock ho jayegi.')}
               </p>
               <button
                 onClick={onClose}
                 className="mt-2 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] transition-colors cursor-pointer"
               >
-                Close
+                {t('Close')}
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-2.5 pt-1">
               <div>
                 <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                  Store / Business Name
+                  {t('Store / Business Name')}
                 </label>
                 <input
                   type="text"
@@ -134,7 +136,7 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
 
               <div>
                 <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                  Proprietor / Business PAN Card
+                  {t('Proprietor / Business PAN Card')}
                 </label>
                 <input
                   type="text"
@@ -152,7 +154,7 @@ export default function VendorPayLaterModal({ isOpen, onClose }) {
                 className="w-full py-2.5 bg-indigo-900 hover:bg-indigo-950 text-white font-bold text-[12px] rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
               >
                 <span className="material-symbols-outlined text-[15px]">notifications</span>
-                <span>Pre-Apply & Notify Me</span>
+                <span>{t('Pre-Apply & Notify Me')}</span>
               </button>
             </form>
           )}

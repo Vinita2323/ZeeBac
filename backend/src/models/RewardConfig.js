@@ -47,11 +47,15 @@ const rewardConfigSchema = new mongoose.Schema({
   },
   customerWalletPayCommissionPercent: {
     type: Number,
-    default: 2, // 2% convenience fee by default when user pays merchant from wallet
+    default: 0, // 0% convenience fee - zero extra charges when paying merchant from wallet
   },
   customerWalletPayFixedFee: {
     type: Number,
     default: 0,
+  },
+  vendorPaymentCommissionPercent: {
+    type: Number,
+    default: 0, // ZeeBac takes 0% fee on customer payments to merchant
   },
   independentStoreMonthlyPrice: {
     type: Number,

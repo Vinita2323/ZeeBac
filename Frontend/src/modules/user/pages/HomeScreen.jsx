@@ -58,6 +58,7 @@ export default function HomeScreen() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const [vendors, setVendors] = useState([]);
   const [recentVendors, setRecentVendors] = useState([]);
+  const [pendingCashRequest, setPendingCashRequest] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [location, setLocation] = useState(null);
 
@@ -108,6 +109,14 @@ export default function HomeScreen() {
         }
 
         if (vendorRes.success) setVendors(vendorRes.data || []);
+
+        // Check for any pending cash verification requests so user can enter OTP easily
+        UserAPI.getMyCashbackRequests().then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            const pending = res.data.find(r => r.status === 'Pending' && (r.requestType === 'cash_claim' || r.paymentMethod === 'Cash'));
+            setPendingCashRequest(pending || null);
+          }
+        }).catch(() => {});
       } catch (err) {
         console.error('Failed to load home screen data', err);
       } finally {
@@ -221,6 +230,36 @@ export default function HomeScreen() {
             <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">{t("Let's find you some cashback today")}</p>
           </div>
         </div>
+
+        {/* Active Pending Cash OTP Banner */}
+        {pendingCashRequest && (
+          <div
+            onClick={() => navigate(`/request/${pendingCashRequest._id}`)}
+            className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white rounded-2xl p-4 shadow-lg cursor-pointer active:scale-[0.98] transition-all flex items-center justify-between gap-3 border border-purple-400/30"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[22px]">pin</span>
+              </div>
+              <div className="min-w-0 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                    {t('Pending Cash OTP')}
+                  </span>
+                  <span className="text-[11px] text-purple-200">30m validity</span>
+                </div>
+                <p className="font-extrabold text-[13.5px] mt-0.5 truncate">
+                  ₹{pendingCashRequest.amount} at {pendingCashRequest.vendorId?.storeName || pendingCashRequest.vendorName || 'Store'}
+                </p>
+                <p className="text-[11px] text-white/80">{t('Ask shopkeeper for 4-digit code (e.g. Z516) to get instant cashback!')}</p>
+              </div>
+            </div>
+            <span className="bg-white text-purple-900 text-xs font-black px-3 py-2 rounded-xl shrink-0 shadow-sm flex items-center gap-1">
+              <span>{t('Enter OTP')}</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </span>
+          </div>
+        )}
 
         {/* Balance chip */}
         <div

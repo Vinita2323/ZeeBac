@@ -104,14 +104,14 @@ function App() {
   const fetchedRef = useRef(false);
   const [isRequestingNotif, setIsRequestingNotif] = useState(false);
 
-  // Re-lock on resume when switching tabs/apps, respecting the 5-minute grace period.
+  // Re-lock on resume when switching tabs/apps, respecting the 10-minute grace period.
   // Once the user has entered their PIN/biometric, switching tabs will NOT re-prompt
-  // for 5 minutes.
+  // for 10 minutes.
   useEffect(() => {
     if (!accessToken) return;
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Check if 5-minute unlock window has expired
+        // Check if the 10-minute unlock window has expired
         lockApp();
       }
     };
@@ -330,17 +330,43 @@ function App() {
       }
     };
 
+    // Global deduplication cache to ensure a notification never pops up multiple times
+    const recentNotifCache = window.__recentNotifCache || (window.__recentNotifCache = new Map());
+
     // Mobile-style Heads-Up Top Notification Banner (styled like native mobile push notification)
     const showTopMobileNotification = ({ title, body, icon = 'notifications', onClick, id }) => {
-      // 1. Audio chime
+      const cleanTitle = (title || '').toLowerCase().trim();
+      const cleanBody = (body || '').toLowerCase().trim();
+      const contentKey = `${cleanTitle}::${cleanBody}`;
+      const now = Date.now();
+
+      // Content-based deduplication: prevent any popup with same title/body within 6 seconds
+      if (recentNotifCache.has(contentKey) && (now - recentNotifCache.get(contentKey)) < 6000) {
+        return;
+      }
+      if (id && recentNotifCache.has(String(id)) && (now - recentNotifCache.get(String(id))) < 6000) {
+        return;
+      }
+      recentNotifCache.set(contentKey, now);
+      if (id) recentNotifCache.set(String(id), now);
+
+      if (recentNotifCache.size > 50) {
+        const oldestKey = recentNotifCache.keys().next().value;
+        recentNotifCache.delete(oldestKey);
+      }
+
+      // 1. Dismiss any existing toast first so only 1 notification is ever visible on screen!
+      toast.dismiss();
+
+      // 2. Audio chime
       playNotificationChime('incoming');
 
-      // 2. Mobile vibration
+      // 3. Mobile vibration
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         try { navigator.vibrate([150, 75, 150]); } catch (e) {}
       }
 
-      // 3. Heads-Up Top Banner (drops down smoothly at the top of the mobile screen)
+      // 4. Heads-Up Top Banner (drops down smoothly at the top of the mobile screen)
       toast.custom(
         (t) => (
           <div
@@ -370,7 +396,7 @@ function App() {
         { duration: 5500, id: id || `top-notif-${Date.now()}` }
       );
 
-      // 4. Native OS system notification (shows on phone lock screen or status bar)
+      // 5. Native OS system notification (shows on phone lock screen or status bar)
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
           const nativeNotif = new Notification(title, {
@@ -412,6 +438,10 @@ function App() {
       if (notif.referenceType === 'conversation') return;
 
       const isVendor = role === 'vendor';
+      // Filter out vendor notifications if customer, and customer notifications if vendor
+      if (isVendor && notif.recipientType === 'customer') return;
+      if (!isVendor && (notif.recipientType === 'vendor' || notif.title?.includes('by Customer') || notif.title?.includes('Claimed by Customer'))) return;
+
       const targetUrl = notif.referenceType === 'transaction' || notif.type === 'credit'
         ? (isVendor ? '/vendor/wallet' : '/wallet')
         : (isVendor ? '/vendor/notifications' : '/notifications');
@@ -420,7 +450,7 @@ function App() {
         title: notif.title || '🔔 Notification',
         body: notif.message || '',
         icon: notif.icon || 'notifications',
-        id: `notif-${notif._id || Date.now()}`,
+        id: notif._id ? `notif-${notif._id}` : `notif-${notif.title}_${notif.message}`,
         onClick: () => {
           window.location.href = targetUrl;
         },
@@ -444,10 +474,26 @@ function App() {
       const { title, body } = payload.notification || {};
       const notifData = payload.data || {};
       if (title && body) {
+        const isVendor = role === 'vendor';
+        // Filter out vendor push notifications on customer profile and vice versa
+        if (notifData.recipientType && notifData.recipientType !== (isVendor ? 'vendor' : 'customer')) {
+          return;
+        }
+        if (!isVendor && (title.includes('by Customer') || notifData.recipientType === 'vendor')) {
+          return;
+        }
+        if (notifData.recipientId && currentUser?._id && String(notifData.recipientId) !== String(currentUser._id)) {
+          return;
+        }
+
+        // When the app is in the foreground, socket connection already delivers live cashback notifications.
+        // Skip duplicate FCM credit alerts in foreground to prevent duplicate popups!
+        if (notifData.type === 'credit' || notifData.type === 'cashback') {
+          return;
+        }
+
         if (notifData.isCashMode === 'true' && notifData.amount) {
           playVendorCashRequestVoice(notifData.amount);
-        } else if (notifData.cashbackAmount && role === 'customer') {
-          playCustomerCashbackCreditedVoice(notifData.cashbackAmount);
         } else if (notifData.isChat === 'true') {
           playNotificationChime('incoming');
         }
@@ -455,9 +501,8 @@ function App() {
           title,
           body,
           icon: notifData.icon || 'notifications',
-          id: `fcm-${Date.now()}`,
+          id: notifData.notificationId || `fcm-${title}_${body}`,
           onClick: () => {
-            const isVendor = role === 'vendor';
             if (notifData.isChat === 'true') {
               window.location.href = isVendor ? '/vendor/chat' : '/chat';
             } else {

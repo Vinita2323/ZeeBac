@@ -86,9 +86,6 @@ export const getVendorSubscriptionState = (vendor, walletBalance = null) => {
   if (!isSubscriptionActive) {
     cashbackBlocked = true;
     cashbackBlockedReason = 'Cashback blocked due to subscription expiry';
-  } else if (walletBalance !== null && walletBalance !== undefined && Number(walletBalance) <= 0) {
-    cashbackBlocked = true;
-    cashbackBlockedReason = 'Cashback blocked due to insufficient cashback wallet balance.';
   }
 
   return {

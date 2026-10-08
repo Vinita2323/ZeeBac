@@ -1145,10 +1145,6 @@ export const logPurchase = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cashback blocked due to subscription expiry' });
     }
 
-    if (vendorBalance <= 0) {
-      return res.status(400).json({ success: false, message: 'Cashback blocked due to insufficient cashback wallet balance.' });
-    }
-
     const customer = await User.findOne({ phone: customerPhone });
     if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
 
@@ -1498,10 +1494,6 @@ export const respondToCashbackRequest = async (req, res) => {
 
     if (!subState.isSubActive) {
       return res.status(400).json({ success: false, message: 'Cashback blocked due to subscription expiry' });
-    }
-
-    if (vendorBalance <= 0) {
-      return res.status(400).json({ success: false, message: 'Cashback blocked due to insufficient cashback wallet balance.' });
     }
 
     // Fix 3: Reject manual vendor approval if this bill number corresponds to an already claimed POS bill
@@ -2441,7 +2433,12 @@ export const setupSecurityPin = async (req, res) => {
       }
       const isMatch = await bcrypt.compare(String(currentPin).trim(), vendor.security.securityPin);
       if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Current PIN is incorrect' });
+        // 400, not 401: a wrong PIN is a bad request, not an auth/token failure.
+        // Reusing 401 here collided with the axios interceptor's "token expired,
+        // refresh and retry" logic and with the auth middleware's own 401s,
+        // which is what made a genuinely correct PIN look rejected after the
+        // access token had quietly expired.
+        return res.status(400).json({ success: false, message: 'Current PIN is incorrect' });
       }
     }
 
@@ -2557,13 +2554,18 @@ export const verifySecurityPin = async (req, res) => {
 
     const remaining = Math.max(0, 5 - tracker.count);
     if (tracker.count >= 5) {
-      return res.status(401).json({
+      // 429 (rate limited), not 401 — an actual auth/token failure must stay
+      // the only thing that returns 401 here, or the axios refresh-and-retry
+      // interceptor misreads a lockout as an expired token.
+      return res.status(429).json({
         success: false,
         message: 'Too many incorrect PIN attempts. Please enter your correct PIN or wait 1 minute.',
       });
     }
 
-    return res.status(401).json({
+    // 400, not 401: wrong PIN is a bad request, not an auth/token failure —
+    // see the matching note in setupSecurityPin above for why this matters.
+    return res.status(400).json({
       success: false,
       message: `Incorrect Security PIN. (${remaining} attempts remaining)`,
     });

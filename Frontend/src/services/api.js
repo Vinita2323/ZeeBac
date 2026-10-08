@@ -86,14 +86,20 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // NOTE: the /security/* PIN & biometric endpoints are intentionally NOT
+    // listed here. They sit behind the same access token as everything else,
+    // so a 401 from them can legitimately mean "token expired" and should go
+    // through the normal refresh-and-retry path below. They now only ever
+    // return 401 for that reason — a wrong PIN responds 400 and a PIN lockout
+    // responds 429 (see user.controller.js / vendor.controller.js) — so this
+    // can't be confused with "incorrect PIN" anymore. Excluding them used to
+    // make a correct PIN look rejected whenever the access token had quietly
+    // expired while the app was locked/backgrounded.
     const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
                            originalRequest.url?.includes('/auth/refresh') ||
                            originalRequest.url?.includes('/auth/send-otp') ||
                            originalRequest.url?.includes('/auth/customer/login') ||
-                           originalRequest.url?.includes('/auth/vendor-app/login') ||
-                           originalRequest.url?.includes('/security/verify-pin') ||
-                           originalRequest.url?.includes('/security/setup-pin') ||
-                           originalRequest.url?.includes('/security/toggle-biometric');
+                           originalRequest.url?.includes('/auth/vendor-app/login');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
@@ -825,6 +831,23 @@ export const UserAPI = {
   },
   getUserWithdrawals: async () => {
     const res = await apiClient.get('/user/wallet/withdrawals');
+    return res.data;
+  },
+  // Wallet Add Funds (Razorpay & Dynamic UPI QR)
+  createWalletOrder: async (amount) => {
+    const res = await apiClient.post('/user/wallet/create-order', { amount });
+    return res.data;
+  },
+  verifyWalletPayment: async (data) => {
+    const res = await apiClient.post('/user/wallet/verify-payment', data);
+    return res.data;
+  },
+  getWalletDynamicQr: async (amount) => {
+    const res = await apiClient.post('/user/wallet/dynamic-qr', { amount });
+    return res.data;
+  },
+  claimWalletUpiUtr: async (utr, amount) => {
+    const res = await apiClient.post('/user/wallet/claim-upi-utr', { utr, amount });
     return res.data;
   },
   // Mobile Recharge (Wallet Balance)

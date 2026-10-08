@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
+import useLanguageStore from '../../../store/useLanguageStore';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function RatingsPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [filter, setFilter] = useState('All');
   const [reviews, setReviews] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function RatingsPage() {
         <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Ratings & Reviews</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">{t('Customer Ratings & Reviews')}</span>
       </header>
 
       <div className="space-y-6 pt-1">
@@ -87,7 +89,7 @@ export default function RatingsPage() {
                   <span key={i} className="material-symbols-outlined text-[16px]" style={{fontVariationSettings: i <= Math.round(avgRating) ? "'FILL' 1" : "'FILL' 0"}}>star</span>
                 ))}
               </div>
-              <p className="text-on-surface-variant text-[11px] font-medium mt-1">{totalReviews} reviews</p>
+              <p className="text-on-surface-variant text-[11px] font-medium mt-1">{totalReviews} {t('Total Reviews')}</p>
             </div>
             
             <div className="w-full flex-1 space-y-2 border-t sm:border-t-0 sm:border-l border-outline-variant/10 pt-3 sm:pt-0 sm:pl-5">
@@ -118,7 +120,7 @@ export default function RatingsPage() {
                   : 'bg-white text-on-surface-variant border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:bg-surface-container-lowest'
               }`}
             >
-              {f}
+              {t(f)}
             </button>
           ))}
         </div>
@@ -126,7 +128,9 @@ export default function RatingsPage() {
         {/* Review Cards */}
         <div className="space-y-4">
           {isLoading ? (
-             <p className="text-center py-8 text-on-surface-variant text-[13px] font-bold">Loading reviews...</p>
+             <p className="text-center py-8 text-on-surface-variant text-[13px] font-bold">{t('Loading...')}</p>
+          ) : filteredReviews.length === 0 ? (
+            <p className="text-center py-8 text-on-surface-variant text-[13px] font-bold">{t('No reviews yet')}</p>
           ) : filteredReviews.map(review => (
             <div key={review._id} className="bg-white p-4 rounded-2xl border border-outline-variant/10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-3 transition-transform">
               <div className="flex items-start justify-between">
@@ -135,7 +139,7 @@ export default function RatingsPage() {
                     {(review.customerName || 'U').charAt(0)}
                   </div>
                   <div>
-                    <h4 className="font-bold text-[14px] text-on-surface">{review.customerName || 'Unknown User'}</h4>
+                    <h4 className="font-bold text-[14px] text-on-surface">{review.customerName || t('Unknown User')}</h4>
                     <p className="text-on-surface-variant text-[11px] mt-0.5">{new Date(review.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
@@ -151,7 +155,7 @@ export default function RatingsPage() {
                   {review.isVerified && (
                     <div className="flex items-center justify-end gap-0.5 text-green-600 mt-1">
                       <span className="material-symbols-outlined text-[11px]">verified</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Verified</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{t('Verified')}</span>
                     </div>
                   )}
                 </div>
@@ -169,7 +173,7 @@ export default function RatingsPage() {
                   <div className="absolute -left-2 top-4 w-4 h-[1px] bg-outline-variant/20"></div>
                   <div className="absolute -left-2 -top-2 w-[1px] h-6 bg-outline-variant/20"></div>
                   <p className="text-[11px] font-bold text-primary mb-1 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">store</span> Your Response
+                    <span className="material-symbols-outlined text-[14px]">store</span> {t('Your Response')}
                   </p>
                   <p className="text-[12px] text-on-surface-variant leading-relaxed">{review.reply.text}</p>
                 </div>
@@ -180,7 +184,7 @@ export default function RatingsPage() {
                     autoFocus
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Write a response to this customer..."
+                    placeholder={t('Write a response to this customer...')}
                     className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl p-3 text-[13px] text-on-surface focus:outline-none focus:border-primary/50 resize-none h-20 mb-2"
                   ></textarea>
                   <div className="flex gap-2 justify-end">
@@ -188,14 +192,14 @@ export default function RatingsPage() {
                       onClick={() => { setReplyingTo(null); setReplyText(''); }}
                       className="px-4 h-8 rounded-lg text-on-surface-variant font-bold text-[12px] hover:bg-surface-container cursor-pointer"
                     >
-                      Cancel
+                      {t('Cancel')}
                     </button>
                     <button 
                       disabled={isSubmittingReply || !replyText.trim()}
                       onClick={() => handleReplySubmit(review._id)}
                       className="px-4 h-8 rounded-lg bg-primary text-white font-bold text-[12px] disabled:opacity-50 hover:bg-primary/90 cursor-pointer"
                     >
-                      {isSubmittingReply ? 'Sending...' : 'Send Reply'}
+                      {isSubmittingReply ? t('Sending...') : t('Send Reply')}
                     </button>
                   </div>
                 </div>
@@ -207,7 +211,7 @@ export default function RatingsPage() {
                     className="text-primary text-[12px] font-bold flex items-center gap-1 active:scale-[0.97] transition-transform cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">reply</span>
-                    Reply
+                    {t('Reply')}
                   </button>
                 </div>
               )}
@@ -217,8 +221,8 @@ export default function RatingsPage() {
           {!isLoading && filteredReviews.length === 0 && (
             <div className="text-center py-12 text-on-surface-variant bg-white rounded-2xl border border-outline-variant/10">
               <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">forum</span>
-              <p className="font-bold text-[16px]">No reviews found</p>
-              <p className="text-[14px]">Try changing your filters.</p>
+              <p className="font-bold text-[16px]">{t('No reviews found')}</p>
+              <p className="text-[14px]">{t('Try changing your filters.')}</p>
             </div>
           )}
         </div>

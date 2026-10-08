@@ -62,7 +62,7 @@ export default function PayVendorScreen() {
   const purchaseAmount = parseFloat(amount) || 0;
   const cashbackAmount = Math.round(purchaseAmount * (cashbackRate / 100) * 100) / 100;
 
-  const customerFeePercent = rewardConfig?.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 2;
+  const customerFeePercent = rewardConfig?.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 0;
   const customerFixedFee = rewardConfig?.customerWalletPayFixedFee !== undefined ? rewardConfig.customerWalletPayFixedFee : 0;
   const walletFee = paymentMethod === 'Wallet' && purchaseAmount > 0 
     ? Math.round(((purchaseAmount * customerFeePercent) / 100 + customerFixedFee) * 100) / 100 
@@ -354,10 +354,18 @@ export default function PayVendorScreen() {
                 <span>Store Bill:</span>
                 <span className="font-bold text-on-surface">₹{purchaseAmount.toFixed(2)}</span>
               </div>
-              {walletFee > 0 && (
+              {walletFee > 0 ? (
                 <div className="flex justify-between text-[12px] text-purple-700 font-medium">
                   <span>Convenience Fee ({customerFeePercent}%{customerFixedFee > 0 ? ` + ₹${customerFixedFee}` : ''}):</span>
                   <span className="font-bold">+₹{walletFee.toFixed(2)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-[12px] text-emerald-700 font-medium bg-emerald-50/80 px-2 py-1 rounded-md border border-emerald-200/50">
+                  <span className="flex items-center gap-1 font-semibold">
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600">check_circle</span>
+                    Merchant Transfer Fee:
+                  </span>
+                  <span className="font-bold text-emerald-700">₹0.00 (Zero Extra Charge)</span>
                 </div>
               )}
               <div className="border-t border-purple-200/60 pt-1.5 flex justify-between text-[13px] font-bold text-on-surface">

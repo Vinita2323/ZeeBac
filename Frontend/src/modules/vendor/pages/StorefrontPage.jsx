@@ -293,10 +293,10 @@ export default function StorefrontPage() {
       {/* Internal Tabs */}
       <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-[57px] md:top-0 z-30 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
         {[
-          { key: 'catalog', label: t('catalog / products', 'Catalog') },
-          { key: 'media', label: t('photos & videos', 'Media') },
-          { key: 'promotions', label: t('promotions', 'Promotions') },
-          { key: 'stories', label: t('store stories', 'Stories') },
+          { key: 'catalog', label: t('Catalog / Products') },
+          { key: 'media', label: t('Photos & Videos') },
+          { key: 'promotions', label: t('Promotions') },
+          { key: 'stories', label: t('Store Stories') },
         ].map((item) => (
           <button
             key={item.key}
@@ -318,7 +318,7 @@ export default function StorefrontPage() {
         {activeTab === 'catalog' && (
           <div className="space-y-4 animate-reveal">
             <div className="flex justify-between items-center bg-white p-3 rounded-2xl border border-outline-variant/10 shadow-sm">
-              <span className="text-[13px] font-bold text-on-surface-variant">Store Catalog ({products.length})</span>
+              <span className="text-[13px] font-bold text-on-surface-variant">{t('Store Catalog')} ({products.length})</span>
               <button 
                 onClick={() => {
                   setEditingProductId(null);
@@ -329,7 +329,7 @@ export default function StorefrontPage() {
                 }}
                 className="flex items-center gap-1.5 bg-primary text-white px-3.5 py-1.5 rounded-xl font-bold text-[12px] hover:bg-primary/95 active:scale-95 transition-all cursor-pointer shadow-sm shadow-primary/25"
               >
-                <span className="material-symbols-outlined text-[16px]">add_circle</span> Add Catalog
+                <span className="material-symbols-outlined text-[16px]">add_circle</span> {t('Add Catalog')}
               </button>
             </div>
             
@@ -337,7 +337,7 @@ export default function StorefrontPage() {
               {loading ? (
                 <div className="py-12 text-center text-on-surface-variant">
                   <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
-                  <p className="font-bold">Loading catalog...</p>
+                  <p className="font-bold">{t('Loading catalog...')}</p>
                 </div>
               ) : products.length > 0 ? products.map(product => (
                 <div key={product._id} className="flex flex-col sm:flex-row gap-4 p-4 bg-white rounded-2xl border border-outline-variant/10 shadow-sm animate-reveal">
@@ -348,7 +348,7 @@ export default function StorefrontPage() {
                         <div className="flex justify-between items-start gap-2">
                           <p className="text-[15px] md:text-[16px] font-bold text-on-surface leading-tight line-clamp-2">{product.name}</p>
                           {product.branding?.isBranded && (
-                            <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">Branded</span>
+                            <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{t('Branded')}</span>
                           )}
                         </div>
                         <p className="text-[14px] md:text-[15px] text-primary font-black mt-1">₹{product.price}</p>
@@ -356,9 +356,9 @@ export default function StorefrontPage() {
                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
                           <span className="bg-surface-variant text-on-surface-variant text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{product.category || 'Bestsellers'}</span>
                           {product.stock > 0 ? (
-                             <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{product.stock} in stock</span>
+                             <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{product.stock} {t('in stock')}</span>
                           ) : (
-                             <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">Out of stock</span>
+                             <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap">{t('Out of stock')}</span>
                           )}
                         </div>
                       </div>
@@ -367,11 +367,11 @@ export default function StorefrontPage() {
                   
                   <div className="flex items-center justify-between sm:flex-col sm:justify-end sm:items-end gap-3 sm:gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-outline-variant/10 sm:min-w-[100px]">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-[11px] font-bold text-on-surface-variant sm:hidden">Highlight</span>
+                      <span className="text-[11px] font-bold text-on-surface-variant sm:hidden">{t('Highlight')}</span>
                       <div 
                         onClick={() => handleToggleHighlight(product._id)}
                         className={`w-9 h-5 rounded-full flex items-center p-0.5 transition-colors ${product.isHighlight ? 'bg-primary' : 'bg-surface-variant'}`}
-                        title="Highlight Product"
+                        title={t('Highlight Product')}
                       >
                         <div className={`w-4 h-4 bg-white rounded-full transition-transform ${product.isHighlight ? 'translate-x-4' : 'translate-x-0'}`}></div>
                       </div>
@@ -380,14 +380,14 @@ export default function StorefrontPage() {
                       <button 
                         onClick={() => handleEditProduct(product)}
                         className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
-                        title="Edit Product"
+                        title={t('Edit Product')}
                       >
                         <span className="material-symbols-outlined text-[16px]">edit</span>
                       </button>
                       <button 
                         onClick={() => handleDeleteProduct(product._id)}
                         className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
-                        title="Delete Product"
+                        title={t('Delete Product')}
                       >
                         <span className="material-symbols-outlined text-[16px]">delete</span>
                       </button>
@@ -397,8 +397,8 @@ export default function StorefrontPage() {
               )) : (
                 <div className="py-12 text-center text-on-surface-variant">
                   <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">storefront</span>
-                  <p className="font-bold text-[16px]">Catalog is empty</p>
-                  <p className="text-[14px]">Click 'Add Catalog' to list products.</p>
+                  <p className="font-bold text-[16px]">{t('Catalog is empty')}</p>
+                  <p className="text-[14px]">{t("Click 'Add Catalog' to list products.")}</p>
                 </div>
               )}
             </div>
@@ -408,13 +408,13 @@ export default function StorefrontPage() {
         {activeTab === 'media' && (
           <div className="space-y-4 animate-reveal">
             <div className="flex justify-between items-center">
-              <h3 className="font-display text-[18px] font-extrabold text-on-surface">Store Gallery</h3>
+              <h3 className="font-display text-[18px] font-extrabold text-on-surface">{t('Store Gallery')}</h3>
             </div>
             
             <div className="grid grid-cols-3 gap-2">
               <label className="aspect-square rounded-2xl border-2 border-dashed border-primary/30 flex flex-col items-center justify-center text-primary hover:bg-primary/5 transition-colors active:scale-95 cursor-pointer">
                 <span className="material-symbols-outlined text-[32px]">add_photo_alternate</span>
-                <span className="text-[11px] font-bold mt-1">Upload</span>
+                <span className="text-[11px] font-bold mt-1">{t('Upload')}</span>
                 <input 
                   type="file" 
                   accept="image/*,video/*" 
@@ -426,7 +426,7 @@ export default function StorefrontPage() {
               {isUploading && (
                 <div className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center">
                   <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mb-2"></div>
-                  <span className="text-[11px] font-bold text-gray-500">Uploading...</span>
+                  <span className="text-[11px] font-bold text-gray-500">{t('Uploading...')}</span>
                 </div>
               )}
               {mediaList.map(item => (
@@ -456,12 +456,12 @@ export default function StorefrontPage() {
         {activeTab === 'promotions' && (
           <div className="space-y-4 animate-reveal">
              <div className="flex justify-between items-center">
-              <h3 className="font-display text-[18px] font-extrabold text-on-surface">Active Offers</h3>
+              <h3 className="font-display text-[18px] font-extrabold text-on-surface">{t('Active Offers')}</h3>
               <button 
                 onClick={() => setShowOfferModal(true)}
                 className="flex items-center gap-1.5 bg-primary text-white px-3.5 py-1.5 rounded-xl font-bold text-[12px] shadow-sm hover:shadow-md active:scale-95 transition-all cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[16px]">campaign</span> Create Offer
+                <span className="material-symbols-outlined text-[16px]">campaign</span> {t('Create Offer')}
               </button>
             </div>
 
@@ -505,8 +505,8 @@ export default function StorefrontPage() {
               {promotions.length === 0 && (
                 <div className="py-12 text-center text-on-surface-variant">
                   <span className="material-symbols-outlined text-[48px] opacity-30 mb-2">campaign</span>
-                  <p className="font-bold text-[16px]">No active offers</p>
-                  <p className="text-[14px]">Click 'Create Offer' to launch promotions.</p>
+                  <p className="font-bold text-[16px]">{t('No active offers')}</p>
+                  <p className="text-[14px]">{t("Click 'Create Offer' to launch promotions.")}</p>
                 </div>
               )}
             </div>
@@ -524,8 +524,8 @@ export default function StorefrontPage() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-bold text-on-surface leading-tight">24-Hour Stories (Instagram Style)</h3>
-                  <p className="text-[11px] text-on-surface-variant">Temporary daily deals & updates visible on customer Home feed</p>
+                  <h3 className="text-[14px] font-bold text-on-surface leading-tight">{t('24-Hour Stories (Instagram Style)')}</h3>
+                  <p className="text-[11px] text-on-surface-variant">{t('Temporary daily deals & updates visible on customer Home feed')}</p>
                 </div>
               </div>
               <button 
@@ -533,22 +533,22 @@ export default function StorefrontPage() {
                 className="flex items-center gap-1.5 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/95 hover:to-purple-600/95 text-white px-3.5 py-2 rounded-xl font-bold text-[12px] hover:shadow active:scale-95 transition-all cursor-pointer shadow-sm flex-shrink-0"
               >
                 <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                Add Story
+                {t('Add Story')}
               </button>
             </div>
 
             <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-amber-500/10 p-4 rounded-2xl border border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <h4 className="font-bold text-xs text-on-surface">Daily High-Engagement Marketing</h4>
+                <h4 className="font-bold text-xs text-on-surface">{t('Daily High-Engagement Marketing')}</h4>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  Post photos with offer tags (e.g. "Flat 20% OFF", "Today Only"). Stories disappear automatically after 24 hours.
+                  {t('Post daily deals & photos to nearby customers')}
                 </p>
               </div>
               <button
                 onClick={() => setShowStoriesModal(true)}
                 className="px-3.5 py-1.5 rounded-xl bg-white border border-outline-variant/20 text-primary text-xs font-bold shadow-xs hover:bg-primary/5 active:scale-95 cursor-pointer whitespace-nowrap"
               >
-                Manage Active Stories
+                {t('Manage Active Stories')}
               </button>
             </div>
           </div>
@@ -582,10 +582,10 @@ export default function StorefrontPage() {
             >
               <span className="material-symbols-outlined text-[#5B21B6]">{(addProductStep === 2 && !editingProductId) ? 'arrow_back' : 'close'}</span>
             </button>
-            <span className="font-display text-[18px] font-black ml-2 text-gray-900">{editingProductId ? 'Edit Product' : 'Add Product'}</span>
+            <span className="font-display text-[18px] font-black ml-2 text-gray-900">{editingProductId ? t('Edit Product') : t('Add Product')}</span>
             {!editingProductId && (
               <span className="ml-auto text-[13px] font-bold text-[#5B21B6] bg-[#5B21B6]/10 px-3 py-1 rounded-full">
-                Step {addProductStep}/2
+                {t('Step')} {addProductStep}/2
               </span>
             )}
           </header>
@@ -596,8 +596,8 @@ export default function StorefrontPage() {
               {addProductStep === 1 && (
                 <div className="p-6 animate-reveal">
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center mb-6">
-                    <h2 className="text-[22px] font-black tracking-tight text-gray-900 mb-2">Is this a branded product?</h2>
-                    <p className="text-[14px] text-gray-500">Select whether this product belongs to an existing or registered brand.</p>
+                    <h2 className="text-[22px] font-black tracking-tight text-gray-900 mb-2">{t('Is this a branded product?')}</h2>
+                    <p className="text-[14px] text-gray-500">{t('Select whether this product belongs to an existing or registered brand.')}</p>
                   </div>
                   
                   <div className="space-y-4">
@@ -609,8 +609,8 @@ export default function StorefrontPage() {
                         <span className="material-symbols-outlined text-[28px]">sell</span>
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-black text-[16px] text-gray-900 mb-1">Yes, this is a branded product</h3>
-                        <p className="text-[13px] text-gray-500">This product belongs to a brand.</p>
+                        <h3 className="font-black text-[16px] text-gray-900 mb-1">{t('Yes, this is a branded product')}</h3>
+                        <p className="text-[13px] text-gray-500">{t('This product belongs to a brand.')}</p>
                       </div>
                       <span className="material-symbols-outlined text-gray-300 group-hover:text-[#5B21B6] transition-colors">chevron_right</span>
                     </div>
@@ -623,8 +623,8 @@ export default function StorefrontPage() {
                         <span className="material-symbols-outlined text-[28px]">inventory_2</span>
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-black text-[16px] text-gray-900 mb-1">No, this is my own/local product</h3>
-                        <p className="text-[13px] text-gray-500">This product is not associated with any brand.</p>
+                        <h3 className="font-black text-[16px] text-gray-900 mb-1">{t('No, this is my own/local product')}</h3>
+                        <p className="text-[13px] text-gray-500">{t('This product is not associated with any brand.')}</p>
                       </div>
                       <span className="material-symbols-outlined text-gray-300 group-hover:text-[#5B21B6] transition-colors">chevron_right</span>
                     </div>
@@ -639,7 +639,7 @@ export default function StorefrontPage() {
                     <>
                       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
                         <h2 className="text-[18px] font-black text-gray-900 flex items-center gap-2 mb-4">
-                          <span className="material-symbols-outlined text-[#5B21B6]">verified</span> Brand Information
+                          <span className="material-symbols-outlined text-[#5B21B6]">verified</span> {t('Brand Information')}
                         </h2>
                         <StorefrontUploadCard label="Brand Logo *" file={productForm.brandLogo} onUpload={e => handleProductFileChange(e, 'brandLogo')} onRemove={() => updateProductForm('brandLogo', null)} />
                         <StorefrontFloatingInput label="Brand Name *" value={productForm.brandName} onChange={e => updateProductForm('brandName', e.target.value)} />
@@ -656,8 +656,8 @@ export default function StorefrontPage() {
                             <span className="material-symbols-outlined">payments</span>
                           </div>
                           <div>
-                            <h2 className="text-[16px] font-black text-gray-900">Brand Cashback</h2>
-                            <p className="text-[12px] text-gray-600">Choose the cashback % for customers.</p>
+                            <h2 className="text-[16px] font-black text-gray-900">{t('Brand Cashback')}</h2>
+                            <p className="text-[12px] text-gray-600">{t('Choose the cashback % for customers.')}</p>
                           </div>
                         </div>
                         
@@ -669,7 +669,7 @@ export default function StorefrontPage() {
                         </div>
                         
                         <div className="bg-white rounded-xl p-3 flex justify-between items-center shadow-sm border border-[#5B21B6]/20">
-                          <span className="text-[13px] font-bold text-gray-700">Live Preview: Customer Cashback</span>
+                          <span className="text-[13px] font-bold text-gray-700">{t('Live Preview: Customer Cashback')}</span>
                           <span className="text-[16px] font-black text-green-600">+{productForm.cashbackPercentage}%</span>
                         </div>
                       </div>
@@ -678,20 +678,20 @@ export default function StorefrontPage() {
 
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
                     <h2 className="text-[18px] font-black text-gray-900 flex items-center gap-2 mb-4">
-                      <span className="material-symbols-outlined text-[#5B21B6]">inventory_2</span> Product Details
+                      <span className="material-symbols-outlined text-[#5B21B6]">inventory_2</span> {t('Product Details')}
                     </h2>
                     <StorefrontUploadCard label="Product Image *" file={productForm.image} onUpload={e => handleProductFileChange(e, 'image')} onRemove={() => updateProductForm('image', null)} />
                     <StorefrontFloatingInput label="Product Name *" value={productForm.name} onChange={e => updateProductForm('name', e.target.value)} />
                     
                     <div className="relative">
                       <select value={productForm.category} onChange={e => updateProductForm('category', e.target.value)} className="w-full h-14 px-4 bg-white border-2 rounded-lg outline-none appearance-none font-medium transition-all text-[15px] border-gray-200 text-gray-800 focus:border-[#5B21B6]">
-                        <option value="" disabled>Select Category</option>
-                        <option value="Electronics">Electronics</option>
-                        <option value="Fashion & Apparel">Fashion & Apparel</option>
-                        <option value="Groceries">Groceries</option>
-                        <option value="Home & Furniture">Home & Furniture</option>
-                        <option value="Beauty & Personal Care">Beauty & Personal Care</option>
-                        <option value="Other">Other</option>
+                        <option value="" disabled>{t('Select Category')}</option>
+                        <option value="Electronics">{t('Electronics')}</option>
+                        <option value="Fashion & Apparel">{t('Fashion & Apparel')}</option>
+                        <option value="Groceries">{t('Groceries')}</option>
+                        <option value="Home & Furniture">{t('Home & Furniture')}</option>
+                        <option value="Beauty & Personal Care">{t('Beauty & Personal Care')}</option>
+                        <option value="Other">{t('Other')}</option>
                       </select>
                       <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                     </div>
@@ -708,8 +708,8 @@ export default function StorefrontPage() {
                     
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <div>
-                        <p className="text-[14px] font-bold text-gray-900">Highlight Product</p>
-                        <p className="text-[12px] text-gray-500">Feature this product in your store.</p>
+                        <p className="text-[14px] font-bold text-gray-900">{t('Highlight Product')}</p>
+                        <p className="text-[12px] text-gray-500">{t('Feature this product in your store.')}</p>
                       </div>
                       <div onClick={() => updateProductForm('highlight', !productForm.highlight)} className={`w-12 h-6 rounded-full p-1 flex items-center cursor-pointer transition-colors ${productForm.highlight ? 'bg-[#5B21B6]' : 'bg-gray-200'}`}>
                         <div className={`w-4 h-4 bg-white rounded-full shadow-md transition-transform ${productForm.highlight ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -731,7 +731,7 @@ export default function StorefrontPage() {
                   onClick={handleAddProduct}
                   className="w-full h-12 bg-[#5B21B6] text-white rounded-xl font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-1 shadow-md shadow-[#5B21B6]/30 cursor-pointer"
                 >
-                  {editingProductId ? 'Save Changes' : 'Add Product'}
+                  {editingProductId ? t('Save Changes') : t('Add Product')}
                 </button>
               </div>
             </div>
@@ -752,11 +752,11 @@ export default function StorefrontPage() {
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
             
-            <h3 className="font-display font-black text-[20px] text-on-surface">Create Promotion</h3>
+            <h3 className="font-display font-black text-[20px] text-on-surface">{t('Create Promotion')}</h3>
             
             <div className="space-y-3 pt-2">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase">Offer Title</label>
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase">{t('Offer Title')}</label>
                 <input
                   type="text"
                   required
@@ -768,7 +768,7 @@ export default function StorefrontPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase">Offer Description</label>
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase">{t('Offer Description')}</label>
                 <textarea
                   required
                   value={newOfferDescription}
@@ -779,7 +779,7 @@ export default function StorefrontPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase">Offer Type Icon</label>
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase">{t('Offer Type Icon')}</label>
                 <div className="flex gap-2">
                   <button 
                     type="button"
@@ -790,7 +790,7 @@ export default function StorefrontPage() {
                         : 'bg-white border-outline-variant/10 text-on-surface-variant'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">percent</span> Cashback
+                    <span className="material-symbols-outlined text-[16px]">percent</span> {t('Cashback')}
                   </button>
                   <button 
                     type="button"
@@ -801,7 +801,7 @@ export default function StorefrontPage() {
                         : 'bg-white border-outline-variant/10 text-on-surface-variant'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">redeem</span> Gift Box
+                    <span className="material-symbols-outlined text-[16px]">redeem</span> {t('Gift Box')}
                   </button>
                 </div>
               </div>
@@ -811,7 +811,7 @@ export default function StorefrontPage() {
               type="submit"
               className="w-full h-12 bg-primary text-white rounded-xl font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-1 shadow-md shadow-primary/25 cursor-pointer mt-4"
             >
-              Launch Offer
+              {t('Launch Offer')}
             </button>
           </form>
         </div>,
@@ -825,6 +825,7 @@ export default function StorefrontPage() {
 // ─── Shared Components ──────────────────────────────────────────────
 
 function StorefrontFloatingInput({ label, type = 'text', value, onChange, readOnly, placeholder, multiline }) {
+  const { t } = useLanguageStore();
   const [focused, setFocused] = useState(false);
   const isFilled = value && value.toString().length > 0;
   const InputEl = multiline ? 'textarea' : 'input';
@@ -840,7 +841,7 @@ function StorefrontFloatingInput({ label, type = 'text', value, onChange, readOn
         onChange={onChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder={focused || readOnly ? placeholder : ''}
+        placeholder={focused || readOnly ? (placeholder ? t(placeholder) : '') : ''}
         rows={multiline ? 3 : undefined}
         className={`w-full bg-transparent outline-none px-4 pt-[18px] pb-[10px] text-[15px] font-bold text-gray-900 ${multiline ? 'resize-none' : ''}`}
       />
@@ -849,13 +850,14 @@ function StorefrontFloatingInput({ label, type = 'text', value, onChange, readOn
           ? 'top-2 text-[11px] font-bold text-[#5B21B6]' 
           : `text-[15px] text-gray-500 ${multiline ? 'top-5' : 'top-1/2 -translate-y-1/2'}`
       }`}>
-        {label}
+        {t(label)}
       </label>
     </div>
   );
 }
 
 function StorefrontUploadCard({ label, file, onUpload, onRemove }) {
+  const { t } = useLanguageStore();
   const id = label.replace(/\s+/g, '-').toLowerCase();
   
   return (
@@ -868,8 +870,8 @@ function StorefrontUploadCard({ label, file, onUpload, onRemove }) {
             <span className="material-symbols-outlined">cloud_upload</span>
           </div>
           <div>
-            <h4 className="font-bold text-[14px] text-gray-900">{label}</h4>
-            <p className="text-[12px] text-gray-500">Tap to upload file</p>
+            <h4 className="font-bold text-[14px] text-gray-900">{t(label)}</h4>
+            <p className="text-[12px] text-gray-500">{t('Tap to upload file')}</p>
           </div>
         </div>
       ) : (

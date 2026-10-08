@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../services/api';
+import useLanguageStore from '../../../store/useLanguageStore';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 const getLoyaltyTier = (visits, totalSpentNum) => {
@@ -42,6 +43,7 @@ const getLoyaltyTier = (visits, totalSpentNum) => {
 
 export default function CustomersPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [tierFilter, setTierFilter] = useState('all'); // 'all', 'vip', 'repeat', 'new', 'reviewed'
   const [customers, setCustomers] = useState([]);
@@ -122,7 +124,7 @@ export default function CustomersPage() {
         <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Customer CRM</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">{t('Customer Directory')}</span>
       </header>
 
       {/* Page Title (Desktop) */}
@@ -130,10 +132,10 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-title-lg font-display font-black text-on-surface flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[28px]">groups</span>
-            Customer CRM & Loyalty
+            {t('Customer Directory')}
           </h1>
           <p className="text-body-sm text-on-surface-variant">
-            Track customer visits, lifetime spend, verified reviews, and patron loyalty tiers
+            {t('Track customer visits, lifetime spend, verified reviews, and patron loyalty tiers')}
           </p>
         </div>
       </div>
@@ -141,27 +143,27 @@ export default function CustomersPage() {
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
         <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-outline-variant/15 shadow-sm">
-          <p className="text-on-surface-variant text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">Unique Customers</p>
+          <p className="text-on-surface-variant text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">{t('Customers')}</p>
           <p className="text-[20px] sm:text-[24px] font-black text-primary leading-none tracking-tight">{stats.total}</p>
-          <span className="text-[9.5px] sm:text-[10px] text-on-surface-variant font-medium mt-1 inline-block">Registered buyers</span>
+          <span className="text-[9.5px] sm:text-[10px] text-on-surface-variant font-medium mt-1 inline-block">{t('Unique')}</span>
         </div>
 
         <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-outline-variant/15 shadow-sm">
-          <p className="text-emerald-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">Repeat Regulars</p>
+          <p className="text-emerald-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">{t('Repeat Regular')}</p>
           <p className="text-[20px] sm:text-[24px] font-black text-emerald-600 leading-none tracking-tight">{stats.repeatCount}</p>
-          <span className="text-[9.5px] sm:text-[10px] text-emerald-700/80 font-medium mt-1 inline-block">2+ store visits</span>
+          <span className="text-[9.5px] sm:text-[10px] text-emerald-700/80 font-medium mt-1 inline-block">{t('Total Visits')}</span>
         </div>
 
         <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-outline-variant/15 shadow-sm">
-          <p className="text-purple-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">VIP & Gold Patrons</p>
+          <p className="text-purple-700 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">{t('VIP Patron')}</p>
           <p className="text-[20px] sm:text-[24px] font-black text-purple-600 leading-none tracking-tight">{stats.vipCount}</p>
-          <span className="text-[9.5px] sm:text-[10px] text-purple-700/80 font-medium mt-1 inline-block">High-value loyalty</span>
+          <span className="text-[9.5px] sm:text-[10px] text-purple-700/80 font-medium mt-1 inline-block">{t('High-value loyalty')}</span>
         </div>
 
         <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-outline-variant/15 shadow-sm">
-          <p className="text-on-surface-variant text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">Total Client Spend</p>
+          <p className="text-on-surface-variant text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">{t('Total Spent')}</p>
           <p className="text-[18px] sm:text-[22px] font-black text-gray-900 leading-none tracking-tight truncate">₹{stats.totalRevenue.toLocaleString('en-IN')}</p>
-          <span className="text-[9.5px] sm:text-[10px] text-on-surface-variant font-medium mt-1 inline-block">Lifetime volume</span>
+          <span className="text-[9.5px] sm:text-[10px] text-on-surface-variant font-medium mt-1 inline-block">{t('All Time')}</span>
         </div>
       </div>
 
@@ -172,7 +174,7 @@ export default function CustomersPage() {
           <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
           <input 
             type="text" 
-            placeholder="Search by name, Zeebac ID, or mobile number..." 
+            placeholder={t('Search by name, Zeebac ID, or mobile number...')} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-9 py-2.5 bg-surface-container-lowest border border-outline-variant/20 focus:border-primary rounded-xl outline-none text-[13px] text-on-surface placeholder:text-outline font-medium"
@@ -205,7 +207,7 @@ export default function CustomersPage() {
                   : 'bg-surface-container-low border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container'
               }`}
             >
-              {f.label}
+              {t(f.label)}
             </button>
           ))}
         </div>
@@ -216,14 +218,14 @@ export default function CustomersPage() {
         {isLoading ? (
           <div className="bg-white rounded-2xl border border-outline-variant/15 p-12 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="text-[13px] font-bold text-on-surface-variant">Loading customer transaction data...</p>
+            <p className="text-[13px] font-bold text-on-surface-variant">{t('Loading customer transaction data...')}</p>
           </div>
         ) : filteredCustomers.length === 0 ? (
           <div className="bg-white rounded-2xl border border-outline-variant/15 p-12 text-center space-y-2">
             <span className="material-symbols-outlined text-outline text-[42px]">person_search</span>
-            <p className="text-[14px] font-bold text-on-surface">No matching customers found</p>
+            <p className="text-[14px] font-bold text-on-surface">{t('No matching customers found')}</p>
             <p className="text-[12px] text-on-surface-variant max-w-xs mx-auto">
-              {searchQuery ? 'Try adjusting your search query or filter criteria.' : 'Transactions logged through your QR or Cashier will appear here.'}
+              {searchQuery ? t('Try adjusting your search query or filter criteria.') : t('Transactions logged through your QR or Cashier will appear here.')}
             </p>
           </div>
         ) : (
@@ -244,7 +246,7 @@ export default function CustomersPage() {
                       {/* Loyalty Tier Badge */}
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 shrink-0 ${customer.tier.tagBg}`}>
                         <span className="material-symbols-outlined text-[13px]">{customer.tier.icon}</span>
-                        {customer.tier.name}
+                        {t(customer.tier.name)}
                       </span>
                     </div>
 
@@ -267,7 +269,7 @@ export default function CustomersPage() {
                     </div>
                   ) : (
                     <span className="text-[10px] text-on-surface-variant/70 font-bold bg-surface-container-low px-2 py-0.5 rounded-md border border-outline-variant/10">
-                      No review yet
+                      {t('No review yet')}
                     </span>
                   )}
                 </div>
@@ -276,15 +278,15 @@ export default function CustomersPage() {
               {/* Metrics Grid */}
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-outline-variant/10 text-center bg-surface-container-lowest/50 rounded-xl p-2.5">
                 <div>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Visits</p>
+                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Visits')}</p>
                   <p className="font-black text-on-surface text-[15px]">{customer.visits}</p>
                 </div>
                 <div className="border-x border-outline-variant/10">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Lifetime Spend</p>
+                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Lifetime Spend')}</p>
                   <p className="font-black text-primary text-[15px]">{customer.totalSpent}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Last Seen</p>
+                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Last Seen')}</p>
                   <p className="font-medium text-on-surface text-[12px]">{customer.lastVisit}</p>
                 </div>
               </div>

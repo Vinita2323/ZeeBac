@@ -307,13 +307,6 @@ export const createCustomerTransaction = async (req, res) => {
       });
     }
 
-    if (vendorBalance <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cashback blocked due to insufficient cashback wallet balance.'
-      });
-    }
-
     const customer = await User.findById(req.user.id);
     if (!customer || customer.status !== 'Active') {
       return res.status(403).json({ success: false, message: 'Customer account is not active' });
@@ -339,13 +332,6 @@ export const createCustomerTransaction = async (req, res) => {
     }
 
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
-
-    if ((vendorWallet?.balance || 0) < cashbackAmount) {
-      return res.status(400).json({
-        success: false,
-        message: `This vendor's wallet balance is currently too low to provide ₹${cashbackAmount} cashback. Try again later or use another payment method.`,
-      });
-    }
 
     // Generate 4-character verification code starting with 'Z' for cash requests (e.g. Z584)
     const verificationCode = 'Z' + Math.floor(100 + Math.random() * 900);
@@ -750,21 +736,6 @@ export const createRazorpayOrder = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Cashback blocked due to subscription expiry'
-        });
-      }
-
-      if (vendorBalance <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cashback blocked due to insufficient cashback wallet balance.'
-        });
-      }
-
-      const expectedCashback = Math.round(amount * (vendor.cashbackRate / 100) * 100) / 100;
-      if (vendorBalance < expectedCashback) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Vendor cannot accept this payment. Vendor wallet balance is too low to provide ₹${expectedCashback} cashback.` 
         });
       }
     }
@@ -1879,15 +1850,15 @@ export const processWalletPayment = async (req, res) => {
     const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
     const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-    // Wallet payments carry the same platform commission vendors already pay
-    // on withdrawals — taken from the vendor's side only, customer cashback
-    // and debit are unaffected.
+    // ZeeBac platform fee on payments: 0% by default ("Isme zeebac ko koi amount nhi dena hai")
     const rewardConfig = (await RewardConfig.findOne()) || {};
-    const commissionPercent = rewardConfig.vendorWithdrawalCommissionPercent ?? 2;
+    const commissionPercent = rewardConfig.vendorPaymentCommissionPercent !== undefined
+      ? rewardConfig.vendorPaymentCommissionPercent
+      : 0;
     const platformFee = Math.round(((parseFloat(amount) * commissionPercent) / 100) * 100) / 100;
 
-    // Configurable Customer Wallet Payment Fee (Option A: Bill + Convenience Fee)
-    const customerFeePercent = rewardConfig.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 2;
+    // Configurable Customer Wallet Payment Fee (0% extra charge on transfer to merchant)
+    const customerFeePercent = rewardConfig.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 0;
     const customerFixedFee = rewardConfig.customerWalletPayFixedFee !== undefined ? rewardConfig.customerWalletPayFixedFee : 0;
     const customerFee = Math.round(((parseFloat(amount) * customerFeePercent) / 100 + customerFixedFee) * 100) / 100;
     const totalCustomerDebit = Math.round((parseFloat(amount) + customerFee) * 100) / 100;
@@ -2106,7 +2077,7 @@ export const claimUpiCashbackByUtr = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Store is not eligible for cashback' });
     }
 
-    // 4. Check vendor subscription and wallet balance
+    // 4. Check vendor subscription
     const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
     const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
     const subState = getVendorSubscriptionState(vendor, vendorBalance);
@@ -2114,10 +2085,10 @@ export const claimUpiCashbackByUtr = async (req, res) => {
     const cashbackRate = vendor.cashbackRate || 0;
     const cashbackAmount = calculateCashback(tx.amount, cashbackRate);
 
-    if (subState.cashbackBlocked || vendorBalance < cashbackAmount || cashbackAmount <= 0) {
+    if (subState.cashbackBlocked || cashbackAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: subState.cashbackBlockedReason || 'Vendor has insufficient cashback wallet balance. Please contact the store.',
+        message: subState.cashbackBlockedReason || 'Invalid cashback amount for this transaction.',
       });
     }
 
@@ -2145,7 +2116,7 @@ export const claimUpiCashbackByUtr = async (req, res) => {
         amount: cashbackAmount,
         category: 'cashback',
         description: `Cashback earned at ${vendor.storeName} via UPI UTR Claim`,
-        gateway: { gatewayName: 'Razorpay', gatewayOrderId: tx.gateway?.gatewayOrderId, gatewayPaymentId: `${tx.gateway?.gatewayPaymentId || cleanUtr}_claim` },
+        gateway: { gatewayName: 'Razorpay', gatewayOrderId: tx.gateway?.gatewayOrderId, gatewayPaymentId: `${tx.gateway?.gatewayPaymentId || cleanUtr}_claim_${tx._id}` },
       });
       newCustomerBalance = creditedWallet.balance;
 
@@ -2177,16 +2148,19 @@ export const claimUpiCashbackByUtr = async (req, res) => {
         fcmTokens: customer.fcmTokens || [],
         type: 'credit',
         title: 'Cashback Claimed! 💸',
-        message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+        message: `You received ₹${cashbackAmount} cashback from ${vendor.storeName}!`,
         icon: 'account_balance_wallet',
         referenceId: updatedTx._id,
         referenceType: 'transaction',
       });
 
+      const customerTokenSet = new Set(customer.fcmTokens || []);
+      const vendorFcmTokens = (vendor.fcmTokens || []).filter((t) => !customerTokenSet.has(t));
+
       await sendNotification({
         recipientId: vendor._id,
         recipientType: 'vendor',
-        fcmTokens: vendor.fcmTokens || [],
+        fcmTokens: vendorFcmTokens,
         type: 'credit',
         title: 'Cashback Claimed by Customer',
         message: `Customer ${customer.name || customer.phone} claimed ₹${cashbackAmount} cashback for ₹${tx.amount} UPI payment (UTR: ${cleanUtr}).`,
@@ -2203,7 +2177,7 @@ export const claimUpiCashbackByUtr = async (req, res) => {
       io.to(`user_${customer._id}`).emit('wallet_updated', {
         balanceCredit: cashbackAmount,
         newBalance: newCustomerBalance,
-        message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+        message: `You received ₹${cashbackAmount} cashback from ${vendor.storeName}!`,
         transactionId: updatedTx.transactionId,
       });
     } catch {
@@ -2250,7 +2224,12 @@ export const setupSecurityPin = async (req, res) => {
       }
       const isMatch = await bcrypt.compare(String(currentPin).trim(), user.security.securityPin);
       if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Current PIN is incorrect' });
+        // 400, not 401: a wrong PIN is a bad request, not an auth/token failure.
+        // Reusing 401 here collided with the axios interceptor's "token expired,
+        // refresh and retry" logic and with the auth middleware's own 401s,
+        // which is what made a genuinely correct PIN look rejected after the
+        // access token had quietly expired.
+        return res.status(400).json({ success: false, message: 'Current PIN is incorrect' });
       }
     }
 
@@ -2367,13 +2346,18 @@ export const verifySecurityPin = async (req, res) => {
 
     const remaining = Math.max(0, 5 - tracker.count);
     if (tracker.count >= 5) {
-      return res.status(401).json({
+      // 429 (rate limited), not 401 — an actual auth/token failure must stay
+      // the only thing that returns 401 here, or the axios refresh-and-retry
+      // interceptor misreads a lockout as an expired token.
+      return res.status(429).json({
         success: false,
         message: 'Too many incorrect PIN attempts. Please enter your correct PIN or wait 1 minute.',
       });
     }
 
-    return res.status(401).json({
+    // 400, not 401: wrong PIN is a bad request, not an auth/token failure —
+    // see the matching note in setupSecurityPin above for why this matters.
+    return res.status(400).json({
       success: false,
       message: `Incorrect Security PIN. (${remaining} attempts remaining)`,
     });
@@ -2382,5 +2366,199 @@ export const verifySecurityPin = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ─── Customer Wallet Add Funds (Razorpay & Dynamic UPI QR) ───
+
+// 1. Create Razorpay Order for Customer Wallet Top-up
+export const createUserWalletOrder = async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const rechargeAmount = Number(amount);
+    if (!rechargeAmount || rechargeAmount < 1) {
+      return res.status(400).json({ success: false, message: 'Invalid amount. Minimum recharge is ₹1.' });
+    }
+
+    const options = {
+      amount: Math.round(rechargeAmount * 100), // paise
+      currency: 'INR',
+      receipt: `u_rcpt_${Date.now()}`,
+      notes: {
+        type: 'customer_wallet_recharge',
+        customerId: req.user.id,
+      },
+    };
+
+    const order = await getRazorpayInstance().orders.create(options);
+    if (!order) return res.status(500).json({ success: false, message: 'Failed to create Razorpay order' });
+
+    res.status(200).json({
+      success: true,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        key: process.env.RAZORPAY_KEY_ID,
+      },
+    });
+  } catch (error) {
+    const errorMsg = error.error ? error.error.description : error.message;
+    logger.error(`Error in createUserWalletOrder: ${errorMsg}`);
+    res.status(500).json({ success: false, message: errorMsg || 'Server Error' });
+  }
+};
+
+// 2. Verify Razorpay Payment and Credit Customer Wallet
+export const verifyUserWalletPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment verification fields' });
+    }
+
+    if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+      return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+
+    const verifiedAmount = await fetchVerifiedPaymentAmount(razorpay_payment_id);
+    const customer = await User.findById(req.user.id);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer account not found' });
+
+    let wallet;
+    await session.withTransaction(async () => {
+      await assertGatewayPaymentNotProcessed(session, razorpay_payment_id);
+
+      wallet = await creditWallet({
+        session,
+        ownerId: customer._id,
+        ownerType: 'User',
+        ownerZeebacId: customer.zeebacId,
+        amount: verifiedAmount,
+        category: 'recharge',
+        description: 'Wallet Recharge via Razorpay',
+        referenceType: 'Transaction',
+        gateway: {
+          gatewayName: 'Razorpay',
+          gatewayOrderId: razorpay_order_id,
+          gatewayPaymentId: razorpay_payment_id,
+        },
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `₹${verifiedAmount} added to your ZeeBac wallet successfully!`,
+      data: { balance: wallet.balance },
+    });
+  } catch (error) {
+    if (error instanceof DuplicatePaymentError) {
+      return res.status(409).json({ success: false, message: 'This payment has already been credited to a wallet.' });
+    }
+    logger.error(`Error in verifyUserWalletPayment: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Payment verification failed' });
+  } finally {
+    session.endSession();
+  }
+};
+
+// 3. Generate Dynamic UPI QR details for Customer Wallet Top-up
+export const getWalletDynamicUpiQr = async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const rechargeAmount = Number(amount);
+    if (!rechargeAmount || rechargeAmount < 1) {
+      return res.status(400).json({ success: false, message: 'Invalid amount. Minimum recharge is ₹1.' });
+    }
+
+    const customer = await User.findById(req.user.id);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
+
+    const refId = `ZBW${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+    const payeeVpa = process.env.MERCHANT_UPI_ID || process.env.ADMIN_UPI_ID || 'zeebac@upi';
+    const payeeName = 'ZeeBac Rewards';
+    const note = `ZeeBac Topup ${customer.zeebacId}`;
+
+    const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(rechargeAmount.toFixed(2))}&cu=INR&tr=${encodeURIComponent(refId)}&tn=${encodeURIComponent(note)}`;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        upiUri,
+        payeeVpa,
+        payeeName,
+        amount: rechargeAmount,
+        refId,
+        customerZeebacId: customer.zeebacId,
+        extraCharge: 0,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getWalletDynamicUpiQr: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 4. Claim Direct UPI Payment via 12-digit UTR
+export const claimWalletUpiPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { utr, amount } = req.body;
+    const cleanUtr = (utr || '').toString().trim();
+    if (!/^\d{12}$/.test(cleanUtr)) {
+      return res.status(400).json({ success: false, message: 'Invalid UPI Reference ID / UTR. Must be exactly 12 digits.' });
+    }
+
+    const rechargeAmount = Number(amount);
+    if (!rechargeAmount || rechargeAmount < 1) {
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const customer = await User.findById(req.user.id);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
+
+    // Check if this UTR has already been credited to any wallet
+    const existingTx = await WalletTransaction.findOne({
+      $or: [
+        { gatewayPaymentId: cleanUtr },
+        { gatewayPaymentId: `${cleanUtr}_claim` },
+        { 'gateway.utr': cleanUtr },
+      ],
+    });
+    if (existingTx) {
+      return res.status(400).json({ success: false, message: 'This UPI Reference ID / UTR has already been claimed or processed.' });
+    }
+
+    let wallet;
+    await session.withTransaction(async () => {
+      wallet = await creditWallet({
+        session,
+        ownerId: customer._id,
+        ownerType: 'User',
+        ownerZeebacId: customer.zeebacId,
+        amount: rechargeAmount,
+        category: 'recharge',
+        description: `Wallet Recharge via Dynamic UPI QR (UTR: ${cleanUtr})`,
+        gateway: {
+          gatewayName: 'UPI_DIRECT',
+          gatewayPaymentId: cleanUtr,
+          utr: cleanUtr,
+        },
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `₹${rechargeAmount} successfully added to your wallet!`,
+      data: { balance: wallet.balance, utr: cleanUtr },
+    });
+  } catch (error) {
+    logger.error(`Error in claimWalletUpiPayment: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message || 'Failed to claim UPI payment' });
+  } finally {
+    session.endSession();
+  }
+};
+
 
 

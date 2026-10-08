@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { StoryAPI } from '../../../services/api';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 const PRESET_OFFER_TAGS = [
   '🔥 Flat 20% OFF',
@@ -19,6 +20,7 @@ const PRESET_BG_GRADIENTS = [
 ];
 
 export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
+  const { t } = useLanguageStore();
   const [activeTab, setActiveTab] = useState('add'); // 'add' | 'my_stories'
   const [myStories, setMyStories] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -245,18 +247,18 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-display font-black text-[16px] sm:text-[17px] text-slate-900 leading-tight">
-                  {selectedStoryForViewers ? 'Story Viewers' : 'Store Stories'}
+                  {selectedStoryForViewers ? t('Story Viewers') : t('Store Stories')}
                 </h2>
                 {!selectedStoryForViewers && (
                   <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[9px] font-black uppercase tracking-wider border border-purple-200/50">
-                    24h Live
+                    {t('24h Live')}
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">
                 {selectedStoryForViewers
                   ? `${uniqueViewers.length} unique customer${uniqueViewers.length === 1 ? '' : 's'} viewed this story`
-                  : 'Post daily flash deals and updates to attract nearby customers'}
+                  : t('Post daily flash deals and updates to attract nearby customers')}
               </p>
             </div>
           </div>
@@ -285,7 +287,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                Create Story
+                {t('Create Story')}
               </button>
               <button
                 type="button"
@@ -297,7 +299,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">auto_awesome_motion</span>
-                Active Stories ({myStories.length})
+                {t('Active Stories')} ({myStories.length})
               </button>
             </div>
           </div>
@@ -344,7 +346,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs flex-shrink-0"
                 >
                   <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                  Back
+                  {t('Back')}
                 </button>
               </div>
 
@@ -358,7 +360,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                     type="text"
                     value={viewerSearchQuery}
                     onChange={(e) => setViewerSearchQuery(e.target.value)}
-                    placeholder="Search viewer by name..."
+                    placeholder={t('Search viewer by name...')}
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-purple-600 focus:bg-white transition-all outline-hidden"
                   />
                 </div>
@@ -366,7 +368,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
 
               {/* Viewers List Header */}
               <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <span>Who Viewed ({uniqueViewers.length})</span>
+                <span>{t('Who Viewed')} ({uniqueViewers.length})</span>
                 {viewersLoading && (
                   <span className="flex items-center gap-1 text-purple-600 text-[10px] lowercase font-medium">
                     <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>
@@ -381,9 +383,9 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   <span className="material-symbols-outlined text-[42px] text-purple-300 mb-2">
                     visibility_off
                   </span>
-                  <p className="font-bold text-xs text-slate-700">No viewers yet</p>
+                  <p className="font-bold text-xs text-slate-700">{t('No viewers yet')}</p>
                   <p className="text-[11px] text-slate-400 mt-1 max-w-[260px] mx-auto">
-                    When nearby customers browse your store's 24h story on their feed, their names will show here in real-time.
+                    {t("When nearby customers browse your store's 24h story on their feed, their names will show here in real-time.")}
                   </p>
                 </div>
               ) : (
@@ -423,13 +425,13 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                               <span className="material-symbols-outlined text-[12px] text-emerald-600">
                                 check_circle
                               </span>
-                              Seen {formatTimeAgo(viewer.viewedAt)}
+                              {t('Seen')} {formatTimeAgo(viewer.viewedAt)}
                             </span>
                           </div>
                         </div>
 
                         <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200/60 px-2.5 py-1 rounded-full flex-shrink-0">
-                          Viewed
+                          {t('Viewed')}
                         </span>
                       </div>
                     ))}
@@ -491,7 +493,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                           <span className="material-symbols-outlined text-[26px]">add_photo_alternate</span>
                         </div>
                         <p className="text-xs font-bold text-white drop-shadow-xs">
-                          Tap to Add Photo or Video
+                          {t('Tap to Add Photo or Video')}
                         </p>
                         <p className="text-[10px] text-white/70 mt-1 font-medium leading-tight">
                           Full screen photo or video clip<br />(No cropping / No cut)
@@ -506,7 +508,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                           ★
                         </div>
                         <span className="text-[10px] font-bold text-white tracking-wide">
-                          Your Store
+                          {t('Your Store')}
                         </span>
                       </div>
 
@@ -525,7 +527,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                         </button>
                       ) : (
                         <span className="text-[9px] bg-black/35 backdrop-blur-md px-2 py-0.5 rounded-full font-mono text-white/80 border border-white/10">
-                          24h Live
+                          {t('24h Live')}
                         </span>
                       )}
                     </div>
@@ -534,11 +536,11 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                     <div className="relative z-10 space-y-1.5 bg-black/45 backdrop-blur-md p-2.5 rounded-2xl border border-white/15">
                       {(isCustomTag ? customTag : offerTag) && (
                         <span className="inline-block px-2 py-0.5 bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 text-[9px] font-black rounded-lg uppercase tracking-wider shadow-xs">
-                          {isCustomTag ? (customTag || 'Special Offer') : offerTag}
+                          {isCustomTag ? (customTag || t('Special Offer')) : offerTag}
                         </span>
                       )}
                       <p className="text-[11px] font-medium text-white/95 leading-snug line-clamp-3">
-                        {caption || 'Add your deal message or store update...'}
+                        {caption || t('Add your deal message or store update...')}
                       </p>
                     </div>
 
@@ -546,7 +548,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                     {previewUrl && (
                       <div className="absolute inset-0 z-5 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <span className="px-3 py-1.5 rounded-full bg-white/25 backdrop-blur-md text-white text-[10px] font-bold border border-white/30">
-                          Tap to Change Photo
+                          {t('Tap to Change Photo')}
                         </span>
                       </div>
                     )}
@@ -561,7 +563,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   />
 
                   <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                    {previewUrl ? 'Tap canvas to change media' : 'Tap canvas to upload photo or video'}
+                    {previewUrl ? t('Tap canvas to change media') : t('Tap canvas to upload photo or video')}
                   </p>
                 </div>
 
@@ -574,7 +576,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="material-symbols-outlined text-[17px] text-emerald-600">check_circle</span>
                         <span className="text-xs font-bold text-slate-800 truncate">
-                          {selectedFile?.type?.startsWith('video/') ? 'Video selected' : 'Photo selected'}
+                          {selectedFile?.type?.startsWith('video/') ? t('Video selected') : t('Photo selected')}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -583,7 +585,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                           onClick={() => fileInputRef.current?.click()}
                           className="text-[11px] font-bold text-purple-700 hover:text-purple-900 cursor-pointer"
                         >
-                          Change
+                          {t('Change')}
                         </button>
                         <span className="text-slate-300">•</span>
                         <button
@@ -594,7 +596,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                           }}
                           className="text-[11px] font-bold text-rose-600 hover:text-rose-700 cursor-pointer"
                         >
-                          Remove
+                          {t('Remove')}
                         </button>
                       </div>
                     </div>
@@ -606,7 +608,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                     >
                       <span className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-[18px]">add_photo_alternate</span>
-                        Choose Photo or Video
+                        {t('Choose Photo or Video')}
                       </span>
                       <span className="text-[10px] text-purple-500 font-normal">Photo (JPG, PNG) or Video (MP4)</span>
                     </button>
@@ -616,9 +618,9 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        Offer Highlight
+                        {t('Offer Highlight')}
                       </span>
-                      <span className="text-[10px] text-slate-400">Optional</span>
+                      <span className="text-[10px] text-slate-400">{t('Optional')}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
@@ -651,7 +653,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200/40'
                         }`}
                       >
-                        Custom +
+                        {t('Custom +')}
                       </button>
                     </div>
 
@@ -671,7 +673,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        Story Caption
+                        {t('Story Caption')}
                       </span>
                       <span className="text-[10px] text-slate-400">
                         {caption.length}/250
@@ -681,7 +683,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                       rows={3}
                       value={caption}
                       onChange={(e) => setCaption(e.target.value)}
-                      placeholder="Write your deal details, discount message, or announcement..."
+                      placeholder={t('Write your deal details, discount message, or announcement...')}
                       maxLength={250}
                       className="w-full p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs focus:ring-2 focus:ring-purple-600 focus:bg-white transition-all outline-hidden resize-none placeholder:text-slate-400"
                     />
@@ -690,7 +692,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                   {/* Canvas Mood Palette */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-                      Theme Accent
+                      {t('Theme Accent')}
                     </span>
                     <div className="flex items-center gap-2.5">
                       {PRESET_BG_GRADIENTS.map((bg, idx) => {
@@ -723,24 +725,24 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                       {submitting ? (
                         <>
                           <span className="material-symbols-outlined text-[17px] animate-spin">progress_activity</span>
-                          Publishing 24h Story...
+                          {t('Publishing...')}
                         </>
                       ) : !selectedFile ? (
                         <>
                           <span className="material-symbols-outlined text-[18px]">add_photo_alternate</span>
-                          Upload Photo to Publish
+                          {t('Upload Photo to Publish')}
                         </>
                       ) : (
                         <>
                           <span className="material-symbols-outlined text-[18px]">bolt</span>
-                          Publish Story (Live for 24h)
+                          {t('Publish Story (24h)')}
                         </>
                       )}
                     </button>
                     
                     <p className="text-[10px] text-slate-400 text-center mt-2 flex items-center justify-center gap-1 font-medium">
                       <span className="material-symbols-outlined text-[13px] text-purple-500">schedule</span>
-                      Visible to nearby customers for exactly 24 hours
+                      {t('Visible to nearby customers for exactly 24 hours')}
                     </p>
                   </div>
                 </div>
@@ -752,20 +754,20 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
               {loading ? (
                 <div className="py-14 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
                   <span className="material-symbols-outlined text-[20px] animate-spin text-purple-600">progress_activity</span>
-                  Loading stories...
+                  {t('Loading stories...')}
                 </div>
               ) : myStories.length === 0 ? (
                 <div className="py-14 text-center text-slate-400 bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 p-6">
                   <span className="material-symbols-outlined text-[48px] text-purple-300 mb-2">history_toggle_off</span>
-                  <p className="font-bold text-sm text-slate-800">No active stories</p>
+                  <p className="font-bold text-sm text-slate-800">{t('No active stories')}</p>
                   <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                    Add a story to showcase today's deals & updates to nearby shoppers on the Zeebac app!
+                    {t("Add a story to showcase today's deals & updates to nearby shoppers on the Zeebac app!")}
                   </p>
                   <button
                     onClick={() => setActiveTab('add')}
                     className="mt-4 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl text-xs font-bold shadow-sm hover:opacity-95 transition-all cursor-pointer"
                   >
-                    + Create Your First Story
+                    + {t('Create Your First Story')}
                   </button>
                 </div>
               ) : (
@@ -831,7 +833,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                                     {cardViewers.length} customer view{cardViewers.length === 1 ? '' : 's'}
                                   </span>
                                   <span className="text-[9px] text-purple-700 font-black bg-purple-100/80 px-1.5 py-0.5 rounded-md uppercase tracking-wider">
-                                    Who seen
+                                    {t('Who seen')}
                                   </span>
                                 </div>
                                
@@ -839,7 +841,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                             </div>
 
                             <div className="flex items-center gap-1 text-[11px] font-bold text-purple-700 group-hover/view:translate-x-0.5 transition-transform flex-shrink-0 ml-2">
-                              <span className="hidden sm:inline">View names</span>
+                              <span className="hidden sm:inline">{t('View names')}</span>
                               <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                             </div>
                           </div>
@@ -848,7 +850,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                           <div className="flex items-center justify-between pt-1">
                             <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
                               <span className="material-symbols-outlined text-[13px] text-purple-500">near_me</span>
-                              Auto-expires in 24 hours
+                              {t('Auto-expires in 24 hours')}
                             </span>
                             <button
                               type="button"
@@ -856,7 +858,7 @@ export default function StoreStoriesModal({ isOpen, onClose, onStoryUpdated }) {
                               className="text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <span className="material-symbols-outlined text-[14px]">delete</span>
-                              Remove
+                              {t('Remove')}
                             </button>
                           </div>
                         </div>

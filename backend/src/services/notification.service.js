@@ -51,10 +51,7 @@ export const sendNotification = async ({
     try {
       const idStr = String(recipientId);
       const room = recipientType === 'vendor' ? `vendor_${idStr}` : `user_${idStr}`;
-      const rooms = [room, `user_${idStr}`, `vendor_${idStr}`, `customer_${idStr}`];
-      [...new Set(rooms)].forEach((r) => {
-        getIO().to(r).emit('new_notification', notification);
-      });
+      getIO().to(room).emit('new_notification', notification);
     } catch (ioErr) {
       logger.warn(`sendNotification: socket emit skipped (${ioErr.message})`);
     }
@@ -68,7 +65,11 @@ export const sendNotification = async ({
           body: message,
         },
         data: {
-          type,
+          type: type || 'credit',
+          recipientId: String(recipientId),
+          recipientType: recipientType || 'customer',
+          notificationId: String(notification._id),
+          icon: icon || 'notifications',
           referenceId: referenceId ? String(referenceId) : '',
           referenceType: referenceType || '',
         },
@@ -92,7 +93,11 @@ export const sendNotification = async ({
             requireInteraction: true,
             vibrate: [200, 100, 200, 100, 200],
             data: {
-              type,
+              type: type || 'credit',
+              recipientId: String(recipientId),
+              recipientType: recipientType || 'customer',
+              notificationId: String(notification._id),
+              icon: icon || 'notifications',
               referenceId: referenceId ? String(referenceId) : '',
               referenceType: referenceType || '',
               ...data,

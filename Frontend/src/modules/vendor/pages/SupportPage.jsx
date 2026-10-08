@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI, SupportAPI } from '../../../services/api';
+import useLanguageStore from '../../../store/useLanguageStore';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
 export default function SupportPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const [tickets, setTickets] = useState([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -86,14 +88,14 @@ export default function SupportPage() {
         <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <span className="font-display text-title-md text-primary font-bold ml-1">Help & Support</span>
+        <span className="font-display text-title-md text-primary font-bold ml-1">{t('Help & Support')}</span>
       </header>
 
       <div className="space-y-6 pt-1">
         <div className="text-center space-y-2 pb-4 border-b border-outline-variant/10">
           <span className="material-symbols-outlined text-primary text-[48px] animate-bounce">contact_support</span>
-          <h2 className="text-[20px] font-black text-on-surface font-display">Vendor Support</h2>
-          <p className="text-[13px] text-on-surface-variant">We are here to help you grow your business.</p>
+          <h2 className="text-[20px] font-black text-on-surface font-display">{t('Vendor Support')}</h2>
+          <p className="text-[13px] text-on-surface-variant">{t('We are here to help you grow your business.')}</p>
         </div>
 
         {/* Quick Contact Channels (WhatsApp & Call) */}
@@ -112,10 +114,10 @@ export default function SupportPage() {
               </div>
               <div className="text-left">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
+                  <span className="font-extrabold text-[15px] leading-tight text-white">{t('WhatsApp Chat')}</span>
                   <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                 </div>
-                <p className="text-[12px] text-white/95 font-medium mt-0.5">{supportWhatsapp} · Merchant Help</p>
+                <p className="text-[12px] text-white/95 font-medium mt-0.5">{supportWhatsapp} · {t('Merchant Help')}</p>
               </div>
             </div>
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0">
@@ -132,8 +134,8 @@ export default function SupportPage() {
                 <span className="material-symbols-outlined text-[24px]">phone_in_talk</span>
               </div>
               <div className="text-left">
-                <span className="font-bold text-[14.5px] leading-tight block text-on-surface">Call Helpline</span>
-                <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">{supportPhone} · Toll-Free</p>
+                <span className="font-bold text-[14.5px] leading-tight block text-on-surface">{t('Call Helpline')}</span>
+                <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">{supportPhone} · {t('Toll-Free')}</p>
               </div>
             </div>
             <div className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 text-on-surface-variant">
@@ -144,7 +146,7 @@ export default function SupportPage() {
 
         {/* FAQs */}
         <div className="space-y-3">
-          <h3 className="font-bold text-[15px] text-on-surface">Frequently Asked Questions</h3>
+          <h3 className="font-bold text-[15px] text-on-surface">{t('Help & FAQs')}</h3>
           {isLoadingFaqs ? (
             <div className="space-y-2 py-2">
               {[1, 2, 3].map(n => (
@@ -154,7 +156,7 @@ export default function SupportPage() {
           ) : faqs.length === 0 ? (
             <div className="text-center py-6 bg-white/60 rounded-2xl border border-dashed border-outline-variant/30">
               <span className="material-symbols-outlined text-outline text-[32px]">help_outline</span>
-              <p className="text-[13px] font-bold text-on-surface mt-1">No FAQs available</p>
+              <p className="text-[13px] font-bold text-on-surface mt-1">{t('No FAQs available')}</p>
             </div>
           ) : (
             faqs.map((faq, index) => {
@@ -196,37 +198,37 @@ export default function SupportPage() {
         {/* Support Tickets */}
         <div className="pt-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-[15px] text-on-surface">My Support Tickets</h3>
+            <h3 className="font-bold text-[15px] text-on-surface">{t('My Support Tickets')}</h3>
             <button 
               onClick={() => setShowForm(!showForm)}
               className="text-primary font-bold text-[12px] bg-primary/10 px-3 py-1 rounded-full cursor-pointer hover:bg-primary/20 active:scale-95 transition-transform"
             >
-              {showForm ? 'Cancel' : '+ New Ticket'}
+              {showForm ? t('Cancel') : t('+ New Ticket')}
             </button>
           </div>
 
           {showForm && (
             <form onSubmit={handleSubmitTicket} className="bg-white p-4 rounded-2xl shadow-sm border border-outline-variant/10 mb-6 space-y-4 animate-reveal">
               <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Subject</label>
+                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">{t('Subject')}</label>
                 <input
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   required
                   className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-[13px] text-on-surface focus:border-primary focus:outline-none"
-                  placeholder="E.g., Issue with Wallet withdrawal"
+                  placeholder={t('E.g., Issue with Wallet withdrawal')}
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Message</label>
+                <label className="block text-[11px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">{t('Message')}</label>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   required
                   rows="3"
                   className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-[13px] text-on-surface focus:border-primary focus:outline-none resize-none"
-                  placeholder="Describe your issue..."
+                  placeholder={t('Describe your issue...')}
                 ></textarea>
               </div>
               <button
@@ -236,17 +238,17 @@ export default function SupportPage() {
                   isSubmitting || !subject || !message ? 'bg-outline-variant/40 text-on-surface/40 cursor-not-allowed' : 'bg-primary text-white cursor-pointer active:scale-95 shadow-md'
                 }`}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
+                {isSubmitting ? t('Submitting...') : t('Submit Ticket')}
               </button>
             </form>
           )}
 
           {isLoadingTickets ? (
-            <div className="text-center py-6 text-[13px] font-bold text-on-surface-variant">Loading tickets...</div>
+            <div className="text-center py-6 text-[13px] font-bold text-on-surface-variant">{t('Loading tickets...')}</div>
           ) : tickets.length === 0 ? (
             <div className="text-center py-8 bg-white rounded-2xl shadow-sm border border-outline-variant/10 text-on-surface-variant">
               <span className="material-symbols-outlined text-[32px] opacity-50 mb-2 block">inbox</span>
-              <span className="text-[13px] font-bold">No tickets yet</span>
+              <span className="text-[13px] font-bold">{t('No tickets yet')}</span>
             </div>
           ) : (
             <div className="space-y-3">
@@ -259,7 +261,7 @@ export default function SupportPage() {
                       ticket.status === 'Open' ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {ticket.status}
+                      {t(ticket.status)}
                     </span>
                   </div>
                   <p className="text-[12px] text-on-surface-variant mb-2 leading-relaxed">{ticket.message}</p>
@@ -267,7 +269,7 @@ export default function SupportPage() {
                     <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 mt-3 relative">
                       <div className="absolute -left-3 top-4 w-3 h-[1px] bg-primary/20"></div>
                       <span className="text-[10px] font-black text-primary block mb-1 uppercase tracking-widest flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px]">support_agent</span> Zeebac Support
+                        <span className="material-symbols-outlined text-[12px]">support_agent</span> {t('Zeebac Support')}
                       </span>
                       <p className="text-[12px] text-on-surface-variant font-medium">{ticket.adminReply}</p>
                     </div>

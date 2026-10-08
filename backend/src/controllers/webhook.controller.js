@@ -62,8 +62,9 @@ export const handleRazorpayWebhook = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing payment ID' });
       }
 
-      // Check if this payment is for vendor wallet top-up vs customer purchase
+      // Check if this payment is for vendor/customer wallet top-up vs customer purchase
       const isVendorRecharge = notes.type === 'vendor_recharge' || notes.purpose === 'vendor_wallet_recharge';
+      const isCustomerRecharge = notes.type === 'customer_wallet_recharge' || notes.type === 'customer_recharge' || notes.purpose === 'customer_wallet_recharge';
 
       const session = await mongoose.startSession();
       let notificationsToSend = [];
@@ -92,6 +93,23 @@ export const handleRazorpayWebhook = async (req, res) => {
             });
 
             result = { type: 'vendor_recharge', walletBalance: creditedWallet.balance };
+          } else if (isCustomerRecharge && notes.customerId) {
+            // Customer wallet recharge
+            const customer = await User.findById(notes.customerId).session(session);
+            if (!customer) throw new Error(`Customer ${notes.customerId} not found`);
+
+            const creditedWallet = await creditWallet({
+              session,
+              ownerId: customer._id,
+              ownerType: 'User',
+              ownerZeebacId: customer.zeebacId,
+              amount: verifiedAmount,
+              category: 'recharge',
+              description: `Customer wallet recharge via Razorpay (Webhook ${paymentId})`,
+              gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId },
+            });
+
+            result = { type: 'customer_recharge', walletBalance: creditedWallet.balance };
           } else {
             // Customer Purchase (In-App or Counter QR Scan via PhonePe / Paytm / GPay)
             const targetZeebacId = notes.vendorZeebacId || notes.tr || (payment.description && payment.description.match(/ZBV-[A-Z0-9_-]+/i)?.[0]);
@@ -138,8 +156,7 @@ export const handleRazorpayWebhook = async (req, res) => {
               const subState = getVendorSubscriptionState(vendor, vendorBalance);
               const cashbackRate = vendor.cashbackRate || 0;
               const cashbackAmount = calculateCashback(verifiedAmount, cashbackRate);
-
-              const canGiveCashback = !subState.cashbackBlocked && vendorBalance >= cashbackAmount && cashbackAmount > 0;
+              const canGiveCashback = !subState.cashbackBlocked && cashbackAmount > 0;
 
               if (canGiveCashback) {
                 // Deduct cashback from vendor wallet
@@ -197,7 +214,7 @@ export const handleRazorpayWebhook = async (req, res) => {
                   fcmTokens: customer.fcmTokens || [],
                   type: 'credit',
                   title: 'Cashback Received! 💸',
-                  message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+                  message: `You received ₹${cashbackAmount} cashback from ${vendor.storeName}!`,
                   icon: 'account_balance_wallet',
                   referenceId: txn._id,
                   referenceType: 'transaction',
@@ -222,7 +239,7 @@ export const handleRazorpayWebhook = async (req, res) => {
                   event: 'wallet_updated',
                   data: {
                     balanceCredit: cashbackAmount,
-                    message: `Aapko ${vendor.storeName} se ₹${cashbackAmount} cashback mila!`,
+                    message: `You received ₹${cashbackAmount} cashback from ${vendor.storeName}!`,
                     transactionId,
                   },
                 });

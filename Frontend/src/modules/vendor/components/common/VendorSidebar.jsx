@@ -110,7 +110,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
                       ? 'bg-emerald-600 text-white animate-pulse shadow-sm'
                       : 'bg-amber-400/20 text-amber-600 border border-amber-300/40'
                 }`}>
-                  {item.badge}
+                  {t(item.badge)}
                 </span>
               )}
             </button>
@@ -125,7 +125,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
         <div
           onClick={() => handleNavClick('/vendor/profile')}
           className={`flex items-center gap-3 ${isCollapsed ? 'p-1 justify-center' : 'p-2'} rounded-xl hover:bg-surface-container-low transition-colors cursor-pointer ${isCollapsed ? '' : 'w-full'}`}
-          title="Vendor Profile"
+          title={t('Vendor Profile')}
         >
           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0">
             {currentUser?.storeName ? currentUser.storeName.charAt(0).toUpperCase() : 'V'}
@@ -134,13 +134,13 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
             <>
               <div className="flex-1 text-left min-w-0">
                 <p className="font-title-md font-bold text-[13px] text-on-surface truncate">{currentUser?.storeName || 'Vendor Store'}</p>
-                <p className="text-[11px] text-on-surface-variant truncate">Vendor Account</p>
+                <p className="text-[11px] text-on-surface-variant truncate">{t('Vendor Account')}</p>
               </div>
               <button 
                 type="button"
                 onClick={handleLogout} 
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors cursor-pointer"
-                title="Log Out"
+                title={t('Log Out')}
               >
                 <span className="material-symbols-outlined text-[18px]">logout</span>
               </button>
@@ -152,7 +152,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
             type="button"
             onClick={handleLogout} 
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors cursor-pointer"
-            title="Log Out"
+            title={t('Log Out')}
           >
             <span className="material-symbols-outlined text-[18px]">logout</span>
           </button>

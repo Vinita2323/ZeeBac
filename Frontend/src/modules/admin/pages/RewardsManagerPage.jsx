@@ -329,6 +329,29 @@ export default function RewardsManagerPage() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Withdrawal Fixed Fee (₹)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={rules.withdrawalFixedFee ?? 5}
+                  onChange={(e) => setRules({ ...rules, withdrawalFixedFee: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-amber-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-on-surface-variant mb-2">Vendor Payment Fee (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={rules.vendorPaymentCommissionPercent ?? 0}
+                  onChange={(e) => setRules({ ...rules, vendorPaymentCommissionPercent: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg focus:outline-none focus:border-primary/50 font-bold text-teal-700"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-bold text-on-surface-variant mb-2">GST Rate (%)</label>
                 <input
                   type="number"
@@ -345,9 +368,9 @@ export default function RewardsManagerPage() {
             {/* GST Breakdown Display Option */}
             <div className="mt-4 pt-4 border-t border-outline-variant/15 flex items-center justify-between">
               <div>
-                <p className="text-[13.5px] font-bold text-gray-800">Show 18% GST Breakdown to Users & Vendors</p>
+                <p className="text-[13.5px] font-bold text-gray-800">Show {rules.withdrawalGstPercent ?? 18}% GST Breakdown to Users & Vendors</p>
                 <p className="text-[12px] text-gray-500">
-                  When enabled, receipts show Base Platform Fee + 18% GST. If disabled, fee shows as a clean all-inclusive convenience fee.
+                  When enabled, receipts show Base Platform Fee + GST. If disabled, fee shows as a clean all-inclusive convenience fee.
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -371,18 +394,24 @@ export default function RewardsManagerPage() {
                   <label className="block text-xs font-bold text-on-surface-variant mb-1">Monthly Plan (₹)</label>
                   <input
                     type="number"
-                    value={rules.vendorMonthlySubPriceIndependent ?? 499}
-                    onChange={(e) => setRules({ ...rules, vendorMonthlySubPriceIndependent: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm"
+                    value={rules.independentStoreMonthlyPrice ?? rules.vendorMonthlySubPriceIndependent ?? 499}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setRules({ ...rules, independentStoreMonthlyPrice: val, vendorMonthlySubPriceIndependent: val });
+                    }}
+                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm font-semibold"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-on-surface-variant mb-1">Yearly Plan (₹)</label>
                   <input
                     type="number"
-                    value={rules.vendorYearlySubPriceIndependent ?? 4999}
-                    onChange={(e) => setRules({ ...rules, vendorYearlySubPriceIndependent: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm"
+                    value={rules.independentStoreYearlyPrice ?? rules.vendorYearlySubPriceIndependent ?? 4999}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setRules({ ...rules, independentStoreYearlyPrice: val, vendorYearlySubPriceIndependent: val });
+                    }}
+                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm font-semibold"
                   />
                 </div>
               </div>
@@ -393,18 +422,24 @@ export default function RewardsManagerPage() {
                   <label className="block text-xs font-bold text-on-surface-variant mb-1">Monthly Plan (₹)</label>
                   <input
                     type="number"
-                    value={rules.vendorMonthlySubPriceBrand ?? 1499}
-                    onChange={(e) => setRules({ ...rules, vendorMonthlySubPriceBrand: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm"
+                    value={rules.brandMonthlyPrice ?? rules.vendorMonthlySubPriceBrand ?? 1499}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setRules({ ...rules, brandMonthlyPrice: val, vendorMonthlySubPriceBrand: val });
+                    }}
+                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm font-semibold"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-on-surface-variant mb-1">Yearly Plan (₹)</label>
                   <input
                     type="number"
-                    value={rules.vendorYearlySubPriceBrand ?? 14999}
-                    onChange={(e) => setRules({ ...rules, vendorYearlySubPriceBrand: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm"
+                    value={rules.brandYearlyPrice ?? rules.vendorYearlySubPriceBrand ?? 14999}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setRules({ ...rules, brandYearlyPrice: val, vendorYearlySubPriceBrand: val });
+                    }}
+                    className="w-full px-3 py-1.5 bg-white border border-outline-variant/30 rounded-lg text-sm font-semibold"
                   />
                 </div>
               </div>

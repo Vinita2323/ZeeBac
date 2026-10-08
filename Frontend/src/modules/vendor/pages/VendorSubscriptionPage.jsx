@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
+import useLanguageStore from '../../../store/useLanguageStore';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -19,6 +20,7 @@ const loadRazorpayScript = () => {
 
 export default function VendorSubscriptionPage() {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const [loading, setLoading] = useState(true);
@@ -275,14 +277,14 @@ export default function VendorSubscriptionPage() {
         <div>
           <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
             <h1 className="font-display text-[22px] sm:text-[26px] font-black text-gray-900 tracking-tight">
-              Store Subscription
+              {t('Store Subscription')}
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-[10.5px] sm:text-[11px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
-              {isBrand ? 'Chain & Brand' : 'Independent Store'}
+              {isBrand ? t('Chain & Brand') : t('Independent Store')}
             </span>
           </div>
           <p className="text-[13.5px] text-gray-500 mt-1">
-            Choose a plan to keep your store active, visible on map/search listings, and eligible for customer cashbacks.
+            {t('Choose a plan to keep your store active, visible on map/search listings, and eligible for customer cashbacks.')}
           </p>
         </div>
 
@@ -291,7 +293,7 @@ export default function VendorSubscriptionPage() {
           className="self-start md:self-auto px-4 py-2 rounded-xl border border-gray-200 text-gray-700 font-bold text-[13px] hover:bg-gray-50 transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Dashboard
+          {t('Dashboard')}
         </button>
       </div>
 
@@ -320,14 +322,14 @@ export default function VendorSubscriptionPage() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-display text-[17px] font-black text-gray-900">
-                  Welcome Offer: +10 Days Extra Validity Free!
+                  {t('Welcome Offer: +10 Days Extra Validity Free!')}
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  New Merchant Special
+                  {t('New Merchant Special')}
                 </span>
               </div>
               <p className="text-[13px] text-gray-600 mt-1 leading-relaxed">
-                Purchase your first subscription today and automatically receive <strong>+10 bonus days</strong> added to your plan validity upon checkout!
+                {t('Purchase your first subscription today and automatically receive +10 bonus days added to your plan validity upon checkout!')}
               </p>
             </div>
           </div>
@@ -339,40 +341,40 @@ export default function VendorSubscriptionPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
           <div>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-              Current Subscription Status
+              {t('Current Subscription Status')}
             </p>
             <div className="flex items-center gap-2 mt-1">
               {isSubActive ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Active · {subStatus?.planType} Plan
+                  {t('Active')} · {t(`${subStatus?.planType} Plan`)}
                 </span>
               ) : inGrace ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                  Expired · 24-Hour Grace Period Active ({hoursLeft}h left)
+                  {t('Expired · 24-Hour Grace Period Active')} ({hoursLeft}h left)
                 </span>
               ) : effectiveStatus === 'EXPIRED' ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-red-100 text-red-800 border border-red-200">
                   <span className="w-2 h-2 rounded-full bg-red-500" />
-                  Subscription Expired · Store Hidden
+                  {t('Subscription Expired · Store Hidden')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
                   <span className="w-2 h-2 rounded-full bg-gray-400" />
-                  No Active Subscription · Store Hidden
+                  {t('No Active Subscription · Store Hidden')}
                 </span>
               )}
 
               <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${isStoreVisible ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                {isStoreVisible ? 'Visible on Map & Search' : 'Hidden from Discovery'}
+                {isStoreVisible ? t('Visible on Map & Search') : t('Hidden from Discovery')}
               </span>
             </div>
           </div>
 
           <div className="text-left sm:text-right">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-              Cashback Wallet Balance
+              {t('Cashback Wallet Balance')}
             </p>
             <p className={`text-[18px] font-black mt-0.5 ${walletBalance <= 0 ? 'text-red-600' : 'text-purple-700'}`}>
               ₹{walletBalance.toLocaleString('en-IN')}
@@ -383,7 +385,7 @@ export default function VendorSubscriptionPage() {
         {/* Status explanation messages */}
         {isSubActive && subStatus?.expiresAt && (
           <p className="text-[13px] text-gray-600">
-            ✅ Your subscription is valid until <strong className="text-gray-900">{new Date(subStatus.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>. Customers can find your store on search and maps.
+            ✅ {t('Your subscription is valid until')} <strong className="text-gray-900">{new Date(subStatus.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>. {t('Customers can find your store on search and maps.')}
           </p>
         )}
 
@@ -391,10 +393,10 @@ export default function VendorSubscriptionPage() {
           <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[13px] text-amber-900 space-y-1">
             <p className="font-bold flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[18px] text-amber-700">warning</span>
-              24-Hour Renewal Grace Period Active ({hoursLeft} hours remaining)
+              {t('24-Hour Renewal Grace Period Active')} ({hoursLeft} {t('hours remaining')})
             </p>
             <p className="text-[12.5px] text-amber-800">
-              Your subscription has expired. Your store is temporarily still visible on map/search, but <strong>cashback is blocked</strong> until renewed. If not renewed within 24 hours, your store will be hidden.
+              {t('Your subscription has expired. Your store is temporarily still visible on map/search, but cashback is blocked until renewed. If not renewed within 24 hours, your store will be hidden.')}
             </p>
           </div>
         )}
@@ -403,10 +405,10 @@ export default function VendorSubscriptionPage() {
           <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 text-[13px] text-rose-900 space-y-1">
             <p className="font-bold flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[18px] text-rose-700">visibility_off</span>
-              Store is Currently Inactive / Hidden
+              {t('Store is Currently Inactive / Hidden')}
             </p>
             <p className="text-[12.5px] text-rose-800">
-              Your store does not appear in customer searches or map listings. Choose a payment method below to activate your store instantly.
+              {t('Your store does not appear in customer searches or map listings. Choose a payment method below to activate your store instantly.')}
             </p>
           </div>
         )}
@@ -415,13 +417,13 @@ export default function VendorSubscriptionPage() {
           <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/80 text-[12.5px] text-amber-900 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-amber-700 text-[18px]">account_balance_wallet</span>
-              <span><strong>Notice:</strong> Cashback wallet balance is ₹0. Cashback requests are paused until you recharge.</span>
+              <span><strong>{t('Notice:')}</strong> {t('Notice: Cashback wallet balance is ₹0. Cashback requests are paused until you recharge.')}</span>
             </div>
             <button
               onClick={() => navigate('/vendor/wallet')}
               className="px-3 py-1 bg-white text-amber-800 font-bold rounded-lg border border-amber-300 text-[11px] hover:bg-amber-100 shrink-0 cursor-pointer"
             >
-              Recharge Wallet
+              {t('Recharge Wallet')}
             </button>
           </div>
         )}
@@ -435,14 +437,14 @@ export default function VendorSubscriptionPage() {
             <div className="flex justify-between items-start">
               <div>
                 <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-gray-100 text-gray-700">
-                  Flexible Option
+                  {t('Flexible Option')}
                 </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">1 Month Plan</h3>
-                <p className="text-[12.5px] text-gray-500">Pay month-to-month with complete flexibility.</p>
+                <h3 className="text-[20px] font-black text-gray-900 mt-2">{t('1 Month Plan')}</h3>
+                <p className="text-[12.5px] text-gray-500">{t('Pay month-to-month with complete flexibility.')}</p>
               </div>
               <div className="text-right">
                 <span className="text-[26px] font-black text-gray-900">₹{oneMonthPlan.price}</span>
-                <span className="text-[11.5px] text-gray-400 font-bold block">/ 30 Days</span>
+                <span className="text-[11.5px] text-gray-400 font-bold block">{t('/ 30 Days')}</span>
               </div>
             </div>
 
@@ -450,7 +452,7 @@ export default function VendorSubscriptionPage() {
               <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
                 <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
                 <span className="text-[11.5px] font-bold text-emerald-800">
-                  +10 Days Bonus = <strong>40 Days Total</strong>
+                  {t('+10 Days Bonus = 40 Days Total')}
                 </span>
               </div>
             )}
@@ -458,11 +460,11 @@ export default function VendorSubscriptionPage() {
             <hr className="border-gray-100" />
 
             <div className="space-y-2.5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan Highlights</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
               {oneMonthPlan.features.map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
                   <span className="material-symbols-outlined text-emerald-600 text-[18px]">check_circle</span>
-                  <span>{feat}</span>
+                  <span>{t(feat)}</span>
                 </div>
               ))}
             </div>
@@ -476,8 +478,8 @@ export default function VendorSubscriptionPage() {
               <span className="material-symbols-outlined text-[18px]">payment</span>
               <span>
                 {isSubActive && (subStatus?.planType === '1 Month' || subStatus?.planType === 'Monthly')
-                  ? `Renew 1 Month Plan (₹${oneMonthPlan.price})`
-                  : `Choose 1 Month Plan (₹${oneMonthPlan.price})`}
+                  ? `${t('Renew 1 Month Plan')} (₹${oneMonthPlan.price})`
+                  : `${t('Choose 1 Month Plan')} (₹${oneMonthPlan.price})`}
               </span>
             </button>
           </div>
@@ -486,21 +488,21 @@ export default function VendorSubscriptionPage() {
         {/* 3 Months Plan */}
         <div className="bg-gradient-to-b from-indigo-50/50 to-white rounded-3xl p-6 border-2 border-indigo-200 hover:border-indigo-400 transition-all flex flex-col justify-between shadow-sm relative ring-2 ring-indigo-500/10">
           <div className="absolute -top-3 right-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
-            Most Popular · Save ~13%
+            {t('Most Popular · Save ~13%')}
           </div>
 
           <div className="space-y-4">
             <div className="flex justify-between items-start">
               <div>
                 <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-indigo-100 text-indigo-700">
-                  Quarterly Boost
+                  {t('Quarterly Boost')}
                 </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">3 Months Plan</h3>
-                <p className="text-[12.5px] text-gray-500">Steady customer footfall with quarterly savings.</p>
+                <h3 className="text-[20px] font-black text-gray-900 mt-2">{t('3 Months Plan')}</h3>
+                <p className="text-[12.5px] text-gray-500">{t('Steady customer footfall with quarterly savings.')}</p>
               </div>
               <div className="text-right">
                 <span className="text-[26px] font-black text-indigo-900">₹{threeMonthPlan.price}</span>
-                <span className="text-[11.5px] text-indigo-500 font-bold block">/ 90 Days</span>
+                <span className="text-[11.5px] text-indigo-500 font-bold block">{t('/ 90 Days')}</span>
               </div>
             </div>
 
@@ -508,7 +510,7 @@ export default function VendorSubscriptionPage() {
               <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
                 <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
                 <span className="text-[11.5px] font-bold text-emerald-800">
-                  +10 Days Bonus = <strong>100 Days Total</strong>
+                  {t('+10 Days Bonus = 100 Days Total')}
                 </span>
               </div>
             )}
@@ -516,11 +518,11 @@ export default function VendorSubscriptionPage() {
             <hr className="border-indigo-100" />
 
             <div className="space-y-2.5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan Highlights</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
               {threeMonthPlan.features.map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
                   <span className="material-symbols-outlined text-indigo-600 text-[18px]">check_circle</span>
-                  <span>{feat}</span>
+                  <span>{t(feat)}</span>
                 </div>
               ))}
             </div>
@@ -534,8 +536,8 @@ export default function VendorSubscriptionPage() {
               <span className="material-symbols-outlined text-[18px]">trending_up</span>
               <span>
                 {isSubActive && (subStatus?.planType === '3 Months' || subStatus?.planType === '3 Month')
-                  ? `Renew 3 Months Plan (₹${threeMonthPlan.price})`
-                  : `Choose 3 Months Plan (₹${threeMonthPlan.price})`}
+                  ? `${t('Renew 3 Months Plan')} (₹${threeMonthPlan.price})`
+                  : `${t('Choose 3 Months Plan')} (₹${threeMonthPlan.price})`}
               </span>
             </button>
           </div>
@@ -544,21 +546,21 @@ export default function VendorSubscriptionPage() {
         {/* Yearly Plan */}
         <div className={`bg-gradient-to-b from-purple-50/50 to-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${billingCycle === 'Yearly' ? 'border-primary ring-2 ring-primary/20' : 'border-purple-200 hover:border-purple-300'}`}>
           <div className="absolute -top-3 right-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
-            Best Value · 2 Mo Free
+            {t('Best Value · 2 Mo Free')}
           </div>
 
           <div className="space-y-4">
             <div className="flex justify-between items-start">
               <div>
                 <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-purple-100 text-purple-700">
-                  Full Year Growth
+                  {t('Full Year Growth')}
                 </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">Yearly Plan</h3>
-                <p className="text-[12.5px] text-gray-500">Uninterrupted listing with priority discovery boost.</p>
+                <h3 className="text-[20px] font-black text-gray-900 mt-2">{t('Yearly Plan')}</h3>
+                <p className="text-[12.5px] text-gray-500">{t('Uninterrupted listing with priority discovery boost.')}</p>
               </div>
               <div className="text-right">
                 <span className="text-[26px] font-black text-purple-700">₹{yearlyPlan.price}</span>
-                <span className="text-[11.5px] text-purple-500 font-bold block">/ 365 Days</span>
+                <span className="text-[11.5px] text-purple-500 font-bold block">{t('/ 365 Days')}</span>
               </div>
             </div>
 
@@ -566,7 +568,7 @@ export default function VendorSubscriptionPage() {
               <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
                 <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
                 <span className="text-[11.5px] font-bold text-emerald-800">
-                  +10 Days Bonus = <strong>375 Days Total</strong>
+                  {t('+10 Days Bonus = 375 Days Total')}
                 </span>
               </div>
             )}
@@ -574,11 +576,11 @@ export default function VendorSubscriptionPage() {
             <hr className="border-purple-100" />
 
             <div className="space-y-2.5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan Highlights</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
               {yearlyPlan.features.map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
                   <span className="material-symbols-outlined text-purple-600 text-[18px]">check_circle</span>
-                  <span>{feat}</span>
+                  <span>{t(feat)}</span>
                 </div>
               ))}
             </div>
@@ -592,8 +594,8 @@ export default function VendorSubscriptionPage() {
               <span className="material-symbols-outlined text-[18px]">stars</span>
               <span>
                 {isSubActive && subStatus?.planType === 'Yearly'
-                  ? `Renew Yearly Plan (₹${yearlyPlan.price})`
-                  : `Choose Yearly Plan (₹${yearlyPlan.price})`}
+                  ? `${t('Renew Yearly Plan')} (₹${yearlyPlan.price})`
+                  : `${t('Choose Yearly Plan')} (₹${yearlyPlan.price})`}
               </span>
             </button>
           </div>
@@ -617,21 +619,21 @@ export default function VendorSubscriptionPage() {
               <div className="flex items-center gap-2 mb-1">
                 <span className="material-symbols-outlined text-[20px] text-purple-300">verified</span>
                 <span className="text-[12px] font-bold tracking-wider uppercase text-purple-200">
-                  Select Payment Method
+                  {t('Select Payment Method')}
                 </span>
               </div>
               <h3 className="text-[22px] font-black tracking-tight text-white">
-                {paymentModalPlan.planType} Plan
+                {t(`${paymentModalPlan.planType} Plan`)}
               </h3>
               <div className="text-[13px] text-purple-200/90 mt-1 space-y-0.5">
                 <div>
-                  Amount payable: <strong className="text-white text-[16px]">₹{paymentModalPlan.price.toLocaleString('en-IN')}</strong>
+                  {t('Amount payable:')} <strong className="text-white text-[16px]">₹{paymentModalPlan.price.toLocaleString('en-IN')}</strong>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span>Validity: <strong>{paymentModalPlan.durationDays || 30} Days</strong></span>
+                  <span>{t('Validity:')} <strong>{paymentModalPlan.durationDays || 30} {t('Days')}</strong></span>
                   {isBonusEligible && (
                     <span className="px-2 py-0.2 rounded-md bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-[11px] font-black">
-                      +10 Days New User Bonus = {(paymentModalPlan.durationDays || 30) + 10} Days Total
+                      +10 {t('Days')} {t('New Merchant Special')} = {(paymentModalPlan.durationDays || 30) + 10} {t('Days')}
                     </span>
                   )}
                 </div>
@@ -662,8 +664,8 @@ export default function VendorSubscriptionPage() {
                       <span className="material-symbols-outlined text-[20px]">credit_card</span>
                     </div>
                     <div>
-                      <h4 className="text-[14px] font-bold text-gray-900">Pay via Razorpay</h4>
-                      <p className="text-[11.5px] text-gray-500">UPI, Cards, NetBanking & Wallets</p>
+                      <h4 className="text-[14px] font-bold text-gray-900">{t('Pay via Razorpay')}</h4>
+                      <p className="text-[11.5px] text-gray-500">{t('UPI, Cards, NetBanking & Wallets')}</p>
                     </div>
                   </div>
                   <span className="text-[15px] font-black text-gray-900">₹{paymentModalPlan.price.toLocaleString('en-IN')}</span>
@@ -676,7 +678,7 @@ export default function VendorSubscriptionPage() {
                   className="w-full py-2.5 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 active:scale-[0.98] text-white text-[13px] font-bold transition-all shadow-md shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[17px]">lock</span>
-                  <span>Pay ₹{paymentModalPlan.price.toLocaleString('en-IN')} via Razorpay</span>
+                  <span>{t('Pay via Razorpay')} (₹{paymentModalPlan.price.toLocaleString('en-IN')})</span>
                 </button>
               </div>
 
@@ -688,12 +690,12 @@ export default function VendorSubscriptionPage() {
                       <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
                     </div>
                     <div>
-                      <h4 className="text-[14px] font-bold text-gray-900">Pay from Wallet</h4>
-                      <p className="text-[11.5px] text-gray-500">Instant activation using in-app balance</p>
+                      <h4 className="text-[14px] font-bold text-gray-900">{t('Pay from Wallet')}</h4>
+                      <p className="text-[11.5px] text-gray-500">{t('Instant activation using in-app balance')}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[11px] text-gray-400 font-bold block uppercase tracking-wider">Balance</span>
+                    <span className="text-[11px] text-gray-400 font-bold block uppercase tracking-wider">{t('Balance')}</span>
                     <span className="text-[14px] font-black text-gray-800">₹{walletBalance.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
@@ -701,16 +703,16 @@ export default function VendorSubscriptionPage() {
                 {/* Balance calculation preview */}
                 <div className="p-3 bg-gray-50 rounded-xl space-y-1.5 border border-gray-100 text-[12px]">
                   <div className="flex justify-between text-gray-600">
-                    <span>Current Wallet Balance:</span>
+                    <span>{t('Current Wallet Balance:')}</span>
                     <span className="font-semibold text-gray-800">₹{walletBalance.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
-                    <span>Subscription Price:</span>
+                    <span>{t('Subscription Price:')}</span>
                     <span className="font-semibold text-gray-800">- ₹{paymentModalPlan.price.toLocaleString('en-IN')}</span>
                   </div>
                   <hr className="border-gray-200" />
                   <div className="flex justify-between font-bold">
-                    <span>Remaining Balance After Payment:</span>
+                    <span>{t('Remaining Balance After Payment:')}</span>
                     <span className={walletBalance >= paymentModalPlan.price ? 'text-emerald-700' : 'text-red-600'}>
                       ₹{(walletBalance - paymentModalPlan.price).toLocaleString('en-IN')}
                     </span>
@@ -726,13 +728,13 @@ export default function VendorSubscriptionPage() {
                     className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white text-[13px] font-bold transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[17px]">account_balance_wallet</span>
-                    <span>Pay ₹{paymentModalPlan.price.toLocaleString('en-IN')} from Wallet</span>
+                    <span>{t('Pay from Wallet')} (₹{paymentModalPlan.price.toLocaleString('en-IN')})</span>
                   </button>
                 ) : (
                   <div className="space-y-2 pt-1">
                     <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-[12px] font-medium flex items-center gap-2">
                       <span className="material-symbols-outlined text-[17px] text-amber-600 shrink-0">info</span>
-                      <span>Insufficient wallet balance. Please recharge your wallet or pay using Razorpay.</span>
+                      <span>{t('Insufficient wallet balance. Please recharge your wallet or pay using Razorpay.')}</span>
                     </div>
 
                     <button
@@ -741,7 +743,7 @@ export default function VendorSubscriptionPage() {
                       className="w-full py-2 px-3 rounded-xl border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 text-[12px] font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                      <span>Recharge Wallet</span>
+                      <span>{t('Recharge Wallet')}</span>
                     </button>
                   </div>
                 )}
@@ -752,14 +754,14 @@ export default function VendorSubscriptionPage() {
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-[11.5px] text-gray-500">
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px] text-emerald-600">verified_user</span>
-                256-bit Encrypted & Verified
+                {t('256-bit Encrypted & Verified')}
               </span>
               <button
                 onClick={closePaymentModal}
                 disabled={isProcessingPayment}
                 className="text-gray-600 hover:text-gray-900 font-bold cursor-pointer disabled:opacity-50"
               >
-                Cancel
+                {t('Cancel')}
               </button>
             </div>
           </div>

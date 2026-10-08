@@ -88,7 +88,7 @@ describe('logPurchase', () => {
     expect(txns[0].cashbackAmount).toBe(50);
   });
 
-  it('rejects with 400 and moves no money when the vendor wallet cannot cover the cashback', async () => {
+  it('does not block customer cashback when vendor wallet has low balance, and debits vendor wallet', async () => {
     const vendor = await makeVendor();
     await Wallet.findOneAndUpdate({ ownerId: vendor._id, ownerType: 'Vendor' }, { balance: 1 });
     const customer = await makeCustomer();
@@ -98,11 +98,14 @@ describe('logPurchase', () => {
 
     await logPurchase(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status).toHaveBeenCalledWith(201);
     const txns = await Transaction.find({ vendorId: vendor._id });
-    expect(txns).toHaveLength(0);
+    expect(txns).toHaveLength(1);
+    expect(txns[0].cashbackAmount).toBe(50);
     const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
-    expect(vendorWallet.balance).toBe(1); // untouched
+    expect(vendorWallet.balance).toBe(-49); // debited 50 from 1 without blocking
+    const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
+    expect(customerWallet.balance).toBe(50);
   });
 });
 

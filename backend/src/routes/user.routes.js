@@ -32,7 +32,11 @@ import {
   claimUpiCashbackByUtr,
   setupSecurityPin,
   toggleBiometricSecurity,
-  verifySecurityPin
+  verifySecurityPin,
+  createUserWalletOrder,
+  verifyUserWalletPayment,
+  getWalletDynamicUpiQr,
+  claimWalletUpiPayment
 } from '../controllers/user.controller.js';
 import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
@@ -93,6 +97,10 @@ router.get('/wallet', getMyWallet);
 router.get('/transactions', getMyTransactions);
 router.post('/wallet/withdraw', requestWithdrawal);
 router.get('/wallet/withdrawals', getUserWithdrawals);
+router.post('/wallet/create-order', createUserWalletOrder);
+router.post('/wallet/verify-payment', verifyUserWalletPayment);
+router.post('/wallet/dynamic-qr', getWalletDynamicUpiQr);
+router.post('/wallet/claim-upi-utr', claimWalletUpiPayment);
 
 // Biometric & PIN Security
 router.post('/security/setup-pin', pinLimiter, setupSecurityPin);

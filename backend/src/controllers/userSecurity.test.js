@@ -113,7 +113,7 @@ describe('User Biometric Security & PIN Protection', () => {
     };
     const wrongRes = mockRes();
     await verifySecurityPin(wrongReq, wrongRes);
-    expect(wrongRes.statusCode).toBe(401);
+    expect(wrongRes.statusCode).toBe(400);
     expect(wrongRes.body.success).toBe(false);
 
     // 2. Correct PIN

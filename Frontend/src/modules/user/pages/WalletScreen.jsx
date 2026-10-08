@@ -8,6 +8,7 @@ import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import FourDigitPinInput from '../../../components/common/FourDigitPinInput';
+import QRCode from 'qrcode';
 
 export default function WalletScreen() {
   const navigate = useNavigate();
@@ -21,8 +22,9 @@ export default function WalletScreen() {
   const [withdrawableBalance, setWithdrawableBalance] = useState(0);
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [subView, setSubView] = useState(location.state?.subView || null); // 'cashout' | 'perks' | 'recharge'
+  const [subView, setSubView] = useState(location.state?.subView || null); // 'cashout' | 'perks' | 'recharge' | 'addFunds'
   const [withdrawals, setWithdrawals] = useState([]);
+  const [pendingCashRequest, setPendingCashRequest] = useState(null);
   const [showUtrModal, setShowUtrModal] = useState(false);
   const [utrInput, setUtrInput] = useState('');
   const [utrError, setUtrError] = useState('');
@@ -92,6 +94,13 @@ export default function WalletScreen() {
     };
     fetchWallet();
 
+    UserAPI.getMyCashbackRequests().then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const pending = res.data.find(r => r.status === 'Pending' && (r.requestType === 'cash_claim' || r.paymentMethod === 'Cash'));
+        setPendingCashRequest(pending || null);
+      }
+    }).catch(() => {});
+
     if (subView === 'cashout') {
       UserAPI.getUserWithdrawals().then(res => {
         if(res.success) setWithdrawals(res.data);
@@ -123,6 +132,24 @@ export default function WalletScreen() {
       setIsClaimingUtr(false);
     }
   };
+
+  if (subView === 'addFunds') {
+    return (
+      <AddFundsSubView
+        balance={balance}
+        currentUser={currentUser}
+        onBack={() => window.history.back()}
+        setBalance={setBalance}
+        onSuccess={(newBal, newTx) => {
+          setBalance(newBal);
+          useAuthStore.getState().updateBalance(newBal);
+          if (newTx) {
+            setActivities(prev => [newTx, ...prev]);
+          }
+        }}
+      />
+    );
+  }
 
   if (subView === 'recharge') {
     return (
@@ -181,6 +208,36 @@ export default function WalletScreen() {
       {/* Main body content */}
       <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
         
+        {/* Active Pending Cash OTP Banner */}
+        {pendingCashRequest && (
+          <div 
+            onClick={() => navigate(`/request/${pendingCashRequest._id}`)}
+            className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white rounded-2xl p-4 shadow-lg cursor-pointer active:scale-[0.99] transition-transform flex items-center justify-between gap-3 border border-purple-400/30"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[22px]">pin</span>
+              </div>
+              <div className="min-w-0 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                    Pending Cash OTP
+                  </span>
+                  <span className="text-[11px] text-purple-200">30 min validity</span>
+                </div>
+                <p className="font-extrabold text-[14px] mt-0.5 truncate">
+                  ₹{pendingCashRequest.amount} at {pendingCashRequest.vendorId?.storeName || pendingCashRequest.vendorName || 'Store'}
+                </p>
+                <p className="text-[11px] text-white/80">Tap to enter the 4-digit code told by shopkeeper (e.g. Z516)</p>
+              </div>
+            </div>
+            <span className="bg-white text-purple-800 text-xs font-black px-3 py-2 rounded-xl shrink-0 shadow-sm flex items-center gap-1">
+              <span>Enter OTP</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </span>
+          </div>
+        )}
+
         {/* Available rewards banner card */}
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
           <div className="space-y-sm">
@@ -194,8 +251,29 @@ export default function WalletScreen() {
             )}
           </div>
 
-          {/* Quick buttons (Withdrawal & Perks + History) */}
-          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-outline-variant/10">
+          {/* Add Money Primary Button */}
+          <div className="pt-0.5">
+            <button
+              onClick={() => setSubView('addFunds')}
+              className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-primary via-purple-600 to-indigo-600 text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-md hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">add_circle</span>
+              <span>{t('Add Money to Wallet')}</span>
+              <span className="ml-auto text-[10px] bg-white/20 backdrop-blur-xs text-white px-2.5 py-0.5 rounded-full font-mono uppercase font-bold tracking-wider">0% Extra Charge</span>
+            </button>
+          </div>
+
+          {/* Quick buttons (Add Money, Withdrawal, Perks, History) */}
+          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-outline-variant/10">
+            <button 
+              onClick={() => setSubView('addFunds')}
+              className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
+            >
+              <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+                <span className="material-symbols-outlined text-[20px]">add_card</span>
+              </div>
+              <span className="font-label-mono text-[10px] text-primary font-bold">{t('Add Fund')}</span>
+            </button>
             <button 
               onClick={() => setSubView('cashout')}
               className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
@@ -218,7 +296,7 @@ export default function WalletScreen() {
               onClick={() => navigate('/passbook')}
               className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
             >
-              <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+              <div className="w-11 h-11 bg-purple-500/10 rounded-full flex items-center justify-center text-purple-600 group-hover:scale-105 transition-transform shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">history</span>
               </div>
               <span className="font-label-mono text-[10px] text-on-surface-variant font-medium">{t('History')}</span>
@@ -228,7 +306,7 @@ export default function WalletScreen() {
 
         {/* Cashback Requests History Link Banner */}
         <div 
-          onClick={() => navigate('/passbook')}
+          onClick={() => navigate('/profile', { state: { subView: 'audits' } })}
           className="bg-white border border-outline-variant/30 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors shadow-sm"
         >
           <div className="flex items-center gap-4">
@@ -1780,3 +1858,658 @@ function RechargeSubView({ balance, currentUser, onBack, setBalance, onRechargeS
     </div>
   );
 }
+
+// ─── SUBVIEW 4: ADD FUNDS TO WALLET (DYNAMIC QR & RAZORPAY) ───
+function AddFundsSubView({ balance, currentUser, onBack, setBalance, onSuccess }) {
+  const navigate = useNavigate();
+  const { t } = useLanguageStore();
+
+  const [amount, setAmount] = useState('500');
+  const [paymentMethod, setPaymentMethod] = useState('DYNAMIC_QR'); // 'DYNAMIC_QR' | 'RAZORPAY'
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Dynamic QR Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrData, setQrData] = useState(null);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [utrInput, setUtrInput] = useState('');
+  const [utrError, setUtrError] = useState('');
+  const [isClaimingUtr, setIsClaimingUtr] = useState(false);
+
+  // Success Receipt State
+  const [successReceipt, setSuccessReceipt] = useState(null);
+
+  const amountNum = parseFloat(amount) || 0;
+  const isValidAmount = amountNum >= 1;
+
+  // Razorpay Script Loader
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Razorpay Checkout Flow
+  const handlePayViaRazorpay = async () => {
+    if (!isValidAmount) {
+      setErrorMsg('Please enter a valid amount (minimum ₹1).');
+      return;
+    }
+    setIsProcessing(true);
+    setErrorMsg('');
+
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        setErrorMsg('Razorpay payment gateway failed to load. Please check your internet connection.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const orderRes = await UserAPI.createWalletOrder(amountNum);
+      if (!orderRes.success) {
+        throw new Error(orderRes.message || 'Could not create recharge order');
+      }
+
+      const { order } = orderRes;
+      const options = {
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'ZeeBac Wallet Top-up',
+        description: 'Recharge ZeeBac Wallet Balance',
+        order_id: order.id,
+        notes: {
+          type: 'customer_wallet_recharge',
+          purpose: 'Wallet Add Fund',
+        },
+        handler: async function (response) {
+          try {
+            setIsProcessing(true);
+            const verifyRes = await UserAPI.verifyWalletPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+
+            if (verifyRes.success) {
+              const newBal = verifyRes.data.balance;
+              const newTx = {
+                id: `TX-${Date.now()}`,
+                name: 'Wallet Top-up via Razorpay',
+                time: new Date().toLocaleString(),
+                amount: `+₹${amountNum.toFixed(2)}`,
+                status: 'Credited',
+                icon: 'add_card',
+                utr: response.razorpay_payment_id,
+              };
+              onSuccess(newBal, newTx);
+              setSuccessReceipt({
+                amount: amountNum,
+                newBalance: newBal,
+                method: 'Razorpay Online Gateway',
+                refId: response.razorpay_payment_id,
+                date: new Date().toLocaleString(),
+              });
+            } else {
+              setErrorMsg(verifyRes.message || 'Payment verification failed');
+            }
+          } catch (err) {
+            setErrorMsg(err.response?.data?.message || err.message || 'Error verifying Razorpay payment');
+          } finally {
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: currentUser.name || 'ZeeBac User',
+          contact: currentUser.phone ? String(currentUser.phone).replace(/\D/g, '').slice(-10) : '',
+          email: currentUser.email || '',
+        },
+        theme: {
+          color: '#7c3aed',
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (res) {
+        setErrorMsg(`Payment cancelled or failed: ${res.error?.description || 'Gateway error'}`);
+        setIsProcessing(false);
+      });
+      rzp.open();
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to initiate Razorpay payment');
+      setIsProcessing(false);
+    }
+  };
+
+  // Dynamic QR Generation Flow
+  const handleGenerateDynamicQr = async () => {
+    if (!isValidAmount) {
+      setErrorMsg('Please enter a valid amount (minimum ₹1).');
+      return;
+    }
+    setIsProcessing(true);
+    setErrorMsg('');
+
+    try {
+      const res = await UserAPI.getWalletDynamicQr(amountNum);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to generate dynamic UPI QR');
+      }
+
+      const upiUri = res.data.upiUri;
+      const dataUrl = await QRCode.toDataURL(upiUri, {
+        width: 320,
+        margin: 1,
+        color: { dark: '#3b0764', light: '#ffffff' },
+      });
+
+      setQrData({
+        ...res.data,
+        qrImageUrl: dataUrl,
+      });
+      setUtrInput('');
+      setUtrError('');
+      setShowQrModal(true);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to generate Dynamic UPI QR');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Claim Dynamic QR Payment via 12-digit UTR
+  const handleClaimUtrPayment = async () => {
+    const clean = utrInput.trim();
+    if (!clean || clean.length !== 12 || !/^\d{12}$/.test(clean)) {
+      setUtrError('Please enter a valid 12-digit UPI UTR / Reference ID.');
+      return;
+    }
+
+    setIsClaimingUtr(true);
+    setUtrError('');
+
+    try {
+      const res = await UserAPI.claimWalletUpiUtr(clean, amountNum);
+      if (res.success) {
+        const newBal = res.data.balance;
+        const newTx = {
+          id: `TX-${Date.now()}`,
+          name: 'Wallet Top-up via Dynamic UPI QR',
+          time: new Date().toLocaleString(),
+          amount: `+₹${amountNum.toFixed(2)}`,
+          status: 'Credited',
+          icon: 'qr_code_2',
+          utr: clean,
+        };
+        onSuccess(newBal, newTx);
+        setShowQrModal(false);
+        setSuccessReceipt({
+          amount: amountNum,
+          newBalance: newBal,
+          method: 'Dynamic UPI QR (0% Extra Charge)',
+          refId: clean,
+          date: new Date().toLocaleString(),
+        });
+      } else {
+        setUtrError(res.message || 'Could not verify UPI payment.');
+      }
+    } catch (err) {
+      setUtrError(err.response?.data?.message || err.message || 'Payment verification failed. Ensure payment is completed.');
+    } finally {
+      setIsClaimingUtr(false);
+    }
+  };
+
+  // Copy UPI ID helper
+  const handleCopyUpi = () => {
+    if (qrData?.payeeVpa) {
+      navigator.clipboard.writeText(qrData.payeeVpa);
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    }
+  };
+
+  // Success Receipt Overlay
+  if (successReceipt) {
+    return (
+      <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-16">
+        <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-xs">
+          <div className="app-container flex items-center justify-between">
+            <h2 className="font-display text-title-md text-primary font-bold">{t('Recharge Receipt')}</h2>
+          </div>
+        </header>
+
+        <main className="flex-grow app-container px-container-margin py-xl space-y-6 flex flex-col items-center justify-center text-center">
+          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+            <span className="material-symbols-outlined text-[48px]">check_circle</span>
+          </div>
+
+          <div className="space-y-1">
+            <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-full uppercase tracking-wider">
+              {t('Funds Added Successfully')}
+            </span>
+            <h1 className="text-4xl font-black text-gray-900 pt-2">₹{successReceipt.amount.toFixed(2)}</h1>
+            <p className="text-sm text-gray-500">{t('Credited to your ZeeBac Wallet')}</p>
+          </div>
+
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-100 p-5 shadow-sm text-left space-y-3">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-gray-500">{t('Updated Balance')}</span>
+              <span className="font-bold text-emerald-600 text-sm">₹{successReceipt.newBalance.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-gray-500">{t('Payment Method')}</span>
+              <span className="font-medium text-gray-900">{successReceipt.method}</span>
+            </div>
+            {successReceipt.refId && (
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-gray-500">{t('Reference / UTR')}</span>
+                <span className="font-mono text-gray-700 font-bold">{successReceipt.refId}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-gray-500">{t('Merchant Transfer Fee')}</span>
+              <span className="font-bold text-emerald-600">₹0.00 (Zero Extra Charge)</span>
+            </div>
+            <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-100">
+              <span className="text-gray-500">{t('Date & Time')}</span>
+              <span className="text-gray-600">{successReceipt.date}</span>
+            </div>
+          </div>
+
+          <div className="w-full max-w-sm bg-purple-50 border border-purple-200/60 rounded-xl p-3.5 text-left flex items-start gap-3">
+            <span className="material-symbols-outlined text-purple-600 text-[20px] mt-0.5">verified</span>
+            <p className="text-xs text-purple-900 leading-relaxed font-medium">
+              You can now transfer or pay merchants with your wallet balance with <strong>0% extra fee</strong>!
+            </p>
+          </div>
+
+          <button
+            onClick={onBack}
+            className="w-full max-w-sm py-3.5 rounded-xl bg-gradient-to-r from-primary to-purple-600 text-white font-bold text-sm shadow-md active:scale-95 transition-all cursor-pointer"
+          >
+            {t('Back to Wallet')}
+          </button>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-16">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-container-margin py-md border-b border-outline-variant/10 shadow-xs">
+        <div className="app-container flex items-center justify-between">
+          <div className="flex items-center gap-xs">
+            <button
+              onClick={onBack}
+              className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-transform active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary">arrow_back</span>
+            </button>
+            <div>
+              <span className="font-display text-title-md text-primary font-bold ml-1">{t('Add Money to Wallet')}</span>
+              <p className="text-[11px] text-gray-500 ml-1 font-medium">{t('Instant Top-up & 0% Fee Merchant Transfers')}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{t('Balance')}</span>
+            <p className="text-sm font-black text-primary">₹{balance.toFixed(2)}</p>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Body */}
+      <main className="flex-grow app-container px-container-margin py-lg space-y-6 text-left max-w-lg mx-auto w-full">
+        {/* Amount Input Card */}
+        <div className="bg-white border border-outline-variant/30 rounded-3xl p-6 shadow-sm space-y-5 text-center">
+          <p className="font-caption text-[11px] text-gray-500 uppercase tracking-widest font-bold">
+            {t('Enter Amount to Add')}
+          </p>
+
+          <div className="flex items-center justify-center gap-1.5 py-1">
+            <span className="text-3xl font-black text-gray-400">₹</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setErrorMsg('');
+              }}
+              placeholder="0"
+              className="text-4xl font-black text-primary text-center bg-transparent outline-none w-44 placeholder:text-gray-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
+
+          {/* Quick Amount Pills */}
+          <div className="flex flex-wrap gap-2 justify-center pt-1">
+            {[100, 200, 500, 1000, 2000].map((pillVal) => (
+              <button
+                key={pillVal}
+                type="button"
+                onClick={() => {
+                  setAmount(String(pillVal));
+                  setErrorMsg('');
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer ${
+                  amount === String(pillVal)
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                +₹{pillVal}
+              </button>
+            ))}
+          </div>
+
+          {/* Zero Charge Highlight Banner */}
+          <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-3 text-left flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[18px]">verified</span>
+            </div>
+            <div className="text-[12px] text-emerald-950">
+              <strong className="text-emerald-800">{t('Zero Extra Charges on Merchant Transfer')}</strong>
+              <p className="text-[11px] text-emerald-700/90 leading-tight mt-0.5">
+                {t('Once added, transferring funds to merchants or paying at counters carries 0% extra fee.')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Methods Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600">{t('Choose Payment Method')}</h3>
+            <span className="text-[11px] text-emerald-600 font-bold">{t('Direct UPI = 0% Fee')}</span>
+          </div>
+
+          {/* Option 1: Dynamic UPI QR (Direct UPI) */}
+          <div
+            onClick={() => setPaymentMethod('DYNAMIC_QR')}
+            className={`bg-white rounded-2xl p-4 border-2 transition-all cursor-pointer relative shadow-xs ${
+              paymentMethod === 'DYNAMIC_QR'
+                ? 'border-emerald-500 bg-emerald-50/20 shadow-md ring-2 ring-emerald-500/20'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                  paymentMethod === 'DYNAMIC_QR' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700'
+                }`}>
+                  <span className="material-symbols-outlined text-[24px]">qr_code_2</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-extrabold text-[14px] text-gray-900">{t('Dynamic UPI QR')}</h4>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                      {t('0% Extra Charge')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1 font-medium">
+                    {t('Pay via GPay, PhonePe, Paytm, BHIM or Scan Dynamic QR')}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-emerald-700 font-semibold">
+                    <span className="inline-flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      {t('0% Gateway Charges')}
+                    </span>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[14px]">bolt</span>
+                      {t('Instant Credit')}
+                    </span>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[14px]">storefront</span>
+                      {t('Free Merchant Transfer')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                paymentMethod === 'DYNAMIC_QR' ? 'border-emerald-600 bg-emerald-600' : 'border-gray-300'
+              }`}>
+                {paymentMethod === 'DYNAMIC_QR' && <div className="w-2 h-2 rounded-full bg-white" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Option 2: Razorpay Online Gateway */}
+          <div
+            onClick={() => setPaymentMethod('RAZORPAY')}
+            className={`bg-white rounded-2xl p-4 border-2 transition-all cursor-pointer relative shadow-xs ${
+              paymentMethod === 'RAZORPAY'
+                ? 'border-primary bg-purple-50/20 shadow-md ring-2 ring-primary/20'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                  paymentMethod === 'RAZORPAY' ? 'bg-primary text-white shadow-sm' : 'bg-gray-100 text-gray-700'
+                }`}>
+                  <span className="material-symbols-outlined text-[24px]">credit_card</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-extrabold text-[14px] text-gray-900">{t('Razorpay Gateway')}</h4>
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                      {t('Gateway Charges Apply')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1 font-medium">
+                    {t('Credit Cards, Debit Cards, NetBanking, Gateway UPI')}
+                  </p>
+                  {/* Explicit User Warning Required in Prompt */}
+                  <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2 text-[11px] text-amber-900 flex items-start gap-1.5">
+                    <span className="material-symbols-outlined text-amber-600 text-[15px] shrink-0 mt-0.5">info</span>
+                    <span>
+                      {t('Payment gateway charges apply on cards/netbanking via Razorpay gateway. Use Dynamic UPI QR for 0% extra fee.')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                paymentMethod === 'RAZORPAY' ? 'border-primary bg-primary' : 'border-gray-300'
+              }`}>
+                {paymentMethod === 'RAZORPAY' && <div className="w-2 h-2 rounded-full bg-white" />}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown Card */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-xs space-y-2 text-xs">
+          <div className="flex justify-between text-gray-600">
+            <span>{t('Recharge Amount')}</span>
+            <span className="font-bold text-gray-900">₹{amountNum.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600">{t('Platform Extra Fee')}</span>
+            {paymentMethod === 'DYNAMIC_QR' ? (
+              <span className="font-bold text-emerald-600">₹0.00 (0% Fee • Zero Charge)</span>
+            ) : (
+              <span className="font-bold text-amber-700">{t('Gateway Charges by Bank/PG')}</span>
+            )}
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600">{t('Merchant Transfer Fee')}</span>
+            <span className="font-bold text-emerald-600">₹0.00 ({t('Free')})</span>
+          </div>
+          <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-sm font-bold text-gray-900">
+            <span>{t('Total Payable')}</span>
+            <span className="text-base font-black text-primary">₹{amountNum.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Error message */}
+        {errorMsg && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl p-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Action Button */}
+        <button
+          type="button"
+          disabled={!isValidAmount || isProcessing}
+          onClick={paymentMethod === 'DYNAMIC_QR' ? handleGenerateDynamicQr : handlePayViaRazorpay}
+          className="w-full py-4 rounded-2xl bg-gradient-to-r from-primary via-purple-600 to-indigo-600 text-white font-extrabold text-sm shadow-md hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isProcessing ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>{t('Processing Recharge...')}</span>
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-[20px]">
+                {paymentMethod === 'DYNAMIC_QR' ? 'qr_code_scanner' : 'credit_card'}
+              </span>
+              <span>
+                {paymentMethod === 'DYNAMIC_QR'
+                  ? `Proceed to Add ₹${amountNum.toFixed(2)} via Dynamic QR (0% Fee)`
+                  : `Proceed to Pay ₹${amountNum.toFixed(2)} via Razorpay`}
+              </span>
+            </>
+          )}
+        </button>
+
+        {/* Option to Scan Vendor QR at physical store */}
+        <div className="pt-1 text-center">
+          <button
+            type="button"
+            onClick={() => navigate('/scan-qr')}
+            className="inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+            <span>{t('At a ZeeBac Partner Store? Scan Merchant Dynamic QR')}</span>
+          </button>
+        </div>
+      </main>
+
+      {/* ─── DYNAMIC UPI QR MODAL ─── */}
+      {showQrModal && qrData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-[2rem] w-full max-w-sm p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-center relative animate-scaleUp">
+            {/* Close button */}
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+
+            {/* Modal Title */}
+            <div>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                0% Extra Charge • Free Direct UPI
+              </span>
+              <h3 className="font-extrabold text-xl text-gray-900 mt-2">{t('Scan & Pay via UPI')}</h3>
+              <p className="text-xs text-gray-500">{t('Add money to ZeeBac Wallet instantly')}</p>
+            </div>
+
+            {/* Amount Badge */}
+            <div className="bg-purple-50 border border-purple-200/80 rounded-2xl py-2 px-4 inline-block">
+              <span className="text-xs text-purple-700 font-bold">{t('Amount to Pay:')} </span>
+              <span className="text-2xl font-black text-purple-900">₹{qrData.amount.toFixed(2)}</span>
+            </div>
+
+            {/* High-Res Dynamic QR Image */}
+            <div className="bg-white border-2 border-purple-200 rounded-2xl p-3 shadow-inner inline-block mx-auto">
+              <img
+                src={qrData.qrImageUrl}
+                alt="Dynamic UPI QR"
+                className="w-56 h-56 object-contain rounded-lg mx-auto"
+              />
+              <p className="text-[10px] text-gray-500 font-mono mt-1 font-bold">
+                Scan with GPay, PhonePe, Paytm, BHIM
+              </p>
+            </div>
+
+            {/* UPI ID & Deep-link Action Buttons */}
+            <div className="space-y-2">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                <div className="text-left">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold block">{t('ZeeBac UPI ID')}</span>
+                  <span className="font-mono font-bold text-gray-800">{qrData.payeeVpa}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyUpi}
+                  className="px-2.5 py-1 bg-primary text-white text-[11px] font-bold rounded-lg hover:opacity-90 active:scale-95 cursor-pointer"
+                >
+                  {copiedUpi ? t('Copied!') : t('Copy')}
+                </button>
+              </div>
+
+              {/* Mobile Deep link */}
+              <a
+                href={qrData.upiUri}
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                <span>{t('Pay via UPI App (GPay / PhonePe / Paytm)')}</span>
+              </a>
+            </div>
+
+            {/* Step 2: UTR Verification */}
+            <div className="border-t border-gray-100 pt-4 space-y-2 text-left">
+              <label className="text-xs font-bold text-gray-800 block">
+                {t('Paid? Enter 12-Digit UPI Reference (UTR) Number:')}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  maxLength={12}
+                  value={utrInput}
+                  onChange={(e) => {
+                    setUtrInput(e.target.value.replace(/\D/g, ''));
+                    setUtrError('');
+                  }}
+                  placeholder="e.g. 423456789012"
+                  className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  disabled={utrInput.length !== 12 || isClaimingUtr}
+                  onClick={handleClaimUtrPayment}
+                  className="px-4 py-2 bg-gradient-to-r from-primary to-purple-600 text-white rounded-xl text-xs font-extrabold hover:opacity-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
+                >
+                  {isClaimingUtr ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span>{t('Verify')}</span>
+                  )}
+                </button>
+              </div>
+
+              {utrError && (
+                <p className="text-[11px] text-rose-600 font-semibold mt-1">{utrError}</p>
+              )}
+              <p className="text-[10px] text-gray-500">
+                {t('You can find the 12-digit UPI Transaction / UTR number in your UPI app receipt or bank SMS.')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

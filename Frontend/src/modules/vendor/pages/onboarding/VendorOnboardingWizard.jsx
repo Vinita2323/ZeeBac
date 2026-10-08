@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorAPI, AuthAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
+import useLanguageStore from '../../../../store/useLanguageStore';
 import StepAccount from './steps/StepAccount';
 import StepBusiness from './steps/StepBusiness';
 import StepDocuments from './steps/StepDocuments';
@@ -81,6 +82,7 @@ const buildPayload = (data) => {
 // `mode`: 'register' (public /vendor-app/signup entry) or 'resubmit'
 export default function VendorOnboardingWizard({ mode = 'register' }) {
   const navigate = useNavigate();
+  const { t } = useLanguageStore();
   const currentUser = useAuthStore((s) => s.currentUser);
   const [step, setStep] = useState(mode === 'resubmit' ? 2 : 1);
   const [account, setAccount] = useState(mode === 'resubmit' ? currentUser : null);
@@ -276,7 +278,7 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
               })}
             </div>
             <p style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280', margin: 0 }}>
-              Step {visibleCurrent} of {visibleTotal} — {STEP_LABELS[step - 1]}
+              {t('Step')} {visibleCurrent} {t('of')} {visibleTotal} — {t(STEP_LABELS[step - 1])}
             </p>
           </div>
         </div>
@@ -337,11 +339,11 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
             {isSaving ? (
               <>
                 <span className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
-                Saving...
+                {t('Saving...')}
               </>
             ) : (
               <>
-                Continue
+                {t('Continue')}
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_forward</span>
               </>
             )}

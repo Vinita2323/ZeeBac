@@ -271,12 +271,12 @@ describe('handleRazorpayWebhook', () => {
     expect(tx.customerPhone).toBe(customerPhone);
     expect(tx.cashbackAmount).toBe(50);
 
-    // Notification dispatched to customer: "Aapko Webhook Store se ₹50 cashback mila!"
+    // Notification dispatched to customer: "You received ₹50 cashback from Webhook Store!"
     expect(sendNotification).toHaveBeenCalledWith(expect.objectContaining({
       recipientId: customer._id,
       recipientType: 'customer',
       title: 'Cashback Received! 💸',
-      message: `Aapko ${vendor.storeName} se ₹50 cashback mila!`,
+      message: `You received ₹50 cashback from ${vendor.storeName}!`,
     }));
   });
 
@@ -478,7 +478,7 @@ describe('handleRazorpayWebhook', () => {
         recipientId: customer._id,
         recipientType: 'customer',
         title: 'Cashback Claimed! 💸',
-        message: `Aapko ${vendor.storeName} se ₹50 cashback mila!`,
+        message: `You received ₹50 cashback from ${vendor.storeName}!`,
       }));
     });
 

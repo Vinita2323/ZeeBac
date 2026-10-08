@@ -59,7 +59,15 @@ export const describeBiometricUnsupportedReason = (reason, detail) => {
     case 'no_platform_check_api':
       return "This browser doesn't support fingerprint/Face ID login. Open zeebac.com directly in Chrome (or Safari on iPhone) — not inside WhatsApp, Instagram, or another app's built-in browser — and try again.";
     case 'no_platform_authenticator':
-      return "Your phone's fingerprint/Face ID isn't available to this browser. If you opened Zeebac from a link inside WhatsApp, Instagram, or a similar app, tap the menu (⋮) and choose \"Open in Chrome\", then try again.";
+      // This reason fires for two very different causes we can't tell apart
+      // from here: (a) an in-app browser (WhatsApp/Instagram/etc.) hiding the
+      // platform authenticator, or (b) the phone's Google Play Services FIDO
+      // module being outdated/missing — common on older or budget Android
+      // phones (often the same ones still shipping a rear/side fingerprint
+      // sensor instead of in-display), where even Chrome itself genuinely
+      // has no working platform authenticator to call. Neither this website
+      // nor any other can route around (b); Security PIN is the fallback.
+      return "Your phone's fingerprint/Face ID isn't available to this browser. If you opened Zeebac from a link inside WhatsApp, Instagram, or a similar app, tap the menu (⋮) and choose \"Open in Chrome\" and try again. If you're already in Chrome, update \"Google Play Services\" from the Play Store and restart your phone — on some older or budget phones that's what unlocks fingerprint login. Your Security PIN still works either way.";
     case 'exception':
       return `Biometric check failed${detail ? `: ${detail}` : ''}. Secured with your Security PIN instead.`;
     default:

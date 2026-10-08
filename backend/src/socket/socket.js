@@ -37,8 +37,11 @@ export const initSocket = (httpServer) => {
     // Auto-join private user / vendor / customer rooms for targeted real-time events
     if (socket.user?.id) {
       socket.join(`user_${socket.user.id}`);
-      socket.join(`customer_${socket.user.id}`);
-      socket.join(`vendor_${socket.user.id}`);
+      if (socket.user.role === 'vendor') {
+        socket.join(`vendor_${socket.user.id}`);
+      } else {
+        socket.join(`customer_${socket.user.id}`);
+      }
     }
 
     // Register handlers

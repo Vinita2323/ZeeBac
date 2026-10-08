@@ -1151,6 +1151,7 @@ export const updateRewardConfig = async (req, res) => {
       independentStoreMonthlyPrice, independentStoreYearlyPrice,
       brandMonthlyPrice, brandYearlyPrice,
       customerWalletPayCommissionPercent, customerWalletPayFixedFee,
+      vendorPaymentCommissionPercent,
       dailyCashbackRequestsPerShop,
     } = req.body;
 
@@ -1164,14 +1165,22 @@ export const updateRewardConfig = async (req, res) => {
     if (userMaxWithdrawalAmount !== undefined) config.userMaxWithdrawalAmount = Number(userMaxWithdrawalAmount);
     if (userWithdrawalCommissionPercent !== undefined) config.userWithdrawalCommissionPercent = Number(userWithdrawalCommissionPercent);
     if (vendorWithdrawalCommissionPercent !== undefined) config.vendorWithdrawalCommissionPercent = Number(vendorWithdrawalCommissionPercent);
+    if (vendorPaymentCommissionPercent !== undefined) config.vendorPaymentCommissionPercent = Number(vendorPaymentCommissionPercent);
     if (withdrawalGstPercent !== undefined) config.withdrawalGstPercent = Number(withdrawalGstPercent);
     if (enableWithdrawalGst !== undefined) config.enableWithdrawalGst = Boolean(enableWithdrawalGst);
     if (customerWalletPayCommissionPercent !== undefined) config.customerWalletPayCommissionPercent = Number(customerWalletPayCommissionPercent);
     if (customerWalletPayFixedFee !== undefined) config.customerWalletPayFixedFee = Number(customerWalletPayFixedFee);
     if (independentStoreMonthlyPrice !== undefined) config.independentStoreMonthlyPrice = Number(independentStoreMonthlyPrice);
+    else if (req.body.vendorMonthlySubPriceIndependent !== undefined) config.independentStoreMonthlyPrice = Number(req.body.vendorMonthlySubPriceIndependent);
+
     if (independentStoreYearlyPrice !== undefined) config.independentStoreYearlyPrice = Number(independentStoreYearlyPrice);
+    else if (req.body.vendorYearlySubPriceIndependent !== undefined) config.independentStoreYearlyPrice = Number(req.body.vendorYearlySubPriceIndependent);
+
     if (brandMonthlyPrice !== undefined) config.brandMonthlyPrice = Number(brandMonthlyPrice);
+    else if (req.body.vendorMonthlySubPriceBrand !== undefined) config.brandMonthlyPrice = Number(req.body.vendorMonthlySubPriceBrand);
+
     if (brandYearlyPrice !== undefined) config.brandYearlyPrice = Number(brandYearlyPrice);
+    else if (req.body.vendorYearlySubPriceBrand !== undefined) config.brandYearlyPrice = Number(req.body.vendorYearlySubPriceBrand);
     if (dailyCashbackRequestsPerShop !== undefined) {
       if (dailyCashbackRequestsPerShop === null || dailyCashbackRequestsPerShop === '' || dailyCashbackRequestsPerShop === 'null') {
         config.dailyCashbackRequestsPerShop = null;
