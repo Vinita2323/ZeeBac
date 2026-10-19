@@ -26,7 +26,7 @@ export function stopRingtone() {
     try {
       osc.stop();
       osc.disconnect();
-    } catch (_) {}
+    } catch { /* ignore */ }
   });
   currentOscillators = [];
 }
@@ -65,7 +65,7 @@ export function playOutgoingRing() {
       osc2.stop(now + 1.35);
 
       currentOscillators = [osc1, osc2];
-    } catch (_) {}
+    } catch { /* ignore */ }
   };
 
   playBurst();
@@ -104,7 +104,7 @@ export function playIncomingRing() {
         osc.stop(noteTime + 0.5);
         currentOscillators.push(osc);
       });
-    } catch (_) {}
+    } catch { /* ignore */ }
   };
 
   playMelody();
@@ -135,5 +135,5 @@ export function playEndCallTone() {
 
     osc.start(now);
     osc.stop(now + 0.3);
-  } catch (_) {}
+  } catch { /* ignore */ }
 }

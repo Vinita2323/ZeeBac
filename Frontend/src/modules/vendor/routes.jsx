@@ -30,7 +30,8 @@ export default function VendorRoutes() {
       return null;
     }
   })();
-  const status = vendorUser?.status || useAuthStore((s) => s.currentUser?.status);
+  const currentUserStatus = useAuthStore((s) => s.currentUser?.status);
+  const status = vendorUser?.status || currentUserStatus;
 
   // A vendor whose application isn't yet approved never reaches the real
   // dashboard — they only see their application status/rejection/resubmit flow.

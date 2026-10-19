@@ -1583,6 +1583,7 @@ export default function ProfilePage() {
 // mid-render. Signed + short-lived token, rendered locally instead of via
 // the third-party image API this used to call.
 function VendorStoreQrCard({ zeebacId }) {
+  const { t } = useLanguageStore();
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const fetchQrToken = useCallback(async () => {
     try {

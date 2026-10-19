@@ -505,10 +505,6 @@ export const VendorAPI = {
     const res = await apiClient.post('/vendor/application/resubmit', formData);
     return res.data;
   },
-  getDashboardStats: async () => {
-    const res = await apiClient.get('/vendor/dashboard/stats');
-    return res.data;
-  },
   getSalesAnalytics: async (period = 'today', startDate = '', endDate = '') => {
     let url = `/vendor/sales-analytics?period=${period}`;
     if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
@@ -716,10 +712,6 @@ export const UserAPI = {
   // third-party QR-image service.
   getQrToken: async () => {
     const res = await apiClient.get('/user/qr-token');
-    return res.data;
-  },
-  updateProfile: async (data) => {
-    const res = await apiClient.put('/user/me', data);
     return res.data;
   },
   updateLocation: async (data) => {

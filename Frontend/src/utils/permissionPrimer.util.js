@@ -44,7 +44,6 @@ export function usePrimerSlot(key, priority, eligible) {
 
   useEffect(() => {
     if (eligible) usePrimerGate.getState().acquire(key, priority);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateActiveKey, eligible, key, priority]);
 
   return gateActiveKey === key;
