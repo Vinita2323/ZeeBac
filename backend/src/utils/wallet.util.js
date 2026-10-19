@@ -25,10 +25,19 @@ export class DuplicatePaymentError extends Error {
 // MUST be called inside an active Mongoose session (session.withTransaction).
 // The balance check and the decrement happen in a single findOneAndUpdate, so
 // two concurrent debits against the same wallet can never both succeed past
-// the point where funds run out (no read-then-write race).
+// the point where funds run out (no read-then-write race) — this is strict
+// and atomic by default for every caller.
+//
+// allowNegativeBalance is a narrow, explicit opt-in for the one place that
+// needs it: a vendor manually logging an in-store purchase (logPurchase)
+// must never fail to pay the customer's cashback just because the vendor's
+// own wallet is short — that debit is allowed to push the vendor negative.
+// It's still a single atomic findOneAndUpdate (no separate fallback query),
+// so it does NOT reopen the race window — it only removes the floor check
+// for that one call, it doesn't uncap concurrency.
 export const debitWallet = async ({
   session, ownerId, ownerType, amount, category, description,
-  referenceId, referenceType, gateway = {},
+  referenceId, referenceType, gateway = {}, allowNegativeBalance = false,
 }) => {
   const normalizedType = (ownerType || 'vendor').toLowerCase();
   const ownerTypeQuery = (normalizedType === 'user' || normalizedType === 'customer')
@@ -51,22 +60,15 @@ export const debitWallet = async ({
     wallet = created[0];
   }
 
-  let updatedWallet = await Wallet.findOneAndUpdate(
-    { _id: wallet._id, balance: { $gte: amount } },
+  const filter = allowNegativeBalance
+    ? { _id: wallet._id }
+    : { _id: wallet._id, balance: { $gte: amount } };
+
+  const updatedWallet = await Wallet.findOneAndUpdate(
+    filter,
     { $inc: { balance: -amount, totalWithdrawn: amount } },
     { returnDocument: 'after', session, runValidators: true }
   );
-
-  if (!updatedWallet) {
-    // If vendor is providing cashback, allow debit without blocking customer
-    if (resolvedOwnerType === 'Vendor') {
-      updatedWallet = await Wallet.findOneAndUpdate(
-        { _id: wallet._id },
-        { $inc: { balance: -amount, totalWithdrawn: amount } },
-        { returnDocument: 'after', session, runValidators: false }
-      );
-    }
-  }
 
   if (!updatedWallet) {
     throw new InsufficientBalanceError(`Insufficient wallet balance for ${ownerType} ${ownerId}`);

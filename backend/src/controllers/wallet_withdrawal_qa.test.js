@@ -64,8 +64,10 @@ describe('processWalletPayment — duplicate/retry protection (QA regression)', 
     expect(txns).toHaveLength(1);
 
     const customerWallet = await Wallet.findOne({ ownerId: customer._id });
-    // 1000 - 100 (bill) - 2 (2% default convenience fee) + 10 (10% cashback) = 908 — NOT 816 (which double-processing would produce)
-    expect(customerWallet.balance).toBe(908);
+    // 1000 - 100 (bill) + 10 (10% cashback) = 910 — convenience fee defaults to
+    // 0% (RewardConfig.customerWalletPayCommissionPercent), NOT 810 (which
+    // double-processing would produce)
+    expect(customerWallet.balance).toBe(910);
   });
 
   it('blocks payment when wallet balance is insufficient, with no partial wallet movement', async () => {

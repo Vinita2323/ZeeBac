@@ -99,8 +99,9 @@ describe('Zero-Fraud Cash Cashback Architecture', () => {
     expect(res.body.message).toMatch(/limited to ₹1000/i);
   });
 
-  it('2. Enforces geofence: Blocks cash request when customer is far (> 300m) from shop', async () => {
+  it('2a. Geofence is informational-only by default: a customer several km away is NOT blocked (MAX_CASH_NEARBY_METERS=5km, ENFORCE_STRICT_GEOFENCE unset)', async () => {
     const { vendor, customer } = await setupVendorAndCustomer({ vendorLocation: [77.2090, 28.6139] });
+    delete process.env.ENFORCE_STRICT_GEOFENCE;
 
     const req = {
       user: { id: customer._id.toString() },
@@ -108,8 +109,30 @@ describe('Zero-Fraud Cash Cashback Architecture', () => {
         vendorZeebacId: vendor.zeebacId,
         amount: 500,
         paymentMethod: 'Cash',
-        latitude: 28.6500, // ~4 km away
+        latitude: 28.6500, // ~4 km away — inside the 5km "generous" radius, and the hard block is opt-in anyway
         longitude: 77.2500,
+      },
+    };
+    const res = mockRes();
+
+    await createCustomerTransaction(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('2b. Enforces geofence when an admin opts in via ENFORCE_STRICT_GEOFENCE=true and the customer is outside the 5km radius', async () => {
+    const { vendor, customer } = await setupVendorAndCustomer({ vendorLocation: [77.2090, 28.6139] });
+    process.env.ENFORCE_STRICT_GEOFENCE = 'true';
+
+    const req = {
+      user: { id: customer._id.toString() },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        amount: 500,
+        paymentMethod: 'Cash',
+        latitude: 28.9000, // ~32 km away — well outside MAX_CASH_NEARBY_METERS (5km)
+        longitude: 77.5000,
       },
     };
     const res = mockRes();
@@ -118,7 +141,11 @@ describe('Zero-Fraud Cash Cashback Architecture', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toMatch(/within 300m/i);
+    expect(res.body.message).toMatch(/away from the shop/i);
+  });
+
+  afterEach(() => {
+    delete process.env.ENFORCE_STRICT_GEOFENCE;
   });
 
   it('3. Enforces daily limit: Blocks 4th cash request for same shop in 24 hours with HTTP 429', async () => {

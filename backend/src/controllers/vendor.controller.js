@@ -1191,6 +1191,7 @@ export const logPurchase = async (req, res) => {
         description: `Cashback given to ${customer.name}`,
         referenceId: tx._id,
         referenceType: 'Transaction',
+        allowNegativeBalance: true,
       });
 
       await creditWallet({
