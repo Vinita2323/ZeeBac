@@ -1,21 +1,69 @@
 /**
- * WebAuthn Biometric Utility
- * Provides standard W3C WebAuthn platform authenticator verification
- * (Fingerprint / Face ID on Android & iOS, Windows Hello on PC, Touch ID on Mac).
+ * Biometric & Device Authentication Utility
+ *
+ * Supports:
+ * 1. Native Mobile Wrapper (Flutter local_auth via Native Bridge):
+ *    Directly authenticates using phone-level enrolled biometrics (Fingerprint / Face ID)
+ *    and device credentials (PIN/Pattern/Password fallback) WITHOUT requiring users to
+ *    manually register or create a credential inside ZeeBac.
+ *
+ * 2. Standard Web Browser (W3C WebAuthn platform authenticator fallback):
+ *    Maintained for browser users on supported platforms.
  */
 
+import {
+  hasNativeShell,
+  getNativeDeviceAuthSupport,
+  authenticateNativeDevice,
+} from '../services/nativeBridge';
+
 /**
- * Checks platform biometric support and WHY it's unavailable when it is,
- * so the UI can tell a user with working OS-level fingerprint/Face ID what
- * to actually do about it instead of a generic "not detected" dead end —
- * by far the most common real cause is the page being opened inside an
- * in-app browser (WhatsApp/Instagram/etc.) rather than Chrome/Safari, which
- * often doesn't expose the platform authenticator at all even though the
- * phone's own lock screen uses it fine.
- * @returns {Promise<{ supported: boolean, reason: string|null, detail?: string }>}
+ * Checks biometric and device authentication support.
+ * In a native Flutter container, directly checks device hardware & enrollment via local_auth.
+ * In a browser, checks W3C WebAuthn platform authenticator availability.
+ *
+ * @returns {Promise<{
+ *   supported: boolean,
+ *   isNative?: boolean,
+ *   enrolledBiometrics?: string[],
+ *   hasDeviceCredentialFallback?: boolean,
+ *   reason: string|null,
+ *   detail?: string
+ * }>}
  */
 export const getBiometricSupportStatus = async () => {
   try {
+    // 1. Check Native Flutter Wrapper first
+    if (hasNativeShell()) {
+      const nativeStatus = await getNativeDeviceAuthSupport();
+      if (nativeStatus.isNative) {
+        if (nativeStatus.isDeviceSupported && (nativeStatus.hasEnrolledBiometrics || nativeStatus.hasDeviceCredentialFallback)) {
+          return {
+            supported: true,
+            isNative: true,
+            enrolledBiometrics: nativeStatus.enrolledBiometrics,
+            hasDeviceCredentialFallback: nativeStatus.hasDeviceCredentialFallback,
+            reason: null,
+          };
+        }
+        if (nativeStatus.isDeviceSupported && !nativeStatus.hasEnrolledBiometrics) {
+          return {
+            supported: false,
+            isNative: true,
+            reason: 'not_enrolled',
+            detail: 'No biometric or device screen lock enrolled on this device.',
+          };
+        }
+        return {
+          supported: false,
+          isNative: true,
+          reason: 'no_hardware',
+          detail: 'Biometric hardware is not available on this device.',
+        };
+      }
+    }
+
+    // 2. Web Browser Fallback (WebAuthn)
     if (typeof window === 'undefined') return { supported: false, reason: 'no_window' };
 
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -35,39 +83,34 @@ export const getBiometricSupportStatus = async () => {
       return { supported: false, reason: 'no_platform_authenticator' };
     }
 
-    return { supported: true, reason: null };
+    return { supported: true, isNative: false, reason: null };
   } catch (err) {
     return { supported: false, reason: 'exception', detail: err?.message };
   }
 };
 
 /**
- * Checks if the current browser and device support platform biometrics.
+ * Checks if the current environment supports device biometrics.
  * @returns {Promise<boolean>}
  */
 export const isBiometricSupported = async () => (await getBiometricSupportStatus()).supported;
 
 /**
- * Turns a support-check reason code into the specific, actionable message
- * shown to the user — see getBiometricSupportStatus for why each exists.
+ * Translates an unsupported status reason code into user-friendly copy.
  */
 export const describeBiometricUnsupportedReason = (reason, detail) => {
   switch (reason) {
+    case 'not_enrolled':
+      return 'No fingerprint, Face ID, or screen lock is registered on your phone. Please set one up in phone Settings, or use your Security PIN.';
+    case 'no_hardware':
+      return 'Biometric sensor is not available on this device. You can use your Security PIN instead.';
     case 'insecure_context':
       return 'Biometrics requires a secure HTTPS connection. Please reopen Zeebac at https://zeebac.com.';
     case 'no_webauthn_api':
     case 'no_platform_check_api':
-      return "This browser doesn't support fingerprint/Face ID login. Open zeebac.com directly in Chrome (or Safari on iPhone) — not inside WhatsApp, Instagram, or another app's built-in browser — and try again.";
+      return "This browser doesn't support biometric login. Open zeebac.com directly in Chrome or Safari, or use the mobile app.";
     case 'no_platform_authenticator':
-      // This reason fires for two very different causes we can't tell apart
-      // from here: (a) an in-app browser (WhatsApp/Instagram/etc.) hiding the
-      // platform authenticator, or (b) the phone's Google Play Services FIDO
-      // module being outdated/missing — common on older or budget Android
-      // phones (often the same ones still shipping a rear/side fingerprint
-      // sensor instead of in-display), where even Chrome itself genuinely
-      // has no working platform authenticator to call. Neither this website
-      // nor any other can route around (b); Security PIN is the fallback.
-      return "Your phone's fingerprint/Face ID isn't available to this browser. If you opened Zeebac from a link inside WhatsApp, Instagram, or a similar app, tap the menu (⋮) and choose \"Open in Chrome\" and try again. If you're already in Chrome, update \"Google Play Services\" from the Play Store and restart your phone — on some older or budget phones that's what unlocks fingerprint login. Your Security PIN still works either way.";
+      return "Your phone's biometric hardware is not accessible from this browser. Use your Security PIN, or open in the official ZeeBac App.";
     case 'exception':
       return `Biometric check failed${detail ? `: ${detail}` : ''}. Secured with your Security PIN instead.`;
     default:
@@ -77,20 +120,20 @@ export const describeBiometricUnsupportedReason = (reason, detail) => {
 
 /**
  * Helper to check if a hostname is an IP address.
- * WebAuthn spec strictly forbids IP addresses as rp.id / rpId.
  */
 const isIpHostname = (hostname) => {
   if (!hostname) return true;
   if (hostname === 'localhost') return false;
-  // IPv4 check
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return true;
-  // IPv6 check
   if (hostname.includes(':')) return true;
   return false;
 };
 
 /**
- * Registers / Enrolls device biometric credential for the user.
+ * Enables device biometric credential for the user.
+ * Note: Under the native Flutter shell, users do NOT need to register a separate ZeeBac fingerprint.
+ * Their existing phone credentials are used directly!
+ *
  * @param {object} user - Current user object
  * @returns {Promise<{ success: boolean, credentialId?: string, error?: string }>}
  */
@@ -101,6 +144,19 @@ export const registerBiometricCredential = async (user) => {
       return { success: false, error: describeBiometricUnsupportedReason(status.reason, status.detail) };
     }
 
+    // In Native Shell: Authenticate once to verify enrollment, no registration ceremony required!
+    if (status.isNative) {
+      const auth = await authenticateNativeDevice({
+        reason: 'Verify biometric security to enable quick access',
+        biometricOnly: false,
+      });
+      if (auth.success) {
+        return { success: true, credentialId: 'native_device_enrolled' };
+      }
+      return { success: false, error: auth.error || 'Device authentication was cancelled.' };
+    }
+
+    // Browser WebAuthn Registration Fallback
     const challenge = new Uint8Array(32);
     window.crypto.getRandomValues(challenge);
 
@@ -111,10 +167,7 @@ export const registerBiometricCredential = async (user) => {
     const hostname = window.location.hostname;
     const isIp = isIpHostname(hostname);
 
-    const rp = {
-      name: 'Zeebac Cashback',
-    };
-    // WebAuthn: Only specify rp.id if it's a valid domain (not an IP address)
+    const rp = { name: 'Zeebac Cashback' };
     if (!isIp && hostname) {
       rp.id = hostname;
     }
@@ -128,13 +181,13 @@ export const registerBiometricCredential = async (user) => {
         displayName: user?.name || user?.storeName || 'Zeebac User',
       },
       pubKeyCredParams: [
-        { alg: -7, type: 'public-key' },   // ES256 (P-256)
-        { alg: -257, type: 'public-key' }, // RS256
-        { alg: -8, type: 'public-key' },   // Ed25519
+        { alg: -7, type: 'public-key' },
+        { alg: -257, type: 'public-key' },
+        { alg: -8, type: 'public-key' },
       ],
       authenticatorSelection: {
         authenticatorAttachment: 'platform',
-        userVerification: 'preferred', // 'preferred' allows fingerprint, Face ID, or system lock
+        userVerification: 'preferred',
         residentKey: 'discouraged',
       },
       timeout: 60000,
@@ -162,12 +215,13 @@ export const registerBiometricCredential = async (user) => {
     if (err.name === 'SecurityError') {
       return { success: false, error: 'Security constraint: Please access via a valid domain with HTTPS.' };
     }
-    return { success: false, error: err.message || 'Failed to register biometrics on this device.' };
+    return { success: false, error: err.message || 'Failed to enable biometrics on this device.' };
   }
 };
 
 /**
- * Prompts native device biometric validation (Fingerprint / Face ID).
+ * Prompts native device biometric validation (Fingerprint / Face ID / Phone PIN fallback).
+ *
  * @param {string|null} [credentialId]
  * @returns {Promise<{ success: boolean, error?: string }>}
  */
@@ -178,11 +232,29 @@ export const verifyBiometricCredential = async (credentialId = null) => {
       return { success: false, error: describeBiometricUnsupportedReason(status.reason, status.detail) };
     }
 
+    // 1. Native Flutter Wrapper Path (uses phone biometrics / device PIN directly)
+    if (status.isNative) {
+      const auth = await authenticateNativeDevice({
+        reason: 'Authenticate to access ZeeBac',
+        biometricOnly: false, // Allows device PIN/pattern/passcode fallback
+        stickyAuth: true,
+      });
+
+      if (auth.success) {
+        return { success: true };
+      }
+      return {
+        success: false,
+        error: auth.error || (auth.code === 'CANCELLED' ? 'Authentication cancelled' : 'Authentication failed. Please try again or use your PIN.'),
+      };
+    }
+
+    // 2. Browser WebAuthn Verification Fallback
     const challenge = new Uint8Array(32);
     window.crypto.getRandomValues(challenge);
 
     const allowCredentials = [];
-    if (credentialId) {
+    if (credentialId && credentialId !== 'native_device_enrolled') {
       try {
         const binStr = atob(credentialId);
         const len = binStr.length;
@@ -195,7 +267,7 @@ export const verifyBiometricCredential = async (credentialId = null) => {
           type: 'public-key',
         });
       } catch {
-        // fallback to empty allowCredentials for discoverable credentials
+        // Fallback to empty allowCredentials for discoverable credentials
       }
     }
 
@@ -209,7 +281,6 @@ export const verifyBiometricCredential = async (credentialId = null) => {
       ...(allowCredentials.length > 0 ? { allowCredentials } : {}),
     };
 
-    // WebAuthn: Only pass rpId if hostname is a valid domain (not an IP address)
     if (!isIp && hostname) {
       publicKeyCredentialRequestOptions.rpId = hostname;
     }

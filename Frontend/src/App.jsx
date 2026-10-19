@@ -17,7 +17,6 @@ import VendorOnboardingWizard from './modules/vendor/pages/onboarding/VendorOnbo
 
 // Global State & UI
 import useAuthStore from './store/useAuthStore';
-import useUIStore from './store/useUIStore';
 import GlobalAlertDialog from './components/GlobalAlertDialog';
 import GlobalSnackbar from './components/GlobalSnackbar';
 import { AuthAPI } from './services/api';
@@ -100,7 +99,7 @@ function PwaInstallManager() {
 }
 
 function App() {
-  const { accessToken, logout, currentUser, lockApp } = useAuthStore();
+  const { accessToken, currentUser, lockApp } = useAuthStore();
   const fetchedRef = useRef(false);
   const [isRequestingNotif, setIsRequestingNotif] = useState(false);
 
@@ -115,8 +114,15 @@ function App() {
         lockApp();
       }
     };
+    const onNativeLock = () => {
+      lockApp(true);
+    };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('native:lockApp', onNativeLock);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('native:lockApp', onNativeLock);
+    };
   }, [accessToken, lockApp]);
 
   // These permission primers are for the customer/vendor-facing app only —
@@ -271,7 +277,7 @@ function App() {
             icon: '/Logo (6).png',
             tag: `cash-req-${data.requestId || Date.now()}`,
           });
-        } catch (e) {}
+        } catch { /* ignore */ }
       }
     };
 
@@ -326,7 +332,7 @@ function App() {
             icon: '/Logo (6).png',
             tag: `cb-credit-${data.requestId || Date.now()}`,
           });
-        } catch (e) {}
+        } catch { /* ignore */ }
       }
     };
 
@@ -363,7 +369,7 @@ function App() {
 
       // 3. Mobile vibration
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate([150, 75, 150]); } catch (e) {}
+        try { navigator.vibrate([150, 75, 150]); } catch { /* ignore */ }
       }
 
       // 4. Heads-Up Top Banner (drops down smoothly at the top of the mobile screen)
@@ -409,7 +415,7 @@ function App() {
             window.focus();
             if (onClick) onClick();
           };
-        } catch (e) {}
+        } catch { /* ignore */ }
       }
     };
 
@@ -457,7 +463,7 @@ function App() {
       });
     };
 
-    const handleCashRequestSent = (data) => {
+    const handleCashRequestSent = () => {
       playNotificationChime('incoming');
       speakVoice('Cashback request sent. Ask merchant for OTP code at billing counter.');
     };
@@ -522,7 +528,7 @@ function App() {
       socket.off('cash_request_sent', handleCashRequestSent);
       if (unsubscribe) unsubscribe();
     };
-  }, [accessToken]);
+  }, [accessToken, currentUser?._id]);
   return (
     <BrowserRouter>
       <CallProvider>

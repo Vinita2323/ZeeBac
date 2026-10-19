@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { syncNativeAuthContext, clearNativeAuthContext } from '../services/nativeBridge';
 
 // ─── Auth Store ─────────────────────────────────────────────────────────────
 // Multi-role session management: Customer, Vendor, and Admin sessions
@@ -143,7 +144,7 @@ const useAuthStore = create((set, get) => ({
             localStorage.setItem(targetKeys.token, legacyToken);
             if (legacyRefresh) localStorage.setItem(targetKeys.refresh, legacyRefresh);
           }
-        } catch (_) {}
+        } catch { /* ignore */ }
       }
 
       // 2. Read role-specific sessions
@@ -260,7 +261,15 @@ const useAuthStore = create((set, get) => ({
 
     markUnlockedThisSession();
 
-    set((state) => ({
+    // Securely sync session with native Flutter wrapper (never stores PIN or passwords)
+    syncNativeAuthContext({
+      role,
+      accessToken,
+      refreshToken,
+      userId: userData._id || userData.id,
+    });
+
+    set({
       currentUser: userData,
       accessToken: accessToken,
       isAuthenticated: true,
@@ -269,7 +278,7 @@ const useAuthStore = create((set, get) => ({
       ...(role === 'vendor' ? { vendorUser: userData, vendorToken: accessToken } : {}),
       ...(role === 'customer' ? { customerUser: userData, customerToken: accessToken } : {}),
       ...(role === 'admin' ? { adminUser: userData, adminToken: accessToken } : {}),
-    }));
+    });
 
     get().fetchWalletBalance();
   },
@@ -318,7 +327,7 @@ const useAuthStore = create((set, get) => ({
           });
           get().fetchWalletBalance();
         }
-      } catch (_) {}
+      } catch { /* ignore */ }
     }
   },
 
@@ -345,12 +354,18 @@ const useAuthStore = create((set, get) => ({
       localStorage.setItem(keys.token, token);
     }
     localStorage.setItem('zeebac_access_token', token);
-    set((state) => ({
+    syncNativeAuthContext({
+      role: targetRole,
+      accessToken: token,
+      refreshToken: localStorage.getItem(keys?.refresh || 'zeebac_refresh_token'),
+      userId: get().currentUser?._id || get().currentUser?.id,
+    });
+    set({
       accessToken: token,
       ...(targetRole === 'vendor' ? { vendorToken: token } : {}),
       ...(targetRole === 'customer' ? { customerToken: token } : {}),
       ...(targetRole === 'admin' ? { adminToken: token } : {}),
-    }));
+    });
   },
 
   // Role-specific logout: logging out Vendor preserves Customer session & vice versa!
@@ -369,6 +384,7 @@ const useAuthStore = create((set, get) => ({
     }
 
     if (targetRole === 'all') {
+      clearNativeAuthContext();
       // Clear every session
       Object.values(ROLE_STORAGE).forEach((keys) => {
         localStorage.removeItem(keys.user);
@@ -399,6 +415,9 @@ const useAuthStore = create((set, get) => ({
       });
       return;
     }
+
+    // Clear native auth context if no remaining active session
+    clearNativeAuthContext();
 
     // Clear ONLY the requested role
     const keys = ROLE_STORAGE[targetRole];
@@ -513,7 +532,7 @@ const useAuthStore = create((set, get) => ({
           return balance;
         }
       }
-    } catch (_) {}
+    } catch { /* ignore */ }
     return get().walletBalance;
   },
 
@@ -527,12 +546,12 @@ const useAuthStore = create((set, get) => ({
       localStorage.setItem(keys.user, JSON.stringify(updated));
     }
     localStorage.setItem('zeebac_current_user', JSON.stringify(updated));
-    set((state) => ({
+    set({
       currentUser: updated,
       ...(role === 'vendor' ? { vendorUser: updated } : {}),
       ...(role === 'customer' ? { customerUser: updated } : {}),
       ...(role === 'admin' ? { adminUser: updated } : {}),
-    }));
+    });
   },
 }));
 
