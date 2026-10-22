@@ -17,6 +17,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
+    { label: 'Merchant Payment', icon: 'swap_horiz', path: '/vendor/merchant-payment', badge: 'B2B' },
     { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },
     { label: 'Shop & Pay Later', icon: 'credit_score', path: '/vendor?openPayLater=true', badge: '₹25k' },

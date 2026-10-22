@@ -20,6 +20,7 @@ import RequestsPage from './pages/RequestsPage';
 import SupportPage from './pages/SupportPage';
 import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
 import VendorLoanPage from './pages/VendorLoanPage';
+import MerchantPaymentPage from './pages/MerchantPaymentPage';
 
 export default function VendorRoutes() {
   const vendorUser = useAuthStore((s) => s.vendorUser) || (() => {
@@ -61,6 +62,7 @@ export default function VendorRoutes() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="subscription" element={<VendorSubscriptionPage />} />
             <Route path="subscriptions" element={<VendorSubscriptionPage />} />
+            <Route path="merchant-payment" element={<MerchantPaymentPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="wallet" element={<WalletPage />} />
             <Route path="passbook" element={<PassbookPage />} />

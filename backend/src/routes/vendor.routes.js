@@ -37,6 +37,10 @@ import {
   setupSecurityPin,
   toggleBiometricSecurity,
   verifySecurityPin,
+  searchMerchantForPayment,
+  processMerchantPayment,
+  createMerchantPaymentOrder,
+  verifyMerchantPayment,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -44,7 +48,7 @@ import { getMyMedia, uploadMedia, deleteMedia, getMyPromotions, createPromotion,
 import { saveVendorFcmToken } from '../controllers/notification.controller.js';
 import { createTicket, getUserTickets } from '../controllers/support.controller.js';
 import { protect, requireRole, requireApprovedVendor } from '../middlewares/auth.middleware.js';
-import { pinLimiter } from '../middlewares/rateLimit.middleware.js';
+import { pinLimiter, searchLimiter } from '../middlewares/rateLimit.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
 const router = express.Router();
@@ -116,6 +120,12 @@ router.get('/wallet', requireApprovedVendor, getVendorWallet);
 router.post('/wallet/create-order', requireApprovedVendor, createRazorpayOrder);
 router.post('/wallet/verify-payment', requireApprovedVendor, verifyRazorpayPayment);
 router.post('/wallet/withdraw', requireApprovedVendor, requestWithdrawal);
+
+// Merchant-to-Merchant (B2B) Payments & Cashback
+router.get('/merchant-payment/search', requireApprovedVendor, searchLimiter, searchMerchantForPayment);
+router.post('/merchant-payment/pay', requireApprovedVendor, processMerchantPayment);
+router.post('/merchant-payment/razorpay/order', requireApprovedVendor, createMerchantPaymentOrder);
+router.post('/merchant-payment/razorpay/verify', requireApprovedVendor, verifyMerchantPayment);
 
 // Bank Account with OTP Verification
 router.get('/bank-account', requireApprovedVendor, getVendorBankAccount);

@@ -14,6 +14,7 @@ import Referral from '../models/Referral.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import SubscriptionPayment from '../models/SubscriptionPayment.js';
 import OtpVerification from '../models/OtpVerification.js';
+import AdminUser from '../models/AdminUser.js';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
@@ -34,15 +35,23 @@ const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancell
 // Applies whatever Step 2/3 fields & files are present in the request onto the
 // vendor doc (in-memory only — caller must .save()). Shared by draft/submit/resubmit
 // so all three accept the same payload shape.
-const applyApplicationFields = (vendor, body = {}, files = {}) => {
+export const applyApplicationFields = (vendor, body = {}, files = {}) => {
   const {
-    storeName, shopType, category, subCategory, description,
+    storeName, shopType, businessType, category, subCategory, description,
     businessContactNumber, businessEmail, gstNumber, registrationNumber,
     address, lat, lng, businessHours,
   } = body;
 
+  const ALLOWED_BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Retailer'];
+
   if (storeName !== undefined) vendor.storeName = storeName;
   if (shopType !== undefined) vendor.shopType = shopType;
+  if (businessType !== undefined) {
+    if (businessType && !ALLOWED_BUSINESS_TYPES.includes(businessType)) {
+      throw new Error(`Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`);
+    }
+    vendor.businessType = businessType || null;
+  }
   if (category !== undefined) vendor.category = category;
   if (subCategory !== undefined) vendor.subCategory = subCategory;
   if (description !== undefined) vendor.description = description;
@@ -301,11 +310,23 @@ export const updateProfile = async (req, res) => {
       operatingHours,
       profilePic,
       cashbackRate,
+      businessType,
     } = req.body;
 
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    if (businessType !== undefined) {
+      const ALLOWED_BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Retailer'];
+      if (businessType && !ALLOWED_BUSINESS_TYPES.includes(businessType)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`,
+        });
+      }
+      vendor.businessType = businessType || null;
     }
 
     if (cashbackRate !== undefined && cashbackRate !== null) {
@@ -1241,7 +1262,12 @@ export const logPurchase = async (req, res) => {
 // 3. Get Vendor Transactions
 export const getVendorTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find({ vendorId: req.user.id })
+    const transactions = await Transaction.find({
+      $or: [
+        { vendorId: req.user.id },
+        { payerVendorId: req.user.id },
+      ],
+    })
       .sort({ createdAt: -1 })
       .limit(50);
     res.status(200).json({ success: true, data: transactions });
@@ -2573,6 +2599,568 @@ export const verifySecurityPin = async (req, res) => {
   } catch (error) {
     logger.error(`[Vendor verifySecurityPin] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Merchant-to-Merchant (B2B) Payments & Cashback ───
+
+/**
+ * Search registered and verified merchants eligible to receive merchant payments.
+ * Supports searching by:
+ * 1. 10-digit mobile number
+ * 2. ZeeBac Merchant ID (case-insensitive)
+ * Excludes the calling merchant (no self-search).
+ * Returns only non-sensitive recipient details.
+ */
+export const searchMerchantForPayment = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      return res.status(400).json({ success: false, message: 'Search query is required' });
+    }
+
+    const trimmed = query.trim();
+    const callerVendor = await Vendor.findById(req.user.id);
+    if (!callerVendor) {
+      return res.status(404).json({ success: false, message: 'Merchant account not found' });
+    }
+
+    // Check if searching for self
+    const cleanDigits = trimmed.replace(/\D/g, '');
+    const isSelfPhone = cleanDigits.length === 10 && callerVendor.phone === cleanDigits;
+    const isSelfId = callerVendor.zeebacId?.toUpperCase() === trimmed.toUpperCase();
+
+    if (isSelfPhone || isSelfId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot make a merchant payment to your own store.',
+      });
+    }
+
+    // Build search query for verified merchants only
+    const searchFilter = {
+      _id: { $ne: callerVendor._id },
+      status: 'Verified',
+      $or: [
+        { zeebacId: { $regex: `^${trimmed}$`, $options: 'i' } },
+        ...(cleanDigits.length === 10 ? [{ phone: cleanDigits }] : []),
+        { storeName: { $regex: trimmed, $options: 'i' } },
+      ],
+    };
+
+    const recipient = await Vendor.findOne(searchFilter)
+      .select('zeebacId storeName ownerName businessType category phone address cashbackRate storeLogo status')
+      .lean();
+
+    if (!recipient) {
+      return res.status(404).json({
+        success: false,
+        message: `No verified merchant found matching '${trimmed}'. Please check the ZeeBac ID or phone number.`,
+      });
+    }
+
+    // Mask phone for recipient privacy
+    const rawPhone = recipient.phone || '';
+    const maskedPhone = rawPhone.length === 10
+      ? `${rawPhone.slice(0, 2)}******${rawPhone.slice(-2)}`
+      : rawPhone;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        _id: recipient._id,
+        zeebacId: recipient.zeebacId,
+        storeName: recipient.storeName,
+        ownerName: recipient.ownerName,
+        businessType: recipient.businessType || 'Retailer',
+        category: recipient.category,
+        maskedPhone,
+        address: {
+          city: recipient.address?.city || '',
+          state: recipient.address?.state || '',
+          fullAddress: recipient.address?.fullAddress || '',
+        },
+        cashbackRate: recipient.cashbackRate ?? 2,
+        storeLogo: recipient.storeLogo || null,
+        status: recipient.status,
+      },
+    });
+  } catch (error) {
+    logger.error(`[searchMerchantForPayment] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+/**
+ * Process atomic Merchant-to-Merchant wallet payment with cashback.
+ * Debits bill amount from payer merchant's wallet.
+ * Credits bill amount to recipient merchant's wallet.
+ * Calculates cashback according to recipient's cashbackRate.
+ * Debits cashback from recipient merchant, credits cashback to payer merchant.
+ */
+export const processMerchantPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { recipientZeebacId, amount, notes } = req.body;
+    const securityPin = req.body.securityPin || req.body.pin;
+
+    const parsedAmount = parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 1) {
+      return res.status(400).json({ success: false, message: 'Invalid payment amount. Minimum payment is ₹1.' });
+    }
+
+    if (!recipientZeebacId || typeof recipientZeebacId !== 'string') {
+      return res.status(400).json({ success: false, message: 'Recipient ZeeBac ID is required.' });
+    }
+
+    const payer = await Vendor.findById(req.user.id);
+    if (!payer) {
+      return res.status(404).json({ success: false, message: 'Payer merchant not found.' });
+    }
+
+    if (payer.status !== 'Verified') {
+      return res.status(403).json({ success: false, message: 'Your merchant account must be verified to make merchant payments.' });
+    }
+
+    // Verify Security PIN if payer has configured one
+    if (payer.security?.securityPin) {
+      if (!securityPin) {
+        return res.status(400).json({ success: false, message: 'Security PIN is required to authorize payment.', code: 'PIN_REQUIRED' });
+      }
+      const isMatch = await bcrypt.compare(String(securityPin).trim(), payer.security.securityPin);
+      if (!isMatch) {
+        return res.status(400).json({ success: false, message: 'Invalid Security PIN.', code: 'INVALID_PIN' });
+      }
+    }
+
+    const recipient = await Vendor.findOne({
+      zeebacId: recipientZeebacId.trim().toUpperCase(),
+      status: 'Verified',
+    });
+
+    if (!recipient) {
+      return res.status(404).json({ success: false, message: 'Recipient merchant not found or not eligible for payments.' });
+    }
+
+    if (recipient._id.equals(payer._id)) {
+      return res.status(400).json({ success: false, message: 'You cannot make a merchant payment to yourself.' });
+    }
+
+    // Cashback & fee calculations
+    const cashbackRate = recipient.cashbackRate !== undefined && recipient.cashbackRate !== null
+      ? recipient.cashbackRate
+      : 2;
+    const cashbackAmount = calculateCashback(parsedAmount, cashbackRate);
+
+    // Platform fee from RewardConfig (0% default)
+    const rewardConfig = (await RewardConfig.findOne()) || {};
+    const commissionPercent = rewardConfig.vendorPaymentCommissionPercent !== undefined
+      ? rewardConfig.vendorPaymentCommissionPercent
+      : 0;
+    const platformFee = Math.round(((parsedAmount * commissionPercent) / 100) * 100) / 100;
+
+    // Verify payer wallet balance
+    const payerWalletCheck = await Wallet.findOne({ ownerId: payer._id, ownerType: 'Vendor' });
+    if (!payerWalletCheck || (payerWalletCheck.balance || 0) < parsedAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Amount: ₹${parsedAmount}, Available: ₹${(payerWalletCheck?.balance || 0).toFixed(2)}.`,
+      });
+    }
+
+    const transactionId = `TX-M2M-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    let txn;
+    let isDuplicate = false;
+
+    await session.withTransaction(async () => {
+      // Idempotency: duplicate tap protection within 10s
+      const recentDuplicate = await Transaction.findOne({
+        payerVendorId: payer._id,
+        vendorId: recipient._id,
+        amount: parsedAmount,
+        paymentMethod: 'Wallet',
+        createdAt: { $gte: new Date(Date.now() - 10000) },
+      }).session(session);
+
+      if (recentDuplicate) {
+        txn = recentDuplicate;
+        isDuplicate = true;
+        return;
+      }
+
+      const created = await Transaction.create([{
+        transactionId,
+        type: 'merchant_payment',
+        initiatedBy: 'vendor',
+        source: 'merchant_payment',
+        vendorId: recipient._id,
+        vendorZeebacId: recipient.zeebacId,
+        vendorName: recipient.storeName,
+        vendorPhone: recipient.phone,
+        vendorCategory: recipient.category,
+        payerVendorId: payer._id,
+        payerZeebacId: payer.zeebacId,
+        payerStoreName: payer.storeName,
+        payerPhone: payer.phone,
+        payerBusinessType: payer.businessType || 'Retailer',
+        amount: parsedAmount,
+        cashbackPercent: cashbackRate,
+        cashbackAmount,
+        convenienceFee: 0,
+        totalPaid: parsedAmount,
+        paymentMethod: 'Wallet',
+        status: 'Approved',
+        flagReason: notes ? `Notes: ${String(notes).slice(0, 100)}` : undefined,
+      }], { session });
+
+      txn = created[0];
+
+      // 1. Payer: Debit purchase amount from wallet
+      await debitWallet({
+        session,
+        ownerId: payer._id,
+        ownerType: 'Vendor',
+        amount: parsedAmount,
+        category: 'purchase',
+        description: `Merchant payment to ${recipient.storeName} (${recipient.businessType || 'Merchant'})`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+      });
+
+      // 2. Payer: Credit cashback earned into wallet
+      if (cashbackAmount > 0) {
+        await creditWallet({
+          session,
+          ownerId: payer._id,
+          ownerType: 'Vendor',
+          ownerZeebacId: payer.zeebacId,
+          amount: cashbackAmount,
+          category: 'cashback',
+          description: `B2B Cashback earned from ${recipient.storeName}`,
+          referenceId: txn._id,
+          referenceType: 'Transaction',
+        });
+      }
+
+      // 3. Recipient: Credit bill payment received
+      await creditWallet({
+        session,
+        ownerId: recipient._id,
+        ownerType: 'Vendor',
+        ownerZeebacId: recipient.zeebacId,
+        amount: parsedAmount,
+        category: 'payment_received',
+        description: `Merchant payment received from ${payer.storeName} (${payer.businessType || 'Merchant'})`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+      });
+
+      // 4. Recipient: Debit cashback given to purchasing merchant
+      if (cashbackAmount > 0) {
+        await debitWallet({
+          session,
+          ownerId: recipient._id,
+          ownerType: 'Vendor',
+          amount: cashbackAmount,
+          category: 'cashback',
+          description: `B2B Cashback given to ${payer.storeName}`,
+          referenceId: txn._id,
+          referenceType: 'Transaction',
+          allowNegativeBalance: true,
+        });
+      }
+
+      // 5. Admin fee if any
+      if (platformFee > 0) {
+        await debitWallet({
+          session,
+          ownerId: recipient._id,
+          ownerType: 'Vendor',
+          amount: platformFee,
+          category: 'platform_fee',
+          description: `Zeebac platform fee on M2M payment from ${payer.storeName}`,
+          referenceId: txn._id,
+          referenceType: 'Transaction',
+        });
+
+        const adminUser = await AdminUser.findOne({ role: { $in: ['super_admin', 'admin'] } }).session(session);
+        if (adminUser) {
+          await creditWallet({
+            session,
+            ownerId: adminUser._id,
+            ownerType: 'Admin',
+            ownerZeebacId: 'ZEEBAC-ADMIN',
+            amount: platformFee,
+            category: 'platform_fee',
+            description: `Platform fee on M2M txn ${txn.transactionId}`,
+            referenceId: txn._id,
+            referenceType: 'Transaction',
+          });
+        }
+      }
+
+      await Vendor.findByIdAndUpdate(recipient._id, { $inc: { 'stats.totalRevenue': parsedAmount } }, { session });
+    });
+
+    if (isDuplicate) {
+      return res.status(429).json({
+        success: false,
+        message: 'Duplicate payment detected within 10 seconds. Please wait before retrying.',
+        data: {
+          transactionId: txn.transactionId,
+          amount: txn.amount,
+          status: txn.status,
+        },
+      });
+    }
+
+    // Post-commit push notifications
+    sendNotification({
+      recipientId: recipient._id,
+      recipientType: 'vendor',
+      fcmTokens: recipient.fcmTokens || [],
+      type: 'payment',
+      title: '💰 B2B Payment Received!',
+      message: `₹${parsedAmount} received from merchant ${payer.storeName} (${payer.businessType || 'Merchant'}).`,
+      icon: 'payments',
+      referenceId: txn._id,
+      referenceType: 'transaction',
+    });
+
+    sendNotification({
+      recipientId: payer._id,
+      recipientType: 'vendor',
+      fcmTokens: payer.fcmTokens || [],
+      type: 'cashback',
+      title: '✅ B2B Payment Successful!',
+      message: `₹${parsedAmount} paid to ${recipient.storeName}. ₹${cashbackAmount} cashback credited to your wallet!`,
+      icon: 'verified',
+      referenceId: txn._id,
+      referenceType: 'transaction',
+    });
+
+    const updatedPayerWallet = await Wallet.findOne({ ownerId: payer._id, ownerType: 'Vendor' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Merchant payment completed successfully!',
+      data: {
+        transaction: {
+          transactionId: txn.transactionId,
+          amount: txn.amount,
+          cashbackAmount: txn.cashbackAmount,
+          cashbackPercent: txn.cashbackPercent,
+          status: txn.status,
+          paymentMethod: txn.paymentMethod,
+          timestamp: txn.timestamp || txn.createdAt,
+        },
+        recipient: {
+          zeebacId: recipient.zeebacId,
+          storeName: recipient.storeName,
+          businessType: recipient.businessType || 'Retailer',
+        },
+        payer: {
+          zeebacId: payer.zeebacId,
+          storeName: payer.storeName,
+          businessType: payer.businessType || 'Retailer',
+        },
+        orderId: txn.transactionId,
+        transactionId: txn.transactionId,
+        amountPaid: parsedAmount,
+        billAmount: parsedAmount,
+        cashbackEarned: cashbackAmount,
+        newBalance: updatedPayerWallet?.balance,
+        newPayerBalance: updatedPayerWallet?.balance,
+      },
+    });
+  } catch (error) {
+    if (error instanceof InsufficientBalanceError) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance.' });
+    }
+    logger.error(`[processMerchantPayment] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * Create Razorpay Order for Merchant-to-Merchant Payment
+ */
+export const createMerchantPaymentOrder = async (req, res) => {
+  try {
+    const { recipientZeebacId, amount } = req.body;
+    const parsedAmount = parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 1) {
+      return res.status(400).json({ success: false, message: 'Invalid amount. Minimum is ₹1.' });
+    }
+
+    const recipient = await Vendor.findOne({ zeebacId: recipientZeebacId?.toUpperCase(), status: 'Verified' });
+    if (!recipient) {
+      return res.status(404).json({ success: false, message: 'Recipient merchant not found or not verified' });
+    }
+
+    if (recipient._id.equals(req.user.id)) {
+      return res.status(400).json({ success: false, message: 'Cannot make payment to yourself' });
+    }
+
+    const options = {
+      amount: Math.round(parsedAmount * 100),
+      currency: 'INR',
+      receipt: `m2m_rcpt_${Date.now()}`,
+      notes: {
+        type: 'merchant_to_merchant_payment',
+        payerVendorId: req.user.id,
+        recipientZeebacId: recipient.zeebacId,
+      },
+    };
+
+    const order = await getRazorpayInstance().orders.create(options);
+    return res.status(200).json({
+      success: true,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        key: process.env.RAZORPAY_KEY_ID,
+      },
+      recipient: {
+        storeName: recipient.storeName,
+        zeebacId: recipient.zeebacId,
+        businessType: recipient.businessType,
+      },
+    });
+  } catch (error) {
+    logger.error(`[createMerchantPaymentOrder] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server Error' });
+  }
+};
+
+/**
+ * Verify Razorpay Payment for Merchant-to-Merchant Payment
+ */
+export const verifyMerchantPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, recipientZeebacId } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !recipientZeebacId) {
+      return res.status(400).json({ success: false, message: 'Missing payment verification fields' });
+    }
+
+    if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+      return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+
+    const verifiedAmount = await fetchVerifiedPaymentAmount(razorpay_payment_id);
+    const payer = await Vendor.findById(req.user.id);
+    const recipient = await Vendor.findOne({ zeebacId: recipientZeebacId.toUpperCase(), status: 'Verified' });
+
+    if (!recipient) return res.status(404).json({ success: false, message: 'Recipient merchant not found' });
+    if (recipient._id.equals(payer._id)) return res.status(400).json({ success: false, message: 'Self payment not permitted' });
+
+    const cashbackRate = recipient.cashbackRate || 2;
+    const cashbackAmount = calculateCashback(verifiedAmount, cashbackRate);
+    const transactionId = `TX-M2M-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+
+    let txn;
+    await session.withTransaction(async () => {
+      await assertGatewayPaymentNotProcessed(session, razorpay_payment_id);
+
+      const created = await Transaction.create([{
+        transactionId,
+        type: 'merchant_payment',
+        initiatedBy: 'vendor',
+        source: 'merchant_payment',
+        vendorId: recipient._id,
+        vendorZeebacId: recipient.zeebacId,
+        vendorName: recipient.storeName,
+        vendorPhone: recipient.phone,
+        vendorCategory: recipient.category,
+        payerVendorId: payer._id,
+        payerZeebacId: payer.zeebacId,
+        payerStoreName: payer.storeName,
+        payerPhone: payer.phone,
+        payerBusinessType: payer.businessType || 'Retailer',
+        amount: verifiedAmount,
+        cashbackPercent: cashbackRate,
+        cashbackAmount,
+        convenienceFee: 0,
+        totalPaid: verifiedAmount,
+        paymentMethod: 'UPI',
+        status: 'Approved',
+        gateway: {
+          gatewayName: 'Razorpay',
+          gatewayOrderId: razorpay_order_id,
+          gatewayPaymentId: razorpay_payment_id,
+        },
+      }], { session });
+
+      txn = created[0];
+
+      // 1. Recipient receives sales payment
+      await creditWallet({
+        session,
+        ownerId: recipient._id,
+        ownerType: 'Vendor',
+        ownerZeebacId: recipient.zeebacId,
+        amount: verifiedAmount,
+        category: 'payment_received',
+        description: `B2B Payment received from ${payer.storeName} (Razorpay)`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+        gateway: { gatewayName: 'Razorpay', gatewayOrderId: razorpay_order_id, gatewayPaymentId: razorpay_payment_id },
+      });
+
+      // 2. Recipient debited for cashback
+      await debitWallet({
+        session,
+        ownerId: recipient._id,
+        ownerType: 'Vendor',
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `B2B Cashback given to ${payer.storeName}`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+        allowNegativeBalance: true,
+      });
+
+      // 3. Payer credited for cashback
+      await creditWallet({
+        session,
+        ownerId: payer._id,
+        ownerType: 'Vendor',
+        ownerZeebacId: payer.zeebacId,
+        amount: cashbackAmount,
+        category: 'cashback',
+        description: `B2B Cashback earned from ${recipient.storeName}`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+      });
+
+      await Vendor.findByIdAndUpdate(recipient._id, { $inc: { 'stats.totalRevenue': verifiedAmount } }, { session });
+    });
+
+    const payerWallet = await Wallet.findOne({ ownerId: payer._id, ownerType: 'Vendor' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'B2B payment verified and cashback credited!',
+      data: {
+        transaction: txn,
+        billAmount: verifiedAmount,
+        cashbackEarned: cashbackAmount,
+        newBalance: payerWallet?.balance,
+      },
+    });
+  } catch (error) {
+    if (error instanceof DuplicatePaymentError) {
+      return res.status(409).json({ success: false, message: 'Payment already processed.' });
+    }
+    logger.error(`[verifyMerchantPayment] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  } finally {
+    session.endSession();
   }
 };
 

@@ -464,9 +464,62 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Quick Actions Toolbar - Aesthetic, Theme-Branded & Responsive (2x2 mobile, 4-col desktop) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mx-auto w-full">
-        {/* 1. Scan Customer */}
+      {/* Prominent B2B Merchant Payment Card */}
+      <div 
+        onClick={() => navigate('/vendor/merchant-payment')}
+        className="group bg-gradient-to-r from-[#16082f] via-[#2a0b5c] to-[#6000da] rounded-2xl p-4 sm:p-4.5 text-white shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer relative overflow-hidden border border-white/10"
+      >
+        <div className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none"></div>
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <span className="material-symbols-outlined text-[26px]">swap_horiz</span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/15">
+                  {t('New • B2B Trade')}
+                </span>
+                <span className="text-[10.5px] font-semibold text-purple-200">
+                  {t('Instant Cashback')}
+                </span>
+              </div>
+              <h3 className="font-extrabold text-[15px] sm:text-[16px] text-white leading-tight">
+                {t('Merchant Payment')}
+              </h3>
+              <p className="text-[12px] text-purple-100/80 mt-0.5 leading-relaxed truncate sm:whitespace-normal">
+                {t('Pay Manufacturers, Wholesalers & Retailers directly and earn cashback on stock purchases.')}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate('/vendor/merchant-payment'); }}
+            className="self-start sm:self-auto px-4 py-2 bg-white text-purple-900 hover:bg-purple-50 text-[12px] font-black rounded-xl shadow-sm flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+          >
+            <span>{t('Pay Merchant')}</span>
+            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Actions Toolbar - Aesthetic, Theme-Branded & Responsive */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 mx-auto w-full">
+        {/* 1. Merchant Payment */}
+        <button
+          onClick={() => navigate('/vendor/merchant-payment')}
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/25 hover:border-primary shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center"
+        >
+          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md uppercase">
+            {t('B2B')}
+          </span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#16082f] to-[#6000da] text-white group-hover:scale-105 transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">swap_horiz</span>
+          </div>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Merchant Payment')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Pay Supplier')}</p>
+        </button>
+
+        {/* 2. Scan Customer */}
         <button
           onClick={() => navigate('/vendor/scan-customer')}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -478,7 +531,7 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Log Cash CB')}</p>
         </button>
 
-        {/* 2. Store QR */}
+        {/* 3. Store QR */}
         <button
           onClick={() => setShowQRModal(true)}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -487,10 +540,10 @@ export default function DashboardPage() {
             <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
           </div>
           <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Store QR')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Counter Standee')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Standee')}</p>
         </button>
 
-        {/* 3. Accept Cash (POS) */}
+        {/* 4. Accept Cash (POS) */}
         <button
           onClick={() => setShowPosModal(true)}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -502,7 +555,7 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Instant POS')}</p>
         </button>
 
-        {/* 4. Pay Later */}
+        {/* 5. Pay Later */}
         <button
           onClick={() => setShowPayLaterModal(true)}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"

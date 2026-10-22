@@ -4,9 +4,12 @@ import { VendorAPI } from '../../../services/api';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import useLanguageStore from '../../../store/useLanguageStore';
 
+import useAuthStore from '../../../store/useAuthStore';
+
 export default function TransactionsPage() {
   const navigate = useNavigate();
   const { t } = useLanguageStore();
+  const currentUser = useAuthStore((state) => state.currentUser);
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
@@ -21,6 +24,7 @@ export default function TransactionsPage() {
       try {
         const res = await VendorAPI.getTransactions();
         if (res.success) {
+          const myId = String(currentUser?._id || currentUser?.id || '');
           const formatted = res.data.map(trx => {
             const isCash = trx.isCash ?? (
               trx.paymentMethod === 'Cash' ||
@@ -28,16 +32,41 @@ export default function TransactionsPage() {
               !trx.paymentMethod ||
               String(trx.paymentMethod).toLowerCase().includes('cash')
             );
+            const isMerchantPayment = trx.type === 'merchant_payment';
+            const isPayer = isMerchantPayment && String(trx.payerVendorId) === myId;
+
+            let partyName = trx.customerName || trx.customerPhone || 'Customer';
+            let badgeText = isCash ? t('Cash transaction') : t('Digital transaction');
+            let badgeStyle = isCash 
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+              : 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+
+            if (isMerchantPayment) {
+              if (isPayer) {
+                partyName = `Paid to: ${trx.storeName || trx.vendor?.storeName || 'Merchant'}`;
+                badgeText = 'B2B Purchase';
+                badgeStyle = 'bg-purple-50 text-purple-700 border border-purple-200';
+              } else {
+                partyName = `Received from: ${trx.payerStoreName || 'Merchant'}`;
+                badgeText = 'B2B Sale';
+                badgeStyle = 'bg-blue-50 text-blue-700 border border-blue-200';
+              }
+            }
+
             return {
               id: trx.transactionId || trx._id,
-              customer: trx.customerName || trx.customerPhone || 'Customer',
-              amount: `₹${(trx.amount || 0).toLocaleString()}`,
+              customer: partyName,
+              amount: isPayer ? `-₹${(trx.amount || 0).toLocaleString()}` : `₹${(trx.amount || 0).toLocaleString()}`,
               rawAmount: trx.amount || 0,
               time: new Date(trx.timestamp || trx.createdAt || Date.now()).toLocaleString(),
               status: trx.status,
               hasReceipt: trx.hasReceipt,
               receiptUrl: trx.receiptUrl,
               isCash,
+              isMerchantPayment,
+              isPayer,
+              badgeText,
+              badgeStyle,
               paymentMethod: isCash ? 'Cash' : (trx.paymentMethod || 'Digital')
             };
           });
@@ -50,10 +79,10 @@ export default function TransactionsPage() {
       }
     };
     fetchTransactions();
-  }, []);
+  }, [currentUser]);
 
   const totalApprovedSales = transactions
-    .filter(t => t.status === 'Approved')
+    .filter(t => t.status === 'Approved' && !t.isPayer)
     .reduce((sum, t) => sum + (t.rawAmount || 0), 0);
 
   const filteredTransactions = transactions.filter(t => {
@@ -147,12 +176,8 @@ export default function TransactionsPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-black text-on-surface text-[16px]">{trx.amount}</p>
-                  <span className={`inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-md mt-1 ${
-                    trx.isCash 
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                      : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                  }`}>
-                    {trx.isCash ? t('Cash transaction') : t('Digital transaction')}
+                  <span className={`inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-md mt-1 ${trx.badgeStyle}`}>
+                    {trx.badgeText}
                   </span>
                 </div>
               </div>

@@ -621,6 +621,23 @@ export const VendorAPI = {
     const res = await apiClient.post('/vendor/wallet/verify-payment', paymentData);
     return res.data;
   },
+  // Merchant-to-Merchant (B2B)
+  searchMerchant: async (query) => {
+    const res = await apiClient.get(`/vendor/merchant-payment/search?query=${encodeURIComponent(query)}`);
+    return res.data;
+  },
+  processMerchantPayment: async (data) => {
+    const res = await apiClient.post('/vendor/merchant-payment/pay', data);
+    return res.data;
+  },
+  createMerchantPaymentOrder: async (data) => {
+    const res = await apiClient.post('/vendor/merchant-payment/razorpay/order', data);
+    return res.data;
+  },
+  verifyMerchantPayment: async (data) => {
+    const res = await apiClient.post('/vendor/merchant-payment/razorpay/verify', data);
+    return res.data;
+  },
   // Phase 3D: Final Dashboard & Withdrawals
   getDashboardStats: async () => {
     const res = await apiClient.get('/vendor/dashboard/stats');

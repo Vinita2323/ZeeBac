@@ -244,7 +244,8 @@ export default function VendorApplicationDetailPage() {
         <Section title="Business Details" icon="storefront">
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <Row label="Shop Name" value={vendor.storeName} />
-            <Row label="Type" value={vendor.shopType} />
+            <Row label="Merchant Business Type" value={vendor.businessType || 'Retailer'} />
+            <Row label="Store Scale" value={vendor.shopType} />
             <Row label="Category" value={vendor.category} />
             <Row label="Sub-category" value={vendor.subCategory} />
             <Row label="GST Number" value={vendor.gstNumber} />

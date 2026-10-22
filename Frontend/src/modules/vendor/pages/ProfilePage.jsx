@@ -252,6 +252,7 @@ export default function ProfilePage() {
           operatingHours: res.data.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM',
           cashbackRate: res.data.cashbackRate ?? 5,
           shopType: res.data.shopType || 'Independent Store',
+          businessType: res.data.businessType || 'Retailer',
           upiId: res.data.bankDetails?.upiId || '',
           accountHolderName: res.data.bankDetails?.accountHolderName || '',
           bankName: res.data.bankDetails?.bankName || '',
@@ -318,6 +319,7 @@ export default function ProfilePage() {
 
         await VendorAPI.updateProfile({
           email: formData.email,
+          businessType: formData.businessType,
           cashbackRate: Number(formData.cashbackRate),
           address: { 
             fullAddress: formData.fullAddress,
@@ -509,6 +511,30 @@ export default function ProfilePage() {
                 <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Business Name')}</span>
               </div>
               <span className="text-[12.5px] font-extrabold text-on-surface">{storeName}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">domain</span>
+                </div>
+                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Merchant Trade Type')}</span>
+              </div>
+              {isEditing ? (
+                <select
+                  value={formData.businessType}
+                  onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
+                  className="text-[12px] font-extrabold text-primary border border-primary/30 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                >
+                  <option value="Manufacturer">Manufacturer</option>
+                  <option value="Wholesaler">Wholesaler</option>
+                  <option value="Retailer">Retailer</option>
+                </select>
+              ) : (
+                <span className="text-[11px] font-extrabold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                  {formData.businessType || 'Retailer'}
+                </span>
+              )}
             </div>
 
             <div className="flex justify-between items-center py-2.5">

@@ -12,7 +12,7 @@ import ReviewChangesScreen from './ReviewChangesScreen';
 const STEP_LABELS = ['Account', 'Business', 'Documents', 'Review'];
 
 const emptyFormData = {
-  storeName: '', shopType: '', category: '', subCategory: '', description: '',
+  storeName: '', shopType: '', businessType: '', category: '', subCategory: '', description: '',
   cashbackRate: 5,
   gstNumber: '', businessContactNumber: '', businessEmail: '',
   address: { fullAddress: '', landmark: '', city: '', state: '', pincode: '' },
@@ -25,6 +25,7 @@ const emptyFormData = {
 const vendorToFormData = (vendor) => ({
   storeName: vendor.storeName || '',
   shopType: vendor.shopType || '',
+  businessType: vendor.businessType || '',
   category: vendor.category || '',
   subCategory: vendor.subCategory || '',
   description: vendor.description || '',
@@ -61,7 +62,7 @@ const vendorToFormData = (vendor) => ({
 
 const buildPayload = (data) => {
   const payload = new FormData();
-  const scalarFields = ['storeName', 'shopType', 'category', 'subCategory', 'description', 'cashbackRate', 'gstNumber', 'businessContactNumber', 'businessEmail'];
+  const scalarFields = ['storeName', 'shopType', 'businessType', 'category', 'subCategory', 'description', 'cashbackRate', 'gstNumber', 'businessContactNumber', 'businessEmail'];
   scalarFields.forEach(f => { if (data[f] !== undefined && data[f] !== null) payload.append(f, data[f]); });
   payload.append('address', JSON.stringify(data.address));
   payload.append('businessHours', JSON.stringify(data.businessHours));
@@ -121,7 +122,8 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
   const validateBusiness = () => {
     const next = {};
     if (!data.storeName.trim()) next.storeName = 'Enter your shop name';
-    if (!data.shopType) next.shopType = 'Select a business type';
+    if (!data.businessType) next.businessType = 'Select your merchant trade type (Manufacturer, Wholesaler, or Retailer)';
+    if (!data.shopType) next.shopType = 'Select a store scale';
     if (!data.category) next.category = 'Select a business category';
     if (data.shopType === 'Chain & Brand' && !data.gstNumber?.trim()) next.gstNumber = 'GST number is required for Chain & Brand';
 

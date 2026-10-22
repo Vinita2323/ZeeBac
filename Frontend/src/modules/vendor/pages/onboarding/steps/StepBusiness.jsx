@@ -93,10 +93,58 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
         <p className="text-[13px] sm:text-[13.5px] text-gray-500">This helps customers find and trust your store.</p>
       </div>
 
-      {/* Business Type */}
+      {/* 1. Merchant Business Type (Manufacturer / Wholesaler / Retailer) */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">
+            Merchant Business Type<span className="text-red-500">*</span>
+          </label>
+          <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+            Supply Chain Role
+          </span>
+        </div>
+        <p className="text-[12px] text-gray-500 mb-2.5">Select how your business operates in the supply chain:</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+          {[
+            { id: 'Manufacturer', icon: 'precision_manufacturing', emoji: '🏭', label: 'Manufacturer', desc: 'Produces & crafts goods' },
+            { id: 'Wholesaler', icon: 'inventory_2', emoji: '📦', label: 'Wholesaler', desc: 'Bulk trade & B2B distributor' },
+            { id: 'Retailer', icon: 'storefront', emoji: '🛍️', label: 'Retailer', desc: 'Direct-to-consumer store' },
+          ].map((type) => {
+            const isSelected = data.businessType === type.id;
+            return (
+              <button
+                key={type.id}
+                type="button"
+                onClick={() => update('businessType', type.id)}
+                className={`flex flex-col items-center justify-center p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative ${
+                  isSelected
+                    ? 'border-[#7c3aed] bg-[#7c3aed]/10 shadow-sm text-gray-900 ring-2 ring-[#7c3aed]/25'
+                    : 'border-gray-200 bg-white hover:border-[#7c3aed]/40 text-gray-700'
+                }`}
+              >
+                {isSelected && (
+                  <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#7c3aed] text-white flex items-center justify-center text-[12px] font-black shadow-xs">
+                    ✓
+                  </span>
+                )}
+                <span className="text-3xl mb-1.5">{type.emoji}</span>
+                <p className={`text-[13.5px] font-black leading-tight ${isSelected ? 'text-[#7c3aed]' : 'text-gray-900'}`}>{type.label}</p>
+                <span className="text-[10.5px] font-medium text-gray-500 mt-0.5 leading-snug">{type.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+        {errors.businessType && (
+          <p className="text-[11.5px] font-bold text-red-500 flex items-center gap-1 mt-1.5 ml-1">
+            <span className="material-symbols-outlined text-[13px]">error</span>{errors.businessType}
+          </p>
+        )}
+      </div>
+
+      {/* 2. Store Scale */}
       <div>
         <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-          Business Type<span className="text-red-500">*</span>
+          Store Scale<span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
           <button

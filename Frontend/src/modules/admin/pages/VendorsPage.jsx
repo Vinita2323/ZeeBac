@@ -158,7 +158,12 @@ export default function VendorsPage() {
                     <p className="font-bold text-on-surface">{vendor.ownerName}</p>
                     <p className="font-mono text-[11px] text-on-surface-variant mt-0.5">{vendor.zeebacId} · {vendor.phone}</p>
                   </td>
-                  <td className="p-4 text-on-surface-variant">{vendor.storeName || '—'}</td>
+                  <td className="p-4 text-on-surface-variant">
+                    <p className="font-bold text-on-surface leading-tight">{vendor.storeName || '—'}</p>
+                    <span className="inline-block mt-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                      {vendor.businessType || 'Retailer'}
+                    </span>
+                  </td>
                   <td className="p-4 text-on-surface-variant">{vendor.category || '—'}</td>
                   <td className="p-4 text-center">
                     <span className="inline-block px-2.5 py-1 rounded-lg text-[12px] font-black bg-purple-50 text-purple-700 border border-purple-200">

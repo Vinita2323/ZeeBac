@@ -16,6 +16,18 @@ const transactionSchema = new mongoose.Schema(
     customerPhone: String,
     customerName: String,
     
+    // Payer Vendor (for Merchant-to-Merchant B2B transactions)
+    payerVendorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vendor',
+      required: false,
+      index: true,
+    },
+    payerZeebacId: String,
+    payerStoreName: String,
+    payerPhone: String,
+    payerBusinessType: String,
+
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vendor',
@@ -28,7 +40,7 @@ const transactionSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ['qr_cashback', 'manual', 'receipt_claim', 'pos_bill'],
+      enum: ['qr_cashback', 'manual', 'receipt_claim', 'pos_bill', 'merchant_payment'],
       required: true,
     },
     initiatedBy: {
@@ -92,7 +104,7 @@ const transactionSchema = new mongoose.Schema(
     
     source: {
       type: String,
-      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan', 'pos_auto_credit', 'upi_qr_scan', 'upi_utr_claim', 'ai_pos_auto_match'],
+      enum: ['vendor_scan', 'vendor_manual', 'customer_request', 'pos_bill_scan', 'pos_auto_credit', 'upi_qr_scan', 'upi_utr_claim', 'ai_pos_auto_match', 'merchant_payment'],
       required: true,
     },
     

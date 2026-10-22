@@ -76,6 +76,12 @@ const vendorSchema = new mongoose.Schema(
       },
       enum: ['Independent Store', 'Chain & Brand'],
     },
+    businessType: {
+      type: String,
+      enum: ['Manufacturer', 'Wholesaler', 'Retailer'],
+      default: null,
+      trim: true,
+    },
     category: {
       type: String,
     },

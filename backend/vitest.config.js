@@ -9,5 +9,6 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     setupFiles: ['./src/test/envSetup.js'],
+    fileParallelism: false,
   },
 });
