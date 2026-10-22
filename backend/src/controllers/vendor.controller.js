@@ -37,20 +37,46 @@ const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancell
 // so all three accept the same payload shape.
 export const applyApplicationFields = (vendor, body = {}, files = {}) => {
   const {
-    storeName, shopType, businessType, category, subCategory, description,
+    storeName, shopType, businessType, retailerSubtype, category, subCategory, description,
     businessContactNumber, businessEmail, gstNumber, registrationNumber,
     address, lat, lng, businessHours,
   } = body;
 
   const ALLOWED_BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Retailer'];
+  const ALLOWED_RETAILER_SUBTYPES = ['independent_store', 'chain_brand'];
 
   if (storeName !== undefined) vendor.storeName = storeName;
-  if (shopType !== undefined) vendor.shopType = shopType;
+
   if (businessType !== undefined) {
-    if (businessType && !ALLOWED_BUSINESS_TYPES.includes(businessType)) {
-      throw new Error(`Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`);
+    if (businessType) {
+      const match = ALLOWED_BUSINESS_TYPES.find(t => t.toLowerCase() === String(businessType).trim().toLowerCase());
+      if (!match) {
+        throw new Error(`Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`);
+      }
+      vendor.businessType = match;
+    } else {
+      vendor.businessType = null;
     }
-    vendor.businessType = businessType || null;
+  }
+
+  if (retailerSubtype !== undefined) {
+    if (retailerSubtype) {
+      const candidate = String(retailerSubtype).trim().toLowerCase().replace(/[\s&]+/g, '_');
+      if (!ALLOWED_RETAILER_SUBTYPES.includes(candidate)) {
+        throw new Error(`Invalid retailer subtype: ${retailerSubtype}. Must be one of: ${ALLOWED_RETAILER_SUBTYPES.join(', ')}`);
+      }
+      vendor.retailerSubtype = candidate;
+      vendor.shopType = candidate === 'chain_brand' ? 'Chain & Brand' : 'Independent Store';
+    } else {
+      vendor.retailerSubtype = null;
+    }
+  }
+
+  if (shopType !== undefined) {
+    vendor.shopType = shopType;
+    if (vendor.businessType === 'Retailer' && retailerSubtype === undefined) {
+      vendor.retailerSubtype = shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store';
+    }
   }
   if (category !== undefined) vendor.category = category;
   if (subCategory !== undefined) vendor.subCategory = subCategory;
@@ -311,6 +337,8 @@ export const updateProfile = async (req, res) => {
       profilePic,
       cashbackRate,
       businessType,
+      retailerSubtype,
+      shopType,
     } = req.body;
 
     const vendor = await Vendor.findById(req.user.id);
@@ -318,15 +346,45 @@ export const updateProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
+    const ALLOWED_BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Retailer'];
+    const ALLOWED_RETAILER_SUBTYPES = ['independent_store', 'chain_brand'];
+
     if (businessType !== undefined) {
-      const ALLOWED_BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Retailer'];
-      if (businessType && !ALLOWED_BUSINESS_TYPES.includes(businessType)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`,
-        });
+      if (businessType) {
+        const match = ALLOWED_BUSINESS_TYPES.find(t => t.toLowerCase() === String(businessType).trim().toLowerCase());
+        if (!match) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`,
+          });
+        }
+        vendor.businessType = match;
+      } else {
+        vendor.businessType = null;
       }
-      vendor.businessType = businessType || null;
+    }
+
+    if (retailerSubtype !== undefined) {
+      if (retailerSubtype) {
+        const candidate = String(retailerSubtype).trim().toLowerCase().replace(/[\s&]+/g, '_');
+        if (!ALLOWED_RETAILER_SUBTYPES.includes(candidate)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid retailer subtype: ${retailerSubtype}. Must be one of: ${ALLOWED_RETAILER_SUBTYPES.join(', ')}`,
+          });
+        }
+        vendor.retailerSubtype = candidate;
+        vendor.shopType = candidate === 'chain_brand' ? 'Chain & Brand' : 'Independent Store';
+      } else {
+        vendor.retailerSubtype = null;
+      }
+    }
+
+    if (shopType !== undefined) {
+      vendor.shopType = shopType;
+      if (vendor.businessType === 'Retailer' && retailerSubtype === undefined) {
+        vendor.retailerSubtype = shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store';
+      }
     }
 
     if (cashbackRate !== undefined && cashbackRate !== null) {

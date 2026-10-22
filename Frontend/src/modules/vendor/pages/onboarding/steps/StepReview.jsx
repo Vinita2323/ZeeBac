@@ -52,9 +52,14 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
       </SectionCard>
 
       <SectionCard title="Business" icon="storefront" onEdit={() => onEdit(2)}>
-        <Row label="Shop Name" value={data.storeName} />
+        <Row label="Business Name" value={data.storeName} />
         <Row label="Trade Type" value={data.businessType} />
-        <Row label="Store Scale" value={data.shopType} />
+        {data.businessType === 'Retailer' && (
+          <Row
+            label="Retailer Subtype"
+            value={(data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store'}
+          />
+        )}
         <Row label="Customer Cashback" value={data.cashbackRate ? `${data.cashbackRate}% to users` : null} />
         <Row label="Category" value={data.category} />
         {data.subCategory && <Row label="Sub-category" value={data.subCategory} />}

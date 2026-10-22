@@ -342,7 +342,7 @@ export const getAdminSalesAnalytics = async (req, res) => {
 // ─── Vendor Management ───
 export const getAllVendors = async (req, res) => {
   try {
-    const { status, applicationStatus, businessType, search, page = 1, limit = 20 } = req.query;
+    const { status, applicationStatus, businessType, retailerSubtype, shopType, search, page = 1, limit = 20 } = req.query;
 
     let query = {};
     if (status) {
@@ -354,6 +354,12 @@ export const getAllVendors = async (req, res) => {
     if (businessType) {
       query.businessType = businessType;
     }
+    if (retailerSubtype) {
+      query.retailerSubtype = retailerSubtype;
+    }
+    if (shopType) {
+      query.shopType = shopType;
+    }
     if (search) {
       query.$or = [
         { storeName: { $regex: search, $options: 'i' } },
@@ -361,6 +367,8 @@ export const getAllVendors = async (req, res) => {
         { phone: { $regex: search, $options: 'i' } },
         { zeebacId: { $regex: search, $options: 'i' } },
         { businessType: { $regex: search, $options: 'i' } },
+        { retailerSubtype: { $regex: search, $options: 'i' } },
+        { shopType: { $regex: search, $options: 'i' } },
       ];
     }
 
