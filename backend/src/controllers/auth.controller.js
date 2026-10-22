@@ -168,6 +168,9 @@ export const vendorLogin = async (req, res) => {
         // pages fell back to computing "Estimated CB" against `undefined`
         // and rendered "₹NaN".
         cashbackRate: vendor.cashbackRate,
+        businessType: vendor.businessType,
+        retailerSubtype: vendor.retailerSubtype,
+        shopType: vendor.shopType,
         // Same gap as customerLogin above — the app-open lock reads this
         // from the session cached at login.
         security: {

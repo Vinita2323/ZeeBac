@@ -245,7 +245,13 @@ export default function VendorApplicationDetailPage() {
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <Row label="Shop Name" value={vendor.storeName} />
             <Row label="Merchant Business Type" value={vendor.businessType || 'Retailer'} />
-            <Row label="Store Scale" value={vendor.shopType} />
+            {(vendor.businessType === 'Retailer' || !vendor.businessType) && (
+              <Row
+                label="Retailer Subtype"
+                value={(vendor.retailerSubtype === 'chain_brand' || vendor.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store'}
+              />
+            )}
+            <Row label="Store Scale" value={vendor.shopType || ((vendor.retailerSubtype === 'chain_brand' || vendor.shopType === 'Chain & Brand') ? 'Chain & Brand' : 'Independent Store')} />
             <Row label="Category" value={vendor.category} />
             <Row label="Sub-category" value={vendor.subCategory} />
             <Row label="GST Number" value={vendor.gstNumber} />

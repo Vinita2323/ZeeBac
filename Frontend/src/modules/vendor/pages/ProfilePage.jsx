@@ -211,7 +211,10 @@ export default function ProfilePage() {
     website: '',
     instagram: '',
     facebook: '',
-    whatsapp: ''
+    whatsapp: '',
+    businessType: 'Retailer',
+    retailerSubtype: 'independent_store',
+    shopType: 'Independent Store',
   });
 
   useEffect(() => {
@@ -253,6 +256,7 @@ export default function ProfilePage() {
           cashbackRate: res.data.cashbackRate ?? 5,
           shopType: res.data.shopType || 'Independent Store',
           businessType: res.data.businessType || 'Retailer',
+          retailerSubtype: res.data.retailerSubtype || (res.data.shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store'),
           upiId: res.data.bankDetails?.upiId || '',
           accountHolderName: res.data.bankDetails?.accountHolderName || '',
           bankName: res.data.bankDetails?.bankName || '',
@@ -320,6 +324,8 @@ export default function ProfilePage() {
         await VendorAPI.updateProfile({
           email: formData.email,
           businessType: formData.businessType,
+          retailerSubtype: formData.retailerSubtype,
+          shopType: formData.shopType,
           cashbackRate: Number(formData.cashbackRate),
           address: { 
             fullAddress: formData.fullAddress,
@@ -536,6 +542,38 @@ export default function ProfilePage() {
                 </span>
               )}
             </div>
+
+            {(formData.businessType === 'Retailer' || !formData.businessType) && (
+              <div className="flex justify-between items-center py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-[18px]">store</span>
+                  </div>
+                  <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Retailer Type')}</span>
+                </div>
+                {isEditing ? (
+                  <select
+                    value={formData.retailerSubtype || (formData.shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        retailerSubtype: val,
+                        shopType: val === 'chain_brand' ? 'Chain & Brand' : 'Independent Store'
+                      });
+                    }}
+                    className="text-[12px] font-extrabold text-primary border border-primary/30 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                  >
+                    <option value="independent_store">{t('Independent Store')}</option>
+                    <option value="chain_brand">{t('Chain Brand')}</option>
+                  </select>
+                ) : (
+                  <span className="text-[11px] font-extrabold text-purple-700 px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200">
+                    {(formData.retailerSubtype === 'chain_brand' || formData.shopType === 'Chain & Brand') ? t('Chain Brand') : t('Independent Store')}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-between items-center py-2.5">
               <div className="flex items-center gap-2.5">

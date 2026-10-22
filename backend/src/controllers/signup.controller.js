@@ -127,10 +127,44 @@ export const customerSignup = async (req, res) => {
 // /api/vendor/application/* endpoints. Replaces the old one-shot vendorSignup.
 export const vendorRegister = async (req, res) => {
   try {
-    const { phone, otp, name, email } = req.body;
+    const { phone, otp, name, email, businessType, retailerSubtype, shopType } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Full name is required.' });
+    }
+
+    const ALLOWED_BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Retailer'];
+    const ALLOWED_RETAILER_SUBTYPES = ['independent_store', 'chain_brand'];
+
+    let normalizedBusinessType = null;
+    if (businessType) {
+      const match = ALLOWED_BUSINESS_TYPES.find(t => t.toLowerCase() === String(businessType).trim().toLowerCase());
+      if (!match) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid business type: ${businessType}. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(', ')}`,
+        });
+      }
+      normalizedBusinessType = match;
+    }
+
+    let normalizedRetailerSubtype = null;
+    let normalizedShopType = shopType || null;
+
+    if (normalizedBusinessType === 'Retailer') {
+      const candidate = retailerSubtype || (shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store');
+      const normCandidate = candidate ? String(candidate).trim().toLowerCase().replace(/[\s&]+/g, '_') : 'independent_store';
+      if (!ALLOWED_RETAILER_SUBTYPES.includes(normCandidate)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid retailer subtype: ${retailerSubtype}. Must be one of: independent_store, chain_brand`,
+        });
+      }
+      normalizedRetailerSubtype = normCandidate;
+      normalizedShopType = normCandidate === 'chain_brand' ? 'Chain & Brand' : 'Independent Store';
+    } else if (normalizedBusinessType) {
+      normalizedRetailerSubtype = null;
+      if (!normalizedShopType) normalizedShopType = 'Independent Store';
     }
 
     // 1. Verify OTP
@@ -152,6 +186,9 @@ export const vendorRegister = async (req, res) => {
       ownerName: name.trim(),
       phone,
       email,
+      businessType: normalizedBusinessType,
+      retailerSubtype: normalizedRetailerSubtype,
+      shopType: normalizedShopType,
       applicationStatus: 'DRAFT',
     });
 
@@ -175,6 +212,9 @@ export const vendorRegister = async (req, res) => {
         role: vendor.role,
         status: vendor.status,
         applicationStatus: vendor.applicationStatus,
+        businessType: vendor.businessType,
+        retailerSubtype: vendor.retailerSubtype,
+        shopType: vendor.shopType,
       }
     });
   } catch (error) {

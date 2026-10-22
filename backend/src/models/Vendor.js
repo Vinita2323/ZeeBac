@@ -74,11 +74,40 @@ const vendorSchema = new mongoose.Schema(
         }
         return val;
       },
-      enum: ['Independent Store', 'Chain & Brand'],
+      enum: ['Independent Store', 'Chain & Brand', null],
     },
     businessType: {
       type: String,
-      enum: ['Manufacturer', 'Wholesaler', 'Retailer'],
+      set: function(val) {
+        if (!val) return null;
+        const map = {
+          manufacturer: 'Manufacturer',
+          wholesaler: 'Wholesaler',
+          retailer: 'Retailer',
+          Manufacturer: 'Manufacturer',
+          Wholesaler: 'Wholesaler',
+          Retailer: 'Retailer',
+        };
+        return map[val] || val;
+      },
+      enum: ['Manufacturer', 'Wholesaler', 'Retailer', 'manufacturer', 'wholesaler', 'retailer'],
+      default: null,
+      trim: true,
+    },
+    retailerSubtype: {
+      type: String,
+      set: function(val) {
+        if (!val) return null;
+        const map = {
+          independent_store: 'independent_store',
+          chain_brand: 'chain_brand',
+          'Independent Store': 'independent_store',
+          'Chain & Brand': 'chain_brand',
+          'Chain Brand': 'chain_brand',
+        };
+        return map[val] || val;
+      },
+      enum: ['independent_store', 'chain_brand', 'Independent Store', 'Chain & Brand', 'Chain Brand', null],
       default: null,
       trim: true,
     },

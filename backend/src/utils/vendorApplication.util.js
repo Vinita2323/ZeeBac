@@ -4,6 +4,7 @@ export const TRACKED_FIELD_PATHS = [
   'storeName',
   'shopType',
   'businessType',
+  'retailerSubtype',
   'category',
   'subCategory',
   'description',
@@ -66,8 +67,14 @@ export function validateApplicationComplete(vendorDoc) {
   const missing = [];
 
   if (!vendorDoc.storeName?.trim()) missing.push('Business/Shop Name');
-  if (!vendorDoc.shopType) missing.push('Business Type (Independent Store / Chain & Brand)');
-  if (!vendorDoc.businessType) missing.push('Merchant Business Type (Manufacturer / Wholesaler / Retailer)');
+  if (!vendorDoc.businessType) {
+    missing.push('Merchant Business Type (Manufacturer / Wholesaler / Retailer)');
+  }
+  if (vendorDoc.businessType === 'Retailer' || (!vendorDoc.businessType && !vendorDoc.shopType)) {
+    if (!vendorDoc.shopType && !vendorDoc.retailerSubtype) {
+      missing.push('Business Type (Independent Store / Chain & Brand)');
+    }
+  }
   if (!vendorDoc.category) missing.push('Business Category');
   if (vendorDoc.cashbackRate === undefined || vendorDoc.cashbackRate === null || Number.isNaN(Number(vendorDoc.cashbackRate))) {
     missing.push('Customer Cashback Percentage (%)');

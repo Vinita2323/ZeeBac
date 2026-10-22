@@ -62,9 +62,19 @@ export default function VendorsPage() {
 
   const handleExport = () => {
     if (vendors.length === 0) return alert('No vendors to export.');
-    const headers = ["Zeebac ID", "Store Name", "Owner Name", "Category", "Cashback Rate", "Phone", "Status", "Resubmissions", "Joined"];
+    const headers = ["Zeebac ID", "Store Name", "Owner Name", "Trade Type", "Retailer Subtype", "Category", "Cashback Rate", "Phone", "Status", "Resubmissions", "Joined"];
     const rows = vendors.map(v => [
-      v.zeebacId, v.storeName, v.ownerName, v.category, v.cashbackRate ? `${v.cashbackRate}%` : '—', v.phone, v.applicationStatus, v.resubmissionCount || 0, new Date(v.createdAt).toLocaleDateString()
+      v.zeebacId,
+      v.storeName,
+      v.ownerName,
+      v.businessType || 'Retailer',
+      (v.businessType === 'Retailer' || !v.businessType) ? ((v.retailerSubtype === 'chain_brand' || v.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store') : '—',
+      v.category,
+      v.cashbackRate ? `${v.cashbackRate}%` : '—',
+      v.phone,
+      v.applicationStatus,
+      v.resubmissionCount || 0,
+      new Date(v.createdAt).toLocaleDateString()
     ]);
     const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c ?? ''}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -160,9 +170,20 @@ export default function VendorsPage() {
                   </td>
                   <td className="p-4 text-on-surface-variant">
                     <p className="font-bold text-on-surface leading-tight">{vendor.storeName || '—'}</p>
-                    <span className="inline-block mt-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                      {vendor.businessType || 'Retailer'}
-                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <span className="inline-block text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                        {vendor.businessType || 'Retailer'}
+                      </span>
+                      {(vendor.businessType === 'Retailer' || !vendor.businessType) && (
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          (vendor.retailerSubtype === 'chain_brand' || vendor.shopType === 'Chain & Brand')
+                            ? 'text-blue-700 bg-blue-50 border-blue-200'
+                            : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        }`}>
+                          {(vendor.retailerSubtype === 'chain_brand' || vendor.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store'}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4 text-on-surface-variant">{vendor.category || '—'}</td>
                   <td className="p-4 text-center">
