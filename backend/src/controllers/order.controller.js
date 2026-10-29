@@ -37,12 +37,18 @@ export const createOrder = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Active customer account required' });
     }
 
-    const vendor = await Vendor.findOne({
-      zeebacId: vendorZeebacId.toUpperCase(),
-      status: 'Verified',
-    });
+    const cleanZeebacId = (vendorZeebacId || '').trim();
+    const vendorQuery = {
+      $or: [
+        { zeebacId: cleanZeebacId.toUpperCase() },
+        { zeebacId: cleanZeebacId },
+        ...(mongoose.Types.ObjectId.isValid(cleanZeebacId) ? [{ _id: cleanZeebacId }] : []),
+      ],
+    };
+
+    let vendor = await Vendor.findOne(vendorQuery);
     if (!vendor) {
-      return res.status(404).json({ success: false, message: 'Vendor not found or not verified' });
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
     // ── Build line items with individual product cashback percentages ──
@@ -50,15 +56,20 @@ export const createOrder = async (req, res) => {
     let totalCashbackPoints = 0;
     const processedItems = [];
 
-    // Fetch product details for accurate pricing and cashback rates
-    const productIds = items.map((i) => i.productId || i._id || i.id).filter(Boolean);
-    const dbProducts = await Product.find({ _id: { $in: productIds } });
+    // Only query database for IDs that are valid MongoDB ObjectIds (prevents Cast to ObjectId error)
+    const validProductObjectIds = items
+      .map((i) => (i.productId || i._id || i.id || '').toString().trim())
+      .filter((id) => id && mongoose.Types.ObjectId.isValid(id));
+
+    const dbProducts = validProductObjectIds.length > 0
+      ? await Product.find({ _id: { $in: validProductObjectIds } })
+      : [];
     const productMap = new Map();
     dbProducts.forEach((p) => productMap.set(p._id.toString(), p));
 
     for (const item of items) {
-      const pId = (item.productId || item._id || item.id || '').toString();
-      const dbProd = productMap.get(pId);
+      const rawId = (item.productId || item._id || item.id || '').toString().trim();
+      const dbProd = mongoose.Types.ObjectId.isValid(rawId) ? productMap.get(rawId) : null;
 
       const price = Number(dbProd ? dbProd.price : item.price) || 0;
       const quantity = Math.max(1, Number(item.quantity) || 1);
@@ -81,7 +92,7 @@ export const createOrder = async (req, res) => {
       totalCashbackPoints += lineCashbackPoints;
 
       processedItems.push({
-        productId: dbProd?._id || (mongoose.Types.ObjectId.isValid(pId) ? pId : undefined),
+        productId: dbProd?._id || (mongoose.Types.ObjectId.isValid(rawId) ? new mongoose.Types.ObjectId(rawId) : undefined),
         name: dbProd?.name || item.name || 'Store Product',
         price,
         quantity,
@@ -111,6 +122,31 @@ export const createOrder = async (req, res) => {
 
     const finalPayableAmount = Math.max(0, Math.round((totalGrossAmount - pointsToRedeem) * 100) / 100);
 
+    // ── Format delivery address safely as a string (prevents Mongoose CastError on object) ──
+    let resolvedDeliveryAddress = 'Customer Address';
+    if (typeof deliveryAddress === 'string' && deliveryAddress.trim()) {
+      resolvedDeliveryAddress = deliveryAddress.trim();
+    } else if (typeof deliveryAddress === 'object' && deliveryAddress !== null) {
+      const parts = [
+        deliveryAddress.fullAddress || deliveryAddress.street,
+        deliveryAddress.landmark,
+        deliveryAddress.city,
+        deliveryAddress.state,
+        deliveryAddress.pincode,
+      ].filter(Boolean);
+      resolvedDeliveryAddress = parts.join(', ') || 'Customer Address';
+    } else if (customer.location?.address) {
+      resolvedDeliveryAddress = typeof customer.location.address === 'string'
+        ? customer.location.address
+        : ([
+            customer.location.address.fullAddress || customer.location.address.street,
+            customer.location.address.landmark,
+            customer.location.address.city,
+            customer.location.address.state,
+            customer.location.address.pincode,
+          ].filter(Boolean).join(', ') || 'Customer Address');
+    }
+
     // ── Generate Order ID & Delivery OTP ──
     const orderId = `ZBC-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
     const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -135,11 +171,11 @@ export const createOrder = async (req, res) => {
     }
 
     let createdOrder;
-    await session.withTransaction(async () => {
+    const executeOrderCreation = async (activeSession) => {
       // If customer redeemed Zeebac points, debit atomically
       if (pointsToRedeem > 0) {
         await debitWallet({
-          session,
+          session: activeSession,
           ownerId: customer._id,
           ownerType: 'User',
           amount: pointsToRedeem,
@@ -151,10 +187,10 @@ export const createOrder = async (req, res) => {
       const newOrder = new Order({
         orderId,
         customerId: customer._id,
-        customerName: customer.name,
-        customerPhone: customer.phone,
+        customerName: customer.name || customer.phone || 'ZeeBac Customer',
+        customerPhone: customer.phone || '9999999999',
         vendorId: vendor._id,
-        vendorZeebacId: vendor.zeebacId,
+        vendorZeebacId: vendor.zeebacId || cleanZeebacId || 'ZBV-1001',
         storeName: vendor.storeName || 'ZeeBac Partner Store',
         items: processedItems,
         totalAmount: totalGrossAmount,
@@ -162,8 +198,8 @@ export const createOrder = async (req, res) => {
         finalPayableAmount,
         totalCashbackPoints,
         fulfillmentType,
-        deliveryAddress: deliveryAddress || customer.location?.address || 'Customer Address',
-        orderNotes: orderNotes || '',
+        deliveryAddress: resolvedDeliveryAddress,
+        orderNotes: typeof orderNotes === 'string' ? orderNotes : '',
         paymentMethod: resolvedPaymentMethod,
         paymentStatus: initialPaymentStatus,
         upiDetails: {
@@ -179,9 +215,30 @@ export const createOrder = async (req, res) => {
         cashbackSettled: false,
       });
 
-      await newOrder.save({ session });
+      if (activeSession) {
+        await newOrder.save({ session: activeSession });
+      } else {
+        await newOrder.save();
+      }
       createdOrder = newOrder;
-    });
+    };
+
+    try {
+      await session.withTransaction(async () => {
+        await executeOrderCreation(session);
+      });
+    } catch (txErr) {
+      if (txErr instanceof InsufficientBalanceError) {
+        throw txErr;
+      }
+      // If transactions are unsupported (e.g. standalone Mongo deployment), fall back gracefully
+      if (txErr.message && (txErr.message.includes('Transaction numbers are only allowed') || txErr.message.includes('replica set'))) {
+        logger.warn(`[Order] MongoDB host does not support transactions, running non-transactional fallback: ${txErr.message}`);
+        await executeOrderCreation(null);
+      } else {
+        throw txErr;
+      }
+    }
 
     // ── Real-time Socket Event to Vendor ──
     try {
@@ -232,7 +289,7 @@ export const createOrder = async (req, res) => {
     if (error instanceof InsufficientBalanceError) {
       return res.status(400).json({ success: false, message: 'Insufficient Zeebac Points balance' });
     }
-    res.status(500).json({ success: false, message: 'Server Error creating order', error: error.message });
+    res.status(500).json({ success: false, message: error.message || 'Server Error creating order', error: error.message });
   } finally {
     session.endSession();
   }

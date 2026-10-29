@@ -288,4 +288,41 @@ describe('Order System & Product-Level Cashback Model', () => {
     const updatedVendorWallet = await Wallet.findById(vendorWallet._id);
     expect(updatedVendorWallet.balance).toBe(7000); // 5000 + 2000 = 7000
   });
+
+  it('safely creates order with demo products (string IDs) and address object without CastError', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    const req = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'delivery',
+        deliveryAddress: {
+          fullAddress: 'Flat 402, Royal Residency',
+          landmark: 'Near Tedhi Pulia',
+          city: 'Lucknow',
+          state: 'Uttar Pradesh',
+          pincode: '226021',
+        },
+        paymentMethod: 'UPI_INTENT',
+        items: [
+          {
+            _id: 'demo_prod_salt',
+            name: 'Tata Salt 1 kg',
+            price: 28,
+            quantity: 2,
+            cashbackPercentage: 5,
+          },
+        ],
+      },
+    };
+    const res = makeRes();
+    await createOrder(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const data = res.json.mock.calls[0][0].data;
+    expect(data.order.orderId).toBeDefined();
+    expect(data.order.deliveryAddress).toBe('Flat 402, Royal Residency, Near Tedhi Pulia, Lucknow, Uttar Pradesh, 226021');
+    expect(data.order.items[0].name).toBe('Tata Salt 1 kg');
+  });
 });

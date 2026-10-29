@@ -98,6 +98,7 @@ export default function VendorDetailScreen() {
   const passedVendor = location.state?.vendor;
   const defaultVendor = {
     _id: 'sharma_gen_store',
+    zeebacId: 'ZBV-1001',
     storeName: "Sharma General Store",
     cashbackRate: 3,
     category: "Grocery",
