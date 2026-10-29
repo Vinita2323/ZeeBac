@@ -10,6 +10,23 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 import { getSocket } from '../../../services/socket';
 
+// Helper to safely format address object or string into a displayable string
+const formatAddress = (addr) => {
+  if (!addr) return '';
+  if (typeof addr === 'string') return addr;
+  if (typeof addr === 'object') {
+    const parts = [
+      addr.fullAddress || addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.pincode,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : '';
+  }
+  return String(addr);
+};
+
 export default function CartScreen() {
   const navigate = useNavigate();
   const { t } = useLanguageStore();
@@ -41,9 +58,13 @@ export default function CartScreen() {
   const [paymentMethod, setPaymentMethod] = useState(finalPayableAmount === 0 && walletBalance >= totalAmount ? 'Points' : 'UPI');
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState(
-    currentUser?.location?.address || currentUser?.address || 'Flat 402, Royal Residency, Hazratganj, Lucknow'
-  );
+  const [deliveryAddress, setDeliveryAddress] = useState(() => {
+    return (
+      formatAddress(currentUser?.location?.address) ||
+      formatAddress(currentUser?.address) ||
+      'Flat 402, Royal Residency, Hazratganj, Lucknow'
+    );
+  });
   const [isEditingAddress, setIsEditingAddress] = useState(false);
 
   // Direct UPI Intent Modal state
@@ -493,7 +514,7 @@ export default function CartScreen() {
               <span className="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">location_on</span>
               <div>
                 <p className="font-bold text-slate-800">Delivery Address</p>
-                <p className="text-slate-500 text-[11px]">{activeOrder.deliveryAddress}</p>
+                <p className="text-slate-500 text-[11px]">{formatAddress(activeOrder.deliveryAddress)}</p>
               </div>
             </div>
           </div>
@@ -649,7 +670,7 @@ export default function CartScreen() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-[12.5px] text-slate-900">{effectiveVendor.storeName} Counter</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">{effectiveVendor.address}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">{formatAddress(effectiveVendor.address) || 'Hazratganj, Lucknow'}</p>
                 <span className="inline-block mt-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
                   Ready in 10-15 mins • No Waiting
                 </span>
@@ -679,7 +700,7 @@ export default function CartScreen() {
                   placeholder="Enter full delivery address"
                 />
               ) : (
-                <p className="text-[11.5px] text-slate-600 leading-snug pl-6">{deliveryAddress}</p>
+                <p className="text-[11.5px] text-slate-600 leading-snug pl-6">{formatAddress(deliveryAddress)}</p>
               )}
             </div>
           )}

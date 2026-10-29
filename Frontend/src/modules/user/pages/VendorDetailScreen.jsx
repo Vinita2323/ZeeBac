@@ -652,7 +652,11 @@ export default function VendorDetailScreen() {
                 <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0 mt-0.5">location_on</span>
                 <div>
                   <p className="font-bold text-slate-900">{t('Address')}</p>
-                  <p className="text-slate-600 mt-0.5">{vendor.address || 'Hazratganj, Lucknow'}</p>
+                  <p className="text-slate-600 mt-0.5">
+                    {typeof vendor.address === 'object'
+                      ? [vendor.address.fullAddress, vendor.address.landmark, vendor.address.city, vendor.address.state, vendor.address.pincode].filter(Boolean).join(', ') || 'Hazratganj, Lucknow'
+                      : (vendor.address || 'Hazratganj, Lucknow')}
+                  </p>
                 </div>
               </div>
 

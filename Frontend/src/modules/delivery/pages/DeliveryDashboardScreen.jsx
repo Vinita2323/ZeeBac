@@ -6,6 +6,22 @@ import DeliveryBottomNav from '../components/DeliveryBottomNav';
 import { toast } from 'react-hot-toast';
 import { connectSocket } from '../../../services/socket';
 
+const formatAddress = (addr) => {
+  if (!addr) return '';
+  if (typeof addr === 'string') return addr;
+  if (typeof addr === 'object') {
+    const parts = [
+      addr.fullAddress || addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.pincode,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : '';
+  }
+  return String(addr);
+};
+
 export default function DeliveryDashboardScreen() {
   const navigate = useNavigate();
   const rider = useDeliveryStore((state) => state.rider);
@@ -247,7 +263,7 @@ export default function DeliveryDashboardScreen() {
                     {activeOrder.vendorId?.storeName || activeOrder.storeName || 'Merchant Store'}
                   </h4>
                   <p className="text-[12px] text-slate-600 mt-0.5">
-                    {activeOrder.vendorId?.address?.street || activeOrder.vendorId?.address || 'Store Address'}
+                    {formatAddress(activeOrder.vendorId?.address) || 'Store Address'}
                   </p>
                 </div>
               </div>
@@ -266,7 +282,7 @@ export default function DeliveryDashboardScreen() {
                 <button
                   onClick={() =>
                     openMaps(
-                      activeOrder.vendorId?.address?.street || activeOrder.vendorId?.address || '',
+                      formatAddress(activeOrder.vendorId?.address),
                       activeOrder.vendorId?.storeName || ''
                     )
                   }
@@ -391,7 +407,7 @@ export default function DeliveryDashboardScreen() {
                     <div className="flex items-start gap-2">
                       <span className="material-symbols-outlined text-amber-500 text-[16px] shrink-0 mt-0.5">store</span>
                       <p className="truncate">
-                        <strong>Pickup:</strong> {order.vendorId?.address?.street || order.vendorId?.address || 'Store Location'}
+                        <strong>Pickup:</strong> {formatAddress(order.vendorId?.address) || 'Store Location'}
                       </p>
                     </div>
                     <div className="flex items-start gap-2">
