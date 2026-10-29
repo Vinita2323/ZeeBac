@@ -999,6 +999,7 @@ export const createProduct = async (req, res) => {
   try {
     const { 
       name, price, discountPrice, category, sku, description, isHighlight, stock, isActive,
+      barcode, mrp, wholesalePrice, unit, gst, expiryDate, brand,
       isBranded, brandName, brandCompany, brandWebsite, brandDescription, 
       brandEmail, brandContact, cashbackPercentage 
     } = req.body;
@@ -1020,16 +1021,20 @@ export const createProduct = async (req, res) => {
       }
     }
 
+    const parsedCashbackRate = cashbackPercentage !== undefined && cashbackPercentage !== null && cashbackPercentage !== ''
+      ? Math.max(0, Math.min(100, Number(cashbackPercentage)))
+      : 0;
+
     const branding = {
-      isBranded: isBranded === 'true',
-      brandName,
+      isBranded: isBranded === 'true' || isBranded === true,
+      brandName: brandName || brand,
       brandCompany,
       brandWebsite,
       brandDescription,
       brandEmail,
       brandContact,
       brandLogo: brandLogoUrl,
-      cashbackPercentage: cashbackPercentage ? Number(cashbackPercentage) : undefined
+      cashbackPercentage: parsedCashbackRate
     };
 
     const newProduct = new Product({
@@ -1039,11 +1044,19 @@ export const createProduct = async (req, res) => {
       discountPrice: discountPrice ? Number(discountPrice) : undefined,
       category: category || 'Bestsellers',
       sku,
+      barcode: barcode ? String(barcode).trim() : undefined,
+      mrp: mrp ? Number(mrp) : (discountPrice ? Number(discountPrice) : Number(price)),
+      wholesalePrice: wholesalePrice ? Number(wholesalePrice) : Number(price),
+      unit: unit || 'Pcs',
+      gst: gst ? Number(gst) : 0,
+      expiryDate,
+      brand: brand || brandName,
       description,
       image: imageUrl,
-      isHighlight: isHighlight === 'true',
+      isHighlight: isHighlight === 'true' || isHighlight === true,
       isActive: isActive !== 'false', // Default true unless explicitly false
       stock: stock ? Number(stock) : 0,
+      cashbackPercentage: parsedCashbackRate,
       branding
     });
 
@@ -1077,7 +1090,20 @@ export const updateProduct = async (req, res) => {
     if (updates.isActive !== undefined) product.isActive = updates.isActive === 'true' || updates.isActive === true;
     if (updates.price !== undefined) product.price = Number(updates.price);
     if (updates.discountPrice !== undefined) product.discountPrice = Number(updates.discountPrice);
+    if (updates.mrp !== undefined) product.mrp = Number(updates.mrp);
+    if (updates.wholesalePrice !== undefined) product.wholesalePrice = Number(updates.wholesalePrice);
+    if (updates.gst !== undefined) product.gst = Number(updates.gst);
     if (updates.stock !== undefined) product.stock = Number(updates.stock);
+    if (updates.barcode !== undefined) product.barcode = String(updates.barcode).trim();
+    if (updates.unit !== undefined) product.unit = String(updates.unit).trim();
+    if (updates.expiryDate !== undefined) product.expiryDate = updates.expiryDate;
+    if (updates.brand !== undefined) product.brand = updates.brand;
+    if (updates.cashbackPercentage !== undefined) {
+      const parsedRate = Math.max(0, Math.min(100, Number(updates.cashbackPercentage) || 0));
+      product.cashbackPercentage = parsedRate;
+      if (!product.branding) product.branding = {};
+      product.branding.cashbackPercentage = parsedRate;
+    }
     
     // Generic strings
     ['name', 'category', 'sku', 'description'].forEach(key => {

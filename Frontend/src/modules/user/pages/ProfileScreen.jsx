@@ -459,17 +459,17 @@ export default function ProfileScreen() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
           <div 
-            onClick={() => navigate('/passbook')}
+            onClick={() => navigate('/wallet')}
             className="bg-[#D4E9FC]/40 hover:bg-[#D4E9FC]/60 border border-[#D4E9FC]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px] cursor-pointer active:scale-98 transition-all shadow-2xs hover:shadow-xs group"
-            title="View Wallet Passbook"
+            title="View Zeebac Points"
           >
             <div className="flex items-center justify-between">
-              <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">{t('Total Cashback')}</span>
+              <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">Zeebac Points</span>
               <span className="material-symbols-outlined text-[14px] text-[#0F4C81] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
             </div>
             <div>
-              <h3 className="font-display text-base font-black text-[#0f4c81] leading-none">₹{stats.totalEarned}</h3>
-              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">{t('In your wallet')}</p>
+              <h3 className="font-display text-base font-black text-[#0f4c81] leading-none">⭐ {Math.round(Number(stats.totalEarned) || 0)} Pts</h3>
+              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">Worth ₹{stats.totalEarned} (1 Pt = ₹1)</p>
             </div>
           </div>
           <div 
@@ -492,7 +492,20 @@ export default function ProfileScreen() {
         <div className="space-y-sm">
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">{t('Accounts & History')}</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
-        
+
+            <div 
+              onClick={() => navigate('/cart', { state: { viewOrders: true } })}
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
+            >
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[#7c3aed]">local_shipping</span>
+                <div>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">My Online Orders & Deliveries</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">Track rider deliveries & order history</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+            </div>
 
             <div 
               onClick={() => setSubView('linked-accounts')}
@@ -513,10 +526,10 @@ export default function ProfileScreen() {
               className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors"
             >
               <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">wallet</span>
+                <span className="material-symbols-outlined text-[#7c3aed]">stars</span>
                 <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('Rewards Wallet')}</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">{t('Check balance status, withdrawal & rewards')}</p>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">Zeebac Points (1 Pt = ₹1)</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">Check balance status & redeem for purchases</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>

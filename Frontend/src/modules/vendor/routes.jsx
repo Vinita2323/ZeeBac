@@ -21,6 +21,7 @@ import SupportPage from './pages/SupportPage';
 import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
 import VendorLoanPage from './pages/VendorLoanPage';
 import MerchantPaymentPage from './pages/MerchantPaymentPage';
+import B2BBillingPage from './pages/B2BBillingPage';
 
 export default function VendorRoutes() {
   const vendorUser = useAuthStore((s) => s.vendorUser) || (() => {
@@ -75,6 +76,8 @@ export default function VendorRoutes() {
             <Route path="log-transaction" element={<VendorLogTransactionScreen />} />
             <Route path="requests" element={<RequestsPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
+            <Route path="b2b-billing" element={<B2BBillingPage />} />
+            <Route path="b2b" element={<B2BBillingPage />} />
             <Route path="support" element={<SupportPage />} />
             <Route path="apply-loan" element={<VendorLoanPage />} />
             <Route path="loans" element={<VendorLoanPage />} />

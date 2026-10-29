@@ -1061,3 +1061,124 @@ export const SupportAPI = {
   },
 };
 
+// ── Order & Delivery Service (Direct UPI Intent & Product-Level Cashback) ──
+export const OrderAPI = {
+  createOrder: async (data) => {
+    const res = await apiClient.post('/orders', data);
+    return res.data;
+  },
+  verifyOrderUpi: async (orderId, utr) => {
+    const res = await apiClient.post(`/orders/${orderId}/verify-upi`, { utr });
+    return res.data;
+  },
+  getMyOrders: async (params = {}) => {
+    const res = await apiClient.get('/orders/my-orders', { params });
+    return res.data;
+  },
+  getOrderById: async (id) => {
+    const res = await apiClient.get(`/orders/${id}`);
+    return res.data;
+  },
+  getVendorOrders: async (params = {}) => {
+    const res = await apiClient.get('/orders/vendor/list', { params });
+    return res.data;
+  },
+  assignRider: async (orderId, riderData) => {
+    const res = await apiClient.patch(`/orders/${orderId}/assign-rider`, riderData);
+    return res.data;
+  },
+  updateOrderStatus: async (orderId, statusData) => {
+    const res = await apiClient.patch(`/orders/${orderId}/status`, statusData);
+    return res.data;
+  },
+  createVendorCashbackReserveUpiIntent: async (amount) => {
+    const res = await apiClient.post('/orders/vendor/cashback-reserve/upi-intent', { amount });
+    return res.data;
+  },
+  claimVendorCashbackReserveUpi: async (utr, amount) => {
+    const res = await apiClient.post('/orders/vendor/cashback-reserve/claim-upi', { utr, amount });
+    return res.data;
+  },
+};
+
+// ─── B2B (Manufacturer to Wholesaler & Barcode Billing) API ───
+export const B2BAPI = {
+  searchProducts: async (params) => {
+    const res = await apiClient.get('/b2b/products/search', { params });
+    return res.data;
+  },
+  searchBuyers: async (params) => {
+    const res = await apiClient.get('/b2b/buyers/search', { params });
+    return res.data;
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get('/b2b/dashboard-stats');
+    return res.data;
+  },
+  createInvoice: async (data) => {
+    const res = await apiClient.post('/b2b/invoices', data);
+    return res.data;
+  },
+  verifyAndTransferStock: async (invoiceId, data) => {
+    const res = await apiClient.post(`/b2b/invoices/${invoiceId}/verify-and-transfer`, data);
+    return res.data;
+  },
+  getSellerInvoices: async (params) => {
+    const res = await apiClient.get('/b2b/invoices/seller', { params });
+    return res.data;
+  },
+  getBuyerInvoices: async (params) => {
+    const res = await apiClient.get('/b2b/invoices/buyer', { params });
+    return res.data;
+  },
+  getInvoiceById: async (id) => {
+    const res = await apiClient.get(`/b2b/invoices/${id}`);
+    return res.data;
+  },
+  getStockLedger: async (params) => {
+    const res = await apiClient.get('/b2b/stock-ledger', { params });
+    return res.data;
+  },
+};
+
+// ─── Delivery Partner (Rider) API ───
+export const DeliveryAPI = {
+  login: async (data) => {
+    const res = await apiClient.post('/delivery/login', data);
+    return res.data;
+  },
+  getProfile: async () => {
+    const res = await apiClient.get('/delivery/profile');
+    return res.data;
+  },
+  updateProfile: async (data) => {
+    const res = await apiClient.patch('/delivery/profile', data);
+    return res.data;
+  },
+  toggleAvailability: async (data) => {
+    const res = await apiClient.patch('/delivery/availability', data);
+    return res.data;
+  },
+  updateLocation: async (data) => {
+    const res = await apiClient.patch('/delivery/location', data);
+    return res.data;
+  },
+  getOrders: async () => {
+    const res = await apiClient.get('/delivery/orders');
+    return res.data;
+  },
+  acceptOrder: async (id) => {
+    const res = await apiClient.post(`/delivery/orders/${id}/accept`);
+    return res.data;
+  },
+  updateOrderStatus: async (id, data) => {
+    const res = await apiClient.patch(`/delivery/orders/${id}/status`, data);
+    return res.data;
+  },
+  getHistory: async (params) => {
+    const res = await apiClient.get('/delivery/history', { params });
+    return res.data;
+  },
+};
+
+

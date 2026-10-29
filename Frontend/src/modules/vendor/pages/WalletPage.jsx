@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
-import { VendorAPI } from '../../../services/api';
+import { VendorAPI, OrderAPI } from '../../../services/api';
+import QRCode from 'qrcode';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
@@ -28,6 +29,12 @@ export default function WalletPage() {
   const [showPayLaterModal, setShowPayLaterModal] = useState(false);
   const [addAmount, setAmount] = useState(''); // Used for both add and withdraw
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Direct UPI Intent Top-up State for Cashback Reserve
+  const [upiTopupData, setUpiTopupData] = useState(null);
+  const [topupUtr, setTopupUtr] = useState('');
+  const [isVerifyingTopup, setIsVerifyingTopup] = useState(false);
+  const [copyVpaSuccess, setCopyVpaSuccess] = useState(false);
 
   // Bank Form & OTP State
   const [bankForm, setBankForm] = useState({
@@ -106,71 +113,68 @@ export default function WalletPage() {
     setIsProcessing(true);
 
     try {
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        alert('Razorpay SDK failed to load. Are you online?');
+      const res = await OrderAPI.createVendorCashbackReserveUpiIntent(Number(addAmount));
+      if (!res.success) {
+        alert(res.message || 'Failed to generate UPI Intent');
         setIsProcessing(false);
         return;
       }
 
-      const orderRes = await VendorAPI.createRazorpayOrder(addAmount);
-      if (!orderRes.success) {
-        alert('Failed to create order');
-        setIsProcessing(false);
-        return;
+      let qrDataUrl = '';
+      try {
+        qrDataUrl = await QRCode.toDataURL(res.data.upiUri, {
+          margin: 1,
+          width: 240,
+          color: { dark: '#1e1b4b', light: '#ffffff' },
+        });
+      } catch (e) {
+        console.warn('QR code generation fallback', e);
       }
 
-      const { order } = orderRes;
-
-      const options = {
-        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'ZeeBac Wallet',
-        description: 'Wallet Recharge',
-        order_id: order.id,
-        handler: async function (response) {
-          try {
-            const verifyRes = await VendorAPI.verifyRazorpayPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              amount: addAmount,
-            });
-
-            if (verifyRes.success) {
-              alert(`₹${addAmount} added successfully!`);
-              window.location.reload();
-            } else {
-              alert('Payment verification failed');
-            }
-          } catch (err) {
-            console.error(err);
-            alert('Error verifying payment');
-          }
-        },
-        prefill: {
-          name: currentUser.ownerName || currentUser.storeName || 'Vendor',
-          contact: currentUser.phone ? String(currentUser.phone).replace(/\D/g, '').slice(-10) : '',
-          email: currentUser.email || '',
-        },
-        theme: {
-          color: '#7E3AF2',
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function () {
-        alert('Payment failed');
+      setUpiTopupData({
+        ...res.data,
+        qrDataUrl,
       });
-      rzp.open();
+
+      // Mobile auto-intent
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isMobile && res.data.upiUri) {
+        window.location.href = res.data.upiUri;
+      }
     } catch (err) {
       console.error(err);
-      alert('Something went wrong');
+      alert(err.response?.data?.message || 'Error creating UPI Topup Intent');
     } finally {
       setIsProcessing(false);
-      setShowAddModal(false);
-      setAmount('');
+    }
+  };
+
+  const handleClaimUpiTopup = async () => {
+    if (!topupUtr.trim() || isVerifyingTopup) return;
+    const cleanUtr = topupUtr.trim();
+    if (!/^\d{12}$/.test(cleanUtr)) {
+      alert('Please enter a valid 12-digit UPI Reference ID (UTR)');
+      return;
+    }
+
+    setIsVerifyingTopup(true);
+    try {
+      const res = await OrderAPI.claimVendorCashbackReserveUpi(cleanUtr, upiTopupData.amount);
+      if (res.success) {
+        alert(res.message || 'Prepaid Cashback Reserve Pool topped up successfully!');
+        setUpiTopupData(null);
+        setShowAddModal(false);
+        setAmount('');
+        setTopupUtr('');
+        fetchWallet();
+      } else {
+        alert(res.message || 'Verification failed');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Error verifying UPI reference');
+    } finally {
+      setIsVerifyingTopup(false);
     }
   };
 
@@ -456,17 +460,20 @@ export default function WalletPage() {
                 <div className="relative z-10 flex justify-between items-start">
                   <div className="flex items-center gap-1.5 opacity-90">
                     <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-                    <span className="text-[11px] font-bold tracking-wider uppercase">{t('Cashback Wallet')}</span>
+                    <span className="text-[11px] font-bold tracking-wider uppercase">{t('Prepaid Cashback Reserve Pool')}</span>
                   </div>
-                  <span className="material-symbols-outlined text-[18px] opacity-60">contactless</span>
+                  <span className="material-symbols-outlined text-[18px] opacity-60">shield_lock</span>
                 </div>
 
                 {/* Balance Amount */}
                 <div className="relative z-10 my-2">
-                  <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">{t('Available Balance')}</p>
+                  <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">{t('Advance Zeebac Balance')}</p>
                   <h2 className="text-[30px] font-display font-black leading-none tracking-tight mt-0.5">
                     {loading ? '...' : `₹${displayBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </h2>
+                  <p className="text-[10px] text-purple-200/90 mt-1">
+                    Customer orders deliver hone par decided cashback points automatic yahan se deduct hote hain.
+                  </p>
                 </div>
 
                 {/* Card Footer */}
@@ -483,7 +490,7 @@ export default function WalletPage() {
                   className="py-2.5 px-1 sm:px-2 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  {t('Add Money')}
+                  {t('Top-up Reserve')}
                 </button>
 
                 <button
@@ -700,64 +707,134 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* ─── ADD FUNDS MODAL ─── */}
+      {/* ─── ADD FUNDS / TOP-UP RESERVE MODAL (DIRECT UPI INTENT) ─── */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowAddModal(false)} />
-          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-display text-[22px] font-black text-on-surface">{t('Add Funds')}</h3>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { if (!isProcessing && !isVerifyingTopup) { setShowAddModal(false); setUpiTopupData(null); } }} />
+          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto text-left">
+            <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-display text-[18px] font-black text-on-surface">Top-up Cashback Reserve</h3>
+                <p className="text-[11px] text-gray-500">Direct UPI Intent • Advance Zeebac Balance</p>
+              </div>
               <button
-                onClick={() => !isProcessing && setShowAddModal(false)}
+                onClick={() => { if (!isProcessing && !isVerifyingTopup) { setShowAddModal(false); setUpiTopupData(null); } }}
                 className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors active:scale-95 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Enter Amount')}</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[24px] font-black text-primary">₹</span>
-                  <input
-                    type="number"
-                    value={addAmount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0"
-                    disabled={isProcessing}
-                    className="w-full pl-11 pr-4 py-4 bg-surface-container-low border-2 border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[24px] font-black text-primary placeholder-primary/30 disabled:opacity-50"
-                  />
+            {!upiTopupData ? (
+              <div className="space-y-5">
+                <div className="bg-purple-50 p-3 rounded-2xl border border-purple-100 text-[11.5px] text-purple-900 leading-snug">
+                  Advance amount Zeebac account me jama rahega. Jaise hi customer purchase deliver hoga, decided cashback points automatic transfer honge.
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Quick Select')}</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setAmount('1000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors cursor-pointer">+ ₹1,000</button>
-                  <button onClick={() => setAmount('5000')} className="py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[14px] text-on-surface transition-colors cursor-pointer">+ ₹5,000</button>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Enter Amount')}</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[24px] font-black text-primary">₹</span>
+                    <input
+                      type="number"
+                      value={addAmount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0"
+                      disabled={isProcessing}
+                      className="w-full pl-11 pr-4 py-3.5 bg-surface-container-low border-2 border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[24px] font-black text-primary placeholder-primary/30 disabled:opacity-50"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <button
-                onClick={handleConfirmAddFunds}
-                disabled={!addAmount || isProcessing}
-                className={`w-full py-4 rounded-xl font-bold text-[16px] transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  addAmount && !isProcessing
-                    ? 'bg-primary text-white shadow-lg shadow-primary/30 active:scale-[0.98]'
-                    : 'bg-surface-container-high text-on-surface-variant/50'
-                }`}
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {t('Processing...')}
-                  </>
-                ) : (
-                  <>{t('Proceed to Pay')} {addAmount ? `₹${addAmount}` : ''}</>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Quick Select')}</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => setAmount('1000')} className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[13px] text-on-surface transition-colors cursor-pointer">+ ₹1,000</button>
+                    <button onClick={() => setAmount('2500')} className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[13px] text-on-surface transition-colors cursor-pointer">+ ₹2,500</button>
+                    <button onClick={() => setAmount('5000')} className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[13px] text-on-surface transition-colors cursor-pointer">+ ₹5,000</button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleConfirmAddFunds}
+                  disabled={!addAmount || isProcessing}
+                  className={`w-full py-3.5 rounded-xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    addAmount && !isProcessing
+                      ? 'bg-primary text-white shadow-lg shadow-primary/30 active:scale-[0.98]'
+                      : 'bg-surface-container-high text-on-surface-variant/50'
+                  }`}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Generating Direct UPI Intent...</span>
+                    </>
+                  ) : (
+                    <>Pay ₹{addAmount || '0'} via Direct UPI Intent</>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-purple-50 p-3 rounded-2xl text-center border border-purple-100">
+                  <p className="text-[10.5px] uppercase tracking-wider font-extrabold text-purple-900">Deposit Amount</p>
+                  <p className="font-display font-black text-[24px] text-primary">₹{upiTopupData.amount}</p>
+                  <p className="text-[11px] text-slate-600">To: {upiTopupData.payeeName}</p>
+                </div>
+
+                {/* Direct App Button */}
+                <a
+                  href={upiTopupData.upiUri}
+                  className="w-full py-3 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 text-center cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                  <span>Open in UPI App (GPay / PhonePe / Paytm)</span>
+                </a>
+
+                {/* Dynamic QR Code */}
+                {upiTopupData.qrDataUrl && (
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center space-y-1.5">
+                    <img src={upiTopupData.qrDataUrl} alt="UPI QR" className="w-36 h-36 mx-auto rounded-lg bg-white p-1 border border-slate-200" />
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-700">
+                      <span>UPI ID:</span>
+                      <span className="font-mono font-bold text-slate-900">{upiTopupData.payeeVpa}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(upiTopupData.payeeVpa);
+                          setCopyVpaSuccess(true);
+                          setTimeout(() => setCopyVpaSuccess(false), 2000);
+                        }}
+                        className="text-primary hover:underline font-bold text-[10.5px]"
+                      >
+                        {copyVpaSuccess ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
-            </div>
+
+                {/* 12-digit UTR submit */}
+                <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                  <label className="text-[11px] font-bold text-gray-800">Enter 12-digit UPI Reference ID (UTR):</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={12}
+                      value={topupUtr}
+                      onChange={(e) => setTopupUtr(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g. 523412349876"
+                      className="flex-1 h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-[12px] text-gray-900 focus:bg-white outline-none"
+                    />
+                    <button
+                      onClick={handleClaimUpiTopup}
+                      disabled={isVerifyingTopup}
+                      className="px-4 h-10 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shrink-0 cursor-pointer shadow-xs"
+                    >
+                      {isVerifyingTopup ? 'Verifying...' : 'Verify & Add'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

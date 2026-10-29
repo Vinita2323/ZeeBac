@@ -200,7 +200,7 @@ export default function WalletScreen() {
             >
               <span className="material-symbols-outlined text-primary">arrow_back</span>
             </button>
-            <span className="font-display text-title-md text-primary font-bold ml-1">{t('Rewards Wallet')}</span>
+            <span className="font-display text-title-md text-primary font-bold ml-1">Zeebac Points</span>
           </div>
         </div>
       </header>
@@ -241,29 +241,27 @@ export default function WalletScreen() {
         {/* Available rewards banner card */}
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
           <div className="space-y-sm">
-            <p className="font-caption text-[11px] text-on-surface-variant uppercase tracking-widest leading-none">{t('Total Cashback Reward')}</p>
-            <h2 className="text-[44px] font-display font-black text-primary leading-none">₹{balance.toFixed(2)}</h2>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800 text-[11px] font-black uppercase tracking-wider">
+              <span className="material-symbols-outlined text-[15px] text-amber-500">stars</span>
+              <span>1 Zeebac Point = ₹1 Rupee</span>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <h2 className="text-[44px] font-display font-black text-primary leading-none">{balance.toFixed(0)}</h2>
+              <span className="text-[20px] font-extrabold text-on-surface-variant">Pts</span>
+            </div>
+            <p className="text-[13px] font-bold text-emerald-600">Total Purchase Value: ₹{balance.toFixed(2)}</p>
+            <p className="text-[11.5px] text-on-surface-variant max-w-[280px] mx-auto leading-relaxed">
+              Use your points directly at checkout on any Zeebac registered merchant shop!
+            </p>
             {lockedBalance > 0 && (
               <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-[11px] font-bold">
                 <span className="material-symbols-outlined text-[14px]">lock_clock</span>
-                <span>₹{lockedBalance.toFixed(2)} {t('locked (24-hr)')} · {t('Withdrawable:')} ₹{withdrawableBalance.toFixed(2)}</span>
+                <span>{lockedBalance.toFixed(0)} Pts locked (24-hr)</span>
               </div>
             )}
           </div>
 
-          {/* Add Money Primary Button */}
-          <div className="pt-0.5">
-            <button
-              onClick={() => setSubView('addFunds')}
-              className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-primary via-purple-600 to-indigo-600 text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-md hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[20px]">add_circle</span>
-              <span>{t('Add Money to Wallet')}</span>
-              <span className="ml-auto text-[10px] bg-white/20 backdrop-blur-xs text-white px-2.5 py-0.5 rounded-full font-mono uppercase font-bold tracking-wider">0% Extra Charge</span>
-            </button>
-          </div>
-
-          {/* Quick buttons (Add Money, Withdrawal, Perks, History) */}
+          {/* Quick buttons (Add Money, Redeem/Shop, Perks, History) */}
           <div className="grid grid-cols-4 gap-2 pt-3 border-t border-outline-variant/10">
             <button 
               onClick={() => setSubView('addFunds')}
@@ -275,13 +273,13 @@ export default function WalletScreen() {
               <span className="font-label-mono text-[10px] text-primary font-bold">{t('Add Fund')}</span>
             </button>
             <button 
-              onClick={() => setSubView('cashout')}
+              onClick={() => navigate('/explore')}
               className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 group"
             >
-              <div className="w-11 h-11 bg-secondary/10 rounded-full flex items-center justify-center text-secondary group-hover:scale-105 transition-transform shadow-sm">
-                <span className="material-symbols-outlined text-[20px]">account_balance</span>
+              <div className="w-11 h-11 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform shadow-sm">
+                <span className="material-symbols-outlined text-[20px]">shopping_bag</span>
               </div>
-              <span className="font-label-mono text-[10px] text-on-surface-variant font-bold">{t('Withdrawal')}</span>
+              <span className="font-label-mono text-[10px] text-emerald-700 font-bold">Redeem Pts</span>
             </button>
             <button 
               onClick={() => setSubView('perks')}
@@ -739,12 +737,21 @@ function CashoutSubView({
           </div>
         )}
 
-        {/* Admin Review Info Banner */}
-        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-3 flex items-start gap-2.5">
-          <span className="material-symbols-outlined text-orange-600 text-[18px] mt-0.5 flex-shrink-0">info</span>
-          <div>
-            <p className="text-[12px] font-bold text-orange-800">100% Secure Manual Processing</p>
-            <p className="text-[11px] text-orange-700 mt-0.5">All withdrawals are reviewed by Admin (24-48 hrs)</p>
+        {/* Zeebac Points Reward Policy Banner */}
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 rounded-2xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-purple-700 text-[22px] mt-0.5 flex-shrink-0">stars</span>
+          <div className="space-y-1">
+            <p className="text-[13px] font-bold text-purple-900">Zeebac Points Reward Policy (1 Pt = ₹1)</p>
+            <p className="text-[11.5px] text-purple-800/90 leading-relaxed">
+              Zeebac points are earned on purchases and are 100% redeemable as purchase value at all registered merchant shops and checkout. Points are not real cash for bank transfer.
+            </p>
+            <button
+              onClick={() => navigate('/explore')}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-700 text-white font-bold text-[11px] shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[14px]">shopping_bag</span>
+              <span>Shop & Redeem Points (1 Pt = ₹1)</span>
+            </button>
           </div>
         </div>
 
@@ -2020,6 +2027,12 @@ function AddFundsSubView({ balance, currentUser, onBack, setBalance, onSuccess }
       setUtrInput('');
       setUtrError('');
       setShowQrModal(true);
+
+      // On mobile devices, automatically trigger the UPI Intent link to open UPI app picker
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isMobile && upiUri) {
+        window.location.href = upiUri;
+      }
     } catch (err) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to generate Dynamic UPI QR');
     } finally {

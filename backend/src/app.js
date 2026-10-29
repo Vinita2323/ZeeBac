@@ -9,7 +9,24 @@ const app = express();
 // Behind Nginx reverse proxy: trust the proxy hop so client IPs (and express-rate-limit) work accurately
 app.set('trust proxy', process.env.TRUST_PROXY ? (Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY) : 1);
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5001',
+  'https://zeebac-uds7.onrender.com',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || origin.endsWith('.onrender.com') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Fallback allow in dev
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -52,12 +69,18 @@ import webhookRoutes from './routes/webhook.routes.js';
 import posRoutes from './routes/pos.routes.js';
 import fcmRoutes from './routes/fcm.routes.js';
 import storyRoutes from './routes/story.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import b2bRoutes from './routes/b2b.routes.js';
+import deliveryRoutes from './routes/delivery.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.post('/api/vendor-app/login', vendorLogin); // Direct fallback alias for legacy client route
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
+app.use('/api/b2b', b2bRoutes);
+app.use('/api/delivery', deliveryRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/stories', storyRoutes);
 app.use('/api/support', supportRoutes);

@@ -61,6 +61,24 @@ export default function HomeScreen() {
   const [pendingCashRequest, setPendingCashRequest] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [location, setLocation] = useState(null);
+  const [homeSearchQuery, setHomeSearchQuery] = useState('');
+  const [showMoreServices, setShowMoreServices] = useState(false);
+
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return t('Good Morning!');
+    if (hour < 17) return t('Good Afternoon!');
+    return t('Good Evening!');
+  };
+
+  const handleSearchSubmit = (e) => {
+    e?.preventDefault();
+    if (homeSearchQuery.trim()) {
+      navigate('/explore', { state: { searchQuery: homeSearchQuery.trim() } });
+    } else {
+      navigate('/explore');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -221,14 +239,27 @@ export default function HomeScreen() {
       {/* Main Content Area */}
       <main className="flex-1 app-container px-container-margin py-md space-y-5 text-left">
 
-        {/* Greeting */}
-        <div className="flex items-center justify-between">
+        {/* Greeting matching Mockup Phone 2 */}
+        <div className="flex items-center justify-between pt-1">
           <div>
-            <h1 className="font-display text-[19px] font-black text-on-surface leading-tight">
-              {t('Hi,')} {(currentUser?.name || 'there').split(' ')[0]} 👋
+            <h1 className="font-display text-[20px] font-black text-on-surface leading-tight">
+              {t('Hello,')} {(currentUser?.name || 'Himanshu').split(' ')[0]} 👋
             </h1>
-            <p className="text-[12px] text-on-surface-variant font-medium mt-0.5">{t("Let's find you some cashback today")}</p>
+            <p className="text-[12.5px] text-on-surface-variant font-medium mt-0.5">
+              {getTimeGreeting()}
+            </p>
           </div>
+          <button
+            onClick={() => navigate('/profile')}
+            className="w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container border border-outline-variant/30 flex items-center justify-center text-primary cursor-pointer transition-all active:scale-95 shadow-xs overflow-hidden"
+            title="Profile"
+          >
+            {currentUser?.profileImage ? (
+              <img src={currentUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="material-symbols-outlined text-[24px]">account_circle</span>
+            )}
+          </button>
         </div>
 
         {/* Active Pending Cash OTP Banner */}
@@ -261,76 +292,208 @@ export default function HomeScreen() {
           </div>
         )}
 
-        {/* Balance chip */}
-        <div
-          onClick={() => navigate('/wallet')}
-          className="btn-primary-gradient rounded-2xl px-4 py-3.5 flex items-center justify-between shadow-lg shadow-primary/25 cursor-pointer active:scale-[0.98] transition-transform"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-white text-[20px]">account_balance_wallet</span>
+        {/* Search Product Card matching Brand Purple Theme */}
+        <div className="rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-[#16082f] via-[#2d0554] to-[#6000da] text-white shadow-lg relative overflow-hidden">
+          {/* Subtle decorative circles */}
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
+          <div className="absolute -left-6 -bottom-6 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
+
+          {/* Search Product Bar */}
+          <form onSubmit={handleSearchSubmit} className="relative z-10">
+            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
+              search
+            </span>
+            <input
+              type="text"
+              value={homeSearchQuery}
+              onChange={(e) => setHomeSearchQuery(e.target.value)}
+              placeholder={t('Search product')}
+              className="w-full h-11 pl-11 pr-10 bg-white text-slate-900 rounded-full font-medium text-[13.5px] placeholder:text-slate-400 italic shadow-sm outline-none border-2 border-transparent focus:border-purple-300 transition-all"
+            />
+            {homeSearchQuery ? (
+              <button
+                type="button"
+                onClick={() => setHomeSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary hover:bg-primary/90 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </button>
+            )}
+          </form>
+
+          {/* Zeebac Points Balance Quick Link */}
+          <div
+            onClick={() => navigate('/wallet')}
+            className="mt-3 pt-2.5 border-t border-white/15 flex items-center justify-between cursor-pointer group relative z-10"
+          >
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-300 text-[18px]">stars</span>
+              <span className="text-[11px] text-purple-100 font-bold">Zeebac Points (1 Pt = ₹1)</span>
             </div>
-            <div>
-              <p className="text-[10px] text-white/75 font-bold uppercase tracking-wider leading-none">{t('Rewards Wallet')}</p>
-              <p className="text-white font-display font-black text-[18px] mt-1 leading-none">{t('View Balance')}</p>
+            <div className="flex items-center gap-1 text-white text-[11.5px] font-bold group-hover:text-purple-200 transition-colors">
+              <span className="text-amber-300">⭐ Redeem Points</span>
+              <span className="material-symbols-outlined text-[14px]">chevron_right</span>
             </div>
           </div>
-          <span className="material-symbols-outlined text-white/80 text-[20px]">chevron_right</span>
         </div>
 
-        {/* Quick Actions Row */}
-        <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
-          {[
-            { label: t('Scan & Pay'), icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-            { label: t('Upload Bill'), icon: 'receipt_long', onClick: () => navigate('/request-cashback'), bg: 'from-[#260060] to-[#7000ff]' },
-            { label: t('Find Vendor'), icon: 'storefront', onClick: () => navigate('/find-vendor'), bg: 'from-[#16082f] to-[#4c00b0]' },
-            { label: t('Shop & Pay Later'), icon: 'credit_score', onClick: () => setShowPayLaterModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: t('Soon') },
-          ].map((action) => (
+        {/* Quick Actions matching Mockup Phone 2 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-[15px] font-black text-on-surface">
+              {t('Quick Actions')}
+            </h2>
             <button
-              key={action.label}
-              onClick={action.onClick}
-              className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-2xl bg-white/80 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
+              onClick={() => setShowMoreServices(!showMoreServices)}
+              className="text-[11px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-0.5"
             >
-              {action.badge && (
-                <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] sm:text-[8px] uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
-                  {action.badge}
-                </span>
-              )}
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
-                <span className="material-symbols-outlined text-[19px]">{action.icon}</span>
-              </div>
-              <span className="text-[9px] sm:text-[10px] font-bold text-on-surface-variant text-center leading-[1.15] h-[26px] sm:h-[28px] flex items-center justify-center px-0.5">
-                {action.label}
+              <span>{showMoreServices ? t('Less') : t('More Services')}</span>
+              <span className="material-symbols-outlined text-[14px]">
+                {showMoreServices ? 'expand_less' : 'expand_more'}
               </span>
             </button>
-          ))}
+          </div>
+
+          {/* Primary 4 Actions: Scan & Pay | My QR | Wallet | History */}
+          <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
+            {[
+              { label: t('Scan & Pay'), icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+              { label: t('My QR'), icon: 'qr_code_2', onClick: () => navigate('/profile', { state: { subView: 'qr-code' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+              { label: t('Wallet'), icon: 'account_balance_wallet', onClick: () => navigate('/wallet'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+              { label: t('History'), icon: 'history', onClick: () => navigate('/passbook'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+            ].map((action) => (
+              <button
+                key={action.label}
+                onClick={action.onClick}
+                className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-2xl bg-white/90 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
+              >
+                <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
+                  <span className="material-symbols-outlined text-[20px]">{action.icon}</span>
+                </div>
+                <span className="text-[10px] sm:text-[11px] font-bold text-on-surface-variant text-center leading-[1.15] h-[24px] flex items-center justify-center px-0.5">
+                  {action.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Secondary Quick Actions (More Services) */}
+          {showMoreServices && (
+            <div className="grid grid-cols-4 gap-2 sm:gap-2.5 pt-1 animate-fade-in">
+              {[
+                { label: t('Upload Bill'), icon: 'receipt_long', onClick: () => navigate('/request-cashback'), bg: 'from-[#260060] to-[#7000ff]' },
+                { label: t('Claim by UTR'), icon: 'receipt_long', onClick: () => { setShowUtrModal(true); setUtrError(''); setUtrSuccess(''); setUtrInput(''); }, bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+                { label: t('Mobile Recharge'), icon: 'phonelink_ring', onClick: () => navigate('/wallet', { state: { subView: 'recharge' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+                { label: t('Personal Loan'), icon: 'payments', onClick: () => setShowLoanModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: t('Soon') },
+              ].map((action) => (
+                <button
+                  key={action.label}
+                  onClick={action.onClick}
+                  className="relative flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-2xl bg-white/70 hover:bg-white border border-outline-variant/10 shadow-xs transition-all active:scale-[0.94] cursor-pointer"
+                >
+                  {action.badge && (
+                    <span className="absolute top-1 right-1 px-1 py-0.2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] uppercase tracking-wider rounded-md pointer-events-none">
+                      {action.badge}
+                    </span>
+                  )}
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
+                    <span className="material-symbols-outlined text-[17px]">{action.icon}</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-on-surface-variant text-center leading-[1.15] h-[22px] flex items-center justify-center px-0.5">
+                    {action.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Secondary Quick Actions Row - Exact same UI style as above */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-          {[
-            { label: t('Claim by UTR'), icon: 'receipt_long', onClick: () => { setShowUtrModal(true); setUtrError(''); setUtrSuccess(''); setUtrInput(''); }, bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-            { label: t('Mobile Recharge'), icon: 'phonelink_ring', onClick: () => navigate('/wallet', { state: { subView: 'recharge' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-            { label: t('Personal Loan'), icon: 'payments', onClick: () => setShowLoanModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: t('Soon') },
-          ].map((action) => (
+        {/* Cashback Banner matching Brand Theme */}
+        <div className="rounded-3xl p-4 bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-100/60 border border-purple-200/60 shadow-xs flex items-center justify-between gap-3 relative overflow-hidden">
+          <div className="min-w-0 space-y-1.5 z-10">
+            <div>
+              <p className="font-display font-black text-[17px] text-slate-900 leading-tight">
+                {t('Get 3%+ Cashback')}
+              </p>
+              <p className="text-[12px] text-slate-600 font-medium">
+                {t('at Zeebac Merchants')}
+              </p>
+            </div>
             <button
-              key={action.label}
-              onClick={action.onClick}
-              className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-2xl bg-white/80 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
+              onClick={() => navigate('/explore')}
+              className="px-4 py-2 btn-primary-gradient text-white rounded-full font-black text-[11px] shadow-sm shadow-primary/20 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1"
             >
-              {action.badge && (
-                <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] sm:text-[8px] uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
-                  {action.badge}
-                </span>
-              )}
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
-                <span className="material-symbols-outlined text-[19px]">{action.icon}</span>
-              </div>
-              <span className="text-[9px] sm:text-[10px] font-bold text-on-surface-variant text-center leading-[1.15] h-[26px] sm:h-[28px] flex items-center justify-center px-0.5">
-                {action.label}
-              </span>
+              <span>{t('Shop Now')}</span>
+              <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
             </button>
-          ))}
+          </div>
+
+          {/* Friendly Zeebac Cashback Mascot SVG */}
+          <div className="shrink-0 relative z-10 w-24 h-24 flex items-center justify-center">
+            <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
+              {/* Leaves */}
+              <path d="M 65 30 C 80 15, 85 40, 68 45 Z" fill="#9333ea" />
+              <path d="M 25 35 C 10 20, 15 45, 30 50 Z" fill="#7c3aed" />
+              {/* Antenna */}
+              <circle cx="50" cy="18" r="4" fill="#a855f7" />
+              <path d="M 50 18 L 50 26" stroke="#6000da" strokeWidth="2.5" strokeLinecap="round" />
+              {/* Head / Monitor */}
+              <rect x="22" y="26" width="56" height="46" rx="14" fill="#fb923c" stroke="#ea580c" strokeWidth="2" />
+              {/* Inner Screen */}
+              <rect x="28" y="32" width="44" height="34" rx="8" fill="#ffffff" />
+              {/* Eyes */}
+              <circle cx="41" cy="46" r="3.5" fill="#1e293b" />
+              <circle cx="59" cy="46" r="3.5" fill="#1e293b" />
+              <circle cx="42" cy="44.5" r="1.2" fill="#ffffff" />
+              <circle cx="60" cy="44.5" r="1.2" fill="#ffffff" />
+              {/* Rosy Cheeks */}
+              <circle cx="36" cy="51" r="2.5" fill="#f472b6" opacity="0.6" />
+              <circle cx="64" cy="51" r="2.5" fill="#f472b6" opacity="0.6" />
+              {/* Smile */}
+              <path d="M 46 52 Q 50 56 54 52" fill="none" stroke="#1e293b" strokeWidth="2" strokeLinecap="round" />
+              {/* Body */}
+              <path d="M 36 72 L 64 72 L 68 88 L 32 88 Z" fill="#6000da" />
+              {/* Coin / Cash Badge */}
+              <circle cx="50" cy="80" r="6" fill="#fbbf24" stroke="#d97706" strokeWidth="1" />
+              <text x="50" y="83" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#78350f">₹</text>
+            </svg>
+          </div>
+        </div>
+
+        {/* Popular Categories matching Brand Theme */}
+        <div className="space-y-2.5">
+          <h2 className="font-display text-[15px] font-black text-on-surface">
+            {t('Popular Categories')}
+          </h2>
+
+          <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
+            {[
+              { label: t('Groceries'), catName: 'Grocery', icon: 'shopping_basket', bg: 'bg-purple-50 text-primary border-purple-100' },
+              { label: t('FMCG'), catName: 'FMCG', icon: 'local_drink', bg: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+              { label: t('Household'), catName: 'Household', icon: 'home', bg: 'bg-purple-50 text-purple-800 border-purple-100' },
+              { label: t('Personal Care'), catName: 'Personal Care', icon: 'sanitizer', bg: 'bg-purple-50 text-[#7c3aed] border-purple-100' },
+            ].map((cat) => (
+              <button
+                key={cat.catName}
+                onClick={() => navigate('/explore', { state: { category: cat.catName } })}
+                className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-2xl bg-white border border-outline-variant/15 hover:border-primary/30 shadow-xs hover:shadow-sm transition-all active:scale-95 cursor-pointer"
+              >
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${cat.bg}`}>
+                  <span className="material-symbols-outlined text-[22px]">{cat.icon}</span>
+                </div>
+                <span className="text-[10px] sm:text-[10.5px] font-bold text-on-surface text-center truncate max-w-full">
+                  {cat.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Upload Bill Banner (Flow 1 Banner) */}
@@ -501,7 +664,7 @@ export default function HomeScreen() {
               )}
 
               {utrSuccess && (
-                <p className="text-emerald-600 text-[12px] font-bold flex items-center gap-1">
+                <p className="text-primary text-[12px] font-bold flex items-center gap-1">
                   <span className="material-symbols-outlined text-[16px]">check_circle</span>
                   {utrSuccess}
                 </p>

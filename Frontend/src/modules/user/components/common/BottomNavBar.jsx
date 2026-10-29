@@ -1,15 +1,23 @@
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import useLanguageStore from '../../../../store/useLanguageStore';
+import useCartStore from '../../../../store/useCartStore';
 
 export default function BottomNavBar() {
   const location = useLocation();
   const { t } = useLanguageStore();
+  const initCart = useCartStore((state) => state.initCart);
+  const cartItemsCount = useCartStore((state) => state.getTotalItemsCount());
+
+  useEffect(() => {
+    initCart();
+  }, [initCart]);
 
   const navItems = [
     { label: 'Home', icon: 'home', path: '/home' },
-    { label: 'Explore', icon: 'storefront', path: '/explore' },
-    { label: 'History', icon: 'history', path: '/passbook' },
-    { label: 'Chats', icon: 'forum', path: '/chat' },
+    { label: 'Shops', icon: 'storefront', path: '/explore' },
+    { label: 'BNPL', icon: 'credit_score', path: '/bnpl' },
+    { label: 'Cart', icon: 'shopping_cart', path: '/cart', badge: cartItemsCount },
     { label: 'Profile', icon: 'person', path: '/profile' }
   ];
 
@@ -22,18 +30,25 @@ export default function BottomNavBar() {
             <Link
               key={item.label}
               to={item.path}
-              className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-90 cursor-pointer py-1.5 px-2.5 sm:px-3.5 rounded-2xl flex-1 max-w-[80px] ${
+              className={`relative flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-90 cursor-pointer py-1.5 px-2.5 sm:px-3.5 rounded-2xl flex-1 max-w-[80px] ${
                 isActive
                   ? 'btn-primary-gradient text-white shadow-md shadow-primary/25 font-semibold'
                   : 'text-[#7c3aed]/55 hover:text-[#7c3aed] hover:bg-[#7c3aed]/5'
               }`}
             >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
-              >
-                {item.icon}
-              </span>
+              <div className="relative flex items-center justify-center">
+                <span
+                  className="material-symbols-outlined text-[20px]"
+                  style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
+                >
+                  {item.icon}
+                </span>
+                {item.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-amber-400 text-purple-950 font-black text-[9px] flex items-center justify-center shadow-xs">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </div>
               <span className="font-display text-[9px] font-bold tracking-wide truncate max-w-full">{t(item.label)}</span>
             </Link>
           );

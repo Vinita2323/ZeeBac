@@ -15,6 +15,12 @@ import AdminLoginScreen from './modules/admin/pages/AdminLoginScreen';
 import VendorLandingScreen from './modules/vendor/pages/VendorLandingScreen';
 import VendorOnboardingWizard from './modules/vendor/pages/onboarding/VendorOnboardingWizard';
 
+// Delivery Partner Screens
+import DeliveryLoginScreen from './modules/delivery/pages/DeliveryLoginScreen';
+import DeliveryDashboardScreen from './modules/delivery/pages/DeliveryDashboardScreen';
+import DeliveryHistoryScreen from './modules/delivery/pages/DeliveryHistoryScreen';
+import DeliveryProfileScreen from './modules/delivery/pages/DeliveryProfileScreen';
+
 // Global State & UI
 import useAuthStore from './store/useAuthStore';
 import GlobalAlertDialog from './components/GlobalAlertDialog';
@@ -572,6 +578,13 @@ function App() {
 
           {/* ─── Admin Login (Public) ─── */}
           <Route path="/admin/login" element={<AdminLoginScreen />} />
+
+          {/* ─── Delivery Partner App (Rider) ─── */}
+          <Route path="/delivery/login" element={<DeliveryLoginScreen />} />
+          <Route path="/delivery/dashboard" element={<DeliveryDashboardScreen />} />
+          <Route path="/delivery/history" element={<DeliveryHistoryScreen />} />
+          <Route path="/delivery/profile" element={<DeliveryProfileScreen />} />
+          <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />
 
           {/* ─── Vendor Dashboard (Protected) ─── */}
           <Route 
