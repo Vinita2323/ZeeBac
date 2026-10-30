@@ -834,17 +834,12 @@ export default function CartScreen() {
 
       {/* Main Content */}
       <main className="flex-1 app-container px-3.5 sm:px-4 py-4 space-y-3.5 text-left">
-        {/* Model Highlights Notice Banner */}
-        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 text-white p-3.5 rounded-2xl shadow-md space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-amber-400 text-[20px]">stars</span>
-            <p className="text-[12.5px] font-black text-amber-300">
-              Zeebac Points & Direct Store Delivery
-            </p>
-          </div>
-          <p className="text-[11px] text-purple-100 leading-snug">
-            Each product earns decided cashback points <strong className="text-white">(1 Pt = ₹1)</strong> upon delivery. Use your points anytime to pay for your groceries and store orders!
-          </p>
+        {/* 1 Zeebac Point = 1 Rs. Banner */}
+        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 text-white px-4 py-2.5 rounded-2xl shadow-xs flex items-center justify-center gap-2 text-center">
+          <span className="material-symbols-outlined text-amber-400 text-[18px]">stars</span>
+          <span className="text-[13px] font-black text-amber-300 tracking-wide">
+            1 Zeebac Point = 1 Rs.
+          </span>
         </div>
 
         {/* Fulfillment Type Toggle (Pickup vs Delivery) */}
