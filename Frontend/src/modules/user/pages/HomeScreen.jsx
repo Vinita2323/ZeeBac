@@ -4,8 +4,6 @@ import { UserAPI, API_BASE_URL } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
-import NotificationPanel from '../components/common/NotificationPanel';
-import useNotifications from '../../../hooks/useNotifications';
 import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 import useLanguageStore from '../../../store/useLanguageStore';
@@ -71,9 +69,6 @@ const demoShops = [
 export default function HomeScreen() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguageStore();
-  const bellRef = useRef(null);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const { unreadCount } = useNotifications();
 
 
   const handleVendorClick = (vendor) => {
@@ -87,12 +82,6 @@ export default function HomeScreen() {
   const [location, setLocation] = useState(null);
   const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
-  const getTimeGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return t('Good Morning!');
-    if (hour < 17) return t('Good Afternoon!');
-    return t('Good Evening!');
-  };
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
@@ -212,12 +201,6 @@ export default function HomeScreen() {
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
 
-      {/* Notification Panel (slide-in from right) */}
-      <NotificationPanel
-        isOpen={isNotifOpen}
-        onClose={() => setIsNotifOpen(false)}
-        triggerRef={bellRef}
-      />
 
       <PermissionPrimerModal
         open={showLocationPrimer}
@@ -228,75 +211,7 @@ export default function HomeScreen() {
         onSkip={handleSkipLocation}
       />
 
-      <header className="sticky top-0 z-50 glass-header px-4 py-2 border-b border-outline-variant/10 shadow-sm">
-        <div className="app-container flex items-center justify-between">
-          <img
-            alt="Zeebac Logo"
-            className="h-[60px] object-contain cursor-pointer"
-            src="/Logo (6).png"
-            onClick={() => navigate('/home')}
-          />
-          <div className="flex items-center gap-1.5">
-            {/* Language Switcher */}
-            <button 
-              type="button"
-              onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-              className="flex items-center justify-center px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface-variant hover:text-primary text-[12px] font-bold cursor-pointer transition-all active:scale-95 shadow-xs"
-              title={language === 'en' ? 'Switch to Hindi / हिन्दी में बदलें' : 'Switch to English / अंग्रेज़ी में बदलें'}
-            >
-              <span className="leading-none flex items-center tracking-tight">
-                <span className={language === 'en' ? 'text-primary font-black' : 'text-on-surface-variant/50 font-medium'}>Eng</span>
-                <span className="text-outline-variant/60 font-normal">/</span>
-                <span className={language === 'hi' ? 'text-primary font-black' : 'text-on-surface-variant/50 font-medium'}>हि</span>
-              </span>
-            </button>
-
-            <button onClick={() => navigate('/chat')} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-9 h-9 rounded-full hover:bg-primary/5">
-              <span className="material-symbols-outlined text-[24px]">chat_bubble</span>
-            </button>
-            {/* 🔔 Notification Bell */}
-            <button
-              ref={bellRef}
-              onClick={() => navigate('/notifications')}
-              className="relative text-[#7c3aed] hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-9 h-9 rounded-full hover:bg-primary/5"
-            >
-              <span className="material-symbols-outlined text-[24px]">notifications</span>
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-[9px] font-black px-0.5">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex-1 app-container px-container-margin py-md space-y-5 text-left">
-
-        {/* Greeting matching Mockup Phone 2 */}
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <h1 className="font-display text-[20px] font-black text-on-surface leading-tight">
-              {t('Hello,')} {(currentUser?.name || 'Himanshu').split(' ')[0]} 👋
-            </h1>
-            <p className="text-[12.5px] text-on-surface-variant font-medium mt-0.5">
-              {getTimeGreeting()}
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/profile')}
-            className="w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container border border-outline-variant/30 flex items-center justify-center text-primary cursor-pointer transition-all active:scale-95 shadow-xs overflow-hidden"
-            title="Profile"
-          >
-            {currentUser?.profileImage ? (
-              <img src={currentUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <span className="material-symbols-outlined text-[24px]">account_circle</span>
-            )}
-          </button>
-        </div>
-
+      <main className="flex-1 app-container px-container-margin py-md pt-4 space-y-5 text-left">
 
         {/* Search Product Card matching Brand Purple Theme */}
         <div className="rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-[#16082f] via-[#2d0554] to-[#6000da] text-white shadow-lg relative overflow-hidden">
