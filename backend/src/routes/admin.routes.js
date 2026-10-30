@@ -57,6 +57,19 @@ import {
   updateSupportConfig
 } from '../controllers/support.controller.js';
 import { saveAdminFcmToken } from '../controllers/notification.controller.js';
+import {
+  getAdminDeliveryStats,
+  getAdminDeliveryPartners,
+  getAdminDeliveryPartnerById,
+  adminApproveDeliveryPartner,
+  adminRejectDeliveryPartner,
+  adminMarkUnderReview,
+  adminSuspendDeliveryPartner,
+  adminReactivateDeliveryPartner,
+  adminGetLiveDeliveryOperations,
+  adminAssignDeliveryOrder,
+  adminCancelDeliveryAssignment,
+} from '../controllers/delivery.controller.js';
 
 const router = express.Router();
 
@@ -164,5 +177,20 @@ router.get('/subscription-payments', getAdminSubscriptionPayments);
 router.route('/content/legal')
   .get(getAdminLegalContent)
   .put(updateAdminLegalContent);
+
+
+// ─── Delivery Partner Management & Live Operations ───
+router.get('/delivery/stats', getAdminDeliveryStats);
+router.get('/delivery/partners', getAdminDeliveryPartners);
+router.get('/delivery/partners/:id', getAdminDeliveryPartnerById);
+router.post('/delivery/partners/:id/approve', adminApproveDeliveryPartner);
+router.post('/delivery/partners/:id/reject', adminRejectDeliveryPartner);
+router.post('/delivery/partners/:id/under-review', adminMarkUnderReview);
+router.post('/delivery/partners/:id/suspend', adminSuspendDeliveryPartner);
+router.post('/delivery/partners/:id/reactivate', adminReactivateDeliveryPartner);
+
+router.get('/delivery/operations/live', adminGetLiveDeliveryOperations);
+router.post('/delivery/operations/assign', adminAssignDeliveryOrder);
+router.post('/delivery/operations/cancel-assignment', adminCancelDeliveryAssignment);
 
 export default router;

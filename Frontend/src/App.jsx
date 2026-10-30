@@ -20,6 +20,9 @@ import DeliveryLoginScreen from './modules/delivery/pages/DeliveryLoginScreen';
 import DeliveryDashboardScreen from './modules/delivery/pages/DeliveryDashboardScreen';
 import DeliveryHistoryScreen from './modules/delivery/pages/DeliveryHistoryScreen';
 import DeliveryProfileScreen from './modules/delivery/pages/DeliveryProfileScreen';
+import DeliveryOnboardingWizard from './modules/delivery/pages/DeliveryOnboardingWizard';
+import DeliveryStatusScreen from './modules/delivery/pages/DeliveryStatusScreen';
+import DeliveryEarningsScreen from './modules/delivery/pages/DeliveryEarningsScreen';
 
 // Global State & UI
 import useAuthStore from './store/useAuthStore';

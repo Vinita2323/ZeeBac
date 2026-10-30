@@ -28,6 +28,8 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
     { label: 'Users', icon: 'group', path: '/admin/users' },
     { label: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
+    { label: 'Delivery Partners', icon: 'two_wheeler', path: '/admin/delivery-partners' },
+    { label: 'Live Deliveries', icon: 'route', path: '/admin/delivery-operations' },
     { label: 'Subscription Plans', icon: 'card_membership', path: '/admin/subscriptions' },
     { label: 'Transactions', icon: 'receipt_long', path: '/admin/transactions' },
     { label: 'Payout Requests', icon: 'payments', path: '/admin/payouts' },

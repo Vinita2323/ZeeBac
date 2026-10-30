@@ -5,6 +5,8 @@ import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import VendorsPage from './pages/VendorsPage';
 import VendorApplicationDetailPage from './pages/VendorApplicationDetailPage';
+import DeliveryPartnersPage from './pages/DeliveryPartnersPage';
+import DeliveryOperationsPage from './pages/DeliveryOperationsPage';
 import TransactionsPage from './pages/TransactionsPage';
 import CashbackRulesPage from './pages/CashbackRulesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -27,6 +29,8 @@ export default function AdminRoutes() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/vendors/:id" element={<VendorApplicationDetailPage />} />
+        <Route path="/delivery-partners" element={<DeliveryPartnersPage />} />
+        <Route path="/delivery-operations" element={<DeliveryOperationsPage />} />
         <Route path="/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/rules" element={<CashbackRulesPage />} />

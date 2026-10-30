@@ -34,13 +34,17 @@ apiClient.interceptors.request.use((config) => {
     token = useAuthStore.getState().vendorToken || localStorage.getItem('zeebac_vendor_token');
   } else if (url.startsWith('/admin') || url.startsWith('admin') || url.includes('/admin/')) {
     token = useAuthStore.getState().adminToken || localStorage.getItem('zeebac_admin_token');
+  } else if (url.startsWith('/delivery') || url.startsWith('delivery') || url.includes('/delivery/')) {
+    token = localStorage.getItem('zeebac_delivery_token') || useAuthStore.getState().accessToken;
   } else if (url.startsWith('/user') || url.startsWith('user') || url.includes('/user/')) {
     token = useAuthStore.getState().customerToken || localStorage.getItem('zeebac_customer_token');
   }
 
   // 2. Location-based fallback if generic endpoint (e.g. /chat, /notifications)
   if (!token && typeof window !== 'undefined') {
-    if (window.location.pathname.startsWith('/vendor')) {
+    if (window.location.pathname.startsWith('/delivery')) {
+      token = localStorage.getItem('zeebac_delivery_token');
+    } else if (window.location.pathname.startsWith('/vendor')) {
       token = useAuthStore.getState().vendorToken || localStorage.getItem('zeebac_vendor_token');
     } else if (window.location.pathname.startsWith('/admin')) {
       token = useAuthStore.getState().adminToken || localStorage.getItem('zeebac_admin_token');
@@ -227,6 +231,51 @@ export const AuthAPI = {
 
 // ── Admin Service ──
 export const AdminAPI = {
+  // Delivery Partner Management & Operations
+  getDeliveryStats: async () => {
+    const res = await apiClient.get('/admin/delivery/stats');
+    return res.data;
+  },
+  getDeliveryPartners: async (params = {}) => {
+    const res = await apiClient.get('/admin/delivery/partners', { params });
+    return res.data;
+  },
+  getDeliveryPartnerById: async (id) => {
+    const res = await apiClient.get(`/admin/delivery/partners/${id}`);
+    return res.data;
+  },
+  approveDeliveryPartner: async (id, data = {}) => {
+    const res = await apiClient.post(`/admin/delivery/partners/${id}/approve`, data);
+    return res.data;
+  },
+  rejectDeliveryPartner: async (id, reason) => {
+    const res = await apiClient.post(`/admin/delivery/partners/${id}/reject`, { reason });
+    return res.data;
+  },
+  markDeliveryPartnerUnderReview: async (id, notes = '') => {
+    const res = await apiClient.post(`/admin/delivery/partners/${id}/under-review`, { notes });
+    return res.data;
+  },
+  suspendDeliveryPartner: async (id, reason) => {
+    const res = await apiClient.post(`/admin/delivery/partners/${id}/suspend`, { reason });
+    return res.data;
+  },
+  reactivateDeliveryPartner: async (id, reason = '') => {
+    const res = await apiClient.post(`/admin/delivery/partners/${id}/reactivate`, { reason });
+    return res.data;
+  },
+  getLiveDeliveryOperations: async () => {
+    const res = await apiClient.get('/admin/delivery/operations/live');
+    return res.data;
+  },
+  assignDeliveryOrder: async (orderId, riderId) => {
+    const res = await apiClient.post('/admin/delivery/operations/assign', { orderId, riderId });
+    return res.data;
+  },
+  cancelDeliveryAssignment: async (orderId, reason = '') => {
+    const res = await apiClient.post('/admin/delivery/operations/cancel-assignment', { orderId, reason });
+    return res.data;
+  },
   saveAdminFcmToken: async (token) => {
     const res = await apiClient.post('/admin/fcm-token', { token });
     return res.data;
@@ -1160,6 +1209,10 @@ export const B2BAPI = {
 
 // ─── Delivery Partner (Rider) API ───
 export const DeliveryAPI = {
+  register: async (data) => {
+    const res = await apiClient.post('/delivery/register', data);
+    return res.data;
+  },
   login: async (data) => {
     const res = await apiClient.post('/delivery/login', data);
     return res.data;
@@ -1194,6 +1247,22 @@ export const DeliveryAPI = {
   },
   getHistory: async (params) => {
     const res = await apiClient.get('/delivery/history', { params });
+    return res.data;
+  },
+  getStatus: async () => {
+    const res = await apiClient.get('/delivery/status');
+    return res.data;
+  },
+  resubmit: async (data) => {
+    const res = await apiClient.post('/delivery/resubmit', data);
+    return res.data;
+  },
+  rejectOrder: async (id, reason) => {
+    const res = await apiClient.post(`/delivery/orders/${id}/reject`, { reason });
+    return res.data;
+  },
+  getEarnings: async () => {
+    const res = await apiClient.get('/delivery/earnings');
     return res.data;
   },
 };

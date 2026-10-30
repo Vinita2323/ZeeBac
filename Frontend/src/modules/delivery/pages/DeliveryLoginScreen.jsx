@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { toast } from 'react-hot-toast';
@@ -9,12 +9,10 @@ export default function DeliveryLoginScreen() {
   const setAuth = useDeliveryStore((state) => state.setAuth);
 
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [vehicleType, setVehicleType] = useState('Bike');
-  const [vehicleNo, setVehicleNo] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpStep, setShowOtpStep] = useState(false);
   const [otp, setOtp] = useState('1234');
+  const [notRegisteredError, setNotRegisteredError] = useState(false);
 
   const handlePhoneSubmit = (e) => {
     e.preventDefault();
@@ -23,30 +21,41 @@ export default function DeliveryLoginScreen() {
       toast.error('Please enter a valid 10-digit mobile number');
       return;
     }
+    setNotRegisteredError(false);
     setShowOtpStep(true);
   };
 
   const handleVerifyAndLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    try {
-      const res = await DeliveryAPI.login({
-        phone: phone.replace(/\D/g, '').slice(-10),
-        name: name.trim() || undefined,
-        vehicleType,
-        vehicleNo: vehicleNo.trim().toUpperCase() || undefined,
-      });
+    setNotRegisteredError(false);
 
-      if (res.success) {
-        setAuth(res.data.rider, res.data.token);
-        toast.success(`Welcome, ${res.data.rider.name}!`);
-        navigate('/delivery/dashboard');
+    try {
+      const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      const res = await DeliveryAPI.login({ phone: cleanPhone });
+
+      if (res.success && res.data) {
+        const { rider, token, applicationStatus } = res.data;
+        setAuth(rider, token);
+
+        if (applicationStatus === 'APPROVED') {
+          toast.success(`Welcome back, ${rider.name}!`);
+          navigate('/delivery/dashboard');
+        } else {
+          toast.success('Login successful. Checking application status...');
+          navigate('/delivery/status');
+        }
       } else {
         toast.error(res.message || 'Login failed');
       }
     } catch (err) {
       console.error('Rider login failed', err);
-      toast.error(err.response?.data?.message || 'Login failed, please try again');
+      if (err.response?.status === 404) {
+        setNotRegisteredError(true);
+        toast.error('No partner account found with this number. Please register first.');
+      } else {
+        toast.error(err.response?.data?.message || 'Login failed, please try again');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +82,7 @@ export default function DeliveryLoginScreen() {
           <form onSubmit={handlePhoneSubmit} className="space-y-4 text-left">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Mobile Number *
+                Registered Mobile Number *
               </label>
               <div className="flex items-center gap-2">
                 <span className="px-3.5 py-3 rounded-2xl bg-slate-100 text-[13px] font-bold text-slate-700 select-none">
@@ -83,54 +92,13 @@ export default function DeliveryLoginScreen() {
                   type="tel"
                   maxLength={10}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    setPhone(e.target.value.replace(/\D/g, ''));
+                    setNotRegisteredError(false);
+                  }}
                   placeholder="98765 43210"
                   className="flex-1 py-3 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-[15px] font-bold text-slate-900 focus:outline-none focus:border-primary transition-all font-mono"
                   autoFocus
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Rider Full Name (Optional)
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ramesh Kumar"
-                className="w-full py-3 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-[13.5px] font-medium text-slate-900 focus:outline-none focus:border-primary transition-all"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  Vehicle Type
-                </label>
-                <select
-                  value={vehicleType}
-                  onChange={(e) => setVehicleType(e.target.value)}
-                  className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:border-primary"
-                >
-                  <option value="Bike">Motorcycle</option>
-                  <option value="Scooter">Scooter / Scooty</option>
-                  <option value="EV">Electric 2W</option>
-                  <option value="Cycle">Bicycle</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  Vehicle Number
-                </label>
-                <input
-                  type="text"
-                  value={vehicleNo}
-                  onChange={(e) => setVehicleNo(e.target.value.toUpperCase())}
-                  placeholder="UP32 AB 1234"
-                  className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:border-primary uppercase font-mono"
                 />
               </div>
             </div>
@@ -140,9 +108,21 @@ export default function DeliveryLoginScreen() {
               disabled={phone.length < 10}
               className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg shadow-primary/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <span>Get OTP</span>
+              <span>Get OTP to Login</span>
               <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
             </button>
+
+            {/* Registration Banner */}
+            <div className="pt-2 border-t border-slate-100 text-center space-y-2">
+              <p className="text-[12px] text-slate-500">Want to earn as a ZeeBac Delivery Partner?</p>
+              <Link
+                to="/delivery/onboarding"
+                className="w-full py-3 px-4 rounded-2xl bg-purple-50 text-primary border border-purple-200 font-bold text-[13px] hover:bg-purple-100 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[18px]">person_add</span>
+                <span>Register as Delivery Partner</span>
+              </Link>
+            </div>
           </form>
         ) : (
           <form onSubmit={handleVerifyAndLogin} className="space-y-4 text-left">
@@ -166,6 +146,21 @@ export default function DeliveryLoginScreen() {
               />
             </div>
 
+            {notRegisteredError && (
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-left space-y-2">
+                <p className="text-[12px] text-amber-800 font-medium">
+                  We could not find an account with +91 {phone}. Please register to become a partner.
+                </p>
+                <Link
+                  to="/delivery/onboarding"
+                  className="w-full py-2.5 rounded-xl btn-primary-gradient text-white text-center font-bold text-[12px] shadow-sm flex items-center justify-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[16px]">app_registration</span>
+                  <span>Register Now</span>
+                </Link>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isLoading || otp.length < 4}
@@ -176,14 +171,17 @@ export default function DeliveryLoginScreen() {
               ) : (
                 <>
                   <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                  <span>Verify & Start Delivering</span>
+                  <span>Verify & Login</span>
                 </>
               )}
             </button>
 
             <button
               type="button"
-              onClick={() => setShowOtpStep(false)}
+              onClick={() => {
+                setShowOtpStep(false);
+                setNotRegisteredError(false);
+              }}
               className="w-full py-2 text-center text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
             >
               Change Mobile Number

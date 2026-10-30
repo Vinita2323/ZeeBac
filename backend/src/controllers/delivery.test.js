@@ -6,12 +6,21 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import {
+  deliveryRegister,
   deliveryLogin,
+  getDeliveryStatus,
+  resubmitApplication,
   toggleAvailability,
   getDeliveryOrders,
   acceptDeliveryOrder,
   updateDeliveryOrderStatus,
   getDeliveryHistory,
+  getDeliveryEarnings,
+  adminApproveDeliveryPartner,
+  adminRejectDeliveryPartner,
+  adminSuspendDeliveryPartner,
+  adminReactivateDeliveryPartner,
+  adminAssignDeliveryOrder,
 } from './delivery.controller.js';
 
 vi.mock('../socket/index.js', () => ({
@@ -90,7 +99,7 @@ const setupDeliveryEnvironment = async () => {
     totalAmount: 300,
     pointsRedeemed: 0,
     finalPayableAmount: 300,
-    totalCashbackPoints: 30, // 30 Zeebac Points to be awarded on delivery
+    totalCashbackPoints: 30, // 30 Zeebac Points awarded on delivery
     fulfillmentType: 'delivery',
     paymentMethod: 'UPI_INTENT',
     paymentStatus: 'PAID',
@@ -100,16 +109,68 @@ const setupDeliveryEnvironment = async () => {
   return { vendor, vendorWallet, customer, custWallet, order };
 };
 
-describe('Delivery Partner (Rider) System Suite', () => {
-  it('logs in / onboards delivery partner with phone number and returns JWT', async () => {
+describe('Production Delivery Partner (Rider) & Admin Suite', () => {
+  it('registers a new delivery partner and sets status to PENDING_REVIEW', async () => {
     const req = {
       body: {
+        name: 'Raju Sharma',
         phone: '9888877777',
-        name: 'Raju Rider',
+        email: 'raju@example.com',
         vehicleType: 'Bike',
-        vehicleNo: 'UP32 AB 9999',
+        vehicleNo: 'UP32 AB 1234',
+        vehicleModel: 'Hero Splendor',
+        address: {
+          street: '12 Vikas Nagar',
+          city: 'Lucknow',
+          pincode: '226022',
+        },
+        documents: {
+          aadhaarNo: '123456789012',
+          drivingLicenceNo: 'UP3220200001234',
+        },
+        bankDetails: {
+          accountHolderName: 'Raju Sharma',
+          bankName: 'SBI',
+          accountNumber: '12345678901',
+          ifscCode: 'SBIN0001234',
+          upiId: 'raju@upi',
+        },
       },
     };
+    const res = makeRes();
+
+    await deliveryRegister(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const body = res.json.mock.calls[0][0];
+    expect(body.success).toBe(true);
+    expect(body.data.token).toBeDefined();
+    expect(body.data.rider.applicationStatus).toBe('PENDING_REVIEW');
+    expect(body.data.rider.isOnline).toBe(false);
+  });
+
+  it('rejects unregistered mobile on login with 404', async () => {
+    const req = { body: { phone: '9000000000' } };
+    const res = makeRes();
+
+    await deliveryLogin(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    const body = res.json.mock.calls[0][0];
+    expect(body.success).toBe(false);
+    expect(body.isRegistered).toBe(false);
+  });
+
+  it('logs in an existing partner and returns JWT token and rider details', async () => {
+    const rider = await DeliveryPartner.create({
+      riderId: 'DLV-1001',
+      name: 'Raju Sharma',
+      phone: '9888877777',
+      applicationStatus: 'APPROVED',
+      isOnline: false,
+    });
+
+    const req = { body: { phone: '9888877777' } };
     const res = makeRes();
 
     await deliveryLogin(req, res);
@@ -118,41 +179,52 @@ describe('Delivery Partner (Rider) System Suite', () => {
     const body = res.json.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data.token).toBeDefined();
-    expect(body.data.rider.phone).toBe('9888877777');
-    expect(body.data.rider.isOnline).toBe(true);
-    expect(body.data.rider.status).toBe('AVAILABLE');
+    expect(body.data.rider.riderId).toBe('DLV-1001');
   });
 
-  it('toggles rider availability between Online and Offline', async () => {
+  it('admin approves delivery partner and rider is then allowed to go online', async () => {
     const rider = await DeliveryPartner.create({
-      riderId: 'DLV-1001',
-      name: 'Raju Rider',
-      phone: '9888877777',
-      isOnline: true,
-      status: 'AVAILABLE',
+      riderId: 'DLV-1002',
+      name: 'Mohit Verma',
+      phone: '9777766666',
+      applicationStatus: 'PENDING_REVIEW',
+      isOnline: false,
     });
 
-    const req = {
+    // 1. Try toggling availability while PENDING_REVIEW -> must fail with 403
+    const unapprovedReq = {
       user: { id: rider._id.toString() },
-      body: { isOnline: false },
+      body: { isOnline: true },
     };
-    const res = makeRes();
+    const unapprovedRes = makeRes();
+    await toggleAvailability(unapprovedReq, unapprovedRes);
+    expect(unapprovedRes.status).toHaveBeenCalledWith(403);
 
-    await toggleAvailability(req, res);
+    // 2. Admin approves partner
+    const adminReq = {
+      user: { id: 'admin123', name: 'Super Admin' },
+      params: { id: rider._id.toString() },
+      body: {},
+    };
+    const adminRes = makeRes();
+    await adminApproveDeliveryPartner(adminReq, adminRes);
+    expect(adminRes.status).toHaveBeenCalledWith(200);
 
-    expect(res.status).toHaveBeenCalledWith(200);
-    const body = res.json.mock.calls[0][0];
-    expect(body.data.isOnline).toBe(false);
-    expect(body.data.status).toBe('OFFLINE');
+    // 3. Partner can now go online!
+    const approvedRes = makeRes();
+    await toggleAvailability(unapprovedReq, approvedRes);
+    expect(approvedRes.status).toHaveBeenCalledWith(200);
+    expect(approvedRes.json.mock.calls[0][0].data.isOnline).toBe(true);
   });
 
   it('fetches available delivery orders and accepts an order with 4-digit OTP generation', async () => {
     const { order } = await setupDeliveryEnvironment();
     const rider = await DeliveryPartner.create({
-      riderId: 'DLV-1002',
-      name: 'Raju Rider',
-      phone: '9888877777',
+      riderId: 'DLV-1003',
+      name: 'Suresh Kumar',
+      phone: '9666655555',
       vehicleNo: 'UP32 ZZ 1111',
+      applicationStatus: 'APPROVED',
       isOnline: true,
       status: 'AVAILABLE',
     });
@@ -186,13 +258,14 @@ describe('Delivery Partner (Rider) System Suite', () => {
     expect(updatedRider.activeOrderId.toString()).toBe(order._id.toString());
   });
 
-  it('progresses order to PICKED_UP and completes DELIVERED with OTP verification and automatic settlement', async () => {
+  it('progresses order through ARRIVED_AT_PICKUP, PICKED_UP and DELIVERED with OTP verification and automatic settlement', async () => {
     const { order, customer, custWallet, vendorWallet } = await setupDeliveryEnvironment();
     const rider = await DeliveryPartner.create({
-      riderId: 'DLV-1003',
-      name: 'Raju Rider',
-      phone: '9888877777',
+      riderId: 'DLV-1004',
+      name: 'Vikas Singh',
+      phone: '9555544444',
       vehicleNo: 'UP32 ZZ 2222',
+      applicationStatus: 'APPROVED',
       isOnline: true,
       status: 'AVAILABLE',
     });
@@ -206,7 +279,20 @@ describe('Delivery Partner (Rider) System Suite', () => {
     const assignedOrder = await Order.findById(order._id);
     const deliveryOtp = assignedOrder.riderDetails.deliveryOtp;
 
-    // 1. Mark PICKED_UP
+    // 1. Mark ARRIVED_AT_PICKUP
+    const arrivedRes = makeRes();
+    await updateDeliveryOrderStatus(
+      {
+        user: { id: rider._id.toString() },
+        params: { id: order._id.toString() },
+        body: { status: 'ARRIVED_AT_PICKUP' },
+      },
+      arrivedRes
+    );
+    expect(arrivedRes.status).toHaveBeenCalledWith(200);
+    expect(arrivedRes.json.mock.calls[0][0].data.order.orderStatus).toBe('ARRIVED_AT_PICKUP');
+
+    // 2. Mark PICKED_UP
     const pickUpRes = makeRes();
     await updateDeliveryOrderStatus(
       {
@@ -219,7 +305,7 @@ describe('Delivery Partner (Rider) System Suite', () => {
     expect(pickUpRes.status).toHaveBeenCalledWith(200);
     expect(pickUpRes.json.mock.calls[0][0].data.order.orderStatus).toBe('OUT_FOR_DELIVERY');
 
-    // 2. Try delivering with wrong OTP -> fails
+    // 3. Try delivering with wrong OTP -> fails
     const wrongOtpRes = makeRes();
     await updateDeliveryOrderStatus(
       {
@@ -231,7 +317,7 @@ describe('Delivery Partner (Rider) System Suite', () => {
     );
     expect(wrongOtpRes.status).toHaveBeenCalledWith(400);
 
-    // 3. Deliver with correct OTP -> success!
+    // 4. Deliver with correct OTP -> success!
     const deliverRes = makeRes();
     await updateDeliveryOrderStatus(
       {
@@ -259,34 +345,58 @@ describe('Delivery Partner (Rider) System Suite', () => {
     expect(finalRider.activeOrderId).toBeNull();
   });
 
-  it('fetches delivery history with earnings summary', async () => {
-    const { order } = await setupDeliveryEnvironment();
+  it('fetches delivery earnings breakdown and ledger records', async () => {
     const rider = await DeliveryPartner.create({
-      riderId: 'DLV-1004',
-      name: 'Raju Rider',
-      phone: '9888877777',
-      totalEarnings: 50,
-      completedDeliveries: 1,
+      riderId: 'DLV-1005',
+      name: 'Deepak Yadav',
+      phone: '9444433333',
+      totalEarnings: 150,
+      completedDeliveries: 3,
+      earningsLedger: [
+        { amount: 50, date: new Date(), description: 'Order delivery payout' },
+        { amount: 50, date: new Date(), description: 'Order delivery payout' },
+        { amount: 50, date: new Date(), description: 'Order delivery payout' },
+      ],
+      bankDetails: { upiId: 'deepak@upi' },
     });
 
-    order.riderDetails = {
-      name: rider.name,
-      phone: rider.phone,
-      deliveredAt: new Date(),
-    };
-    order.orderStatus = 'DELIVERED';
-    await order.save();
-
-    const req = { user: { id: rider._id.toString() }, query: {} };
+    const req = { user: { id: rider._id.toString() } };
     const res = makeRes();
 
-    await getDeliveryHistory(req, res);
+    await getDeliveryEarnings(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     const body = res.json.mock.calls[0][0];
     expect(body.success).toBe(true);
-    expect(body.data.history.length).toBe(1);
-    expect(body.data.totalEarnings).toBe(50);
-    expect(body.data.totalDeliveries).toBe(1);
+    expect(body.data.totalEarnings).toBe(150);
+    expect(body.data.totalCompletedDeliveries).toBe(3);
+    expect(body.data.ledger.length).toBe(3);
+    expect(body.data.bankDetails.upiId).toBe('deepak@upi');
+  });
+
+  it('admin suspends a partner and prevents further order handling', async () => {
+    const rider = await DeliveryPartner.create({
+      riderId: 'DLV-1006',
+      name: 'Bad Rider',
+      phone: '9333322222',
+      applicationStatus: 'APPROVED',
+      isOnline: true,
+      status: 'AVAILABLE',
+    });
+
+    const suspendReq = {
+      user: { id: 'admin1', name: 'Admin User' },
+      params: { id: rider._id.toString() },
+      body: { reason: 'Customer fraud reported' },
+    };
+    const suspendRes = makeRes();
+
+    await adminSuspendDeliveryPartner(suspendReq, suspendRes);
+
+    expect(suspendRes.status).toHaveBeenCalledWith(200);
+    const updated = await DeliveryPartner.findById(rider._id);
+    expect(updated.applicationStatus).toBe('SUSPENDED');
+    expect(updated.isSuspended).toBe(true);
+    expect(updated.isOnline).toBe(false);
   });
 });
