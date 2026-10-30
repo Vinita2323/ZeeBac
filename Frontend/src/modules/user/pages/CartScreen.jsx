@@ -85,7 +85,7 @@ export default function CartScreen() {
     return (
       formatAddress(currentUser?.location?.address) ||
       formatAddress(currentUser?.address) ||
-      'Flat 402, Royal Residency, Hazratganj, Lucknow'
+      ''
     );
   });
 
@@ -140,8 +140,9 @@ export default function CartScreen() {
           const defaultAddr = res.data.addresses.find((a) => a.isDefault) || res.data.addresses[0];
           setSelectedAddressId(defaultAddr._id);
           setDeliveryAddress(formatSavedAddressString(defaultAddr));
-        } else if (currentUser?.location?.address) {
+        } else if (currentUser?.location?.address && formatAddress(currentUser.location.address)) {
           const autoAddr = {
+            _id: 'auto_addr_1',
             label: 'Home',
             houseNo: formatAddress(currentUser.location.address),
             street: '',
@@ -153,6 +154,8 @@ export default function CartScreen() {
             receiverPhone: currentUser.phone || '',
             isDefault: true,
           };
+          setSavedAddresses([autoAddr]);
+          setSelectedAddressId(autoAddr._id);
           setDeliveryAddress(formatSavedAddressString(autoAddr));
         }
       } catch (err) {
@@ -312,29 +315,42 @@ export default function CartScreen() {
     setIsSavingAddress(true);
 
     try {
-      const res = await UserAPI.addSavedAddress(newAddressForm);
-      if (res.success && res.data) {
-        const updatedList = res.addresses || [...savedAddresses, res.data];
-        setSavedAddresses(updatedList);
-        setSelectedAddressId(res.data._id);
-        setDeliveryAddress(formatSavedAddressString(res.data));
-        setShowAddAddressModal(false);
-        setShowAddressPickerModal(false);
-        setNewAddressForm({
-          houseNo: '',
-          street: '',
-          landmark: '',
-          city: 'Lucknow',
-          state: 'Uttar Pradesh',
-          pincode: '',
-          receiverName: currentUser?.name || '',
-          receiverPhone: currentUser?.phone || '',
-          label: 'Home',
-          isDefault: false,
-        });
-      } else {
-        setAddressFormError(res.message || 'Failed to save address');
+      let savedDoc = null;
+      try {
+        const res = await UserAPI.addSavedAddress(newAddressForm);
+        if (res.success && res.data) {
+          savedDoc = res.data;
+          const updatedList = res.addresses || [...savedAddresses, res.data];
+          setSavedAddresses(updatedList);
+        }
+      } catch (apiErr) {
+        console.warn('Backend address save failed, falling back to local address:', apiErr);
       }
+
+      if (!savedDoc) {
+        savedDoc = {
+          _id: 'addr_' + Date.now(),
+          ...newAddressForm,
+        };
+        setSavedAddresses((prev) => [...prev, savedDoc]);
+      }
+
+      setSelectedAddressId(savedDoc._id);
+      setDeliveryAddress(formatSavedAddressString(savedDoc));
+      setShowAddAddressModal(false);
+      setShowAddressPickerModal(false);
+      setNewAddressForm({
+        houseNo: '',
+        street: '',
+        landmark: '',
+        city: currentUser?.location?.city || 'Lucknow',
+        state: currentUser?.location?.state || 'Uttar Pradesh',
+        pincode: '',
+        receiverName: currentUser?.name || '',
+        receiverPhone: currentUser?.phone || '',
+        label: 'Home',
+        isDefault: false,
+      });
     } catch (err) {
       setAddressFormError(err.response?.data?.message || err.message || 'Error saving address');
     } finally {
@@ -871,81 +887,7 @@ export default function CartScreen() {
           </button>
         </div>
 
-        {/* ── STEP 1: ZOMATO-STYLE DELIVERY ADDRESS CARD ── */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
-          {fulfillmentType === 'pickup' ? (
-            <div className="flex items-start gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                <span className="material-symbols-outlined text-[20px]">storefront</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-[13px] text-slate-900">{effectiveVendor.storeName} Counter</p>
-                <p className="text-[11.5px] text-slate-500 mt-0.5 leading-tight">{formatAddress(effectiveVendor.address) || 'Hazratganj, Lucknow'}</p>
-                <span className="inline-block mt-1.5 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md">
-                  Ready in 10-15 mins • No Waiting
-                </span>
-              </div>
-            </div>
-          ) : selectedSavedAddress ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-purple-700 text-[20px]">home_pin</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-black text-slate-900">
-                      Deliver to: {selectedSavedAddress.label || 'Home'}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-purple-100 text-purple-800 rounded-md">
-                      {selectedSavedAddress.label || 'Home'}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setShowAddressPickerModal(true)}
-                  className="text-[11.5px] font-black text-purple-700 hover:text-purple-900 uppercase tracking-wider cursor-pointer hover:underline"
-                >
-                  {t('Change')}
-                </button>
-              </div>
-
-              <div className="pl-7 space-y-1">
-                <p className="text-[12.5px] font-bold text-slate-800 leading-snug">
-                  {selectedSavedAddress.houseNo}, {selectedSavedAddress.street}
-                  {selectedSavedAddress.landmark ? `, Near ${selectedSavedAddress.landmark}` : ''}
-                </p>
-                <p className="text-[11.5px] text-slate-500">
-                  {selectedSavedAddress.city} - {selectedSavedAddress.pincode}
-                </p>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Recipient: <strong className="text-slate-700">{selectedSavedAddress.receiverName}</strong> ({selectedSavedAddress.receiverPhone})
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[22px]">add_location_alt</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-[13px] text-slate-900">Add Delivery Address</h3>
-                  <p className="text-[11px] text-slate-500">Choose where you want your order delivered</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowAddAddressModal(true)}
-                className="px-3.5 py-2 rounded-xl btn-primary-gradient text-white text-[11.5px] font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[15px]">add</span>
-                <span>{t('Add Address')}</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* ── STEP 2: CART ITEMS LIST (ZOMATO STYLE) ── */}
+        {/* ── STEP 1: CART ITEMS LIST (ZOMATO STYLE) ── */}
         <div className="bg-white rounded-3xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <h2 className="font-display font-black text-[14px] text-slate-900">
@@ -1183,6 +1125,87 @@ export default function CartScreen() {
           </div>
         </div>
 
+        {/* ── STEP 5: DELIVERY ADDRESS / STORE PICKUP (RIGHT BEFORE PAYMENT) ── */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3 animate-reveal">
+          {fulfillmentType === 'pickup' ? (
+            <div className="flex items-start gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="material-symbols-outlined text-[20px]">storefront</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-[13px] text-slate-900">{effectiveVendor.storeName} Counter</p>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                    Store Pickup
+                  </span>
+                </div>
+                <p className="text-[11.5px] text-slate-500 mt-0.5 leading-tight">{formatAddress(effectiveVendor.address) || 'Hazratganj, Lucknow'}</p>
+                <span className="inline-block mt-1 text-[10.5px] font-semibold text-emerald-700">
+                  Ready in 10-15 mins • No Waiting
+                </span>
+              </div>
+            </div>
+          ) : selectedSavedAddress ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-purple-700 text-[20px]">location_on</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[13px] font-black text-slate-900">
+                      Deliver to: {selectedSavedAddress.label || 'Home'}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded">
+                      {selectedSavedAddress.label || 'Home'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddressPickerModal(true)}
+                  className="text-[11.5px] font-bold text-purple-700 hover:text-purple-900 cursor-pointer hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+
+              <div className="pl-6 space-y-0.5">
+                <p className="text-[12px] font-bold text-slate-800 leading-snug">
+                  {selectedSavedAddress.houseNo}, {selectedSavedAddress.street}
+                  {selectedSavedAddress.landmark ? `, Near ${selectedSavedAddress.landmark}` : ''}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {selectedSavedAddress.city} - {selectedSavedAddress.pincode}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Recipient: <span className="text-slate-700 font-semibold">{selectedSavedAddress.receiverName}</span> ({selectedSavedAddress.receiverPhone})
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">add_location_alt</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[13px] text-slate-900">Delivery Address</h3>
+                  <p className="text-[11px] text-slate-500">Add an address where you want this delivered</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddAddressModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-[11.5px] font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[15px]">add</span>
+                <span>Add Address</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* ── STEP 6: PAYMENT METHOD SELECTOR ── */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
           <h3 className="font-display font-black text-[14px] text-slate-900">
@@ -1265,30 +1288,41 @@ export default function CartScreen() {
             </div>
           </div>
 
-          <button
-            onClick={handlePlaceOrder}
-            disabled={isProcessing}
-            className={`flex-1 py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all ${
-              isProcessing ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-          >
-            {isProcessing ? (
-              <>
-                <span className="animate-spin material-symbols-outlined text-[18px]">progress_activity</span>
-                <span>Processing Order...</span>
-              </>
-            ) : paymentMethod === 'Points' ? (
-              <>
-                <span className="material-symbols-outlined text-[18px]">stars</span>
-                <span>Place Order with Points</span>
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-[18px]">bolt</span>
-                <span>Pay ₹{formatCurrency(finalPayableAmount)} via Direct UPI</span>
-              </>
-            )}
-          </button>
+          {!isPickup && !selectedSavedAddress && !deliveryAddress?.trim() ? (
+            <button
+              type="button"
+              onClick={() => setShowAddAddressModal(true)}
+              className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-600 hover:opacity-95 text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-purple-600/25 cursor-pointer active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+              <span>Add Address to Proceed</span>
+            </button>
+          ) : (
+            <button
+              onClick={handlePlaceOrder}
+              disabled={isProcessing}
+              className={`flex-1 py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all ${
+                isProcessing ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+            >
+              {isProcessing ? (
+                <>
+                  <span className="animate-spin material-symbols-outlined text-[18px]">progress_activity</span>
+                  <span>Processing Order...</span>
+                </>
+              ) : paymentMethod === 'Points' ? (
+                <>
+                  <span className="material-symbols-outlined text-[18px]">stars</span>
+                  <span>Place Order with Points</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[18px]">bolt</span>
+                  <span>Pay ₹{formatCurrency(finalPayableAmount)} via Direct UPI</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </footer>
 
