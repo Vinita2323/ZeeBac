@@ -910,19 +910,41 @@ export const searchVendors = async (req, res) => {
 
     let baseQuery = {};
     if (q) {
-      const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      baseQuery = {
-        $or: [
-          { storeName: { $regex: escapedQ, $options: 'i' } },
-          { ownerName: { $regex: escapedQ, $options: 'i' } },
-          { zeebacId: { $regex: escapedQ, $options: 'i' } },
-          { category: { $regex: escapedQ, $options: 'i' } },
-          { subCategory: { $regex: escapedQ, $options: 'i' } },
-          { phone: { $regex: escapedQ, $options: 'i' } },
-        ]
-      };
+      const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+      // Also search products to find vendors selling items matching the search
+      let productVendorIds = [];
+      try {
+        const matchingProducts = await Product.find({
+          $or: [
+            { name: { $regex: escapedQ, $options: "i" } },
+            { description: { $regex: escapedQ, $options: "i" } },
+            { category: { $regex: escapedQ, $options: "i" } },
+            { brand: { $regex: escapedQ, $options: "i" } }
+          ],
+          isActive: true
+        }).select("vendorId").lean();
+
+        productVendorIds = matchingProducts.map(p => p.vendorId).filter(Boolean);
+      } catch (prodErr) {
+        logger.warn(`Failed searching products in searchVendors: ${prodErr.message}`);
+      }
+
+      const orConditions = [
+        { storeName: { $regex: escapedQ, $options: "i" } },
+        { ownerName: { $regex: escapedQ, $options: "i" } },
+        { zeebacId: { $regex: escapedQ, $options: "i" } },
+        { category: { $regex: escapedQ, $options: "i" } },
+        { subCategory: { $regex: escapedQ, $options: "i" } },
+        { phone: { $regex: escapedQ, $options: "i" } },
+      ];
+
+      if (productVendorIds.length > 0) {
+        orConditions.push({ _id: { $in: productVendorIds } });
+      }
+
+      baseQuery = { $or: orConditions };
     }
-    
     const query = getStoreVisibilityQuery(baseQuery);
 
     if (lat && lng) {

@@ -281,33 +281,43 @@ export default function HomeScreen() {
           <div className="absolute -left-6 -bottom-6 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
 
           {/* Search Product Bar */}
-          <form onSubmit={handleSearchSubmit} className="relative z-10">
-            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
-              search
-            </span>
+          <form onSubmit={handleSearchSubmit} className="relative z-10 flex items-center">
+            <button
+              type="submit"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-purple-700 transition-colors cursor-pointer flex items-center justify-center"
+              title="Search"
+            >
+              <span className="material-symbols-outlined text-[20px]">search</span>
+            </button>
+
             <input
               type="text"
               value={homeSearchQuery}
               onChange={(e) => setHomeSearchQuery(e.target.value)}
-              placeholder={t('Search product')}
-              className="w-full h-11 pl-11 pr-10 bg-white text-slate-900 rounded-full font-medium text-[13.5px] placeholder:text-slate-400 italic shadow-sm outline-none border-2 border-transparent focus:border-purple-300 transition-all"
+              placeholder={t('Search products, stores & daily needs...')}
+              className="w-full h-11 pl-11 pr-20 bg-white text-slate-900 rounded-full font-medium text-[13.5px] placeholder:text-slate-400 italic shadow-sm outline-none border-2 border-transparent focus:border-purple-300 transition-all"
             />
-            {homeSearchQuery ? (
-              <button
-                type="button"
-                onClick={() => setHomeSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            ) : (
+
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {homeSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setHomeSearchQuery('')}
+                  className="w-7 h-7 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Clear"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              )}
+
               <button
                 type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary hover:bg-primary/90 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full btn-primary-gradient text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-xs"
+                title="Search"
               >
                 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               </button>
-            )}
+            </div>
           </form>
 
           {/* Zeebac Points Balance Quick Link */}

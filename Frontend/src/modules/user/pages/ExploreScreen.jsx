@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
