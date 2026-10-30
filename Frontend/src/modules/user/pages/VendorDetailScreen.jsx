@@ -590,10 +590,10 @@ export default function VendorDetailScreen() {
               </div>
               <div className="text-left">
                 <p className="font-extrabold text-[13px] leading-tight text-white">
-                  {cartItemsCount} {cartItemsCount === 1 ? 'item' : 'items'} • ₹{cartTotalAmount}
+                  {cartItemsCount} {cartItemsCount === 1 ? 'item' : 'items'} • ₹{Math.round((Number(cartTotalAmount) || 0) * 100) / 100}
                 </p>
                 <p className="text-[11px] font-bold text-amber-300 mt-0.5 flex items-center gap-1">
-                  <span>🎉 Earn ₹{cartTotalCashback} Cashback</span>
+                  <span>🎉 Earn ₹{Math.round((Number(cartTotalCashback) || 0) * 100) / 100} Cashback</span>
                 </p>
               </div>
             </div>

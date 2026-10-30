@@ -15,16 +15,16 @@ const formatAddress = (addr) => {
   if (!addr) return '';
   if (typeof addr === 'string') return addr;
   if (typeof addr === 'object') {
-    const parts = [
-      addr.fullAddress || addr.street,
-      addr.landmark,
-      addr.city,
-      addr.state,
-      addr.pincode,
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(', ') : '';
+    return [addr.fullAddress || addr.street, addr.landmark, addr.city, addr.state, addr.pincode]
+      .filter(Boolean)
+      .join(', ');
   }
   return String(addr);
+};
+
+const formatCurrency = (val) => {
+  const num = Math.round((Number(val) || 0) * 100) / 100;
+  return Number.isInteger(num) ? num.toString() : num.toFixed(2);
 };
 
 export default function CartScreen() {
@@ -32,7 +32,8 @@ export default function CartScreen() {
   const { t } = useLanguageStore();
 
   const currentUser = useAuthStore((state) => state.currentUser);
-  const walletBalance = useAuthStore((state) => state.walletBalance) || 0; // Zeebac Points balance (1 Point = ₹1)
+  const rawWalletBalance = useAuthStore((state) => state.walletBalance) || 0;
+  const walletBalance = Math.round((Number(rawWalletBalance) || 0) * 100) / 100; // Zeebac Points balance (1 Point = ₹1)
   const updateBalance = useAuthStore((state) => state.updateBalance);
 
   // Cart store
@@ -49,7 +50,7 @@ export default function CartScreen() {
 
   // Points redemption state (1 Point = ₹1)
   const [usePoints, setUsePoints] = useState(false);
-  const maxRedeemablePoints = Math.min(walletBalance, totalAmount);
+  const maxRedeemablePoints = Math.round(Math.min(walletBalance, totalAmount) * 100) / 100;
   const pointsRedeemed = usePoints ? maxRedeemablePoints : 0;
   const finalPayableAmount = Math.max(0, Math.round((totalAmount - pointsRedeemed) * 100) / 100);
 
@@ -134,7 +135,7 @@ export default function CartScreen() {
         }));
         // Update user's points balance in auth store
         if (updateBalance && data.cashbackEarned) {
-          updateBalance(walletBalance + Number(data.cashbackEarned));
+          updateBalance(Math.round((walletBalance + Number(data.cashbackEarned || 0)) * 100) / 100);
         }
         playNotificationChime('incoming');
         speakVoice(`Congratulations! Order delivered. ${data.cashbackEarned} Zeebac Points credited.`);
@@ -533,7 +534,7 @@ export default function CartScreen() {
                       Qty: {item.quantity} × ₹{item.price}
                     </p>
                     <span className="inline-block text-[9.5px] font-extrabold text-primary bg-purple-50 px-1.5 py-0.2 rounded-md mt-0.5">
-                      {item.cashbackPercentage}% Cashback = +{item.cashbackPoints} Zeebac Points
+                      {item.cashbackPercentage}% Cashback = +{formatCurrency(item.cashbackPoints)} Zeebac Points
                     </span>
                   </div>
                   <span className="font-black text-slate-900 shrink-0">
@@ -547,18 +548,18 @@ export default function CartScreen() {
             <div className="pt-2 border-t border-slate-100 space-y-1 text-[12px]">
               <div className="flex justify-between text-slate-600">
                 <span>Total Bill Amount:</span>
-                <span className="font-bold text-slate-900 font-mono">₹{activeOrder.totalAmount}</span>
+                <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(activeOrder.totalAmount)}</span>
               </div>
               {activeOrder.pointsRedeemed > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Zeebac Points Redeemed:</span>
-                  <span className="font-mono">-₹{activeOrder.pointsRedeemed}</span>
+                  <span className="font-mono">-₹{formatCurrency(activeOrder.pointsRedeemed)}</span>
                 </div>
               )}
               <div className="flex justify-between text-[13.5px] font-black text-slate-900 pt-1 border-t border-slate-100">
                 <span>Final Paid ({activeOrder.paymentMethod}):</span>
                 <span className="text-primary font-mono text-[15px]">
-                  ₹{activeOrder.finalPayableAmount}
+                  ₹{formatCurrency(activeOrder.finalPayableAmount)}
                 </span>
               </div>
             </div>
@@ -746,7 +747,7 @@ export default function CartScreen() {
                       </div>
                       {/* Product Specific Cashback Badge */}
                       <span className="inline-block text-[9.5px] font-extrabold text-primary bg-purple-50 px-1.5 py-0.2 rounded-md mt-0.5">
-                        {item.cashbackPercentage}% Cashback = +{itemCashback} Zeebac Points
+                        {item.cashbackPercentage}% Cashback = +{formatCurrency(itemCashback)} Zeebac Points
                       </span>
                     </div>
                   </div>
@@ -785,7 +786,7 @@ export default function CartScreen() {
               <div>
                 <p className="font-black text-[13px] text-slate-900">Use Zeebac Points</p>
                 <p className="text-[11px] text-slate-500">
-                  Available: <strong className="text-primary">{walletBalance} Points</strong> (Value: ₹{walletBalance})
+                  Available: <strong className="text-primary">{formatCurrency(walletBalance)} Points</strong> (Value: ₹{formatCurrency(walletBalance)})
                 </p>
               </div>
             </div>
@@ -808,7 +809,7 @@ export default function CartScreen() {
           {usePoints && (
             <div className="bg-purple-50/70 p-2.5 rounded-xl border border-purple-100 text-[11.5px] text-slate-700 flex justify-between items-center">
               <span>Redeemed for Purchase (1 Pt = ₹1):</span>
-              <span className="font-black text-primary font-mono">-₹{pointsRedeemed}</span>
+              <span className="font-black text-primary font-mono">-₹{formatCurrency(pointsRedeemed)}</span>
             </div>
           )}
         </div>
@@ -821,13 +822,13 @@ export default function CartScreen() {
 
           <div className="flex justify-between items-center text-slate-600">
             <span>{t('Item Total')}</span>
-            <span className="font-bold text-slate-900 font-mono">₹{totalAmount}</span>
+            <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(totalAmount)}</span>
           </div>
 
           {usePoints && pointsRedeemed > 0 && (
             <div className="flex justify-between items-center text-emerald-600 font-bold">
               <span>Zeebac Points Applied (Discount):</span>
-              <span className="font-mono">-₹{pointsRedeemed}</span>
+              <span className="font-mono">-₹{formatCurrency(pointsRedeemed)}</span>
             </div>
           )}
 
@@ -840,7 +841,7 @@ export default function CartScreen() {
 
           <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[14px] font-black">
             <span className="text-slate-900">{t('To Pay')}</span>
-            <span className="text-primary font-mono text-[17px]">₹{finalPayableAmount}</span>
+            <span className="text-primary font-mono text-[17px]">₹{formatCurrency(finalPayableAmount)}</span>
           </div>
 
           <div className="pt-1.5 flex justify-between items-center text-[12px] font-extrabold text-primary bg-purple-50 p-2.5 rounded-xl border border-purple-100">
@@ -848,7 +849,7 @@ export default function CartScreen() {
               <span className="material-symbols-outlined text-[16px]">redeem</span>
               <span>Total Zeebac Points Earned upon Delivery:</span>
             </span>
-            <span className="font-mono text-[13px]">+{totalCashback} Points</span>
+            <span className="font-mono text-[13px]">+{formatCurrency(totalCashback)} Points</span>
           </div>
         </div>
 
@@ -903,7 +904,7 @@ export default function CartScreen() {
                   </div>
                   <div>
                     <p className="font-bold text-[12.5px] text-emerald-900">100% Zeebac Points Purchase</p>
-                    <p className="text-[10.5px] text-emerald-700">₹0 Payable • Covered by {pointsRedeemed} Points</p>
+                    <p className="text-[10.5px] text-emerald-700">₹0 Payable • Covered by {formatCurrency(pointsRedeemed)} Points</p>
                   </div>
                 </div>
                 <div className="w-4 h-4 rounded-full border-2 border-emerald-600 flex items-center justify-center">
@@ -963,11 +964,11 @@ export default function CartScreen() {
             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{t('Total Payable')}</p>
             <div className="flex items-baseline gap-1.5">
               <span className="font-display font-black text-[20px] text-slate-900 font-mono">
-                ₹{finalPayableAmount}
+                ₹{formatCurrency(finalPayableAmount)}
               </span>
               {pointsRedeemed > 0 && (
                 <span className="text-[11px] text-emerald-600 font-bold font-mono">
-                  ({pointsRedeemed} pts used)
+                  ({formatCurrency(pointsRedeemed)} pts used)
                 </span>
               )}
             </div>
@@ -993,7 +994,7 @@ export default function CartScreen() {
             ) : paymentMethod === 'UPI' ? (
               <>
                 <span className="material-symbols-outlined text-[18px]">bolt</span>
-                <span>Pay ₹{finalPayableAmount} via Direct UPI</span>
+                <span>Pay ₹{formatCurrency(finalPayableAmount)} via Direct UPI</span>
               </>
             ) : (
               <>
@@ -1037,7 +1038,7 @@ export default function CartScreen() {
             <div className="bg-purple-50 p-3 rounded-2xl text-center space-y-0.5 border border-purple-100">
               <p className="text-[11px] uppercase tracking-wider text-purple-900 font-extrabold">Payable Amount</p>
               <p className="font-display font-black text-[26px] text-primary font-mono">
-                ₹{upiIntentData.amount}
+                ₹{formatCurrency(upiIntentData.amount)}
               </p>
               <p className="text-[11px] text-slate-600">
                 To: <strong className="text-slate-900">{upiIntentData.payeeName}</strong>

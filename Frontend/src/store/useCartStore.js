@@ -144,7 +144,8 @@ export const useCartStore = create((set, get) => ({
 
   // Total gross amount
   getTotalAmount: () => {
-    return get().items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const total = get().items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return Math.round(total * 100) / 100;
   },
 
   // Total cashback earned on all items in cart

@@ -1157,9 +1157,15 @@ export const getMyWallet = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(50);
 
+    const roundedBalance = Math.round((wallet.balance || 0) * 100) / 100;
+    if (wallet.balance !== roundedBalance) {
+      wallet.balance = roundedBalance;
+      await wallet.save();
+    }
     const walletData = wallet.toObject();
-    walletData.lockedBalance = lockedBalance;
-    walletData.withdrawableBalance = withdrawableBalance;
+    walletData.balance = roundedBalance;
+    walletData.lockedBalance = Math.round(lockedBalance * 100) / 100;
+    walletData.withdrawableBalance = Math.round(withdrawableBalance * 100) / 100;
 
     res.status(200).json({ success: true, data: { wallet: walletData, ledger } });
   } catch (error) {

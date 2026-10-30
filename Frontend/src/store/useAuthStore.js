@@ -201,7 +201,7 @@ const useAuthStore = create((set, get) => ({
         if (balanceKey) {
           const stored = localStorage.getItem(balanceKey);
           if (stored !== null && !isNaN(parseFloat(stored))) {
-            balance = parseFloat(stored);
+            balance = Math.round((parseFloat(stored) || 0) * 100) / 100;
           }
         }
       }
@@ -255,7 +255,7 @@ const useAuthStore = create((set, get) => ({
     if (keys?.balance) {
       const stored = localStorage.getItem(keys.balance);
       if (stored !== null && !isNaN(parseFloat(stored))) {
-        balance = parseFloat(stored);
+        balance = Math.round((parseFloat(stored) || 0) * 100) / 100;
       }
     }
 
@@ -311,7 +311,7 @@ const useAuthStore = create((set, get) => ({
           let balance = 0;
           if (keys.balance) {
             const stored = localStorage.getItem(keys.balance);
-            if (stored !== null && !isNaN(parseFloat(stored))) balance = parseFloat(stored);
+            if (stored !== null && !isNaN(parseFloat(stored))) balance = Math.round((parseFloat(stored) || 0) * 100) / 100;
           }
           localStorage.setItem('zeebac_current_user', userStr);
           localStorage.setItem('zeebac_access_token', token);
@@ -497,16 +497,17 @@ const useAuthStore = create((set, get) => ({
 
   updateBalance: (newBalance) => {
     const numeric = typeof newBalance === 'number' && !isNaN(newBalance) ? newBalance : parseFloat(newBalance) || 0;
+    const rounded = Math.round(numeric * 100) / 100;
     const user = get().currentUser;
     const role = user?.role || user?.userType;
 
     if (role === 'vendor') {
-      localStorage.setItem('vendor_balance', String(numeric));
+      localStorage.setItem('vendor_balance', String(rounded));
     } else {
-      localStorage.setItem('zeebac_wallet_balance', String(numeric));
+      localStorage.setItem('zeebac_wallet_balance', String(rounded));
     }
 
-    set({ walletBalance: numeric });
+    set({ walletBalance: rounded });
   },
 
   fetchWalletBalance: async () => {
@@ -520,14 +521,14 @@ const useAuthStore = create((set, get) => ({
       if (role === 'vendor') {
         const res = await apiClient.get('/vendor/wallet');
         if (res.data?.success && res.data?.data?.wallet) {
-          const balance = Number(res.data.data.wallet.balance) || 0;
+          const balance = Math.round((Number(res.data.data.wallet.balance) || 0) * 100) / 100;
           get().updateBalance(balance);
           return balance;
         }
       } else {
         const res = await apiClient.get('/user/wallet');
         if (res.data?.success && res.data?.data?.wallet) {
-          const balance = Number(res.data.data.wallet.balance) || 0;
+          const balance = Math.round((Number(res.data.data.wallet.balance) || 0) * 100) / 100;
           get().updateBalance(balance);
           return balance;
         }

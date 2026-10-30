@@ -469,7 +469,7 @@ export default function ProfileScreen() {
             </div>
             <div>
               <h3 className="font-display text-base font-black text-[#0f4c81] leading-none">⭐ {Math.round(Number(stats.totalEarned) || 0)} Pts</h3>
-              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">Worth ₹{stats.totalEarned} (1 Pt = ₹1)</p>
+              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">Worth ₹{(Math.round((Number(stats.totalEarned) || 0) * 100) / 100).toFixed(2)} (1 Pt = ₹1)</p>
             </div>
           </div>
           <div 

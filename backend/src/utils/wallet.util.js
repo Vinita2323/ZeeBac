@@ -60,13 +60,15 @@ export const debitWallet = async ({
     wallet = created[0];
   }
 
+  const cleanAmount = Math.round((Number(amount) || 0) * 100) / 100;
+
   const filter = allowNegativeBalance
     ? { _id: wallet._id }
-    : { _id: wallet._id, balance: { $gte: amount } };
+    : { _id: wallet._id, balance: { $gte: cleanAmount } };
 
   const updatedWallet = await Wallet.findOneAndUpdate(
     filter,
-    { $inc: { balance: -amount, totalWithdrawn: amount } },
+    { $inc: { balance: -cleanAmount, totalWithdrawn: cleanAmount } },
     { returnDocument: 'after', session, runValidators: true }
   );
 
@@ -98,6 +100,7 @@ export const creditWallet = async ({
   session, ownerId, ownerType, ownerZeebacId, amount, category, description,
   referenceId, referenceType, gateway = {}, lockedUntil = null,
 }) => {
+  const cleanAmount = Math.round((Number(amount) || 0) * 100) / 100;
   const normalizedType = (ownerType || 'customer').toLowerCase();
   const ownerTypeQuery = (normalizedType === 'user' || normalizedType === 'customer')
     ? { $in: ['User', 'user', 'Customer', 'customer'] }
