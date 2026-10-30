@@ -24,7 +24,6 @@ export default function WalletScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [subView, setSubView] = useState(location.state?.subView || null); // 'cashout' | 'perks' | 'recharge' | 'addFunds'
   const [withdrawals, setWithdrawals] = useState([]);
-  const [pendingCashRequest, setPendingCashRequest] = useState(null);
   const [showUtrModal, setShowUtrModal] = useState(false);
   const [utrInput, setUtrInput] = useState('');
   const [utrError, setUtrError] = useState('');
@@ -93,13 +92,6 @@ export default function WalletScreen() {
       }
     };
     fetchWallet();
-
-    UserAPI.getMyCashbackRequests().then((res) => {
-      if (res.success && Array.isArray(res.data)) {
-        const pending = res.data.find(r => r.status === 'Pending' && (r.requestType === 'cash_claim' || r.paymentMethod === 'Cash'));
-        setPendingCashRequest(pending || null);
-      }
-    }).catch(() => {});
 
     if (subView === 'cashout') {
       UserAPI.getUserWithdrawals().then(res => {
@@ -208,35 +200,6 @@ export default function WalletScreen() {
       {/* Main body content */}
       <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
         
-        {/* Active Pending Cash OTP Banner */}
-        {pendingCashRequest && (
-          <div 
-            onClick={() => navigate(`/request/${pendingCashRequest._id}`)}
-            className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white rounded-2xl p-4 shadow-lg cursor-pointer active:scale-[0.99] transition-transform flex items-center justify-between gap-3 border border-purple-400/30"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[22px]">pin</span>
-              </div>
-              <div className="min-w-0 text-left">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full font-bold">
-                    Pending Cash OTP
-                  </span>
-                  <span className="text-[11px] text-purple-200">30 min validity</span>
-                </div>
-                <p className="font-extrabold text-[14px] mt-0.5 truncate">
-                  ₹{pendingCashRequest.amount} at {pendingCashRequest.vendorId?.storeName || pendingCashRequest.vendorName || 'Store'}
-                </p>
-                <p className="text-[11px] text-white/80">Tap to enter the 4-digit code told by shopkeeper (e.g. Z516)</p>
-              </div>
-            </div>
-            <span className="bg-white text-purple-800 text-xs font-black px-3 py-2 rounded-xl shrink-0 shadow-sm flex items-center gap-1">
-              <span>Enter OTP</span>
-              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-            </span>
-          </div>
-        )}
 
         {/* Available rewards banner card */}
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
