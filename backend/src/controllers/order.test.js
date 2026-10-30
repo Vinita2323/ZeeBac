@@ -117,7 +117,9 @@ describe('Order System & Product-Level Cashback Model', () => {
 
     expect(data.order.totalAmount).toBe(1000); // 800 + 200
     expect(data.order.totalCashbackPoints).toBe(90); // 80 + 10 points
-    expect(data.order.finalPayableAmount).toBe(1000);
+    expect(data.order.packagingCharge).toBe(10);
+    expect(data.order.deliveryCharge).toBe(0);
+    expect(data.order.finalPayableAmount).toBe(1010);
     expect(data.order.items[0].cashbackPercentage).toBe(10);
     expect(data.order.items[0].cashbackPoints).toBe(80);
     expect(data.order.items[1].cashbackPercentage).toBe(5);
@@ -126,7 +128,7 @@ describe('Order System & Product-Level Cashback Model', () => {
     // Verify Direct UPI Intent URL
     expect(data.upiDetails.upiUri).toContain('upi://pay?');
     expect(data.upiDetails.payeeVpa).toBe('supermarket@upi');
-    expect(data.upiDetails.amount).toBe(1000);
+    expect(data.upiDetails.amount).toBe(1010);
   });
 
   it('allows redeeming Zeebac Points at checkout (1 Point = ₹1 purchase discount)', async () => {
@@ -148,9 +150,11 @@ describe('Order System & Product-Level Cashback Model', () => {
     const data = res.json.mock.calls[0][0].data;
 
     expect(data.order.totalAmount).toBe(400);
+    expect(data.order.packagingCharge).toBe(10);
+    expect(data.order.deliveryCharge).toBe(30);
     expect(data.order.pointsRedeemed).toBe(150);
-    expect(data.order.finalPayableAmount).toBe(250); // ₹400 - 150 = ₹250 payable via UPI
-    expect(data.upiDetails.amount).toBe(250);
+    expect(data.order.finalPayableAmount).toBe(290); // (₹400 + 30 + 10) - 150 = ₹290 payable via UPI
+    expect(data.upiDetails.amount).toBe(290);
 
     // Verify customer wallet was debited by 150 points
     const updatedCustomerWallet = await Wallet.findById(customerWallet._id);

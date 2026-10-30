@@ -9,7 +9,7 @@ import { sendTokens } from '../utils/token.utils.js';
 import logger from '../utils/logger.js';
 
 // Helper to generate unique Zeebac ID
-const generateZeebacId = async (prefix, Model) => {
+export const generateZeebacId = async (prefix, Model) => {
   let isUnique = false;
   let newId;
   while (!isUnique) {

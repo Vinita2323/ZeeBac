@@ -113,23 +113,29 @@ export const createOrder = async (req, res) => {
 
     let deliveryCharge = 0;
     let packagingCharge = 0;
-    if (fulfillmentType === 'delivery') {
-      const freeAbove = Number(vendor.deliverySettings?.freeDeliveryAbove) || 499;
-      if (itemTotal >= freeAbove) {
+    if (fulfillmentType === 'delivery' && vendor.deliverySettings) {
+      const freeAbove = Number(vendor.deliverySettings.freeDeliveryAbove) || 0;
+      if (freeAbove > 0 && itemTotal >= freeAbove) {
         deliveryCharge = 0;
       } else {
-        deliveryCharge = Number(vendor.deliverySettings?.deliveryCharge ?? 30);
+        deliveryCharge = Number(vendor.deliverySettings.deliveryCharge || 0);
       }
-      packagingCharge = Number(vendor.deliverySettings?.packagingCharge ?? 10);
+      packagingCharge = Number(vendor.deliverySettings.packagingCharge || 0);
     }
 
     // Statutory GST Tax decided by Admin from RewardConfig
     const rewardConfig = await RewardConfig.findOne();
-    const taxPercentage = rewardConfig?.enableOrderTax !== false ? (Number(rewardConfig?.orderGstTaxPercent) ?? 5) : 0;
+    const isTaxEnabled = rewardConfig ? Boolean(rewardConfig.enableOrderTax) : false;
+    const rawTaxPercent = rewardConfig?.orderGstTaxPercent;
+    const taxPercentage = isTaxEnabled && rawTaxPercent != null && !isNaN(Number(rawTaxPercent)) ? Number(rawTaxPercent) : 0;
     const taxAmount = Math.round((itemTotal * (taxPercentage / 100)) * 100) / 100;
 
+    const safeDelivery = Number.isFinite(deliveryCharge) ? deliveryCharge : 0;
+    const safePackaging = Number.isFinite(packagingCharge) ? packagingCharge : 0;
+    const safeTax = Number.isFinite(taxAmount) ? taxAmount : 0;
+
     // Total gross bill amount (itemTotal + deliveryCharge + packagingCharge + taxAmount)
-    const totalBillAmount = Math.round((itemTotal + deliveryCharge + packagingCharge + taxAmount) * 100) / 100;
+    const totalBillAmount = Math.round((itemTotal + safeDelivery + safePackaging + safeTax) * 100) / 100;
 
     // ── Handle Customer Zeebac Points Redemption (1 Point = ₹1) ──
     const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
@@ -217,6 +223,11 @@ export const createOrder = async (req, res) => {
         vendorZeebacId: vendor.zeebacId || cleanZeebacId || 'ZBV-1001',
         storeName: vendor.storeName || 'ZeeBac Partner Store',
         items: processedItems,
+        itemTotal,
+        deliveryCharge: safeDelivery,
+        packagingCharge: safePackaging,
+        taxAmount: safeTax,
+        taxPercentage,
         totalAmount: totalGrossAmount,
         pointsRedeemed: pointsToRedeem,
         finalPayableAmount,

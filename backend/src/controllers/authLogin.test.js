@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { connectTestDb, disconnectTestDb, clearCollections } from '../test/dbSetup.js';
 import User from '../models/User.js';
 import Vendor from '../models/Vendor.js';
-import { customerLogin, vendorLogin } from './auth.controller.js';
+import { customerLogin, vendorLogin, sendOtp } from './auth.controller.js';
+import Referral from '../models/Referral.js';
 import { setupSecurityPin as setupUserPin } from './user.controller.js';
 import { setupSecurityPin as setupVendorPin } from './vendor.controller.js';
 
@@ -59,5 +60,43 @@ describe('customerLogin / vendorLogin — security field included at login (QA r
     expect(res.statusCode).toBe(200);
     expect(res.body.vendor.security.hasPin).toBe(true);
     expect(res.body.vendor.security.securityPin).toBeUndefined();
+  });
+  it('sendOtp: seamlessly sends OTP to a brand new customer without 404', async () => {
+    const res = mockRes();
+    await sendOtp({ body: { phone: '9899887766', purpose: 'login', role: 'customer' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('customerLogin: auto-creates brand new customer on OTP verification (1-step onboarding)', async () => {
+    const referrer = await User.create({ zeebacId: 'ZBC-REF01', name: 'Original User', phone: '9811223344', referralCode: 'ZEEBACORIG150' });
+
+    const res = mockRes();
+    await customerLogin({
+      body: {
+        phone: '9899887766',
+        otp: '1234',
+        referralCode: 'ZEEBACORIG150',
+      }
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.isNewUser).toBe(true);
+    expect(res.body.accessToken).toBeDefined();
+    expect(res.body.user.phone).toBe('9899887766');
+    expect(res.body.user.zeebacId).toMatch(/^ZBC/);
+    expect(res.body.user.referralCode).toBeDefined();
+
+    // Verify User was saved in DB with referrer
+    const createdUser = await User.findOne({ phone: '9899887766' });
+    expect(createdUser).toBeDefined();
+    expect(createdUser.referredBy?.toString()).toBe(referrer._id.toString());
+
+    // Verify Referral document was recorded
+    const referralDoc = await Referral.findOne({ referredPhone: '9899887766' });
+    expect(referralDoc).toBeDefined();
+    expect(referralDoc.referrerCode).toBe('ZEEBACORIG150');
   });
 });

@@ -10,23 +10,16 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 import { getSocket } from '../../../services/socket';
 
-// Helper to format address object or string safely
+// Helper to format address object or string
 const formatAddress = (addr) => {
   if (!addr) return '';
   if (typeof addr === 'string') return addr;
   if (typeof addr === 'object') {
-    const parts = [
-      addr.houseNo,
-      addr.street || addr.fullAddress,
-      addr.landmark ? `Near ${addr.landmark}` : '',
-      addr.city,
-      addr.state,
-      addr.pincode,
-    ].filter(Boolean);
-    if (parts.length > 0) return parts.join(', ');
-    return Object.values(addr).filter((v) => typeof v === 'string' && v.trim()).join(', ');
+    return [addr.fullAddress || addr.street, addr.landmark, addr.city, addr.state, addr.pincode]
+      .filter(Boolean)
+      .join(', ');
   }
-  return String(addr || '');
+  return String(addr);
 };
 
 const formatCurrency = (val) => {

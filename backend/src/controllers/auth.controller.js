@@ -1,3 +1,5 @@
+import Referral from '../models/Referral.js';
+import { generateZeebacId } from './signup.controller.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import OtpVerification from '../models/OtpVerification.js';
@@ -14,16 +16,10 @@ export const sendOtp = async (req, res) => {
     const { phone, purpose = 'login', role = 'customer' } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone is required' });
 
-    if (purpose === 'login') {
-      let accountExists = false;
-      if (role === 'customer') {
-        accountExists = await User.exists({ phone });
-      } else if (role === 'vendor') {
-        accountExists = await Vendor.exists({ phone });
-      }
-      
+    if (purpose === 'login' && role === 'vendor') {
+      const accountExists = await Vendor.exists({ phone });
       if (!accountExists) {
-        return res.status(404).json({ success: false, message: `${role === 'vendor' ? 'Vendor' : 'Customer'} account not found. Please register.` });
+        return res.status(404).json({ success: false, message: 'Vendor account not found. Please register.' });
       }
     }
 
@@ -60,7 +56,10 @@ export const verifyOtpOnly = async (phone, otp, purpose, role) => {
     return true;
   }
 
-  const otpRecord = await OtpVerification.findOne({ phone, purpose, role });
+  let otpRecord = await OtpVerification.findOne({ phone, purpose, role });
+  if (!otpRecord) {
+    otpRecord = await OtpVerification.findOne({ phone, role }).sort({ createdAt: -1 });
+  }
   if (!otpRecord) throw new Error('OTP expired or invalid. Please request a new OTP.');
   if (otpRecord.attempts >= 3) throw new Error('Too many attempts. Request a new OTP.');
 
@@ -76,16 +75,72 @@ export const verifyOtpOnly = async (phone, otp, purpose, role) => {
   return true;
 };
 
-// 2. Customer Login
+// 2. Customer Login & Instant Registration
 export const customerLogin = async (req, res) => {
   try {
-    const { phone, otp } = req.body;
+    const { phone, otp, referralCode: inputReferralCode, name: inputName } = req.body;
     await verifyOtpOnly(phone, otp, 'login', 'customer');
 
-    const user = await User.findOne({ phone });
+    let user = await User.findOne({ phone });
+    let isNewUser = false;
+
+    // Direct registration: If customer does not exist, create account instantly!
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Account not found. Please sign up.' });
+      isNewUser = true;
+      const zeebacId = await generateZeebacId('ZBC', User);
+      const displayName = inputName?.trim() || `User ${phone.slice(-4)}`;
+
+      // Auto-generate referral code (e.g. ZEEBACUSER150)
+      let firstName = displayName.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '') || 'USER';
+      let generatedReferralCode = `ZEEBAC${firstName}150`;
+      let codeIsUnique = false;
+      let attempt = 0;
+      while (!codeIsUnique) {
+        const exists = await User.findOne({ referralCode: generatedReferralCode });
+        if (!exists) {
+          codeIsUnique = true;
+        } else {
+          attempt++;
+          generatedReferralCode = `ZEEBAC${firstName}${attempt}150`;
+        }
+      }
+
+      // Check optional referral code
+      let referredBy = null;
+      let referrerDoc = null;
+      if (inputReferralCode) {
+        referrerDoc = await User.findOne({ referralCode: inputReferralCode.trim().toUpperCase() });
+        if (referrerDoc) {
+          referredBy = referrerDoc._id;
+        }
+      }
+
+      user = await User.create({
+        zeebacId,
+        name: displayName,
+        phone,
+        referralCode: generatedReferralCode,
+        referredBy
+      });
+
+      if (referrerDoc) {
+        try {
+          await Referral.create({
+            referrerId: referrerDoc._id,
+            referrerCode: inputReferralCode.trim().toUpperCase(),
+            referrerName: referrerDoc.name,
+            referredUserId: user._id,
+            referredPhone: user.phone,
+            status: 'Signed Up'
+          });
+          logger.info(`[customerLogin] Referral created for ${user.phone} by ${referrerDoc.phone}`);
+        } catch (refErr) {
+          logger.warn(`[customerLogin] Referral tracking error: ${refErr.message}`);
+        }
+      }
+      logger.info(`[customerLogin] Instant account auto-created for new customer: ${phone} (${zeebacId})`);
     }
+
     if (user.status === 'Suspended') {
       return res.status(403).json({ success: false, message: 'Account suspended' });
     }
@@ -96,9 +151,10 @@ export const customerLogin = async (req, res) => {
     user.refreshToken = tokens.refreshToken;
     await user.save();
 
-    logger.info(`[customerLogin] Success for phone: ${phone}`);
+    logger.info(`[customerLogin] Success for phone: ${phone} (isNewUser: ${isNewUser})`);
     res.status(200).json({
       success: true,
+      isNewUser,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       user: {
@@ -108,10 +164,7 @@ export const customerLogin = async (req, res) => {
         zeebacId: user.zeebacId,
         role: user.role,
         referralCode: user.referralCode,
-        // Was missing here — the app-open PIN/biometric lock reads this from
-        // the session cached at login, so without it the lock silently
-        // never engaged until something else (e.g. visiting Profile)
-        // happened to backfill it into the local store first.
+        location: user.location,
         security: {
           hasPin: Boolean(user.security?.securityPin),
           biometricEnabled: !!user.security?.biometricEnabled,

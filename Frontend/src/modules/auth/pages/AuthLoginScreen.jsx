@@ -11,7 +11,18 @@ export default function AuthLoginScreen({ role = 'customer' }) {
   const navigate = useNavigate();
   const isVendor = role === 'vendor';
 
-  // If already authenticated for this role, auto-redirect immediately so returning mobile users are not shown the login screen
+  // Optional referral code for new customer signups
+  const [referralCode, setReferralCode] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get('ref') || params.get('referral') || '').trim().toUpperCase();
+    } catch {
+      return '';
+    }
+  });
+  const [showReferralInput, setShowReferralInput] = useState(false);
+
+  // If already authenticated for this role, auto-redirect immediately
   useEffect(() => {
     const state = useAuthStore.getState();
     const hasVendor = Boolean(
@@ -58,12 +69,12 @@ export default function AuthLoginScreen({ role = 'customer' }) {
       await AuthAPI.sendOtp({ phone: mobileNumber, purpose: 'login', role });
 
       navigate(isVendor ? '/vendor-app/verify-otp' : '/verify-otp', {
-        state: { mobileNumber, flow: 'login', role }
+        state: { mobileNumber, flow: 'login', role, referralCode }
       });
     } catch (err) {
       const status = err.response?.status;
       const msg = err.response?.data?.message || 'Failed to send OTP. Please try again.';
-      if (status === 404 || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('please register')) {
+      if (isVendor && (status === 404 || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('please register'))) {
         setIsNotFound(true);
       } else {
         setError(msg);
@@ -75,13 +86,11 @@ export default function AuthLoginScreen({ role = 'customer' }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950/20 mesh-gradient text-slate-900 font-body-lg relative overflow-hidden p-4 md:p-8">
-
       {/* Decorative ambient background glows */}
       <div className={`absolute w-[500px] h-[500px] rounded-full ${isVendor ? 'bg-purple-600/10' : 'bg-violet-600/15'} blur-3xl -top-32 -right-32 pointer-events-none animate-pulse`} />
       <div className={`absolute w-[400px] h-[400px] rounded-full ${isVendor ? 'bg-indigo-600/10' : 'bg-fuchsia-600/10'} blur-3xl -bottom-32 -left-32 pointer-events-none`} />
 
       <div className="relative z-10 w-full max-w-[920px] grid md:grid-cols-2 items-center gap-10 md:gap-16">
-
         {/* Left Branding Showcase (Desktop) */}
         <div className="hidden md:flex flex-col items-start pl-4 text-left">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-white/80 shadow-sm mb-6">
@@ -97,15 +106,15 @@ export default function AuthLoginScreen({ role = 'customer' }) {
           </h1>
 
           <p className="text-slate-600 text-base max-w-[360px] leading-relaxed">
-            Pay seamlessly or upload bills at thousands of verified partner stores and get real money credited to your wallet.
+            Pay seamlessly or discover partner stores to get instant points & rewards credited directly to your wallet.
           </p>
 
-          <div className="flex items-center gap-8 mt-10">
+          <div className="mt-8 flex items-center gap-6">
             <div>
-              <p className="text-2xl font-black text-purple-700 leading-none">10,000+</p>
-              <p className="text-xs text-slate-500 font-semibold mt-1">Active Merchants</p>
+              <p className="text-2xl font-black text-slate-900 leading-none">100%</p>
+              <p className="text-xs text-slate-500 font-semibold mt-1">Instant Payouts</p>
             </div>
-            <div className="w-px h-8 bg-slate-300/60" />
+            <div className="w-px h-8 bg-slate-200" />
             <div>
               <p className="text-2xl font-black text-purple-700 leading-none">₹2 Crore+</p>
               <p className="text-xs text-slate-500 font-semibold mt-1">Cashback Distributed</p>
@@ -113,9 +122,8 @@ export default function AuthLoginScreen({ role = 'customer' }) {
           </div>
         </div>
 
-        {/* Right: Classy Single-Card Login Form */}
+        {/* Right: Single-Card Login / Instant Access Form */}
         <main className="w-full max-w-[420px] mx-auto bg-white/90 backdrop-blur-2xl border border-white/80 rounded-[2rem] p-7 md:p-9 shadow-2xl shadow-slate-900/10 space-y-6 animate-reveal text-left relative">
-
           {/* Back button for Vendor */}
           {isVendor && (
             <button
@@ -140,38 +148,32 @@ export default function AuthLoginScreen({ role = 'customer' }) {
                 Vendor Partner Portal
               </span>
             ) : (
-              <p className="text-slate-500 text-[13px] font-semibold">Welcome! Sign in with your mobile number.</p>
+              <div>
+                <h2 className="text-[18px] font-black text-slate-900">Enter Mobile Number</h2>
+                <p className="text-slate-500 text-[12.5px] font-medium mt-0.5">
+                  Enter your number to get instant OTP and open the app.
+                </p>
+              </div>
             )}
           </div>
 
-          {/* Quick Tab Switcher for Customer App */}
-          {!isVendor && (
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                className="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-purple-700 shadow-xs cursor-default"
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/signup', { state: { phone: mobileNumber } })}
-                className="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-purple-700 transition-colors cursor-pointer"
-              >
-                Sign Up
-              </button>
+          {/* Referral Code Applied Pill (Customer) */}
+          {!isVendor && referralCode && (
+            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-[12px] font-bold animate-reveal">
+              <span className="material-symbols-outlined text-[18px] text-emerald-600">card_giftcard</span>
+              <span>Referral code <span className="font-mono text-emerald-950 font-black">{referralCode}</span> applied!</span>
             </div>
           )}
 
           {/* Unified Single-Border Mobile Input Form */}
-          <form className="space-y-5" onSubmit={handleContinue}>
+          <form className="space-y-4" onSubmit={handleContinue}>
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Mobile Number
               </label>
 
               {/* Single Simple Container — Clean Static Border */}
-              <div className="relative flex items-center h-14 bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="relative flex items-center h-14 bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-sm focus-within:border-purple-600 focus-within:bg-white transition-all">
                 {/* Country Code Block */}
                 <div className="flex items-center justify-center px-4 h-full border-r border-slate-200 text-slate-700 font-bold text-base select-none">
                   <span>+91</span>
@@ -191,24 +193,39 @@ export default function AuthLoginScreen({ role = 'customer' }) {
               </div>
             </div>
 
-            {/* Unregistered User 1-Tap Banner (Customer) */}
-            {isNotFound && !isVendor && (
-              <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl space-y-2.5 animate-reveal">
-                <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
-                  <span className="material-symbols-outlined text-purple-600 text-[18px]">person_add</span>
-                  <span>New to Zeebac? Account not registered</span>
-                </div>
-                <p className="text-[12px] text-purple-700 leading-relaxed">
-                  No account was found for <span className="font-bold">+91 {mobileNumber}</span>. Create your customer account in seconds to start earning instant cashback!
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/signup', { state: { phone: mobileNumber } })}
-                  className="w-full py-2.5 px-4 bg-purple-700 hover:bg-purple-800 active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
-                >
-                  <span>Sign Up with +91 {mobileNumber}</span>
-                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
+            {/* Optional Manual Referral Code toggle for Customer */}
+            {!isVendor && !referralCode && (
+              <div className="pt-0.5">
+                {!showReferralInput ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowReferralInput(true)}
+                    className="text-[11.5px] font-bold text-purple-700 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">card_giftcard</span>
+                    <span>Have a referral code? (Optional)</span>
+                  </button>
+                ) : (
+                  <div className="space-y-1 animate-reveal">
+                    <label className="text-[11px] font-bold text-slate-600">Referral Code (Optional)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                        placeholder="e.g. ZEEBACUSER150"
+                        className="flex-1 h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-800 outline-none focus:border-purple-500 focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowReferralInput(false)}
+                        className="px-2.5 text-xs text-slate-400 hover:text-slate-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -256,7 +273,7 @@ export default function AuthLoginScreen({ role = 'customer' }) {
                 <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  Continue
+                  <span>{isVendor ? 'Continue' : 'Get OTP & Open App'}</span>
                   <span className="material-symbols-outlined text-lg">arrow_forward</span>
                 </>
               )}
@@ -277,7 +294,6 @@ export default function AuthLoginScreen({ role = 'customer' }) {
             )}
           </form>
 
-      
           {/* Terms Footer */}
           <p className="text-center text-[11px] text-slate-400 pt-2">
             By continuing, you agree to Zeebac's{' '}
@@ -289,4 +305,3 @@ export default function AuthLoginScreen({ role = 'customer' }) {
     </div>
   );
 }
-
