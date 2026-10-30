@@ -2,6 +2,10 @@ import mongoose from 'mongoose';
 import { sanitizeMediaUrl } from '../utils/urlSanitizer.util.js';
 
 const b2bItemSchema = new mongoose.Schema({
+  productIdString: {
+    type: String,
+    trim: true,
+  },
   productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
@@ -51,6 +55,7 @@ const b2bItemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const transferAuditSchema = new mongoose.Schema({
+  productIdString: String,
   productId: mongoose.Schema.Types.ObjectId,
   barcode: String,
   name: String,

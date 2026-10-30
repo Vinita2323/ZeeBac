@@ -999,6 +999,7 @@ export const createProduct = async (req, res) => {
   try {
     const { 
       name, price, discountPrice, category, sku, description, isHighlight, stock, isActive,
+      productId,
       barcode, mrp, wholesalePrice, unit, gst, expiryDate, brand,
       isBranded, brandName, brandCompany, brandWebsite, brandDescription, 
       brandEmail, brandContact, cashbackPercentage 
@@ -1072,8 +1073,13 @@ export const createProduct = async (req, res) => {
       cashbackPercentage: parsedCashbackRate
     };
 
+    const finalProductId = (productId && String(productId).trim())
+      ? String(productId).trim().toUpperCase()
+      : ('ZBP-' + Math.floor(100000 + Math.random() * 900000));
+
     const newProduct = new Product({
       vendorId,
+      productId: finalProductId,
       name,
       price: Number(price),
       discountPrice: discountPrice ? Number(discountPrice) : undefined,
@@ -1135,10 +1141,18 @@ export const updateProduct = async (req, res) => {
     if (updates.expiryDate !== undefined) product.expiryDate = updates.expiryDate;
     if (updates.brand !== undefined) product.brand = updates.brand;
     if (updates.cashbackPercentage !== undefined) {
-      const parsedRate = Math.max(0, Math.min(100, Number(updates.cashbackPercentage) || 0));
-      product.cashbackPercentage = parsedRate;
-      if (!product.branding) product.branding = {};
-      product.branding.cashbackPercentage = parsedRate;
+      if (product.sourceProductId) {
+        // Downstream merchant cannot modify upstream manufacturer's cashback percentage
+        logger.warn(`[vendor.controller] Prevented downstream modification of cashback percentage on transferred product ${product._id}`);
+      } else {
+        const parsedRate = Math.max(0, Math.min(100, Number(updates.cashbackPercentage) || 0));
+        product.cashbackPercentage = parsedRate;
+        if (!product.branding) product.branding = {};
+        product.branding.cashbackPercentage = parsedRate;
+      }
+    }
+    if (updates.productId !== undefined && !product.sourceProductId) {
+      product.productId = String(updates.productId).trim().toUpperCase();
     }
     
     // Generic strings

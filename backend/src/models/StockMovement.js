@@ -1,6 +1,40 @@
 import mongoose from 'mongoose';
 
 const stockMovementSchema = new mongoose.Schema({
+  movementId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+  },
+  productIdString: {
+    type: String,
+    trim: true,
+    index: true,
+  },
+  sourceMerchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vendor',
+    index: true,
+  },
+  destinationMerchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vendor',
+    index: true,
+  },
+  sourceZeebacId: String,
+  destinationZeebacId: String,
+  beforeSellerStock: Number,
+  afterSellerStock: Number,
+  beforeBuyerStock: Number,
+  afterBuyerStock: Number,
+  invoiceNumber: String,
+  paymentReference: String,
+  transactionStatus: {
+    type: String,
+    enum: ['COMPLETED', 'FAILED', 'PENDING'],
+    default: 'COMPLETED',
+  },
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',

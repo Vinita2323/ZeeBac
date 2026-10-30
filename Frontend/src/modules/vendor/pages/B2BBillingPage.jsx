@@ -107,6 +107,7 @@ export default function B2BBillingPage() {
           ...prev,
           {
             productId: product._id,
+            productIdString: product.productId || '',
             name: product.name,
             barcode: product.barcode || '',
             image: product.image || '',
@@ -250,6 +251,7 @@ export default function B2BBillingPage() {
         paymentMethod,
         utr: paymentMethod === 'UPI_INTENT' ? utrInput.trim() : undefined,
         cashConfirmed: paymentMethod === 'CASH' ? true : undefined,
+        confirmedBy: currentVendor?.storeName || currentVendor?.ownerName || 'Authorized Merchant',
       });
 
       if (res.success) {
@@ -278,10 +280,10 @@ export default function B2BBillingPage() {
             </div>
             <div>
               <h1 className="font-display font-black text-[17px] text-slate-900 leading-tight">
-                Manufacturer to Wholesaler Billing
+                Supply Chain & B2B Billing POS
               </h1>
               <p className="text-[11px] text-slate-500 font-medium">
-                Barcode Cashier POS • Automatic Stock Transfer
+                Barcode & Product ID Billing • Multi-Tier Stock Transfer
               </p>
             </div>
           </div>
@@ -397,7 +399,12 @@ export default function B2BBillingPage() {
 
                         <div className="flex-1 min-w-0 text-left">
                           <h4 className="font-bold text-[13px] text-slate-900 truncate">{item.name}</h4>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono mt-0.5">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-mono mt-0.5">
+                            {item.productIdString && (
+                              <span className="font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-[10px]">
+                                PID: {item.productIdString}
+                              </span>
+                            )}
                             {item.barcode && <span>Code: {item.barcode}</span>}
                             <span>• Rate: ₹{item.rate}</span>
                             <span className="text-emerald-600 font-bold">Avail: {item.stock} {item.unit}</span>

@@ -83,14 +83,20 @@ const vendorSchema = new mongoose.Schema(
         const map = {
           manufacturer: 'Manufacturer',
           wholesaler: 'Wholesaler',
+          distributor: 'Distributor',
           retailer: 'Retailer',
           Manufacturer: 'Manufacturer',
           Wholesaler: 'Wholesaler',
+          Distributor: 'Distributor',
           Retailer: 'Retailer',
         };
         return map[val] || val;
       },
-      enum: ['Manufacturer', 'Wholesaler', 'Retailer', 'manufacturer', 'wholesaler', 'retailer'],
+      enum: [
+        'Manufacturer', 'Wholesaler', 'Distributor', 'Retailer',
+        'manufacturer', 'wholesaler', 'distributor', 'retailer',
+        null
+      ],
       default: null,
       trim: true,
     },

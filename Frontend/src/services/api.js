@@ -1205,6 +1205,18 @@ export const B2BAPI = {
     const res = await apiClient.get('/b2b/stock-ledger', { params });
     return res.data;
   },
+  getAdminInvoices: async (params) => {
+    const res = await apiClient.get('/b2b/admin/invoices', { params });
+    return res.data;
+  },
+  getAdminStockLedger: async (params) => {
+    const res = await apiClient.get('/b2b/admin/stock-ledger', { params });
+    return res.data;
+  },
+  getAdminSupplyChainCatalogue: async (params) => {
+    const res = await apiClient.get('/b2b/admin/catalogue-ownership', { params });
+    return res.data;
+  },
 };
 
 // ─── Delivery Partner (Rider) API ───

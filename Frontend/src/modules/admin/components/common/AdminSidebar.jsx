@@ -31,6 +31,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Delivery Partners', icon: 'two_wheeler', path: '/admin/delivery-partners' },
     { label: 'Live Deliveries', icon: 'route', path: '/admin/delivery-operations' },
     { label: 'Subscription Plans', icon: 'card_membership', path: '/admin/subscriptions' },
+    { label: 'Supply Chain & B2B', icon: 'hub', path: '/admin/supply-chain' },
     { label: 'Transactions', icon: 'receipt_long', path: '/admin/transactions' },
     { label: 'Payout Requests', icon: 'payments', path: '/admin/payouts' },
     { label: 'Cashback Rules', icon: 'tune', path: '/admin/rules' },

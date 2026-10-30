@@ -48,6 +48,11 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  productId: {
+    type: String,
+    index: true,
+    trim: true,
+  },
   barcode: {
     type: String,
     index: true,

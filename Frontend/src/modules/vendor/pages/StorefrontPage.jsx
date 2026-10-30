@@ -36,6 +36,7 @@ export default function StorefrontPage() {
   const barcodeScannerRef = useRef(null);
 
   const initialFormState = {
+    productId: '',
     name: '',
     category: 'Instant Food',
     brand: '',
@@ -282,6 +283,7 @@ export default function StorefrontPage() {
     }
 
     setProductForm({
+      productId: product.productId || '',
       name: product.name || '',
       category: product.category || 'Instant Food',
       brand: product.brand || product.branding?.brandName || '',
@@ -324,6 +326,7 @@ export default function StorefrontPage() {
 
     try {
       const formData = new FormData();
+      if (productForm.productId) formData.append('productId', productForm.productId.trim().toUpperCase());
       formData.append('name', productForm.name.trim());
       formData.append('category', productForm.category || 'Instant Food');
       formData.append('brand', productForm.brand || '');
@@ -468,6 +471,7 @@ export default function StorefrontPage() {
     const matchesSearch =
       !searchQuery.trim() ||
       (p.name && p.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.productId && p.productId.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p._id && p._id.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -785,6 +789,14 @@ export default function StorefrontPage() {
                             >
                               Stock: {stockNum} {unitLabel}
                             </span>
+
+                            {/* Product ID badge */}
+                            {product.productId && (
+                              <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[13px]">tag</span>
+                                PID: {product.productId}
+                              </span>
+                            )}
 
                             {/* Barcode badge */}
                             {product.barcode && (
