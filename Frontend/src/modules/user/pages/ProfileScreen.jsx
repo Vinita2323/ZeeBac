@@ -456,36 +456,28 @@ export default function ProfileScreen() {
           );
         })()}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <div 
-            onClick={() => navigate('/wallet')}
-            className="bg-[#D4E9FC]/40 hover:bg-[#D4E9FC]/60 border border-[#D4E9FC]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px] cursor-pointer active:scale-98 transition-all shadow-2xs hover:shadow-xs group"
-            title="View Zeebac Points"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-caption text-[9px] text-[#0F4C81] uppercase tracking-wider font-bold">Zeebac Points</span>
-              <span className="material-symbols-outlined text-[14px] text-[#0F4C81] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+        {/* Zeebac Points Card */}
+        <div 
+          onClick={() => navigate('/wallet')}
+          className="bg-gradient-to-r from-[#D4E9FC]/60 to-[#E9F3FC]/50 hover:from-[#D4E9FC]/80 hover:to-[#E9F3FC]/70 border border-[#D4E9FC] rounded-2xl p-3.5 flex items-center justify-between text-left cursor-pointer active:scale-98 transition-all shadow-xs group"
+          title="View Zeebac Points"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 flex items-center justify-center text-[#0F4C81] text-lg font-black shrink-0">
+              ⭐
             </div>
             <div>
-              <h3 className="font-display text-base font-black text-[#0f4c81] leading-none">⭐ {Math.round(Number(stats.totalEarned) || 0)} Pts</h3>
-              <p className="text-[8px] text-[#0F4C81]/80 font-medium mt-0.5">Worth ₹{(Math.round((Number(stats.totalEarned) || 0) * 100) / 100).toFixed(2)} (1 Pt = ₹1)</p>
+              <div className="flex items-center gap-1.5">
+                <span className="font-caption text-[10px] text-[#0F4C81] uppercase tracking-wider font-bold">Zeebac Points</span>
+                <span className="text-[10px] text-[#0F4C81]/70 font-semibold">(1 Pt = ₹1)</span>
+              </div>
+              <h3 className="font-display text-lg font-black text-[#0f4c81] leading-tight">
+                {Math.round(Number(stats.totalEarned) || 0)} Pts
+              </h3>
+              <p className="text-[11px] text-[#0F4C81]/80 font-medium">Worth ₹{(Math.round((Number(stats.totalEarned) || 0) * 100) / 100).toFixed(2)}</p>
             </div>
           </div>
-          <div 
-            onClick={() => setSubView('audits')}
-            className="bg-[#E6F7EB]/40 hover:bg-[#E6F7EB]/60 border border-[#E6F7EB]/60 rounded-xl p-3 flex flex-col justify-between text-left h-[76px] cursor-pointer active:scale-98 transition-all shadow-2xs hover:shadow-xs group"
-            title="View Pending Audits & Requests"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-caption text-[9px] text-[#1B5E20] uppercase tracking-wider font-bold">{t('Pending Audits')}</span>
-              <span className="material-symbols-outlined text-[14px] text-[#1B5E20] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-            </div>
-            <div>
-              <h3 className="font-display text-base font-black text-[#1b5e20]">{stats.pendingRequests} {t('Request')}{stats.pendingRequests !== 1 && 's'}</h3>
-              <p className="text-[8px] text-[#1B5E20]/80 font-medium mt-0.5">{t('Awaiting review')}</p>
-            </div>
-          </div>
+          <span className="material-symbols-outlined text-[20px] text-[#0F4C81] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
         </div>
 
         {/* Settings Group 1: General Options */}
@@ -507,19 +499,7 @@ export default function ProfileScreen() {
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
             </div>
 
-            <div 
-              onClick={() => setSubView('linked-accounts')}
-              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
-            >
-              <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">account_balance</span>
-                <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('Withdrawal Accounts')}</p>
-                  <p className="font-caption text-[11px] text-on-surface-variant">{t('Manage linked bank details & UPI')}</p>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-            </div>
+            
 
             <div 
               onClick={() => navigate('/wallet')}
