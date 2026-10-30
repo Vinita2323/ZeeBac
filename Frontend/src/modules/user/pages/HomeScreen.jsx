@@ -4,6 +4,8 @@ import { UserAPI, API_BASE_URL } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
+import NotificationPanel from '../components/common/NotificationPanel';
+import useNotifications from '../../../hooks/useNotifications';
 import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 import useLanguageStore from '../../../store/useLanguageStore';
@@ -69,6 +71,9 @@ const demoShops = [
 export default function HomeScreen() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguageStore();
+  const bellRef = useRef(null);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const { unreadCount } = useNotifications();
 
 
   const handleVendorClick = (vendor) => {
@@ -211,7 +216,88 @@ export default function HomeScreen() {
         onSkip={handleSkipLocation}
       />
 
-      <main className="flex-1 app-container px-container-margin py-md pt-4 space-y-5 text-left">
+      {/* Notification Panel (slide-in from right) */}
+      <NotificationPanel
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
+        triggerRef={bellRef}
+      />
+
+      {/* ── TOP HEADER BAR (ZEEBAC LOGO, CHAT & NOTIFICATIONS) ── */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-2.5 border-b border-slate-100 shadow-2xs">
+        <div className="app-container flex items-center justify-between">
+          {/* Left: ZeeBac Logo */}
+          <div
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-2 cursor-pointer active:scale-95 transition-transform"
+          >
+            <img
+              alt="ZeeBac Logo"
+              src="/Logo (6).png"
+              className="h-10 w-auto object-contain drop-shadow-2xs"
+            />
+          </div>
+
+          {/* Right: Chat Support & Notifications Bell */}
+          <div className="flex items-center gap-2">
+            {/* Chat Support */}
+            <button
+              type="button"
+              onClick={() => navigate('/chat')}
+              className="w-10 h-10 rounded-full bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-2xs"
+              title={t('Chat Support')}
+              aria-label="Chat Support"
+            >
+              <span className="material-symbols-outlined text-[20px]">chat_bubble</span>
+            </button>
+
+            {/* Notification Bell with Badge */}
+            <button
+              ref={bellRef}
+              type="button"
+              onClick={() => setIsNotifOpen(true)}
+              className="relative w-10 h-10 rounded-full bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-2xs"
+              title={t('Notifications')}
+              aria-label="Notifications"
+            >
+              <span className="material-symbols-outlined text-[20px]">notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] bg-red-500 text-white text-[9.5px] font-black rounded-full flex items-center justify-center px-1 shadow-sm border-2 border-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 app-container px-container-margin py-3 space-y-4 text-left">
+
+        {/* Clean, Modern User Greeting */}
+        <div className="flex items-center justify-between pt-0.5">
+          <div>
+            <h1 className="font-display text-[18px] sm:text-[19px] font-black text-slate-900 leading-tight">
+              {t('Hello,')} {(currentUser?.name || 'User').split(' ')[0]} 👋
+            </h1>
+            <p className="text-[11.5px] text-slate-500 font-medium mt-0.5">
+              1 Zeebac Point = 1 Rs. on every order
+            </p>
+          </div>
+
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200/80 shadow-2xs hover:bg-purple-50/50 active:scale-95 transition-all cursor-pointer"
+            title="My Profile"
+          >
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black text-[11px] shadow-2xs">
+              {(currentUser?.name || 'U').charAt(0).toUpperCase()}
+            </div>
+            <span className="text-[11.5px] font-bold text-slate-700 max-w-[80px] truncate">
+              {(currentUser?.name || 'User').split(' ')[0]}
+            </span>
+          </button>
+        </div>
 
         {/* Search Product Card matching Brand Purple Theme */}
         <div className="rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-[#16082f] via-[#2d0554] to-[#6000da] text-white shadow-lg relative overflow-hidden">
