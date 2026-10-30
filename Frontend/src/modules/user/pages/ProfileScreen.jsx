@@ -618,66 +618,6 @@ export default function ProfileScreen() {
               </label>
             </div>
 
-            {/* Toggle 2: Biometrics */}
-            <div className="py-2 border-t border-outline-variant/10 pt-md space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-sm">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${biometrics ? 'bg-purple-100 text-[#7c3aed]' : 'bg-gray-100 text-gray-400'}`}>
-                    <span className="material-symbols-outlined text-[22px]">fingerprint</span>
-                  </div>
-                  <div>
-                    <p className="font-title-md text-on-surface font-bold text-body-sm flex items-center gap-1.5">
-                      {t('Biometric Security')}
-                      {biometrics && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">{t('Active')}</span>
-                      )}
-                    </p>
-                    <p className="font-caption text-[10px] text-on-surface-variant">
-                      {biometricSupport.checked && !biometricSupport.supported
-                        ? describeBiometricUnsupportedReason(biometricSupport.reason, biometricSupport.detail)
-                        : t('Protect cashouts with Fingerprint, Face ID or PIN')}
-                    </p>
-                  </div>
-                </div>
-                <label className={`relative inline-flex items-center ${biometricSupport.checked && !biometricSupport.supported && !biometrics ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
-                    checked={biometrics}
-                    onChange={handleToggleBiometrics}
-                    disabled={biometricSupport.checked && !biometricSupport.supported && !biometrics}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7c3aed]"></div>
-                </label>
-              </div>
-
-              {/* Security Toast */}
-              {securityToast && (
-                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200/60 text-[11px] font-medium text-purple-900 flex items-center gap-2 animate-reveal">
-                  <span className="material-symbols-outlined text-[16px] text-primary shrink-0">info</span>
-                  <span>{securityToast}</span>
-                </div>
-              )}
-
-              {/* Backup PIN Manager */}
-              <div className="flex items-center justify-between pl-11 pr-1 text-[11px]">
-                <span className="text-on-surface-variant font-medium">
-                  {t('Backup PIN:')} <strong className="text-on-surface">{currentUser?.security?.hasPin ? t('Configured ✅') : t('Not Set')}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPinMode(currentUser?.security?.hasPin ? 'change' : 'setup');
-                    setShowPinModal(true);
-                  }}
-                  className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-                >
-                  <span className="material-symbols-outlined text-[14px]">key</span>
-                  {currentUser?.security?.hasPin ? t('Change PIN') : t('Set PIN')}
-                </button>
-              </div>
-            </div>
-
             {/* Direct Support link */}
             <div 
               onClick={() => setSubView('support')}
@@ -699,58 +639,6 @@ export default function ProfileScreen() {
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Multi-Panel Switcher (Same Phone / Same Browser) */}
-        <div className="glass-panel rounded-2xl p-4 space-y-3 border border-purple-200/50 shadow-sm bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-purple-600">swap_horizontal_circle</span>
-              <h3 className="font-extrabold text-[14px] text-slate-800">Switch Panel / पैनल बदलें</h3>
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Multi-Role</span>
-          </div>
-          <p className="text-[12px] text-slate-500">
-            Ek hi phone aur browser mein bina logout kiye Partner ya Admin panel mein switch karein:
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-            {/* Vendor / Partner Panel */}
-            <button
-              type="button"
-              onClick={() => navigate('/vendor')}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-purple-100 hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">storefront</span>
-                </div>
-                <div className="text-left">
-                  <p className="text-[12.5px] font-black text-slate-800 leading-tight">Partner Panel</p>
-                  <p className="text-[10px] text-slate-500 font-medium">Merchant Dashboard</p>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-[18px] text-purple-600">arrow_forward</span>
-            </button>
-
-            {/* Admin Panel */}
-            <button
-              type="button"
-              onClick={() => navigate('/admin')}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-indigo-100 hover:border-indigo-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
-                </div>
-                <div className="text-left">
-                  <p className="text-[12.5px] font-black text-slate-800 leading-tight">Admin Portal</p>
-                  <p className="text-[10px] text-slate-500 font-medium">Management Console</p>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-[18px] text-indigo-600">arrow_forward</span>
-            </button>
           </div>
         </div>
 
