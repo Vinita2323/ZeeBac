@@ -372,27 +372,6 @@ export default function AuthLoginScreen({ role = 'customer', initialMode = 'logi
               )}
             </div>
           )}
-
-          {/* Partner & Rider Links */}
-          {!isVendor && (
-            <div className="pt-2 flex items-center justify-center gap-3 text-xs text-slate-400 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => navigate('/vendor-app/signup')}
-                className="hover:text-slate-600 transition-colors cursor-pointer"
-              >
-                Store partner
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => navigate('/delivery/login')}
-                className="hover:text-slate-600 transition-colors cursor-pointer"
-              >
-                Delivery partner
-              </button>
-            </div>
-          )}
         </form>
 
         {/* Footer */}
