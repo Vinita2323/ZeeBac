@@ -39,8 +39,6 @@ import { playVendorCashRequestVoice, playCustomerCashbackCreditedVoice, playNoti
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from './utils/permissionPrimer.util';
 import DataConsentModal from './components/common/DataConsentModal';
 import PermissionPrimerModal from './components/common/PermissionPrimerModal';
-import AppLockScreen from './components/common/AppLockScreen';
-
 // Globally override browser alert to use toast for a better UI experience
 window.alert = (message) => {
   if (typeof message !== 'string') return;
@@ -108,33 +106,11 @@ function PwaInstallManager() {
 }
 
 function App() {
-  const { accessToken, currentUser, lockApp } = useAuthStore();
+  const { accessToken, currentUser } = useAuthStore();
   const fetchedRef = useRef(false);
   const [isRequestingNotif, setIsRequestingNotif] = useState(false);
 
-  // Re-lock on resume when switching tabs/apps, respecting the 10-minute grace period.
-  // Once the user has entered their PIN/biometric, switching tabs will NOT re-prompt
-  // for 10 minutes.
-  useEffect(() => {
-    if (!accessToken) return;
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Check if the 10-minute unlock window has expired
-        lockApp();
-      }
-    };
-    const onNativeLock = () => {
-      lockApp(true);
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('native:lockApp', onNativeLock);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('native:lockApp', onNativeLock);
-    };
-  }, [accessToken, lockApp]);
-
-  // These permission primers are for the customer/vendor-facing app only —
+    // These permission primers are for the customer/vendor-facing app only —
   // admins run an internal tool and shouldn't see a cashback-data consent
   // screen or feature permission prompts blocking their dashboard.
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
@@ -547,7 +523,6 @@ function App() {
         <div className="app-backdrop" aria-hidden="true" />
 
         {/* Global UI Overlays */}
-        <AppLockScreen />
         <Toaster position="top-center" reverseOrder={false} />
         <GlobalAlertDialog />
         <GlobalSnackbar />

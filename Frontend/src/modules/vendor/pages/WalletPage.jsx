@@ -7,8 +7,6 @@ import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import useLanguageStore from '../../../store/useLanguageStore';
-import FourDigitPinInput from '../../../components/common/FourDigitPinInput';
-
 export default function WalletPage() {
   const navigate = useNavigate();
   const { t } = useLanguageStore();
@@ -191,7 +189,7 @@ export default function WalletPage() {
   const withdrawNetPayout = Math.max(0, Math.round((withdrawNum - withdrawFeeAmount) * 100) / 100);
 
   // Biometric & PIN Security States
-  const isSecurityProtected = Boolean(currentUser?.security?.biometricEnabled || currentUser?.security?.hasPin);
+  const isSecurityProtected = false;
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   const [authMode, setAuthMode] = useState('biometric'); // 'biometric' | 'pin'
   const [authPin, setAuthPin] = useState('');
@@ -282,23 +280,6 @@ export default function WalletPage() {
     }
     if (!bankDetails?.accountNumber || !bankDetails?.ifscCode) {
       alert('Please link your bank account first before requesting a withdrawal.');
-      return;
-    }
-
-    if (isSecurityProtected) {
-      setAuthError('');
-      setAuthPin('');
-      if (currentUser?.security?.biometricEnabled) {
-        setAuthMode('biometric');
-        setShowSecurityModal(true);
-        // Call synchronously within the click handler — browsers (notably iOS
-        // Safari) require WebAuthn prompts to fire within the user-activation
-        // window, which a setTimeout callback falls outside of.
-        triggerBiometricPrompt();
-      } else {
-        setAuthMode('pin');
-        setShowSecurityModal(true);
-      }
       return;
     }
 
@@ -1331,128 +1312,7 @@ export default function WalletPage() {
           </div>
         </div>
       )}
-      {/* Security Verification Modal (Biometrics / PIN Fallback) */}
-      {showSecurityModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-reveal">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-center border border-gray-150">
-            <div className="flex items-center justify-between pb-1 border-b border-outline-variant/10">
-              <div className="flex items-center gap-2 text-left">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">
-                    {authMode === 'biometric' ? 'fingerprint' : 'lock'}
-                  </span>
-                </div>
-                <h3 className="font-display font-bold text-[15px] text-on-surface">{t('Security Authorization')}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSecurityModal(false)}
-                className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-
-            {/* Amount badge */}
-            <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-2xl">
-              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">{t('Withdrawing')}</p>
-              <p className="text-[26px] font-black text-primary">₹{parseFloat(addAmount || 0).toFixed(2)}</p>
-              <p className="text-[10px] text-on-surface-variant font-medium">{t('To')} {bankDetails?.bankName || t('Linked Bank')}</p>
-            </div>
-
-            {authMode === 'biometric' ? (
-              <div className="space-y-4 py-2">
-                <div className="w-20 h-20 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center mx-auto shadow-inner">
-                  <span className="material-symbols-outlined text-[44px] animate-pulse">fingerprint</span>
-                </div>
-                <div>
-                  <p className="font-bold text-[14px] text-on-surface">{t('Touch Fingerprint or Face ID')}</p>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">{t('Authorize transfer on your device')}</p>
-                </div>
-
-                {authError && (
-                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-medium text-left">
-                    {authError}
-                  </div>
-                )}
-
-                <div className="space-y-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={triggerBiometricPrompt}
-                    disabled={isVerifyingSecurity}
-                    className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    {isVerifyingSecurity ? (
-                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[18px]">fingerprint</span>
-                        {t('Verify with Biometrics')}
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => { setAuthMode('pin'); setAuthError(''); setAuthPin(''); }}
-                    className="w-full h-10 border border-outline-variant/30 text-on-surface font-bold text-[12px] rounded-xl hover:bg-gray-50 active:scale-95 cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-[16px] text-primary">pin</span>
-                    {t('Use PIN / Password Instead')}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleVerifyPinAndWithdraw} className="space-y-3.5 py-1 text-left">
-                <div className="space-y-2">
-                  <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider text-center">
-                    {t('Enter 4-Digit Security PIN')}
-                  </label>
-                  <FourDigitPinInput
-                    value={authPin}
-                    onChange={(val) => { setAuthPin(val); setAuthError(''); }}
-                    autoFocus={true}
-                    hasError={Boolean(authError)}
-                    idPrefix="vendor-wallet-pin"
-                  />
-                </div>
-
-                {authError && (
-                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-medium text-left">
-                    {authError}
-                  </div>
-                )}
-
-                <div className="space-y-2 pt-1">
-                  <button
-                    type="submit"
-                    disabled={isVerifyingSecurity || authPin.length !== 4}
-                    className="w-full h-11 bg-primary text-white rounded-xl font-bold text-[13px] shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    {isVerifyingSecurity ? (
-                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      t('Verify & Confirm Cashout')
-                    )}
-                  </button>
-
-                  {currentUser?.security?.biometricEnabled && (
-                    <button
-                      type="button"
-                      onClick={() => { setAuthMode('biometric'); setAuthError(''); }}
-                      className="w-full py-1 text-[11px] text-primary font-bold hover:underline cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">fingerprint</span>
-                      {t('Switch back to Biometrics')}
-                    </button>
-                  )}
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      
 
       {/* Vendor Pay Later Modal */}
       <VendorPayLaterModal

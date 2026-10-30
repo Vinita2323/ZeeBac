@@ -9,7 +9,6 @@ import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
-import SecurityPinModal from '../../../components/common/SecurityPinModal';
 import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
@@ -1127,66 +1126,6 @@ export default function ProfilePage() {
 
         <hr className="border-t-2 border-blue-100/60 my-1.5" />
 
-        {/* Biometric Security & PIN Protection */}
-        <div className="bg-white border border-outline-variant/10 rounded-2xl p-4 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-primary flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-[22px]">fingerprint</span>
-              </div>
-              <div className="text-left">
-                <div className="flex items-center gap-1.5">
-                  <h4 className="font-display text-[14px] font-black text-on-surface">{t('Biometric Security')}</h4>
-                  {biometrics && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">{t('Active')}</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-on-surface-variant font-medium">
-                  {biometricSupport.checked && !biometricSupport.supported
-                    ? describeBiometricUnsupportedReason(biometricSupport.reason, biometricSupport.detail)
-                    : t('Protect withdrawals & store funds with Fingerprint, Face ID or PIN')}
-                </p>
-              </div>
-            </div>
-            <label className={`relative inline-flex items-center shrink-0 ${biometricSupport.checked && !biometricSupport.supported && !biometrics ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-              <input
-                type="checkbox"
-                checked={biometrics}
-                onChange={handleToggleBiometrics}
-                disabled={biometricSupport.checked && !biometricSupport.supported && !biometrics}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-            </label>
-          </div>
-
-          {/* Security Toast */}
-          {securityToast && (
-            <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200/60 text-[11px] font-medium text-purple-900 flex items-center gap-2 animate-reveal text-left">
-              <span className="material-symbols-outlined text-[16px] text-primary shrink-0">info</span>
-              <span>{securityToast}</span>
-            </div>
-          )}
-
-          {/* Backup PIN Manager */}
-          <div className="flex items-center justify-between pl-1 pr-1 text-[11px] border-t border-outline-variant/10 pt-2.5">
-            <span className="text-on-surface-variant font-medium">
-              {t('Backup Security PIN:')} <strong className="text-on-surface">{currentUser?.security?.hasPin ? `${t('Configured')} ✅` : t('Not Set')}</strong>
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setPinMode(currentUser?.security?.hasPin ? 'change' : 'setup');
-                setShowPinModal(true);
-              }}
-              className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">key</span>
-              {currentUser?.security?.hasPin ? t('Change PIN') : t('Set PIN')}
-            </button>
-          </div>
-        </div>
-
         {/* App Language Selector (Hindi & English) */}
         <div 
           onClick={() => setShowLangModal(true)}
@@ -1622,14 +1561,6 @@ export default function ProfilePage() {
       <VendorPayLaterModal
         isOpen={showPayLaterModal}
         onClose={() => setShowPayLaterModal(false)}
-      />
-
-      {/* Security PIN Setup / Change Modal */}
-      <SecurityPinModal
-        isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        mode={pinMode}
-        onSubmit={handlePinSubmit}
       />
 
       {/* Language Selector Modal */}

@@ -9,7 +9,6 @@ import { getBiometricSupportStatus, describeBiometricUnsupportedReason, register
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
-import SecurityPinModal from '../../../components/common/SecurityPinModal';
 import { useBackableSubview } from '../../../utils/navigationUtils';
 
 export default function ProfileScreen() {
@@ -686,14 +685,6 @@ export default function ProfileScreen() {
           </div>
         </div>
       )}
-
-      {/* Security PIN Setup / Change Modal */}
-      <SecurityPinModal
-        isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        mode={pinMode}
-        onSubmit={handlePinSubmit}
-      />
 
       {/* Loan Coming Soon Modal */}
       <LoanComingSoonModal

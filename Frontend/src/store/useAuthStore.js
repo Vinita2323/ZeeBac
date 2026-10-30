@@ -34,11 +34,7 @@ export const ROLE_STORAGE = {
 // user ever having opted into an app-open lock. Treating hasPin as its own
 // trigger meant turning the biometric toggle off didn't stop the PIN prompt
 // on every app open, which looked like a broken "off" switch.
-const hasSecurityEnabled = (user) => {
-  const role = user?.role || user?.userType;
-  if (role !== 'customer' && role !== 'vendor') return false;
-  return Boolean(user?.security?.biometricEnabled);
-};
+const hasSecurityEnabled = () => false;
 
 const UNLOCK_GRACE_PERIOD_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -223,7 +219,7 @@ const useAuthStore = create((set, get) => ({
         vendorToken: vToken,
         adminUser: aUser,
         adminToken: aToken,
-        isAppLocked: hasSecurityEnabled(activeUser) && !isWithinUnlockGracePeriod(activeRole),
+        isAppLocked: false,
       });
 
       if (activeUser) {
@@ -320,7 +316,7 @@ const useAuthStore = create((set, get) => ({
             accessToken: token,
             isAuthenticated: true,
             walletBalance: balance,
-            isAppLocked: hasSecurityEnabled(user) && !isWithinUnlockGracePeriod(desiredRole),
+            isAppLocked: false,
             ...(desiredRole === 'vendor' ? { vendorUser: user, vendorToken: token } : {}),
             ...(desiredRole === 'customer' ? { customerUser: user, customerToken: token } : {}),
             ...(desiredRole === 'admin' ? { adminUser: user, adminToken: token } : {}),
@@ -331,15 +327,7 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
-  lockApp: (force = false, role = null) => {
-    const targetRole = role || (get().currentUser?.role === 'vendor' ? 'vendor' : 'customer');
-    if (!hasSecurityEnabled(get().currentUser)) return;
-    if (!force && isWithinUnlockGracePeriod(targetRole)) {
-      return;
-    }
-    clearUnlockedThisSession(targetRole);
-    set({ isAppLocked: true });
-  },
+  lockApp: () => { set({ isAppLocked: false }); },
 
   unlockApp: (role = null) => {
     const targetRole = role || (get().currentUser?.role === 'vendor' ? 'vendor' : 'customer');
