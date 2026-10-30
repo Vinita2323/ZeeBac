@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import QRCode from 'qrcode';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { OrderAPI, UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
@@ -422,29 +421,26 @@ export default function CartScreen() {
         updateBalance(pointsSummary.availablePointsAfter);
       }
 
-      // ── CASE 1: DIRECT UPI INTENT FLOW ──
+      // ── CASE 1: DIRECT UPI INTENT FLOW (INSTANT APP LAUNCH, NO BARCODE) ──
       if (order.paymentMethod === 'UPI_INTENT' && order.finalPayableAmount > 0) {
-        let qrDataUrl = '';
-        try {
-          qrDataUrl = await QRCode.toDataURL(upiDetails.upiUri, {
-            margin: 1,
-            width: 240,
-            color: { dark: '#1e1b4b', light: '#ffffff' },
-          });
-        } catch (e) {
-          console.warn('QR code generation fallback', e);
-        }
-
         setUpiIntentData({
           ...upiDetails,
           orderId: order.orderId,
-          qrDataUrl,
           order,
         });
 
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (isMobile && upiDetails.upiUri) {
-          window.location.href = upiDetails.upiUri;
+        // Instantly trigger native UPI App (GPay, PhonePe, Paytm, BHIM)
+        if (upiDetails.upiUri) {
+          try {
+            const link = document.createElement('a');
+            link.href = upiDetails.upiUri;
+            link.target = '_self';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch {
+            window.location.href = upiDetails.upiUri;
+          }
         }
 
         setIsProcessing(false);
@@ -1618,32 +1614,23 @@ export default function CartScreen() {
               <span>Open in UPI App (GPay / PhonePe / Paytm)</span>
             </a>
 
-            {/* Dynamic QR Code */}
-            {upiIntentData.qrDataUrl && (
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-center space-y-2">
-                <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  Scan Dynamic UPI QR Code
-                </p>
-                <img
-                  src={upiIntentData.qrDataUrl}
-                  alt="UPI Payment QR"
-                  className="w-44 h-44 mx-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xs"
-                />
-                <div className="flex items-center justify-center gap-1.5 text-[11.5px] text-slate-700">
-                  <span>UPI ID:</span>
-                  <span className="font-mono font-bold text-slate-900">{upiIntentData.payeeVpa}</span>
-                  <button
-                    onClick={() => handleCopyVpa(upiIntentData.payeeVpa)}
-                    className="p-1 text-primary hover:bg-purple-100 rounded-md transition-colors cursor-pointer"
-                    title="Copy UPI ID"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">
-                      {copySuccess ? 'check' : 'content_copy'}
-                    </span>
-                  </button>
-                </div>
+            {/* Payee UPI ID display & copy (Clean single row, No QR / Barcode) */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[12px]">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Merchant UPI:</span>
+                <span className="font-mono font-bold text-slate-900">{upiIntentData.payeeVpa}</span>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => handleCopyVpa(upiIntentData.payeeVpa)}
+                className="text-primary hover:bg-purple-50 px-2 py-1 rounded-md font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {copySuccess ? 'check' : 'content_copy'}
+                </span>
+                <span>{copySuccess ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
 
             {/* 12-Digit UTR Verification Form */}
             <div className="bg-purple-50/60 p-3.5 rounded-2xl border border-purple-100 space-y-2">
