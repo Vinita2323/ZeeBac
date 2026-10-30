@@ -6,8 +6,6 @@ import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
 import NotificationPanel from '../components/common/NotificationPanel';
 import useNotifications from '../../../hooks/useNotifications';
-import ShopAndPayLaterModal from '../components/ShopAndPayLaterModal';
-import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 import useLanguageStore from '../../../store/useLanguageStore';
@@ -19,37 +17,6 @@ export default function HomeScreen() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { unreadCount } = useNotifications();
 
-  // Modals & image 2 services states
-  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
-  const [showLoanModal, setShowLoanModal] = useState(false);
-  const [showUtrModal, setShowUtrModal] = useState(false);
-  const [utrInput, setUtrInput] = useState('');
-  const [utrError, setUtrError] = useState('');
-  const [utrSuccess, setUtrSuccess] = useState('');
-  const [isClaimingUtr, setIsClaimingUtr] = useState(false);
-
-  const handleClaimUtr = async () => {
-    if (!utrInput.trim() || isClaimingUtr) return;
-    setIsClaimingUtr(true);
-    setUtrError('');
-    setUtrSuccess('');
-    try {
-      const res = await UserAPI.claimUpiCashback(utrInput.trim());
-      if (res.success) {
-        setUtrSuccess(res.message || 'Cashback claimed successfully!');
-        setTimeout(() => {
-          setShowUtrModal(false);
-          setUtrSuccess('');
-          setUtrInput('');
-          navigate('/wallet');
-        }, 1200);
-      }
-    } catch (err) {
-      setUtrError(err.response?.data?.message || err.message || 'No payment found matching this UPI UTR.');
-    } finally {
-      setIsClaimingUtr(false);
-    }
-  };
 
   const handleVendorClick = (vendor) => {
     navigate('/vendor-detail', { state: { vendor } });
@@ -61,7 +28,6 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [location, setLocation] = useState(null);
   const [homeSearchQuery, setHomeSearchQuery] = useState('');
-  const [showMoreServices, setShowMoreServices] = useState(false);
 
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
@@ -307,21 +273,12 @@ export default function HomeScreen() {
           </div>
         </div>
 
-        {/* Quick Actions matching Mockup Phone 2 */}
+        {/* Quick Actions */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-[15px] font-black text-on-surface">
               {t('Quick Actions')}
             </h2>
-            <button
-              onClick={() => setShowMoreServices(!showMoreServices)}
-              className="text-[11px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-0.5"
-            >
-              <span>{showMoreServices ? t('Less') : t('More Services')}</span>
-              <span className="material-symbols-outlined text-[14px]">
-                {showMoreServices ? 'expand_less' : 'expand_more'}
-              </span>
-            </button>
           </div>
 
           {/* Primary 4 Actions: Scan & Pay | My QR | Wallet | History */}
@@ -346,36 +303,6 @@ export default function HomeScreen() {
               </button>
             ))}
           </div>
-
-          {/* Secondary Quick Actions (More Services) */}
-          {showMoreServices && (
-            <div className="grid grid-cols-4 gap-2 sm:gap-2.5 pt-1 animate-fade-in">
-              {[
-                { label: t('Upload Bill'), icon: 'receipt_long', onClick: () => navigate('/request-cashback'), bg: 'from-[#260060] to-[#7000ff]' },
-                { label: t('Claim by UTR'), icon: 'receipt_long', onClick: () => { setShowUtrModal(true); setUtrError(''); setUtrSuccess(''); setUtrInput(''); }, bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-                { label: t('Mobile Recharge'), icon: 'phonelink_ring', onClick: () => navigate('/wallet', { state: { subView: 'recharge' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
-                { label: t('Personal Loan'), icon: 'payments', onClick: () => setShowLoanModal(true), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]', badge: t('Soon') },
-              ].map((action) => (
-                <button
-                  key={action.label}
-                  onClick={action.onClick}
-                  className="relative flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-2xl bg-white/70 hover:bg-white border border-outline-variant/10 shadow-xs transition-all active:scale-[0.94] cursor-pointer"
-                >
-                  {action.badge && (
-                    <span className="absolute top-1 right-1 px-1 py-0.2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[7px] uppercase tracking-wider rounded-md pointer-events-none">
-                      {action.badge}
-                    </span>
-                  )}
-                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
-                    <span className="material-symbols-outlined text-[17px]">{action.icon}</span>
-                  </div>
-                  <span className="text-[9px] font-bold text-on-surface-variant text-center leading-[1.15] h-[22px] flex items-center justify-center px-0.5">
-                    {action.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Cashback Banner matching Brand Theme */}
@@ -570,87 +497,6 @@ export default function HomeScreen() {
         </div>
 
       </main>
-
-      {/* Shop & Pay Later Modal */}
-      <ShopAndPayLaterModal
-        isOpen={showPayLaterModal}
-        onClose={() => setShowPayLaterModal(false)}
-      />
-
-      {/* Personal Loan Modal (Coming Soon) */}
-      <LoanComingSoonModal
-        isOpen={showLoanModal}
-        onClose={() => setShowLoanModal(false)}
-      />
-
-      {/* UTR Claim Modal */}
-      {showUtrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in text-left">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-scale-up relative">
-            <button
-              onClick={() => setShowUtrModal(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[26px]">receipt_long</span>
-              </div>
-              <div>
-                <h3 className="font-display font-black text-[17px] text-on-surface leading-tight">{t('Claim by UTR')}</h3>
-                <p className="text-[11px] text-on-surface-variant">{t('Instant 12-Digit UPI Claim')}</p>
-              </div>
-            </div>
-
-            <p className="text-[12px] text-on-surface-variant leading-relaxed">
-              {t("If Google Pay, PhonePe, or Paytm didn't send your phone number, enter your 12-digit UPI Reference / UTR number from your payment receipt to claim cashback:")}
-            </p>
-
-            <div className="space-y-3">
-              <input
-                autoFocus
-                type="text"
-                value={utrInput}
-                onChange={(e) => { setUtrInput(e.target.value.trim()); setUtrError(''); }}
-                onKeyDown={(e) => e.key === 'Enter' && handleClaimUtr()}
-                placeholder="e.g. 425512345678"
-                className="w-full h-12 px-4 bg-slate-100 rounded-xl outline-none border-2 border-transparent focus:border-primary text-[15px] font-bold text-on-surface tracking-wider"
-              />
-
-              {utrError && (
-                <p className="text-red-500 text-[11px] font-medium flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
-                  {utrError}
-                </p>
-              )}
-
-              {utrSuccess && (
-                <p className="text-primary text-[12px] font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                  {utrSuccess}
-                </p>
-              )}
-
-              <button
-                onClick={handleClaimUtr}
-                disabled={!utrInput.trim() || isClaimingUtr}
-                className="w-full py-3 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isClaimingUtr ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">redeem</span>
-                    {t('Verify & Claim Cashback')}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Shared Bottom NavBar */}
       <BottomNavBar />
