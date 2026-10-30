@@ -36,7 +36,11 @@ import {
   createUserWalletOrder,
   verifyUserWalletPayment,
   getWalletDynamicUpiQr,
-  claimWalletUpiPayment
+    claimWalletUpiPayment,
+  getSavedAddresses,
+  addSavedAddress,
+  deleteSavedAddress,
+  setDefaultAddress
 } from '../controllers/user.controller.js';
 import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
