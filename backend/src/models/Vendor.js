@@ -175,6 +175,13 @@ const vendorSchema = new mongoose.Schema(
     // a negative or >100% rate with nothing stopping it from being applied
     // to real transactions.
     cashbackRate: { type: Number, min: 0, max: 100 },
+    deliverySettings: {
+      deliveryCharge: { type: Number, default: 30, min: 0 },
+      freeDeliveryAbove: { type: Number, default: 499, min: 0 },
+      packagingCharge: { type: Number, default: 10, min: 0 },
+      minOrderAmount: { type: Number, default: 0, min: 0 },
+      isDeliveryAvailable: { type: Boolean, default: true },
+    },
     // Per-vendor override for how many cashback requests one customer may
     // file at this shop per day — null/unset means "use the platform
     // default" (RewardConfig.dailyCashbackRequestsPerShop). Lets admin raise

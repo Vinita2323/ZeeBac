@@ -5,6 +5,7 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import RewardConfig from '../models/RewardConfig.js';
 import { creditWallet, debitWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
@@ -107,6 +108,29 @@ export const createOrder = async (req, res) => {
     totalGrossAmount = Math.round(totalGrossAmount * 100) / 100;
     totalCashbackPoints = Math.round(totalCashbackPoints * 100) / 100;
 
+    // ── Calculate Item Subtotal, Delivery Fee, Packaging Fee & Admin Tax ──
+    const itemTotal = totalGrossAmount;
+
+    let deliveryCharge = 0;
+    let packagingCharge = 0;
+    if (fulfillmentType === 'delivery') {
+      const freeAbove = Number(vendor.deliverySettings?.freeDeliveryAbove) || 499;
+      if (itemTotal >= freeAbove) {
+        deliveryCharge = 0;
+      } else {
+        deliveryCharge = Number(vendor.deliverySettings?.deliveryCharge ?? 30);
+      }
+      packagingCharge = Number(vendor.deliverySettings?.packagingCharge ?? 10);
+    }
+
+    // Statutory GST Tax decided by Admin from RewardConfig
+    const rewardConfig = await RewardConfig.findOne();
+    const taxPercentage = rewardConfig?.enableOrderTax !== false ? (Number(rewardConfig?.orderGstTaxPercent) ?? 5) : 0;
+    const taxAmount = Math.round((itemTotal * (taxPercentage / 100)) * 100) / 100;
+
+    // Total gross bill amount (itemTotal + deliveryCharge + packagingCharge + taxAmount)
+    const totalBillAmount = Math.round((itemTotal + deliveryCharge + packagingCharge + taxAmount) * 100) / 100;
+
     // ── Handle Customer Zeebac Points Redemption (1 Point = ₹1) ──
     const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
     const availablePoints = customerWallet ? Math.max(0, customerWallet.balance || 0) : 0;
@@ -115,12 +139,12 @@ export const createOrder = async (req, res) => {
     if (pointsToRedeem > availablePoints) {
       pointsToRedeem = availablePoints;
     }
-    if (pointsToRedeem > totalGrossAmount) {
-      pointsToRedeem = totalGrossAmount;
+    if (pointsToRedeem > totalBillAmount) {
+      pointsToRedeem = totalBillAmount;
     }
     pointsToRedeem = Math.round(pointsToRedeem * 100) / 100;
 
-    const finalPayableAmount = Math.max(0, Math.round((totalGrossAmount - pointsToRedeem) * 100) / 100);
+    const finalPayableAmount = Math.max(0, Math.round((totalBillAmount - pointsToRedeem) * 100) / 100);
 
     // ── Format delivery address safely as a string (prevents Mongoose CastError on object) ──
     let resolvedDeliveryAddress = 'Customer Address';

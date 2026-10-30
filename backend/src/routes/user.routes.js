@@ -102,6 +102,13 @@ router.post('/wallet/verify-payment', verifyUserWalletPayment);
 router.post('/wallet/dynamic-qr', getWalletDynamicUpiQr);
 router.post('/wallet/claim-upi-utr', claimWalletUpiPayment);
 
+
+// Saved Delivery Addresses (Zomato-style step-by-step address management)
+router.get('/addresses', getSavedAddresses);
+router.post('/addresses', addSavedAddress);
+router.delete('/addresses/:id', deleteSavedAddress);
+router.put('/addresses/:id/default', setDefaultAddress);
+
 // Biometric & PIN Security
 router.post('/security/setup-pin', pinLimiter, setupSecurityPin);
 router.post('/security/toggle-biometric', toggleBiometricSecurity);

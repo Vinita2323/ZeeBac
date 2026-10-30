@@ -1180,6 +1180,8 @@ export const updateRewardConfig = async (req, res) => {
     if (vendorPaymentCommissionPercent !== undefined) config.vendorPaymentCommissionPercent = Number(vendorPaymentCommissionPercent);
     if (withdrawalGstPercent !== undefined) config.withdrawalGstPercent = Number(withdrawalGstPercent);
     if (enableWithdrawalGst !== undefined) config.enableWithdrawalGst = Boolean(enableWithdrawalGst);
+    if (req.body.orderGstTaxPercent !== undefined) config.orderGstTaxPercent = Number(req.body.orderGstTaxPercent);
+    if (req.body.enableOrderTax !== undefined) config.enableOrderTax = Boolean(req.body.enableOrderTax);
     if (customerWalletPayCommissionPercent !== undefined) config.customerWalletPayCommissionPercent = Number(customerWalletPayCommissionPercent);
     if (customerWalletPayFixedFee !== undefined) config.customerWalletPayFixedFee = Number(customerWalletPayFixedFee);
     if (independentStoreMonthlyPrice !== undefined) config.independentStoreMonthlyPrice = Number(independentStoreMonthlyPrice);

@@ -68,11 +68,59 @@ export default function StorefrontPage() {
   const [newOfferTitle, setNewOfferTitle] = useState('');
   const [newOfferDescription, setNewOfferDescription] = useState('');
   const [newOfferType, setNewOfferType] = useState('percent');
+  // Delivery & Packaging Charges State (Configured by Store Owner)
+  const [deliverySettings, setDeliverySettings] = useState({
+    deliveryCharge: 30,
+    freeDeliveryAbove: 499,
+    packagingCharge: 10,
+    minOrderAmount: 0,
+    isDeliveryAvailable: true,
+  });
+  const [isSavingDelivery, setIsSavingDelivery] = useState(false);
+
+  const fetchDeliverySettings = async () => {
+    try {
+      const res = await VendorAPI.getProfile();
+      if (res.success && res.data?.deliverySettings) {
+        setDeliverySettings({
+          deliveryCharge: Number(res.data.deliverySettings.deliveryCharge ?? 30),
+          freeDeliveryAbove: Number(res.data.deliverySettings.freeDeliveryAbove ?? 499),
+          packagingCharge: Number(res.data.deliverySettings.packagingCharge ?? 10),
+          minOrderAmount: Number(res.data.deliverySettings.minOrderAmount ?? 0),
+          isDeliveryAvailable: res.data.deliverySettings.isDeliveryAvailable !== false,
+        });
+      }
+    } catch (e) {
+      console.warn('Could not load delivery settings', e);
+    }
+  };
+
+  const handleSaveDeliverySettings = async (e) => {
+    if (e) e.preventDefault();
+    setIsSavingDelivery(true);
+    try {
+      const res = await VendorAPI.updateProfile({ deliverySettings });
+      if (res.success) {
+        toast.success(t('Delivery & packaging settings updated successfully!'));
+        if (res.data) {
+          useAuthStore.getState().updateProfile(res.data);
+        }
+      } else {
+        toast.error(res.message || t('Failed to save settings'));
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || t('Failed to save settings'));
+    } finally {
+      setIsSavingDelivery(false);
+    }
+  };
+
 
   useEffect(() => {
     fetchProducts();
     fetchMedia();
     fetchPromotions();
+    fetchDeliverySettings();
   }, []);
 
   const fetchProducts = async () => {
@@ -395,6 +443,7 @@ export default function StorefrontPage() {
       <nav className="bg-white border-b border-outline-variant/20 flex overflow-x-auto hide-scrollbar select-none sticky top-[57px] md:top-0 z-30 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0">
         {[
           { key: 'catalog', label: t('Catalog / Products'), icon: 'inventory_2' },
+          { key: 'delivery', label: t('Delivery & Charges'), icon: 'local_shipping' },
           { key: 'media', label: t('Photos & Videos'), icon: 'photo_library' },
           { key: 'promotions', label: t('Promotions'), icon: 'campaign' },
           { key: 'stories', label: t('Store Stories'), icon: 'history_toggle_off' },
@@ -741,6 +790,188 @@ export default function StorefrontPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+
+        {/* Delivery & Charges Tab (Zomato-style Store Owner Controls) */}
+        {activeTab === 'delivery' && (
+          <div className="space-y-6 animate-reveal max-w-4xl mx-auto">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-purple-200 text-xs font-bold mb-2">
+                  <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                  <span>Store Delivery Settings</span>
+                </div>
+                <h2 className="text-2xl font-black text-white">Delivery & Packaging Charges</h2>
+                <p className="text-xs text-purple-200 mt-1 max-w-lg leading-relaxed">
+                  Decide your store's customer delivery fee, free delivery threshold, and packaging charges. These will be added to the customer's bill at checkout.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/15">
+                <div>
+                  <p className="text-xs text-purple-200 font-medium">Home Delivery</p>
+                  <p className="text-sm font-black text-white">
+                    {deliverySettings.isDeliveryAvailable ? 'Active' : 'Disabled'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={deliverySettings.isDeliveryAvailable}
+                    onChange={(e) => setDeliverySettings({ ...deliverySettings, isDeliveryAvailable: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Charges Configuration Cards */}
+            <form onSubmit={handleSaveDeliverySettings} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6 text-left">
+              <h3 className="font-display font-black text-lg text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-purple-700">payments</span>
+                <span>Configure Fees & Thresholds</span>
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Standard Delivery Fee */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1.5">
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Standard Delivery Fee (₹)
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Base fee charged for delivering an order to customer's address.
+                  </p>
+                  <div className="relative mt-2">
+                    <span className="absolute left-3.5 top-3 text-slate-400 font-bold">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={deliverySettings.deliveryCharge}
+                      onChange={(e) => setDeliverySettings({ ...deliverySettings, deliveryCharge: Math.max(0, parseFloat(e.target.value) || 0) })}
+                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl font-black text-slate-900 focus:outline-none focus:border-purple-600 text-base"
+                      placeholder="e.g. 30"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Free Delivery Above Threshold */}
+                <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 space-y-1.5">
+                  <label className="block text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+                    <span>Free Delivery Threshold (₹)</span>
+                    <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
+                  </label>
+                  <p className="text-[11px] text-emerald-700">
+                    Orders above this amount qualify for 100% Free Delivery for customers.
+                  </p>
+                  <div className="relative mt-2">
+                    <span className="absolute left-3.5 top-3 text-emerald-600 font-bold">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={deliverySettings.freeDeliveryAbove}
+                      onChange={(e) => setDeliverySettings({ ...deliverySettings, freeDeliveryAbove: Math.max(0, parseFloat(e.target.value) || 0) })}
+                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-emerald-200 rounded-xl font-black text-emerald-900 focus:outline-none focus:border-emerald-600 text-base"
+                      placeholder="e.g. 499"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Packaging & Handling Fee */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1.5">
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Packaging & Handling Charge (₹)
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Cost of packaging material, bags, or handling added to customer bill.
+                  </p>
+                  <div className="relative mt-2">
+                    <span className="absolute left-3.5 top-3 text-slate-400 font-bold">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={deliverySettings.packagingCharge}
+                      onChange={(e) => setDeliverySettings({ ...deliverySettings, packagingCharge: Math.max(0, parseFloat(e.target.value) || 0) })}
+                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl font-black text-slate-900 focus:outline-none focus:border-purple-600 text-base"
+                      placeholder="e.g. 10"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Minimum Order Amount */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1.5">
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Minimum Order Amount (₹)
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Minimum cart value required before delivery is allowed (0 for no limit).
+                  </p>
+                  <div className="relative mt-2">
+                    <span className="absolute left-3.5 top-3 text-slate-400 font-bold">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={deliverySettings.minOrderAmount}
+                      onChange={(e) => setDeliverySettings({ ...deliverySettings, minOrderAmount: Math.max(0, parseFloat(e.target.value) || 0) })}
+                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl font-black text-slate-900 focus:outline-none focus:border-purple-600 text-base"
+                      placeholder="e.g. 0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Checkout Preview Box */}
+              <div className="bg-purple-50/70 p-4 rounded-2xl border border-purple-100 space-y-2">
+                <p className="text-xs font-extrabold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">visibility</span>
+                  <span>How Customer Sees Your Store at Checkout</span>
+                </p>
+                <div className="bg-white p-3.5 rounded-xl border border-purple-100 text-[12px] space-y-1.5 text-slate-700">
+                  <div className="flex justify-between">
+                    <span>Delivery Charge:</span>
+                    <span className="font-bold text-slate-900">
+                      ₹{deliverySettings.deliveryCharge} (Free above ₹{deliverySettings.freeDeliveryAbove})
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Packaging Fee:</span>
+                    <span className="font-bold text-slate-900">₹{deliverySettings.packagingCharge}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>Delivery Status:</span>
+                    <span>{deliverySettings.isDeliveryAvailable ? '🟢 Accepting Home Delivery Orders' : '🔴 Delivery Temporarily Disabled'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingDelivery}
+                  className="px-6 py-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-sm shadow-md shadow-purple-700/25 active:scale-95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingDelivery ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Saving Settings...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                      <span>Save Delivery Settings</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         )}
 

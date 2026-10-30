@@ -236,7 +236,7 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category subCategory cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours stats socialLinks subscription shopType location');
+      .select('zeebacId storeName category subCategory cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours stats socialLinks subscription shopType location deliverySettings');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -2568,3 +2568,129 @@ export const claimWalletUpiPayment = async (req, res) => {
 
 
 
+
+// ─── Phase 4E: Saved Delivery Addresses (Zomato-style step-by-step address management) ───
+
+export const getSavedAddresses = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('savedAddresses location name phone');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        addresses: user.savedAddresses || [],
+        primaryLocation: user.location || null,
+        userName: user.name || '',
+        userPhone: user.phone || '',
+      },
+    });
+  } catch (error) {
+    logger.error(`getSavedAddresses error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to fetch saved addresses' });
+  }
+};
+
+export const addSavedAddress = async (req, res) => {
+  try {
+    const {
+      label = 'Home',
+      houseNo,
+      street = '',
+      landmark = '',
+      city = 'Lucknow',
+      state = 'Uttar Pradesh',
+      pincode = '',
+      receiverName = '',
+      receiverPhone = '',
+      isDefault = false,
+    } = req.body;
+
+    if (!houseNo || !houseNo.trim()) {
+      return res.status(400).json({ success: false, message: 'House/Flat number and building/apartment are required' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (!user.savedAddresses) user.savedAddresses = [];
+
+    const shouldBeDefault = Boolean(isDefault) || user.savedAddresses.length === 0;
+    if (shouldBeDefault) {
+      user.savedAddresses.forEach((a) => { a.isDefault = false; });
+    }
+
+    const newAddr = {
+      label: (label || 'Home').trim(),
+      houseNo: houseNo.trim(),
+      street: (street || '').trim(),
+      landmark: (landmark || '').trim(),
+      city: (city || 'Lucknow').trim(),
+      state: (state || 'Uttar Pradesh').trim(),
+      pincode: (pincode || '').trim(),
+      receiverName: (receiverName || user.name || 'Customer').trim(),
+      receiverPhone: (receiverPhone || user.phone || '').trim(),
+      isDefault: shouldBeDefault,
+      createdAt: new Date(),
+    };
+
+    user.savedAddresses.push(newAddr);
+    await user.save();
+
+    const added = user.savedAddresses[user.savedAddresses.length - 1];
+    res.status(201).json({
+      success: true,
+      message: 'Address saved successfully',
+      data: added,
+      addresses: user.savedAddresses,
+    });
+  } catch (error) {
+    logger.error(`addSavedAddress error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to save address' });
+  }
+};
+
+export const deleteSavedAddress = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.savedAddresses = (user.savedAddresses || []).filter((a) => String(a._id) !== String(id));
+    if (user.savedAddresses.length > 0 && !user.savedAddresses.some((a) => a.isDefault)) {
+      user.savedAddresses[0].isDefault = true;
+    }
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Address deleted successfully',
+      addresses: user.savedAddresses,
+    });
+  } catch (error) {
+    logger.error(`deleteSavedAddress error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to delete address' });
+  }
+};
+
+export const setDefaultAddress = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.savedAddresses.forEach((a) => {
+      a.isDefault = String(a._id) === String(id);
+    });
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Default address updated',
+      addresses: user.savedAddresses,
+    });
+  } catch (error) {
+    logger.error(`setDefaultAddress error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to set default address' });
+  }
+};

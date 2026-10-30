@@ -110,7 +110,7 @@ export const creditWallet = async ({
   const wallet = await Wallet.findOneAndUpdate(
     { ownerId, ownerType: ownerTypeQuery },
     {
-      $inc: { balance: amount, totalEarned: amount },
+      $inc: { balance: cleanAmount, totalEarned: cleanAmount },
       $setOnInsert: { ownerZeebacId, ownerType: resolvedOwnerType },
     },
     { returnDocument: 'after', upsert: true, session, runValidators: true }
@@ -122,7 +122,7 @@ export const creditWallet = async ({
     ownerType: resolvedOwnerType,
     type: 'credit',
     category: category || 'cashback',
-    amount,
+    amount: cleanAmount,
     balanceAfter: wallet.balance,
     referenceId,
     referenceType,

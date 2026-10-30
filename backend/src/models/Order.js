@@ -81,7 +81,36 @@ const orderSchema = new mongoose.Schema(
     },
     items: [orderItemSchema],
 
-    // Gross item total
+    // Item subtotal before charges and taxes
+    itemTotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Delivery charge set by store owner
+    deliveryCharge: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Packaging & handling charge set by store owner
+    packagingCharge: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Statutory GST tax decided by Admin
+    taxAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    taxPercentage: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Gross bill total (itemTotal + deliveryCharge + packagingCharge + taxAmount)
     totalAmount: {
       type: Number,
       required: true,
