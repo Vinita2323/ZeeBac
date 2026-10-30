@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
@@ -614,6 +615,65 @@ export default function VendorDetailScreen() {
   const [showShopDetailsModal, setShowShopDetailsModal] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
+  // Product Lightbox Modal State
+  const [lightboxProduct, setLightboxProduct] = useState(null);
+  const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
+  const [isLightboxZoomed, setIsLightboxZoomed] = useState(false);
+  const [touchStartX, setTouchStartX] = useState(null);
+
+  // Lock body scroll when Product Lightbox is open
+  useEffect(() => {
+    if (lightboxProduct) {
+      const origOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = origOverflow;
+      };
+    }
+  }, [lightboxProduct]);
+
+  const activeProductImages = useMemo(() => {
+    if (!lightboxProduct) return [];
+    if (lightboxProduct.images && Array.isArray(lightboxProduct.images) && lightboxProduct.images.length > 0) {
+      return lightboxProduct.images.map(img => img.startsWith('http') || img.startsWith('data:') ? img : `${API_BASE_URL}${img}`);
+    }
+    const single = lightboxProduct.image || DEFAULT_SHOP_PRODUCTS[0].image;
+    return [single.startsWith('http') || single.startsWith('data:') ? single : `${API_BASE_URL}${single}`];
+  }, [lightboxProduct]);
+
+  const handleOpenProductLightbox = (product) => {
+    setLightboxProduct(product);
+    setLightboxImageIndex(0);
+    setIsLightboxZoomed(false);
+  };
+
+  const handleCloseProductLightbox = () => {
+    setLightboxProduct(null);
+    setIsLightboxZoomed(false);
+  };
+
+  const handlePrevImage = useCallback(() => {
+    setIsLightboxZoomed(false);
+    setLightboxImageIndex(prev => (prev > 0 ? prev - 1 : activeProductImages.length - 1));
+  }, [activeProductImages.length]);
+
+  const handleNextImage = useCallback(() => {
+    setIsLightboxZoomed(false);
+    setLightboxImageIndex(prev => (prev < activeProductImages.length - 1 ? prev + 1 : 0));
+  }, [activeProductImages.length]);
+
+  // Keyboard navigation for Product Lightbox
+  useEffect(() => {
+    if (!lightboxProduct) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') handleCloseProductLightbox();
+      else if (e.key === 'ArrowLeft') handlePrevImage();
+      else if (e.key === 'ArrowRight') handleNextImage();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxProduct, handlePrevImage, handleNextImage]);
+
   // Cart store hooks
   const addItem = useCartStore((state) => state.addItem);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
@@ -1045,11 +1105,11 @@ export default function VendorDetailScreen() {
                       className="flex flex-col items-center group cursor-pointer text-center transition-transform active:scale-95"
                     >
                       {/* Pastel Rounded Square Card */}
-                      <div className={`w-full aspect-square rounded-2xl ${cat.bgColor || 'bg-[#EBF7FD]'} flex items-center justify-center p-2 border border-sky-100/70 shadow-2xs group-hover:scale-105 group-hover:shadow-xs transition-all overflow-hidden`}>
+                      <div className={`w-full aspect-square rounded-2xl ${cat.bgColor || 'bg-slate-100'} flex items-center justify-center border border-slate-200/60 shadow-2xs group-hover:scale-105 group-hover:shadow-xs transition-all overflow-hidden relative`}>
                         <img
                           src={cat.image}
                           alt={cat.name}
-                          className="w-full h-full object-contain drop-shadow-xs"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                           loading="lazy"
                         />
                       </div>
@@ -1135,19 +1195,36 @@ export default function VendorDetailScreen() {
                     key={product._id || product.id}
                     className="bg-white rounded-2xl p-3 border border-slate-100 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group"
                   >
-                    {/* Product Image Card */}
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center p-2 mb-2">
+                    {/* Product Image Card (Full Ratio + Tap to Open Fullscreen Lightbox) */}
+                    <div
+                      onClick={() => handleOpenProductLightbox(product)}
+                      className="relative aspect-square w-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/70 flex items-center justify-center mb-2.5 cursor-pointer group/img"
+                      title={t('Click to preview product photos')}
+                    >
                       <img
-                        src={product.image || DEFAULT_SHOP_PRODUCTS[0].image}
+                        src={(product.image || (product.images && product.images[0]) || DEFAULT_SHOP_PRODUCTS[0].image)}
                         alt={product.name}
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />
                       {product.discountPrice && product.discountPrice > product.price && (
-                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-amber-400 text-purple-950 font-black text-[9px] uppercase tracking-wider">
+                        <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-amber-400 text-purple-950 font-black text-[9.5px] uppercase tracking-wider shadow-xs">
                           SAVE ₹{product.discountPrice - product.price}
                         </span>
                       )}
+                      {/* Multiple photos count indicator */}
+                      {product.images && product.images.length > 1 && (
+                        <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-white text-[9.5px] font-bold flex items-center gap-1 shadow-xs">
+                          <span className="material-symbols-outlined text-[12px]">photo_library</span>
+                          <span>{product.images.length}</span>
+                        </span>
+                      )}
+                      {/* Zoom hint on hover/touch */}
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <div className="w-8 h-8 rounded-full bg-white/40 backdrop-blur-md flex items-center justify-center text-white shadow-sm">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Product Details */}
@@ -1212,6 +1289,199 @@ export default function VendorDetailScreen() {
           )}
         </section>
       </main>
+
+      {/* ── 7. PRODUCT IMAGE LIGHTBOX & DETAIL MODAL (FULLSCREEN VIEWER) ── */}
+      {lightboxProduct && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col justify-between bg-black/95 backdrop-blur-xl select-none animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            if (touchStartX === null) return;
+            const diff = touchStartX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 40) {
+              if (diff > 0) handleNextImage();
+              else handlePrevImage();
+            }
+            setTouchStartX(null);
+          }}
+        >
+          {/* Top Bar Controls */}
+          <div className="flex items-center justify-between p-4 z-30 bg-gradient-to-b from-black/85 via-black/40 to-transparent">
+            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+              {activeProductImages.length > 1 && (
+                <span className="px-2.5 py-1 rounded-full bg-white/15 text-white font-mono text-[11px] font-bold backdrop-blur-md shrink-0">
+                  {lightboxImageIndex + 1} / {activeProductImages.length}
+                </span>
+              )}
+              <h3 className="text-white/95 text-[14px] font-bold truncate drop-shadow">
+                {lightboxProduct.name}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setIsLightboxZoomed(!isLightboxZoomed)}
+                title={isLightboxZoomed ? "Zoom out" : "Zoom in"}
+                className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {isLightboxZoomed ? 'zoom_out' : 'zoom_in'}
+                </span>
+              </button>
+
+              <button
+                onClick={handleCloseProductLightbox}
+                title="Close (Esc)"
+                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/35 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer shadow-md"
+              >
+                <span className="material-symbols-outlined text-[22px]">close</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Stage: Full Aspect Ratio Image */}
+          <div
+            className="flex-1 relative flex items-center justify-center p-3 sm:p-6 overflow-hidden cursor-default"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) handleCloseProductLightbox();
+            }}
+          >
+            {/* Prev Image Arrow */}
+            {activeProductImages.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePrevImage();
+                }}
+                className="absolute left-3 sm:left-6 z-20 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white/20 hover:bg-white/30 active:scale-90 text-white backdrop-blur-md flex items-center justify-center transition-all shadow-xl cursor-pointer"
+                aria-label="Previous image"
+              >
+                <span className="material-symbols-outlined text-[28px]">chevron_left</span>
+              </button>
+            )}
+
+            {/* Product Image Stage */}
+            <div className="relative max-w-full max-h-full flex items-center justify-center">
+              <img
+                key={activeProductImages[lightboxImageIndex]}
+                src={activeProductImages[lightboxImageIndex]}
+                alt={lightboxProduct.name}
+                onClick={() => setIsLightboxZoomed(!isLightboxZoomed)}
+                className={`max-h-[58vh] sm:max-h-[68vh] max-w-[94vw] rounded-2xl shadow-2xl object-contain transition-transform duration-300 ${
+                  isLightboxZoomed ? 'scale-125 sm:scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'
+                }`}
+              />
+            </div>
+
+            {/* Next Image Arrow */}
+            {activeProductImages.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNextImage();
+                }}
+                className="absolute right-3 sm:right-6 z-20 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white/20 hover:bg-white/30 active:scale-90 text-white backdrop-blur-md flex items-center justify-center transition-all shadow-xl cursor-pointer"
+                aria-label="Next image"
+              >
+                <span className="material-symbols-outlined text-[28px]">chevron_right</span>
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Card: Mini Thumbnails + Product Info + Add to Cart */}
+          <div className="p-4 sm:p-5 z-30 bg-gradient-to-t from-black/95 via-black/85 to-transparent space-y-3">
+            {/* Thumbnail Navigation Row */}
+            {activeProductImages.length > 1 && (
+              <div className="flex items-center justify-center gap-2 overflow-x-auto py-1">
+                {activeProductImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setIsLightboxZoomed(false);
+                      setLightboxImageIndex(idx);
+                    }}
+                    className={`w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all cursor-pointer ${
+                      lightboxImageIndex === idx
+                        ? 'border-purple-400 scale-105 ring-2 ring-purple-400/60 shadow-lg'
+                        : 'border-white/20 opacity-60 hover:opacity-90'
+                    }`}
+                  >
+                    <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Info Card with Price and Add to Cart */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 backdrop-blur-md max-w-lg mx-auto shadow-xl flex items-center justify-between gap-3 text-left">
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block truncate">
+                  {lightboxProduct.category || 'Product'}
+                </span>
+                <h4 className="font-bold text-[14px] sm:text-[15px] text-white truncate leading-snug">
+                  {lightboxProduct.name}
+                </h4>
+                <div className="flex items-baseline gap-2 pt-0.5">
+                  <span className="font-black text-[17px] text-white">
+                    ₹{lightboxProduct.price}
+                  </span>
+                  {lightboxProduct.discountPrice && lightboxProduct.discountPrice > lightboxProduct.price && (
+                    <span className="text-[12px] text-slate-400 line-through">
+                      ₹{lightboxProduct.discountPrice}
+                    </span>
+                  )}
+                  {(() => {
+                    const r = Math.max(0, Math.min(100, Number(lightboxProduct.cashbackPercentage ?? lightboxProduct.branding?.cashbackPercentage ?? vendor.cashbackRate ?? 0)));
+                    const pts = Math.round(lightboxProduct.price * (r / 100) * 100) / 100;
+                    return (
+                      <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+                        +{pts} Pts Cashback
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Add to Cart Stepper */}
+              <div className="shrink-0 w-32">
+                {(() => {
+                  const qty = getItemQuantity(lightboxProduct._id || lightboxProduct.id);
+                  return qty === 0 ? (
+                    <button
+                      onClick={() => addItem(lightboxProduct, vendor)}
+                      className="w-full py-2.5 rounded-xl btn-primary-gradient text-white font-black text-[12px] flex items-center justify-center gap-1 shadow-md shadow-primary/30 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
+                      <span>{t('Add')}</span>
+                    </button>
+                  ) : (
+                    <div className="w-full h-10 rounded-xl btn-primary-gradient text-white flex items-center justify-between px-2.5 shadow-md shadow-primary/30 font-black text-[13px]">
+                      <button
+                        onClick={() => updateQuantity(lightboxProduct._id || lightboxProduct.id, -1)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 active:scale-90 transition-transform cursor-pointer"
+                        title="Decrease"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">remove</span>
+                      </button>
+                      <span className="font-mono font-bold text-[14px]">{qty}</span>
+                      <button
+                        onClick={() => updateQuantity(lightboxProduct._id || lightboxProduct.id, 1)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 active:scale-90 transition-transform cursor-pointer"
+                        title="Increase"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">add</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Floating Quick-Commerce Cart Bar (like Blinkit / Zepto) */}
       {cartItemsCount > 0 && (

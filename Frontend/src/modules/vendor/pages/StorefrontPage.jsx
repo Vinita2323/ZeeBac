@@ -51,6 +51,7 @@ export default function StorefrontPage() {
     cashbackPercentage: 10,
     description: '',
     image: null,
+    images: [],
     highlight: false,
     isBranded: false,
     brandCompany: '',
@@ -225,8 +226,61 @@ export default function StorefrontPage() {
     }
   };
 
+  const handleProductMultiImagesChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const currentImages = productForm.images || [];
+    if (currentImages.length + files.length > 5) {
+      toast.error(t('You can upload up to 5 images per product.'));
+      return;
+    }
+
+    const newItems = files.map((file) => ({
+      file,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      mockUrl: URL.createObjectURL(file),
+      isExisting: false,
+    }));
+
+    const updated = [...currentImages, ...newItems];
+    updateProductForm('images', updated);
+    if (updated.length > 0 && !productForm.image) {
+      updateProductForm('image', updated[0]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveProductImage = (indexToRemove) => {
+    const current = productForm.images || [];
+    const updated = current.filter((_, idx) => idx !== indexToRemove);
+    updateProductForm('images', updated);
+    updateProductForm('image', updated[0] || null);
+  };
+
   const handleEditProduct = (product) => {
     setEditingProductId(product._id);
+    const existingImages = [];
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((img, idx) => {
+        existingImages.push({
+          isExisting: true,
+          url: img,
+          mockUrl: getMediaUrl(img),
+          name: `Image ${idx + 1}`,
+        });
+      });
+    } else if (product.image) {
+      existingImages.push({
+        isExisting: true,
+        url: product.image,
+        mockUrl: getMediaUrl(product.image),
+        name: 'Cover Image',
+      });
+    }
+
     setProductForm({
       name: product.name || '',
       category: product.category || 'Instant Food',
@@ -242,7 +296,8 @@ export default function StorefrontPage() {
       expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : '',
       cashbackPercentage: product.cashbackPercentage !== undefined ? product.cashbackPercentage : 10,
       description: product.description || '',
-      image: product.image ? { mockUrl: getMediaUrl(product.image), name: 'Existing Image' } : null,
+      image: existingImages[0] || (product.image ? { mockUrl: getMediaUrl(product.image), name: 'Existing Image' } : null),
+      images: existingImages,
       highlight: product.isHighlight || false,
       isBranded: product.branding?.isBranded || false,
       brandCompany: product.branding?.brandCompany || '',
@@ -291,9 +346,28 @@ export default function StorefrontPage() {
       formData.append('brandName', productForm.brand || '');
       formData.append('brandCompany', productForm.brandCompany || '');
 
-      if (productForm.image && productForm.image.file) {
+      // Existing images retained by vendor
+      const retainedImages = (productForm.images || [])
+        .filter((img) => img.isExisting && img.url)
+        .map((img) => img.url);
+
+      formData.append('existingImages', JSON.stringify(retainedImages));
+
+      // Append new image files for multiple product photos
+      (productForm.images || []).forEach((img) => {
+        if (img.file) {
+          formData.append('images', img.file);
+        }
+      });
+
+      // Maintain primary single image field for full backwards compatibility
+      const primaryFile = (productForm.images || []).find((img) => img.file)?.file;
+      if (primaryFile) {
+        formData.append('image', primaryFile);
+      } else if (productForm.image && productForm.image.file) {
         formData.append('image', productForm.image.file);
       }
+
       if (productForm.brandLogo && productForm.brandLogo.file) {
         formData.append('brandLogo', productForm.brandLogo.file);
       }
@@ -1468,38 +1542,59 @@ export default function StorefrontPage() {
                       </p>
                     </div>
 
-                    {/* Image Upload Card */}
-                    <div className="space-y-2">
-                      <label className="text-[12px] font-bold text-gray-700 uppercase">
-                        {t('Product Image')} *
-                      </label>
-                      <div className="border-2 border-dashed border-gray-200 hover:border-purple-400 rounded-2xl p-4 text-center transition-all bg-gray-50/50">
-                        {productForm.image?.mockUrl ? (
-                          <div className="relative inline-block">
+                    {/* Product Images (Upload 2-3 Photos) */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12px] font-bold text-gray-700 uppercase">
+                          {t('Product Photos')} (Upload 2-3 Images) *
+                        </label>
+                        <span className="text-[11px] font-bold text-purple-700">
+                          {(productForm.images || []).length} / 5 photos
+                        </span>
+                      </div>
+
+                      {/* Grid of uploaded images + Add Button */}
+                      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+                        {(productForm.images || []).map((img, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-purple-200 bg-gray-50 shadow-xs group">
                             <img
-                              src={productForm.image.mockUrl}
-                              alt="Preview"
-                              className="w-36 h-36 object-cover rounded-xl shadow-md border border-gray-200"
+                              src={img.mockUrl}
+                              alt={`Product ${idx + 1}`}
+                              className="w-full h-full object-cover"
                             />
+                            {idx === 0 && (
+                              <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md bg-purple-700 text-white font-black text-[9px] uppercase tracking-wider shadow">
+                                Cover
+                              </span>
+                            )}
                             <button
                               type="button"
-                              onClick={() => updateProductForm('image', null)}
-                              className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
+                              onClick={() => handleRemoveProductImage(idx)}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-600/95 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-md cursor-pointer transition-all active:scale-90"
+                              title={t('Remove photo')}
                             >
-                              <span className="material-symbols-outlined text-[16px]">close</span>
+                              <span className="material-symbols-outlined text-[14px]">close</span>
                             </button>
                           </div>
-                        ) : (
-                          <label className="flex flex-col items-center justify-center py-6 cursor-pointer">
-                            <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center mb-2">
-                              <span className="material-symbols-outlined text-[28px]">cloud_upload</span>
+                        ))}
+
+                        {/* Add More Photos Button */}
+                        {(productForm.images || []).length < 5 && (
+                          <label className={`aspect-square rounded-2xl border-2 border-dashed border-purple-300 hover:border-purple-600 bg-purple-50/40 hover:bg-purple-50/80 transition-all flex flex-col items-center justify-center p-3 text-center cursor-pointer group ${(productForm.images || []).length === 0 ? 'col-span-3 py-8' : ''}`}>
+                            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-1 group-hover:scale-110 transition-transform">
+                              <span className="material-symbols-outlined text-[24px]">add_photo_alternate</span>
                             </div>
-                            <span className="text-[14px] font-black text-gray-800">{t('Upload Product Image')}</span>
-                            <span className="text-[11px] text-gray-500 mt-0.5">{t('PNG, JPG or WEBP up to 5MB')}</span>
+                            <span className="text-[12px] font-black text-purple-900 leading-tight">
+                              {(productForm.images || []).length === 0 ? t('Upload 2-3 Product Images') : t('+ Add Photo')}
+                            </span>
+                            <span className="text-[10px] text-gray-500 mt-0.5">
+                              {(productForm.images || []).length === 0 ? t('Select multiple photos (PNG, JPG up to 5MB)') : t('Up to 5 images')}
+                            </span>
                             <input
                               type="file"
+                              multiple
                               accept="image/*"
-                              onChange={(e) => handleProductFileChange(e, 'image')}
+                              onChange={handleProductMultiImagesChange}
                               className="hidden"
                             />
                           </label>

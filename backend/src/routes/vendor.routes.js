@@ -85,6 +85,7 @@ router.route('/products')
     requireApprovedVendor,
     upload.fields([
       { name: 'image', maxCount: 1 },
+      { name: 'images', maxCount: 5 },
       { name: 'brandLogo', maxCount: 1 }
     ]),
     createProduct
@@ -95,6 +96,7 @@ router.route('/products/:id')
     requireApprovedVendor,
     upload.fields([
       { name: 'image', maxCount: 1 },
+      { name: 'images', maxCount: 5 },
       { name: 'brandLogo', maxCount: 1 }
     ]),
     updateProduct

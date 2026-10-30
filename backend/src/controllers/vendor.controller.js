@@ -1009,16 +1009,51 @@ export const createProduct = async (req, res) => {
     // File URLs from multer
     let imageUrl = null;
     let brandLogoUrl = null;
+    let imagesList = [];
+
+    // Parse existing or provided images in body
+    if (req.body.existingImages) {
+      try {
+        const parsed = typeof req.body.existingImages === 'string' ? JSON.parse(req.body.existingImages) : req.body.existingImages;
+        if (Array.isArray(parsed)) imagesList.push(...parsed.filter(Boolean));
+      } catch (_) {}
+    }
+    if (req.body.images) {
+      if (Array.isArray(req.body.images)) {
+        imagesList.push(...req.body.images.filter(Boolean));
+      } else if (typeof req.body.images === 'string') {
+        try {
+          const parsed = JSON.parse(req.body.images);
+          if (Array.isArray(parsed)) imagesList.push(...parsed.filter(Boolean));
+          else imagesList.push(req.body.images);
+        } catch (_) {
+          imagesList.push(req.body.images);
+        }
+      }
+    }
 
     if (req.files) {
+      if (req.files['images'] && Array.isArray(req.files['images'])) {
+        for (const f of req.files['images']) {
+          const u = f.url || (f.filename?.startsWith('http') ? f.filename : null);
+          if (u) imagesList.push(u);
+        }
+      }
       if (req.files['image'] && req.files['image'][0]) {
         const f = req.files['image'][0];
         imageUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
+        if (imageUrl && !imagesList.includes(imageUrl)) {
+          imagesList.unshift(imageUrl);
+        }
       }
       if (req.files['brandLogo'] && req.files['brandLogo'][0]) {
         const f = req.files['brandLogo'][0];
         brandLogoUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
       }
+    }
+
+    if (!imageUrl && imagesList.length > 0) {
+      imageUrl = imagesList[0];
     }
 
     const parsedCashbackRate = cashbackPercentage !== undefined && cashbackPercentage !== null && cashbackPercentage !== ''
@@ -1053,6 +1088,7 @@ export const createProduct = async (req, res) => {
       brand: brand || brandName,
       description,
       image: imageUrl,
+      images: imagesList.length > 0 ? imagesList : (imageUrl ? [imageUrl] : []),
       isHighlight: isHighlight === 'true' || isHighlight === true,
       isActive: isActive !== 'false', // Default true unless explicitly false
       stock: stock ? Number(stock) : 0,
@@ -1110,12 +1146,46 @@ export const updateProduct = async (req, res) => {
       if (updates[key] !== undefined) product[key] = updates[key];
     });
 
-    // Handle uploaded product files
+    // Handle uploaded product files and multi-images
+    let updatedImages = product.images && Array.isArray(product.images) && product.images.length > 0
+      ? [...product.images]
+      : (product.image ? [product.image] : []);
+
+    if (updates.existingImages !== undefined) {
+      try {
+        const parsed = typeof updates.existingImages === 'string' ? JSON.parse(updates.existingImages) : updates.existingImages;
+        if (Array.isArray(parsed)) updatedImages = parsed.filter(Boolean);
+      } catch (_) {}
+    } else if (updates.images !== undefined) {
+      if (Array.isArray(updates.images)) {
+        updatedImages = updates.images.filter(Boolean);
+      } else if (typeof updates.images === 'string') {
+        try {
+          const parsed = JSON.parse(updates.images);
+          if (Array.isArray(parsed)) updatedImages = parsed.filter(Boolean);
+          else updatedImages = [updates.images];
+        } catch (_) {
+          updatedImages = [updates.images];
+        }
+      }
+    }
+
     if (req.files) {
+      if (req.files['images'] && Array.isArray(req.files['images'])) {
+        for (const f of req.files['images']) {
+          const u = f.url || (f.filename?.startsWith('http') ? f.filename : null);
+          if (u) updatedImages.push(u);
+        }
+      }
       if (req.files['image'] && req.files['image'][0]) {
         const f = req.files['image'][0];
         const newImageUrl = f.url || (f.filename?.startsWith('http') ? f.filename : null);
-        if (newImageUrl) product.image = newImageUrl;
+        if (newImageUrl) {
+          product.image = newImageUrl;
+          if (!updatedImages.includes(newImageUrl)) {
+            updatedImages.unshift(newImageUrl);
+          }
+        }
       }
       if (req.files['brandLogo'] && req.files['brandLogo'][0]) {
         const f = req.files['brandLogo'][0];
@@ -1124,6 +1194,13 @@ export const updateProduct = async (req, res) => {
           if (!product.branding) product.branding = {};
           product.branding.brandLogo = newLogoUrl;
         }
+      }
+    }
+
+    if (updatedImages.length > 0) {
+      product.images = updatedImages;
+      if (!product.image || !updatedImages.includes(product.image)) {
+        product.image = updatedImages[0];
       }
     }
 

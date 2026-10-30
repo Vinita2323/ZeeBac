@@ -32,6 +32,10 @@ const productSchema = new mongoose.Schema({
     type: String,
     get: sanitizeMediaUrl,
   },
+  images: [{
+    type: String,
+    get: sanitizeMediaUrl,
+  }],
   isHighlight: {
     type: Boolean,
     default: false,
