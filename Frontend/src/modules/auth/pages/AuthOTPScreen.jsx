@@ -20,6 +20,7 @@ export default function AuthOTPScreen() {
   const flow = location.state?.flow || 'login';
   const role = location.state?.role || 'customer';
   const referralCode = location.state?.referralCode || '';
+  const fullName = location.state?.fullName || '';
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -67,6 +68,7 @@ export default function AuthOTPScreen() {
           phone: mobileNumber,
           otp: otpString,
           referralCode,
+          name: fullName || undefined,
         });
       }
 
@@ -88,6 +90,12 @@ export default function AuthOTPScreen() {
       }
 
       // Customer Flow: Instant Location detection & Direct App Open!
+      if (flow === 'register') {
+        useUIStore.getState().showSnackbar(`Welcome to Zeebac, ${account?.name || fullName}! Account created 🎉`, 'success');
+      } else {
+        useUIStore.getState().showSnackbar(`Welcome back, ${account?.name || 'Customer'}!`, 'success');
+      }
+
       setStatusText('Detecting location & opening app...');
       markPrimerSeen('data_consent');
       markPrimerSeen('location');
@@ -198,13 +206,18 @@ export default function AuthOTPScreen() {
 
         <div className="text-left space-y-1">
           <h1 className="text-[26px] font-black tracking-tight text-on-surface leading-tight">
-            {verified ? 'Phone Verified!' : 'Enter 4-Digit Code'}
+            {verified
+              ? 'Phone Verified!'
+              : flow === 'register' && fullName
+              ? `Welcome, ${fullName}!`
+              : 'Enter 4-Digit Code'}
           </h1>
           <p className="text-body-sm text-on-surface-variant">
             {statusText ? (
               <span className="font-bold text-primary animate-pulse">{statusText}</span>
             ) : mobileNumber ? (
               <>
+                {flow === 'register' ? 'Verify your number to activate your account. ' : ''}
                 We sent an OTP to <span className="font-bold text-primary">+91 {mobileNumber}</span>.
               </>
             ) : (

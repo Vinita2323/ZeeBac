@@ -56,7 +56,11 @@ export const verifyOtpOnly = async (phone, otp, purpose, role) => {
     return true;
   }
 
-  let otpRecord = await OtpVerification.findOne({ phone, purpose, role });
+  let otpRecord = await OtpVerification.findOne({
+    phone,
+    role,
+    ...(purpose ? { purpose: { $in: [purpose, 'login', 'register'] } } : {})
+  }).sort({ createdAt: -1 });
   if (!otpRecord) {
     otpRecord = await OtpVerification.findOne({ phone, role }).sort({ createdAt: -1 });
   }
@@ -139,6 +143,9 @@ export const customerLogin = async (req, res) => {
         }
       }
       logger.info(`[customerLogin] Instant account auto-created for new customer: ${phone} (${zeebacId})`);
+    } else if (inputName?.trim() && (user.name?.startsWith('User ') || !user.name)) {
+      user.name = inputName.trim();
+      await user.save();
     }
 
     if (user.status === 'Suspended') {

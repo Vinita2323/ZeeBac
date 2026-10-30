@@ -541,8 +541,9 @@ function App() {
 
         <Routes>
           {/* ─── Customer App Auth ─── */}
-          <Route path="/login" element={<AuthLoginScreen role="customer" />} />
-          <Route path="/signup" element={<SignupScreen role="customer" />} />
+          <Route path="/login" element={<AuthLoginScreen role="customer" initialMode="login" />} />
+          <Route path="/signup" element={<AuthLoginScreen role="customer" initialMode="register" />} />
+          <Route path="/register" element={<AuthLoginScreen role="customer" initialMode="register" />} />
           <Route path="/verify-otp" element={<AuthOTPScreen />} />
           <Route path="/terms" element={<TermsScreen />} />
           <Route path="/privacy" element={<PrivacyPolicyScreen />} />
