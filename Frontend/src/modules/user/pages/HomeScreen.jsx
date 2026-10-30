@@ -10,6 +10,64 @@ import PermissionPrimerModal, { LocationPreview } from '../../../components/comm
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 import useLanguageStore from '../../../store/useLanguageStore';
 
+const demoShops = [
+  {
+    _id: 'demo-1',
+    zeebacId: 'ZBV-1001',
+    storeName: 'Sharma General Store',
+    cashbackRate: 3,
+    distanceDisplay: '0.6 km',
+    cityDisplay: 'Lucknow',
+    address: 'Kirana • FMCG • Household, Hazratganj, Lucknow',
+    storeLogo: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=300&auto=format&fit=crop&q=80',
+    category: 'Grocery'
+  },
+  {
+    _id: 'demo-2',
+    zeebacId: 'ZBV-1002',
+    storeName: 'Gupta Kirana Store',
+    cashbackRate: 3,
+    distanceDisplay: '1.2 km',
+    cityDisplay: 'Lucknow',
+    address: 'Grocery • Spices • Dairy, Aliganj, Lucknow',
+    storeLogo: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&auto=format&fit=crop&q=80',
+    category: 'Grocery'
+  },
+  {
+    _id: 'demo-3',
+    zeebacId: 'ZBV-1003',
+    storeName: 'Ravi Super Mart',
+    cashbackRate: 3,
+    distanceDisplay: '2.4 km',
+    cityDisplay: 'Lucknow',
+    address: 'Supermarket • FMCG, Gomti Nagar, Lucknow',
+    storeLogo: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=300&auto=format&fit=crop&q=80',
+    category: 'FMCG'
+  },
+  {
+    _id: 'demo-4',
+    zeebacId: 'ZBV-1004',
+    storeName: 'Modern Grocery',
+    cashbackRate: 3,
+    distanceDisplay: '3.1 km',
+    cityDisplay: 'Lucknow',
+    address: 'Organic & Daily Needs, Indira Nagar, Lucknow',
+    storeLogo: 'https://images.unsplash.com/photo-1583258292688-d0213dc5a3a8?w=300&auto=format&fit=crop&q=80',
+    category: 'Grocery'
+  },
+  {
+    _id: 'demo-5',
+    zeebacId: 'ZBV-1005',
+    storeName: 'Zebac Store',
+    cashbackRate: 3,
+    distanceDisplay: '3.8 km',
+    cityDisplay: 'Lucknow',
+    address: 'Express Mart & FMCG, Hazratganj, Lucknow',
+    storeLogo: 'https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=300&auto=format&fit=crop&q=80',
+    category: 'FMCG'
+  }
+];
+
 export default function HomeScreen() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguageStore();
@@ -91,7 +149,16 @@ export default function HomeScreen() {
           vendorRes = await UserAPI.getVendorsByCategory('All');
         }
 
-        if (vendorRes.success) setVendors(vendorRes.data || []);
+        if (vendorRes?.success && Array.isArray(vendorRes.data) && vendorRes.data.length > 0) {
+          setVendors(vendorRes.data);
+        } else {
+          const allRes = await UserAPI.getVendorsByCategory('All');
+          if (allRes?.success && Array.isArray(allRes.data) && allRes.data.length > 0) {
+            setVendors(allRes.data);
+          } else {
+            setVendors(demoShops);
+          }
+        }
 
       } catch (err) {
         console.error('Failed to load home screen data', err);
@@ -120,7 +187,17 @@ export default function HomeScreen() {
         localStorage.setItem('zeebac_location', JSON.stringify(coords));
         setLocation(coords);
         UserAPI.getNearbyVendors(coords.lat, coords.lng).then((res) => {
-          if (res.success) setVendors(res.data || []);
+          if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+            setVendors(res.data);
+          } else {
+            UserAPI.getVendorsByCategory('All').then((allRes) => {
+              if (allRes?.success && Array.isArray(allRes.data) && allRes.data.length > 0) {
+                setVendors(allRes.data);
+              } else {
+                setVendors(demoShops);
+              }
+            });
+          }
         });
       },
       (err) => console.warn('Location permission declined:', err.message),
@@ -444,59 +521,63 @@ export default function HomeScreen() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-sm">
+          <div className="grid grid-cols-1 gap-2.5">
             {isLoading ? (
               <div className="flex justify-center items-center py-10">
                 <div className="animate-spin rounded-full h-7 w-7 border-2 border-primary/20 border-t-primary"></div>
               </div>
-            ) : vendors.length === 0 ? (
-              <div className="glass-card rounded-2xl py-8 px-4 flex flex-col items-center text-center gap-1.5">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-1">
-                  <span className="material-symbols-outlined text-primary text-[24px]">storefront</span>
-                </div>
-                <p className="font-bold text-on-surface text-[13.5px]">{t('No nearby vendors yet')}</p>
-                <p className="text-on-surface-variant text-[12px] max-w-[220px]">{t('Explore the full directory to find partner stores near you')}</p>
-                <button
-                  onClick={() => navigate('/explore')}
-                  className="mt-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-[12px] font-bold hover:bg-primary/15 transition-colors cursor-pointer"
-                >
-                  {t('Browse Explore')}
-                </button>
-              </div>
             ) : (
-              vendors.map((vendor) => (
+              (vendors.length > 0 ? vendors : demoShops).map((vendor) => (
                 <div
-                  key={vendor._id}
+                  key={vendor._id || vendor.zeebacId}
                   onClick={() => handleVendorClick(vendor)}
-                  className="glass-card rounded-xl overflow-hidden shadow-sm hover:shadow-md cursor-pointer transition-shadow flex items-center p-2 border border-outline-variant/30 gap-3"
+                  className="bg-white rounded-2xl p-3 border border-slate-100 shadow-2xs hover:shadow-md cursor-pointer transition-all flex items-center justify-between gap-3 group active:scale-[0.99]"
                 >
-                  <div className="w-14 h-14 rounded-lg bg-surface-container-high flex items-center justify-center overflow-hidden flex-shrink-0 relative">
-                    {vendor.storeLogo || vendor.profilePic ? (
-                      <img alt={vendor.storeName} className="w-full h-full object-cover" src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`} />
-                    ) : (
-                      <span className="text-on-surface font-black text-xl">{vendor.storeName?.charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="flex-grow text-left space-y-0.5">
-                    <span className="bg-primary/10 text-primary font-label-mono text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase">{t('FLAT')} {vendor.cashbackRate}% {t('CASHBACK')}</span>
-                    <h4 className="font-title-md text-on-surface font-bold text-[14px] pt-0.5 leading-tight">{vendor.storeName}</h4>
-                    <div className="flex items-center gap-xs text-caption text-on-surface-variant text-[11px]">
-                      <span className="material-symbols-outlined text-[12px]">distance</span>
-                      {location && vendor.location?.coordinates ?
-                        `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} ${t('km away')}`
-                        : t('Nearby')}
-                      <span>•</span>
-                      {vendor.category}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-14 h-14 rounded-xl bg-purple-50 flex items-center justify-center overflow-hidden flex-shrink-0 relative border border-purple-100">
+                      {vendor.storeLogo || vendor.profilePic ? (
+                        <img
+                          alt={vendor.storeName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          src={(vendor.storeLogo || vendor.profilePic).startsWith('http') || (vendor.storeLogo || vendor.profilePic).startsWith('data:') ? (vendor.storeLogo || vendor.profilePic) : `${API_BASE_URL}${vendor.storeLogo || vendor.profilePic}`}
+                        />
+                      ) : (
+                        <span className="text-primary font-black text-xl">{vendor.storeName?.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="text-left space-y-0.5 min-w-0 flex-1">
+                      <h4 className="font-display text-slate-900 font-extrabold text-[14px] leading-tight truncate">
+                        {vendor.storeName}
+                      </h4>
+                      <p className="flex items-center gap-1 text-slate-500 text-[11.5px] font-medium truncate">
+                        <span className="material-symbols-outlined text-[13px] text-slate-400">location_on</span>
+                        <span>
+                          {vendor.distanceDisplay || (location && vendor.location?.coordinates ? `${calculateDistance(location.lat, location.lng, vendor.location.coordinates[1], vendor.location.coordinates[0])} km` : '0.6 km')}
+                        </span>
+                        <span>•</span>
+                        <span>{vendor.cityDisplay || vendor.city || 'Lucknow'}</span>
+                      </p>
+                      <p className="text-[11px] font-extrabold text-primary pt-0.5">
+                        {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
+                      </p>
                     </div>
                   </div>
-                  <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleVendorClick(vendor);
+                    }}
+                    className="px-4 py-1.5 rounded-xl btn-primary-gradient text-white text-[12px] font-black shrink-0 shadow-xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    {t('Visit')}
+                  </button>
                 </div>
               ))
             )}
           </div>
         </div>
-
-      </main>
+</main>
 
       {/* Shared Bottom NavBar */}
       <BottomNavBar />

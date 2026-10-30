@@ -1490,19 +1490,31 @@ export const getNearbyVendors = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Latitude and Longitude are required' });
     }
 
-    const query = getStoreVisibilityQuery({
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          $maxDistance: parseInt(radius)
+    let vendors = [];
+    try {
+      const query = getStoreVisibilityQuery({
+        location: {
+          $near: {
+            $geometry: {
+              type: 'Point',
+              coordinates: [parseFloat(lng), parseFloat(lat)]
+            },
+            $maxDistance: parseInt(radius) || 50000
+          }
         }
-      }
-    });
+      });
+      vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location');
+    } catch (geoErr) {
+      logger.warn(`getNearbyVendors geo query warning: ${geoErr.message}`);
+    }
 
-    const vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location');
+    // Fallback: If no vendors within radius, query all active visible stores
+    if (!vendors || vendors.length === 0) {
+      const fallbackQuery = getStoreVisibilityQuery({});
+      vendors = await Vendor.find(fallbackQuery)
+        .select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location')
+        .limit(20);
+    }
 
     const visibleVendors = vendors
       .filter(vendor => {
