@@ -942,8 +942,25 @@ export const UserAPI = {
     const res = await apiClient.get('/user/rewards-data');
     return res.data;
   },
-  claimScratchCard: async () => {
+    claimScratchCard: async () => {
     const res = await apiClient.post('/user/rewards/scratch');
+    return res.data;
+  },
+  // Saved Delivery Addresses (Zomato-style step-by-step address management)
+  getSavedAddresses: async () => {
+    const res = await apiClient.get('/user/addresses');
+    return res.data;
+  },
+  addSavedAddress: async (data) => {
+    const res = await apiClient.post('/user/addresses', data);
+    return res.data;
+  },
+  deleteSavedAddress: async (addressId) => {
+    const res = await apiClient.delete(`/user/addresses/${addressId}`);
+    return res.data;
+  },
+  setDefaultAddress: async (addressId) => {
+    const res = await apiClient.put(`/user/addresses/${addressId}/default`);
     return res.data;
   }
 };
