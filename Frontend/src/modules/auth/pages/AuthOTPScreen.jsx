@@ -205,23 +205,22 @@ export default function AuthOTPScreen() {
         </div>
 
         <div className="text-left space-y-1">
-          <h1 className="text-[26px] font-black tracking-tight text-on-surface leading-tight">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             {verified
-              ? 'Phone Verified!'
-              : flow === 'register' && fullName
-              ? `Welcome, ${fullName}!`
-              : 'Enter 4-Digit Code'}
+              ? 'Phone Verified'
+              : flow === 'register'
+              ? 'Verify your number'
+              : 'Enter verification code'}
           </h1>
-          <p className="text-body-sm text-on-surface-variant">
+          <p className="text-sm text-slate-500">
             {statusText ? (
-              <span className="font-bold text-primary animate-pulse">{statusText}</span>
+              <span className="font-medium text-purple-700 animate-pulse">{statusText}</span>
             ) : mobileNumber ? (
               <>
-                {flow === 'register' ? 'Verify your number to activate your account. ' : ''}
-                We sent an OTP to <span className="font-bold text-primary">+91 {mobileNumber}</span>.
+                Code sent to <span className="font-semibold text-slate-900">+91 {mobileNumber}</span>
               </>
             ) : (
-              'Enter the 4-digit code sent to your phone.'
+              'Enter the 4-digit code sent to your phone'
             )}
           </p>
         </div>
