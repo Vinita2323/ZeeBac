@@ -385,7 +385,9 @@ export default function CartScreen() {
     setIsProcessing(true);
 
     try {
-      const combinedNotes = [selectedInstructionPill, orderNotes].filter(Boolean).join(' • ');
+      const combinedNotes = !isPickup
+        ? [selectedInstructionPill, orderNotes].filter(Boolean).join(' • ')
+        : '';
 
       const payload = {
         vendorZeebacId: effectiveVendor.zeebacId || 'ZBV-1001',
@@ -1012,49 +1014,51 @@ export default function CartScreen() {
           </div>
         </div>
 
-        {/* ── STEP 3: DELIVERY / ORDER INSTRUCTIONS (ZOMATO STYLE) ── */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-purple-700 text-[18px]">notes</span>
-            <h3 className="font-display font-black text-[13.5px] text-slate-900">
-              Delivery Instructions
-            </h3>
-          </div>
+        {/* ── STEP 3: DELIVERY / ORDER INSTRUCTIONS (SHOWN ONLY FOR RIDER DELIVERY) ── */}
+        {!isPickup && (
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-purple-700 text-[18px]">notes</span>
+              <h3 className="font-display font-black text-[13.5px] text-slate-900">
+                Delivery Instructions
+              </h3>
+            </div>
 
-          <div className="flex gap-2 overflow-x-auto hide-scrollbar py-0.5">
-            {[
-              { label: 'Avoid calling', icon: 'notifications_off' },
-              { label: 'Leave at door', icon: 'door_front' },
-              { label: 'Call on arrival', icon: 'ring_volume' },
-              { label: 'Leave with guard', icon: 'shield_person' },
-            ].map((pill) => {
-              const isSelected = selectedInstructionPill === pill.label;
-              return (
-                <button
-                  key={pill.label}
-                  type="button"
-                  onClick={() => setSelectedInstructionPill(isSelected ? '' : pill.label)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-purple-700 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[14px]">{pill.icon}</span>
-                  <span>{pill.label}</span>
-                </button>
-              );
-            })}
-          </div>
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar py-0.5">
+              {[
+                { label: 'Avoid calling', icon: 'notifications_off' },
+                { label: 'Leave at door', icon: 'door_front' },
+                { label: 'Call on arrival', icon: 'ring_volume' },
+                { label: 'Leave with guard', icon: 'shield_person' },
+              ].map((pill) => {
+                const isSelected = selectedInstructionPill === pill.label;
+                return (
+                  <button
+                    key={pill.label}
+                    type="button"
+                    onClick={() => setSelectedInstructionPill(isSelected ? '' : pill.label)}
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap flex items-center gap-1 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-purple-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[14px]">{pill.icon}</span>
+                    <span>{pill.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-          <input
-            type="text"
-            value={orderNotes}
-            onChange={(e) => setOrderNotes(e.target.value)}
-            placeholder="e.g. Leave package at security gate or call on arrival"
-            className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] text-slate-800 focus:bg-white outline-none"
-          />
-        </div>
+            <input
+              type="text"
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              placeholder="e.g. Leave package at security gate or call on arrival"
+              className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] text-slate-800 focus:bg-white outline-none"
+            />
+          </div>
+        )}
 
         {/* ── STEP 4: ZEEBAC POINTS REDEMPTION (1 POINT = ₹1) ── */}
         <div className="bg-white rounded-2xl p-4 border border-purple-100 shadow-2xs space-y-2">
