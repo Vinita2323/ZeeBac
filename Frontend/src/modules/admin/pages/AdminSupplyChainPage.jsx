@@ -506,3 +506,4 @@ export default function AdminSupplyChainPage() {
     </div>
   );
 }
+
