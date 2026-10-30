@@ -395,7 +395,7 @@ export default function CartScreen() {
           ? `${selectedSavedAddress.houseNo}, ${selectedSavedAddress.street}${selectedSavedAddress.landmark ? `, Near ${selectedSavedAddress.landmark}` : ''}, ${selectedSavedAddress.city} - ${selectedSavedAddress.pincode} (${selectedSavedAddress.receiverName}, ${selectedSavedAddress.receiverPhone})`
           : deliveryAddress,
         orderNotes: combinedNotes,
-        paymentMethod: paymentMethod === 'Points' ? 'ZEEBAC_POINTS' : paymentMethod === 'Cash' ? 'CASH' : 'UPI_INTENT',
+        paymentMethod: paymentMethod === 'Points' ? 'ZEEBAC_POINTS' : 'UPI_INTENT',
         redeemPoints: usePoints ? pointsRedeemed : 0,
         items: items.map((item) => ({
           productId: item._id || item.id,
@@ -451,16 +451,12 @@ export default function CartScreen() {
         return;
       }
 
-      // ── CASE 2: 100% ZEEBAC POINTS OR CASH FLOW ──
+      // ── CASE 2: 100% ZEEBAC POINTS FLOW ──
       clearCart();
       setActiveOrder(order);
       setIsProcessing(false);
       playNotificationChime('incoming');
-      speakVoice(
-        paymentMethod === 'Points'
-          ? 'Order placed using Zeebac Points. Delivery rider will be assigned soon.'
-          : 'Order placed with Pay at Delivery. Delivery rider will be assigned soon.'
-      );
+      speakVoice('Order placed successfully using Zeebac Points. Delivery rider will be assigned soon.');
     } catch (err) {
       console.error('Order checkout error', err);
       alert(err.response?.data?.message || 'Unable to process order right now. Please try again.');
@@ -1253,37 +1249,6 @@ export default function CartScreen() {
                 </div>
               </label>
             )}
-
-            {/* 3. Cash on Delivery / Counter */}
-            {finalPayableAmount > 0 && (
-              <label
-                onClick={() => setPaymentMethod('Cash')}
-                className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
-                  paymentMethod === 'Cash'
-                    ? 'border-primary bg-purple-50/50 shadow-xs'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[20px]">payments</span>
-                  </div>
-                  <div>
-                    <p className="font-bold text-[13px] text-slate-900">
-                      {fulfillmentType === 'pickup' ? 'Pay Cash at Store Counter' : 'Cash on Delivery (COD)'}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {fulfillmentType === 'pickup'
-                        ? 'Store counter par pickup ke waqt cash dein'
-                        : 'Delivery par rider ko cash payment karein'}
-                    </p>
-                  </div>
-                </div>
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'Cash' ? 'border-primary' : 'border-slate-300'}`}>
-                  {paymentMethod === 'Cash' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                </div>
-              </label>
-            )}
           </div>
         </div>
       </main>
@@ -1322,15 +1287,10 @@ export default function CartScreen() {
                 <span className="material-symbols-outlined text-[18px]">stars</span>
                 <span>Place Order with Points</span>
               </>
-            ) : paymentMethod === 'UPI' ? (
+            ) : (
               <>
                 <span className="material-symbols-outlined text-[18px]">bolt</span>
                 <span>Pay ₹{formatCurrency(finalPayableAmount)} via Direct UPI</span>
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                <span>Place Order (Cash)</span>
               </>
             )}
           </button>
