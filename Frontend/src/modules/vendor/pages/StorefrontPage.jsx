@@ -37,6 +37,7 @@ export default function StorefrontPage() {
 
   const initialFormState = {
     productId: '',
+    sourceProductId: null,
     name: '',
     category: 'Instant Food',
     brand: '',
@@ -284,6 +285,7 @@ export default function StorefrontPage() {
 
     setProductForm({
       productId: product.productId || '',
+      sourceProductId: product.sourceProductId || null,
       name: product.name || '',
       category: product.category || 'Instant Food',
       brand: product.brand || product.branding?.brandName || '',
@@ -576,7 +578,7 @@ export default function StorefrontPage() {
                     className="flex items-center gap-2 bg-white text-purple-900 font-bold px-4 py-2.5 rounded-xl hover:bg-purple-50 active:scale-95 transition-all shadow-md cursor-pointer text-[13px]"
                   >
                     <span className="material-symbols-outlined text-[20px] text-purple-700">add_circle</span>
-                    {t('Add / Update Products')}
+                    {t('+ Add Product Manually')}
                   </button>
 
                   <button
@@ -670,7 +672,7 @@ export default function StorefrontPage() {
                   className="h-12 px-5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm shadow-purple-700/20 active:scale-95 transition-all cursor-pointer text-[13px]"
                 >
                   <span className="material-symbols-outlined text-[18px]">add</span>
-                  <span>{t('Add New')}</span>
+                  <span>{t('+ Add Product Manually')}</span>
                 </button>
               </div>
 
@@ -1495,30 +1497,49 @@ export default function StorefrontPage() {
                     </div>
 
                     {/* Decided Product Cashback (Zeebac Points 1 Pt = 1 Rs) */}
-                    <div className="bg-purple-50/70 rounded-2xl p-4 border border-purple-200/80 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-purple-700">stars</span>
-                          <span className="text-[13px] font-black text-purple-950">
-                            {t('Customer Product Cashback Rate')}
+                    {productForm.sourceProductId ? (
+                      <div className="bg-amber-50/80 rounded-2xl p-4 border border-amber-200/90 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-amber-700">lock</span>
+                            <span className="text-[13px] font-black text-amber-950">
+                              {t('Manufacturer Cashback (Locked)')}
+                            </span>
+                          </div>
+                          <span className="text-[14px] font-black text-amber-900 bg-white px-2.5 py-0.5 rounded-lg border border-amber-200">
+                            {productForm.cashbackPercentage}% Points
                           </span>
                         </div>
-                        <span className="text-[14px] font-black text-purple-900 bg-white px-2.5 py-0.5 rounded-lg border border-purple-200">
-                          {productForm.cashbackPercentage}% Points
-                        </span>
+                        <p className="text-[11.5px] text-amber-900/80 leading-relaxed">
+                          🔒 This product was supplied by a manufacturer via ZeeBac B2B purchase. The manufacturer has committed this {productForm.cashbackPercentage}% cashback to ZeeBac escrow until customer delivery. Cashback cannot be modified by downstream merchants, but you can freely set your selling price, MRP, and available stock.
+                        </p>
                       </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={productForm.cashbackPercentage}
-                        onChange={(e) => updateProductForm('cashbackPercentage', Number(e.target.value))}
-                        className="w-full accent-purple-700 h-2 bg-purple-200 rounded-lg cursor-pointer"
-                      />
-                      <p className="text-[11px] text-purple-900/70">
-                        Customers earn {productForm.cashbackPercentage}% cashback as ZeeBac Points (1 Point = ₹1) redeemable at any registered merchant!
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="bg-purple-50/70 rounded-2xl p-4 border border-purple-200/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-purple-700">stars</span>
+                            <span className="text-[13px] font-black text-purple-950">
+                              {t('Customer Product Cashback Rate')}
+                            </span>
+                          </div>
+                          <span className="text-[14px] font-black text-purple-900 bg-white px-2.5 py-0.5 rounded-lg border border-purple-200">
+                            {productForm.cashbackPercentage}% Points
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={productForm.cashbackPercentage}
+                          onChange={(e) => updateProductForm('cashbackPercentage', Number(e.target.value))}
+                          className="w-full accent-purple-700 h-2 bg-purple-200 rounded-lg cursor-pointer"
+                        />
+                        <p className="text-[11px] text-purple-900/70">
+                          Customers earn {productForm.cashbackPercentage}% cashback as ZeeBac Points (1 Point = ₹1) redeemable at any registered merchant!
+                        </p>
+                      </div>
+                    )}
 
                     <div className="flex gap-3 pt-2">
                       <button

@@ -711,6 +711,58 @@ export default function VendorDetailScreen() {
     fetchVendorData();
   }, [vendor.zeebacId]);
 
+  // Store Open / Closed Status based on operatingHours or businessHours
+  const storeTimingInfo = useMemo(() => {
+    let openHour = 9;
+    let openMin = 0;
+    let closeHour = 22;
+    let closeMin = 0;
+
+    const opHoursStr = vendor?.operatingHours || "Open Daily: 09:00 AM - 10:00 PM";
+    
+    if (vendor?.businessHours?.openingTime && vendor?.businessHours?.closingTime) {
+      const [oH, oM] = vendor.businessHours.openingTime.split(':').map(Number);
+      const [cH, cM] = vendor.businessHours.closingTime.split(':').map(Number);
+      if (!isNaN(oH)) { openHour = oH; openMin = oM || 0; }
+      if (!isNaN(cH)) { closeHour = cH; closeMin = cM || 0; }
+    } else {
+      const match = String(opHoursStr).match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (match) {
+        let [, h1, m1, p1, h2, m2, p2] = match;
+        let oh = parseInt(h1, 10);
+        let ch = parseInt(h2, 10);
+        if (p1.toUpperCase() === 'PM' && oh < 12) oh += 12;
+        if (p1.toUpperCase() === 'AM' && oh === 12) oh = 0;
+        if (p2.toUpperCase() === 'PM' && ch < 12) ch += 12;
+        if (p2.toUpperCase() === 'AM' && ch === 12) ch = 0;
+        openHour = oh;
+        openMin = parseInt(m1, 10) || 0;
+        closeHour = ch;
+        closeMin = parseInt(m2, 10) || 0;
+      }
+    }
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const openMinutes = openHour * 60 + openMin;
+    const closeMinutes = closeHour * 60 + closeMin;
+
+    const isOpen = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+
+    const formatTime = (h, m) => {
+      const p = h >= 12 ? 'PM' : 'AM';
+      const dh = h % 12 === 0 ? 12 : h % 12;
+      return `${dh}:${m < 10 ? '0' + m : m} ${p}`;
+    };
+
+    return {
+      isOpen,
+      openTimeStr: formatTime(openHour, openMin),
+      closeTimeStr: formatTime(closeHour, closeMin),
+      timingDisplay: `${formatTime(openHour, openMin)} - ${formatTime(closeHour, closeMin)}`,
+    };
+  }, [vendor?.operatingHours, vendor?.businessHours]);
+
   // Fetch Products from Backend or load rich realistic catalog
   useEffect(() => {
     const loadProducts = async () => {
@@ -996,10 +1048,17 @@ export default function VendorDetailScreen() {
             </p>
 
             <div className="flex items-center gap-2 pt-0.5">
-              <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {t('Open now')}
-              </span>
+              {storeTimingInfo.isOpen ? (
+                <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {t('Open now')} • Closes {storeTimingInfo.closeTimeStr}
+                </span>
+              ) : (
+                <span className="text-[10.5px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {t('Closed now')} • Opens {storeTimingInfo.openTimeStr}
+                </span>
+              )}
               <span className="text-[11px] font-bold text-slate-600">
                 ⭐ {vendor.rating || '4.5'}
               </span>
@@ -1015,6 +1074,19 @@ export default function VendorDetailScreen() {
             </button>
           </div>
         </div>
+
+        {/* Closed Store Scheduled Delivery Notice Banner */}
+        {!storeTimingInfo.isOpen && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2.5 text-amber-900 animate-reveal">
+            <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0 mt-0.5">schedule</span>
+            <div className="min-w-0 text-[12px]">
+              <p className="font-black text-amber-950">Store is Currently Closed</p>
+              <p className="text-[11px] text-amber-800 leading-snug">
+                Store timings: {storeTimingInfo.timingDisplay}. You can browse products and place a <strong>Scheduled Order</strong> for delivery when the store opens!
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── 2. BLINKIT-STYLE QUICK SEARCH BAR WITH VOICE INPUT ── */}
         <div className="relative flex items-center gap-2">
