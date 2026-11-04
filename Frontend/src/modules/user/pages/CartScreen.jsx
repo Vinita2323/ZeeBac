@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { OrderAPI, UserAPI } from '../../../services/api';
@@ -102,6 +102,84 @@ export default function CartScreen() {
     phone: '9876543210',
     zeebacId: 'ZBV-1001',
   };
+
+  // Store Open / Closed Status based on operatingHours or businessHours
+  const storeTimingInfo = useMemo(() => {
+    let openHour = 9;
+    let openMin = 0;
+    let closeHour = 22;
+    let closeMin = 0;
+
+    const opHoursStr = effectiveVendor?.operatingHours || "Open Daily: 09:00 AM - 10:00 PM";
+    
+    if (effectiveVendor?.businessHours?.openingTime && effectiveVendor?.businessHours?.closingTime) {
+      const [oH, oM] = effectiveVendor.businessHours.openingTime.split(':').map(Number);
+      const [cH, cM] = effectiveVendor.businessHours.closingTime.split(':').map(Number);
+      if (!isNaN(oH)) { openHour = oH; openMin = oM || 0; }
+      if (!isNaN(cH)) { closeHour = cH; closeMin = cM || 0; }
+    } else {
+      const match = String(opHoursStr).match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (match) {
+        let [, h1, m1, p1, h2, m2, p2] = match;
+        let oh = parseInt(h1, 10);
+        let ch = parseInt(h2, 10);
+        if (p1.toUpperCase() === 'PM' && oh < 12) oh += 12;
+        if (p1.toUpperCase() === 'AM' && oh === 12) oh = 0;
+        if (p2.toUpperCase() === 'PM' && ch < 12) ch += 12;
+        if (p2.toUpperCase() === 'AM' && ch === 12) ch = 0;
+        openHour = oh;
+        openMin = parseInt(m1, 10) || 0;
+        closeHour = ch;
+        closeMin = parseInt(m2, 10) || 0;
+      }
+    }
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const openMinutes = openHour * 60 + openMin;
+    const closeMinutes = closeHour * 60 + closeMin;
+
+    const isOpen = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+
+    const formatTime = (h, m) => {
+      const p = h >= 12 ? 'PM' : 'AM';
+      const dh = h % 12 === 0 ? 12 : h % 12;
+      return `${dh}:${m < 10 ? '0' + m : m} ${p}`;
+    };
+
+    return {
+      isOpen,
+      openTimeStr: formatTime(openHour, openMin),
+      closeTimeStr: formatTime(closeHour, closeMin),
+      timingDisplay: `${formatTime(openHour, openMin)} - ${formatTime(closeHour, closeMin)}`,
+    };
+  }, [effectiveVendor?.operatingHours, effectiveVendor?.businessHours]);
+
+  // Delivery Scheduling state (Instant vs Scheduled delivery)
+  const [deliveryType, setDeliveryType] = useState(() => (storeTimingInfo.isOpen ? 'INSTANT' : 'SCHEDULED'));
+  const [scheduledSlot, setScheduledSlot] = useState('Tomorrow Morning (09:00 AM - 10:00 AM)');
+
+  useEffect(() => {
+    if (!storeTimingInfo.isOpen && deliveryType !== 'SCHEDULED') {
+      setDeliveryType('SCHEDULED');
+    }
+  }, [storeTimingInfo.isOpen]);
+
+  const availableSlots = useMemo(() => {
+    const slots = [];
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    if (storeTimingInfo.isOpen) {
+      if (currentHour < 14) slots.push('Today Afternoon (02:00 PM - 03:00 PM)');
+      if (currentHour < 18) slots.push('Today Evening (06:00 PM - 07:00 PM)');
+      if (currentHour < 20) slots.push('Today Night (08:30 PM - 09:30 PM)');
+    }
+    slots.push('Tomorrow Morning (09:00 AM - 10:00 AM)');
+    slots.push('Tomorrow Afternoon (01:00 PM - 02:00 PM)');
+    slots.push('Tomorrow Evening (06:00 PM - 07:00 PM)');
+    return slots;
+  }, [storeTimingInfo.isOpen]);
 
   // 1. Fetch Store Delivery Settings & Admin Tax Rate
   useEffect(() => {
@@ -408,6 +486,11 @@ export default function CartScreen() {
       const payload = {
         vendorZeebacId: effectiveVendor.zeebacId || 'ZBV-1001',
         fulfillmentType,
+        deliverySchedule: {
+          deliveryType: !storeTimingInfo.isOpen ? 'SCHEDULED' : deliveryType,
+          scheduledDate: deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen ? (scheduledSlot.includes('Today') ? 'Today' : 'Tomorrow') : '',
+          scheduledSlot: deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen ? scheduledSlot : '',
+        },
         deliveryAddress: selectedSavedAddress
           ? `${selectedSavedAddress.houseNo}, ${selectedSavedAddress.street}${selectedSavedAddress.landmark ? `, Near ${selectedSavedAddress.landmark}` : ''}, ${selectedSavedAddress.city} - ${selectedSavedAddress.pincode} (${selectedSavedAddress.receiverName}, ${selectedSavedAddress.receiverPhone})`
           : deliveryAddress,
@@ -956,6 +1039,101 @@ export default function CartScreen() {
           </div>
         </div>
 
+        {/* ── STEP 2: DELIVERY TIMING (INSTANT VS SCHEDULED) ── */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-purple-700 text-[20px]">schedule</span>
+              <h3 className="font-display font-black text-[13.5px] text-slate-900">
+                Delivery Timing
+              </h3>
+            </div>
+            {storeTimingInfo.isOpen ? (
+              <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Store Open
+              </span>
+            ) : (
+              <span className="text-[10px] font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                Store Closed • Opens {storeTimingInfo.openTimeStr}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={!storeTimingInfo.isOpen}
+              onClick={() => setDeliveryType('INSTANT')}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                !storeTimingInfo.isOpen
+                  ? 'opacity-40 border-slate-200 bg-slate-50 cursor-not-allowed'
+                  : deliveryType === 'INSTANT'
+                  ? 'border-purple-600 bg-purple-50/60 shadow-xs'
+                  : 'border-slate-200 hover:border-slate-300 bg-white cursor-pointer'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-black text-[12.5px] text-slate-900 flex items-center gap-1">
+                  ⚡ Instant
+                </span>
+                {deliveryType === 'INSTANT' && storeTimingInfo.isOpen && (
+                  <span className="w-2 h-2 rounded-full bg-purple-600" />
+                )}
+              </div>
+              <p className="text-[10.5px] text-slate-500 mt-0.5">
+                {storeTimingInfo.isOpen ? '10-15 mins delivery' : 'Store is closed'}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeliveryType('SCHEDULED')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen
+                  ? 'border-purple-600 bg-purple-50/60 shadow-xs'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-black text-[12.5px] text-slate-900 flex items-center gap-1">
+                  📅 Scheduled
+                </span>
+                {(deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen) && (
+                  <span className="w-2 h-2 rounded-full bg-purple-600" />
+                )}
+              </div>
+              <p className="text-[10.5px] text-slate-500 mt-0.5">
+                Choose delivery slot
+              </p>
+            </button>
+          </div>
+
+          {(deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen) && (
+            <div className="pt-1 space-y-1.5 animate-fadeIn">
+              <label className="block text-[11px] font-bold text-slate-700">
+                Select Preferred Delivery Slot:
+              </label>
+              <select
+                value={scheduledSlot}
+                onChange={(e) => setScheduledSlot(e.target.value)}
+                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-800 focus:bg-white focus:border-purple-600 outline-none cursor-pointer"
+              >
+                {availableSlots.map((slot) => (
+                  <option key={slot} value={slot}>
+                    {slot}
+                  </option>
+                ))}
+              </select>
+              {!storeTimingInfo.isOpen && (
+                <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg leading-tight">
+                  🌙 Note: Store is closed right now. Your order will be prepared and delivered during this scheduled slot.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* ── STEP 3: DELIVERY / ORDER INSTRUCTIONS (SHOWN ONLY FOR RIDER DELIVERY) ── */}
         {!isPickup && (
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5 animate-fadeIn">
@@ -1183,92 +1361,108 @@ export default function CartScreen() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[22px]">add_location_alt</span>
+            <div className="bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-50 rounded-2xl p-4 border-2 border-dashed border-purple-300 shadow-2xs space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[24px]">add_location_alt</span>
                 </div>
-                <div>
-                  <h3 className="font-bold text-[13px] text-slate-900">Delivery Address</h3>
-                  <p className="text-[11px] text-slate-500">Add an address where you want this delivered</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-display font-black text-[14px] text-slate-900">
+                    Step 1: Add Delivery Address
+                  </h3>
+                  <p className="text-[11.5px] text-slate-600">
+                    Please provide your delivery address to proceed to payment.
+                  </p>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowAddAddressModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-[11.5px] font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
+                className="w-full py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-[12.5px] font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1.5"
               >
-                <span className="material-symbols-outlined text-[15px]">add</span>
-                <span>Add Address</span>
+                <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                <span>+ Add Delivery Address</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* ── STEP 6: PAYMENT METHOD SELECTOR ── */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
-          <h3 className="font-display font-black text-[14px] text-slate-900">
-            {t('Select Payment Method')}
-          </h3>
-
-          <div className="space-y-2">
-            {/* 1. Direct UPI Intent (Default) */}
-            {finalPayableAmount > 0 && (
-              <label
-                onClick={() => setPaymentMethod('UPI')}
-                className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
-                  paymentMethod === 'UPI'
-                    ? 'border-primary bg-purple-50/50 shadow-xs'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-primary flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[20px]">account_balance</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-[13px] text-slate-900">Direct UPI Intent</p>
-                      <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
-                        Fast & Direct
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">Pay via Google Pay, PhonePe, Paytm, BHIM</p>
-                  </div>
-                </div>
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'UPI' ? 'border-primary' : 'border-slate-300'}`}>
-                  {paymentMethod === 'UPI' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                </div>
-              </label>
-            )}
-
-            {/* 2. 100% Zeebac Points Payment */}
-            {finalPayableAmount === 0 && pointsRedeemed > 0 && (
-              <label
-                onClick={() => setPaymentMethod('Points')}
-                className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
-                  paymentMethod === 'Points'
-                    ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
-                    : 'border-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[20px]">stars</span>
-                  </div>
-                  <div>
-                    <p className="font-bold text-[12.5px] text-emerald-900">100% Zeebac Points Purchase</p>
-                    <p className="text-[10.5px] text-emerald-700">₹0 Payable • Covered by {formatCurrency(pointsRedeemed)} Points</p>
-                  </div>
-                </div>
-                <div className="w-4 h-4 rounded-full border-2 border-emerald-600 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600" />
-                </div>
-              </label>
-            )}
+        {/* ── STEP 6: PAYMENT METHOD SELECTOR (UNLOCKED ONLY AFTER ADDRESS IS SET OR STORE PICKUP) ── */}
+        {!isPickup && !selectedSavedAddress && !deliveryAddress?.trim() ? (
+          <div className="bg-slate-50/90 rounded-2xl p-4 border border-dashed border-slate-200 shadow-2xs space-y-2 text-center animate-fadeIn">
+            <div className="flex items-center justify-center gap-2 text-slate-500 font-bold text-[13px]">
+              <span className="material-symbols-outlined text-[20px] text-slate-400">lock</span>
+              <span>Step 2: Payment Method Locked</span>
+            </div>
+            <p className="text-[11.5px] text-slate-500 max-w-xs mx-auto">
+              Please add your delivery address above. Once address is set, payment options (Direct UPI & Zeebac Points) will unlock automatically.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5 animate-fadeIn">
+            <h3 className="font-display font-black text-[14px] text-slate-900">
+              {t('Select Payment Method')}
+            </h3>
+
+            <div className="space-y-2">
+              {/* 1. Direct UPI Intent (Default) */}
+              {finalPayableAmount > 0 && (
+                <label
+                  onClick={() => setPaymentMethod('UPI')}
+                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === 'UPI'
+                      ? 'border-primary bg-purple-50/50 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-purple-100 text-primary flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[20px]">account_balance</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-[13px] text-slate-900">Direct UPI Intent</p>
+                        <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
+                          Fast & Direct
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Pay via Google Pay, PhonePe, Paytm, BHIM</p>
+                    </div>
+                  </div>
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'UPI' ? 'border-primary' : 'border-slate-300'}`}>
+                    {paymentMethod === 'UPI' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                </label>
+              )}
+
+              {/* 2. 100% Zeebac Points Payment */}
+              {finalPayableAmount === 0 && pointsRedeemed > 0 && (
+                <label
+                  onClick={() => setPaymentMethod('Points')}
+                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === 'Points'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[20px]">stars</span>
+                    </div>
+                    <div>
+                      <p className="font-bold text-[12.5px] text-emerald-900">100% Zeebac Points Purchase</p>
+                      <p className="text-[10.5px] text-emerald-700">₹0 Payable • Covered by {formatCurrency(pointsRedeemed)} Points</p>
+                    </div>
+                  </div>
+                  <div className="w-4 h-4 rounded-full border-2 border-emerald-600 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ── STICKY BOTTOM CHECKOUT BAR (ZOMATO STYLE) ── */}

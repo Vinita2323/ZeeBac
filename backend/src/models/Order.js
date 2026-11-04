@@ -141,6 +141,15 @@ const orderSchema = new mongoose.Schema(
       enum: ['delivery', 'pickup'],
       default: 'delivery',
     },
+    deliverySchedule: {
+      deliveryType: {
+        type: String,
+        enum: ['INSTANT', 'SCHEDULED'],
+        default: 'INSTANT',
+      },
+      scheduledDate: String,
+      scheduledSlot: String,
+    },
     deliveryAddress: {
       type: String,
       trim: true,
