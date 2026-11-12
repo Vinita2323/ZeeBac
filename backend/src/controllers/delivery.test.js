@@ -6,6 +6,7 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import {
+  checkDeliveryPhone,
   deliveryRegister,
   deliveryLogin,
   getDeliveryStatus,
@@ -157,6 +158,33 @@ describe('Production Delivery Partner (Rider) & Admin Suite', () => {
     expect(dupBody.success).toBe(false);
     expect(dupBody.existingStatus).toBe('PENDING_REVIEW');
     expect(dupBody.message).toContain('already exists');
+  });
+
+  it('checks phone availability in real-time for step 1 validation', async () => {
+    // 1. Unregistered number
+    const checkReq1 = { query: { phone: '9111122222' } };
+    const checkRes1 = makeRes();
+    await checkDeliveryPhone(checkReq1, checkRes1);
+    const body1 = checkRes1.json.mock.calls[0][0];
+    expect(body1.success).toBe(true);
+    expect(body1.exists).toBe(false);
+
+    // 2. Register partner
+    await DeliveryPartner.create({
+      riderId: 'DLV-22221234',
+      name: 'Test Partner',
+      phone: '9111122222',
+      applicationStatus: 'PENDING_REVIEW',
+    });
+
+    // 3. Registered number check
+    const checkRes2 = makeRes();
+    await checkDeliveryPhone(checkReq1, checkRes2);
+    const body2 = checkRes2.json.mock.calls[0][0];
+    expect(body2.success).toBe(true);
+    expect(body2.exists).toBe(true);
+    expect(body2.applicationStatus).toBe('PENDING_REVIEW');
+    expect(body2.name).toBe('Test Partner');
   });
 
   it('rejects unregistered mobile on login with 404', async () => {

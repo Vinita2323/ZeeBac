@@ -15,6 +15,11 @@ export default function DeliveryOnboardingWizard() {
   // Field errors state for inline red validation
   const [errors, setErrors] = useState({});
 
+  // Real-time phone check state in Step 1
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [phoneAvailability, setPhoneAvailability] = useState(null); // 'AVAILABLE' | 'EXISTS' | null
+  const checkPhoneDebounceRef = useRef(null);
+
   // Existing application modal state (when duplicate phone detected)
   const [existingApplication, setExistingApplication] = useState(null);
 
@@ -69,6 +74,58 @@ export default function DeliveryOnboardingWizard() {
         delete next[field];
         return next;
       });
+    }
+  };
+
+  // Real-time async phone number verification on Step 1
+  const checkPhoneAsync = async (cleanPhone) => {
+    if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setPhoneAvailability(null);
+      return;
+    }
+    setIsCheckingPhone(true);
+    try {
+      const res = await DeliveryAPI.checkPhone(cleanPhone);
+      if (res.exists) {
+        setPhoneAvailability('EXISTS');
+        const statusLabel = res.applicationStatus ? res.applicationStatus.replace(/_/g, ' ') : 'Registered';
+        setErrors((prev) => ({
+          ...prev,
+          phone: `Mobile number +91 ${cleanPhone} is already registered (${statusLabel})`,
+        }));
+        setExistingApplication({
+          phone: cleanPhone,
+          status: res.applicationStatus || 'PENDING_REVIEW',
+          message: 'An application with this mobile number already exists on Zeebac.',
+        });
+      } else {
+        setPhoneAvailability('AVAILABLE');
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next.phone;
+          return next;
+        });
+      }
+    } catch (err) {
+      console.warn('Phone check error', err);
+    } finally {
+      setIsCheckingPhone(false);
+    }
+  };
+
+  const handlePhoneChange = (val) => {
+    const clean = val.replace(/\D/g, '').slice(0, 10);
+    handleChange('phone', clean);
+    setPhoneAvailability(null);
+
+    if (checkPhoneDebounceRef.current) {
+      clearTimeout(checkPhoneDebounceRef.current);
+    }
+
+    if (clean.length === 10 && /^[6-9]\d{9}$/.test(clean)) {
+      checkPhoneDebounceRef.current = setTimeout(() => {
+        checkPhoneAsync(clean);
+      }, 350);
     }
   };
 
@@ -220,7 +277,7 @@ export default function DeliveryOnboardingWizard() {
     };
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const { isValid, stepErrors } = validateStep(currentStep);
     if (!isValid) {
       setErrors(stepErrors);
@@ -228,6 +285,37 @@ export default function DeliveryOnboardingWizard() {
       if (firstMsg) toast.error(firstMsg);
       return;
     }
+
+    // Step 1 check: ensure mobile number is not already registered before proceeding!
+    if (currentStep === 1) {
+      const cleanPhone = formData.phone.replace(/\D/g, '').slice(-10);
+      setIsCheckingPhone(true);
+      try {
+        const checkRes = await DeliveryAPI.checkPhone(cleanPhone);
+        if (checkRes.exists) {
+          setPhoneAvailability('EXISTS');
+          const statusText = checkRes.applicationStatus ? checkRes.applicationStatus.replace(/_/g, ' ') : 'Registered';
+          setErrors((prev) => ({
+            ...prev,
+            phone: `Mobile number +91 ${cleanPhone} is already registered (${statusText})`,
+          }));
+          setExistingApplication({
+            phone: cleanPhone,
+            status: checkRes.applicationStatus || 'PENDING_REVIEW',
+            message: 'An application with this mobile number already exists on Zeebac.',
+          });
+          toast.error('This mobile number is already registered. Please log in or use another number.');
+          return;
+        } else {
+          setPhoneAvailability('AVAILABLE');
+        }
+      } catch (err) {
+        console.warn('Phone check error', err);
+      } finally {
+        setIsCheckingPhone(false);
+      }
+    }
+
     setErrors({});
     setCurrentStep((prev) => Math.min(prev + 1, 6));
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -387,7 +475,7 @@ export default function DeliveryOnboardingWizard() {
                 onClick={() => {
                   setExistingApplication(null);
                   setCurrentStep(1);
-                  handleChange('phone', '');
+                  handlePhoneChange('');
                 }}
                 className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12.5px] transition-colors cursor-pointer"
               >
@@ -429,7 +517,7 @@ export default function DeliveryOnboardingWizard() {
           {steps.map((s) => (
             <div
               key={s.num}
-              onClick={() => {
+              onClick={async () => {
                 if (s.num < currentStep) {
                   setErrors({});
                   setCurrentStep(s.num);
@@ -440,6 +528,28 @@ export default function DeliveryOnboardingWizard() {
                     setErrors(stepErrors);
                     const firstMsg = Object.values(stepErrors)[0];
                     if (firstMsg) toast.error(firstMsg);
+                  } else if (currentStep === 1) {
+                    const cleanPhone = formData.phone.replace(/\D/g, '').slice(-10);
+                    try {
+                      const checkRes = await DeliveryAPI.checkPhone(cleanPhone);
+                      if (checkRes.exists) {
+                        setPhoneAvailability('EXISTS');
+                        setErrors((prev) => ({
+                          ...prev,
+                          phone: `Mobile number +91 ${cleanPhone} is already registered`,
+                        }));
+                        setExistingApplication({
+                          phone: cleanPhone,
+                          status: checkRes.applicationStatus || 'PENDING_REVIEW',
+                          message: 'An application with this mobile number already exists on Zeebac.',
+                        });
+                        return;
+                      }
+                    } catch (e) {
+                      console.warn(e);
+                    }
+                    setErrors({});
+                    setCurrentStep(s.num);
                   } else {
                     setErrors({});
                     setCurrentStep(s.num);
@@ -511,9 +621,29 @@ export default function DeliveryOnboardingWizard() {
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Mobile Number (WhatsApp linked) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    Mobile Number (WhatsApp linked) *
+                  </label>
+                  {isCheckingPhone && (
+                    <span className="text-[10.5px] font-semibold text-primary flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                      Checking...
+                    </span>
+                  )}
+                  {!isCheckingPhone && phoneAvailability === 'AVAILABLE' && (
+                    <span className="text-[10.5px] font-bold text-emerald-600 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                      Available
+                    </span>
+                  )}
+                  {!isCheckingPhone && phoneAvailability === 'EXISTS' && (
+                    <span className="text-[10.5px] font-bold text-red-600 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[13px]">cancel</span>
+                      Already Registered
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-3 rounded-2xl bg-slate-100 text-[13px] font-bold text-slate-700 select-none">
                     +91
@@ -522,19 +652,41 @@ export default function DeliveryOnboardingWizard() {
                     type="tel"
                     maxLength={10}
                     value={formData.phone}
-                    onChange={(e) => handleChange('phone', e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="9876543210"
                     className={`flex-1 py-3 px-3.5 rounded-2xl bg-slate-50 border text-[14px] font-bold text-slate-900 font-mono focus:outline-none transition-all ${
-                      errors.phone ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                      errors.phone
+                        ? 'border-red-500 bg-red-50/20 focus:border-red-500'
+                        : phoneAvailability === 'AVAILABLE'
+                        ? 'border-emerald-500 bg-emerald-50/20 focus:border-emerald-500'
+                        : 'border-slate-200 focus:border-primary'
                     }`}
                     required
                   />
                 </div>
                 {errors.phone && (
-                  <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">error</span>
-                    {errors.phone}
-                  </p>
+                  <div className="mt-1.5 space-y-1">
+                    <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      {errors.phone}
+                    </p>
+                    {phoneAvailability === 'EXISTS' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExistingApplication({
+                            phone: formData.phone.replace(/\D/g, '').slice(-10),
+                            status: 'PENDING_REVIEW',
+                            message: 'An application with this mobile number already exists on Zeebac.',
+                          });
+                        }}
+                        className="text-[11.5px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">login</span>
+                        <span>View application status or Log In with OTP →</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1243,10 +1395,20 @@ export default function DeliveryOnboardingWizard() {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex-1 py-3.5 px-6 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] shadow-lg shadow-primary/25 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                disabled={isCheckingPhone}
+                className="flex-1 py-3.5 px-6 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] shadow-lg shadow-primary/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
               >
-                <span>Continue</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                {isCheckingPhone ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Checking mobile...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Continue</span>
+                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                  </>
+                )}
               </button>
             ) : (
               <button

@@ -1221,6 +1221,10 @@ export const B2BAPI = {
 
 // ─── Delivery Partner (Rider) API ───
 export const DeliveryAPI = {
+  checkPhone: async (phone) => {
+    const res = await apiClient.get(`/delivery/check-phone?phone=${encodeURIComponent(phone)}`);
+    return res.data;
+  },
   register: async (data) => {
     const res = await apiClient.post('/delivery/register', data);
     return res.data;

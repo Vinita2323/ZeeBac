@@ -1,6 +1,7 @@
 import express from 'express';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 import {
+  checkDeliveryPhone,
   deliveryRegister,
   deliveryLogin,
   getDeliveryStatus,
@@ -20,6 +21,7 @@ import {
 const router = express.Router();
 
 // Public auth endpoints
+router.get('/check-phone', checkDeliveryPhone);
 router.post('/register', deliveryRegister);
 router.post('/login', deliveryLogin);
 

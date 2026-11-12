@@ -37,6 +37,39 @@ const createRiderToken = (rider) => {
 // ─────────────────────────────────────────────────────────────
 // 1. DELIVERY PARTNER ONBOARDING & REGISTRATION
 // ─────────────────────────────────────────────────────────────
+export const checkDeliveryPhone = async (req, res) => {
+  try {
+    const rawPhone = req.query.phone || req.body?.phone;
+    if (!rawPhone) {
+      return res.status(400).json({ success: false, message: 'Mobile number is required' });
+    }
+
+    const cleanPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid 10-digit mobile number' });
+    }
+
+    const existingRider = await DeliveryPartner.findOne({ phone: cleanPhone });
+    if (existingRider) {
+      return res.json({
+        success: true,
+        exists: true,
+        applicationStatus: existingRider.applicationStatus,
+        name: existingRider.name,
+        riderId: existingRider.riderId,
+      });
+    }
+
+    return res.json({
+      success: true,
+      exists: false,
+    });
+  } catch (error) {
+    logger.error(`[checkDeliveryPhone] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server error checking mobile number' });
+  }
+};
+
 export const deliveryRegister = async (req, res) => {
   try {
     const {
