@@ -13,6 +13,7 @@ import PartnerOffer from '../models/PartnerOffer.js';
 import AdminUser from '../models/AdminUser.js';
 import OtpVerification from '../models/OtpVerification.js';
 import Notification from '../models/Notification.js';
+import Order from '../models/Order.js';
 import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
@@ -2614,7 +2615,57 @@ export const getSavedAddresses = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('savedAddresses location name phone');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    
+
+    // Seed from previous order if savedAddresses is empty
+    if (!user.savedAddresses || user.savedAddresses.length === 0) {
+      try {
+        const lastOrder = await Order.findOne({
+          customerId: user._id,
+          deliveryAddress: { $exists: true, $ne: null },
+        })
+          .sort({ createdAt: -1 })
+          .lean();
+
+        if (lastOrder && lastOrder.deliveryAddress) {
+          const raw =
+            typeof lastOrder.deliveryAddress === 'string'
+              ? lastOrder.deliveryAddress
+              : lastOrder.deliveryAddress.fullAddress || lastOrder.deliveryAddress.street || '';
+
+          if (raw && raw.trim() && raw !== 'Customer Address') {
+            let house = raw;
+            let recName = user.name || 'Customer';
+            let recPhone = user.phone || '';
+            const recipientMatch = raw.match(/\(([^,]+),\s*(\d+)\)$/);
+            if (recipientMatch) {
+              recName = recipientMatch[1].trim();
+              recPhone = recipientMatch[2].trim();
+              house = raw.replace(/\s*\([^)]+\)$/, '').trim();
+            }
+
+            const autoAddr = {
+              label: 'Home',
+              houseNo: house,
+              street: '',
+              landmark: '',
+              city: user.location?.city || 'Indore',
+              state: user.location?.state || 'Madhya Pradesh',
+              pincode: user.location?.pincode || '',
+              receiverName: recName,
+              receiverPhone: recPhone,
+              isDefault: true,
+              createdAt: new Date(),
+            };
+
+            user.savedAddresses = [autoAddr];
+            await user.save();
+          }
+        }
+      } catch (seedErr) {
+        logger.warn(`Could not seed address from last order: ${seedErr.message}`);
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -2731,5 +2782,66 @@ export const setDefaultAddress = async (req, res) => {
   } catch (error) {
     logger.error(`setDefaultAddress error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Failed to set default address' });
+  }
+};
+
+export const updateSavedAddress = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      label,
+      houseNo,
+      street,
+      landmark,
+      city,
+      state,
+      pincode,
+      receiverName,
+      receiverPhone,
+      isDefault,
+    } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (!user.savedAddresses || user.savedAddresses.length === 0) {
+      return res.status(404).json({ success: false, message: 'Address not found' });
+    }
+
+    const addr = user.savedAddresses.id
+      ? user.savedAddresses.id(id)
+      : user.savedAddresses.find((a) => String(a._id) === String(id));
+
+    if (!addr) {
+      return res.status(404).json({ success: false, message: 'Address not found' });
+    }
+
+    if (houseNo !== undefined && houseNo.trim()) addr.houseNo = houseNo.trim();
+    if (street !== undefined) addr.street = street.trim();
+    if (landmark !== undefined) addr.landmark = landmark.trim();
+    if (city !== undefined) addr.city = city.trim();
+    if (state !== undefined) addr.state = state.trim();
+    if (pincode !== undefined) addr.pincode = pincode.trim();
+    if (receiverName !== undefined) addr.receiverName = receiverName.trim();
+    if (receiverPhone !== undefined) addr.receiverPhone = receiverPhone.trim();
+    if (label !== undefined) addr.label = label.trim();
+
+    if (isDefault) {
+      user.savedAddresses.forEach((a) => {
+        a.isDefault = String(a._id) === String(id);
+      });
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Address updated successfully',
+      data: addr,
+      addresses: user.savedAddresses,
+    });
+  } catch (error) {
+    logger.error(`updateSavedAddress error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to update address' });
   }
 };

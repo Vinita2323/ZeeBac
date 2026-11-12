@@ -68,6 +68,63 @@ const userSchema = new mongoose.Schema(
       state: String,
       pincode: String,
     },
+    savedAddresses: [
+      {
+        label: {
+          type: String,
+          default: 'Home',
+          trim: true,
+        },
+        houseNo: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        street: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        landmark: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        city: {
+          type: String,
+          default: 'Lucknow',
+          trim: true,
+        },
+        state: {
+          type: String,
+          default: 'Uttar Pradesh',
+          trim: true,
+        },
+        pincode: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        receiverName: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        receiverPhone: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        isDefault: {
+          type: Boolean,
+          default: false,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     status: {
       type: String,
       enum: ['Active', 'Suspended', 'Banned'],

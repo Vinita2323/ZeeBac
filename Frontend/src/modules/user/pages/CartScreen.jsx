@@ -21,6 +21,18 @@ const formatAddress = (addr) => {
   return String(addr);
 };
 
+export const formatSavedAddressString = (addr) => {
+  if (!addr) return '';
+  const parts = [
+    addr.houseNo,
+    addr.street,
+    addr.landmark ? `Near ${addr.landmark}` : '',
+    addr.city,
+    addr.pincode ? `PIN: ${addr.pincode}` : '',
+  ].filter(Boolean);
+  return parts.join(', ');
+};
+
 const formatCurrency = (val) => {
   const num = Math.round((Number(val) || 0) * 100) / 100;
   return Number.isInteger(num) ? num.toString() : num.toFixed(2);
@@ -58,19 +70,43 @@ export default function CartScreen() {
   });
 
   // Saved Delivery Addresses (Zomato-style step-by-step management)
-  const [savedAddresses, setSavedAddresses] = useState([]);
-  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [savedAddresses, setSavedAddresses] = useState(() => {
+    try {
+      const cached = localStorage.getItem('zeebac_saved_addresses');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+  const [selectedAddressId, setSelectedAddressId] = useState(() => {
+    try {
+      const cachedId = localStorage.getItem('zeebac_selected_address_id');
+      if (cachedId) return cachedId;
+      const cached = localStorage.getItem('zeebac_saved_addresses');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const def = parsed.find((a) => a.isDefault) || parsed[0];
+          return def?._id || null;
+        }
+      }
+    } catch (_) {}
+    return null;
+  });
+  const [editingAddressId, setEditingAddressId] = useState(null); // null = new, string = editing existing
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [showAddressPickerModal, setShowAddressPickerModal] = useState(false);
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
 
-  // Add Address Form State
+  // Add / Edit Address Form State
   const [newAddressForm, setNewAddressForm] = useState({
     houseNo: '',
     street: '',
     landmark: '',
-    city: 'Lucknow',
-    state: 'Uttar Pradesh',
+    city: 'Indore',
+    state: 'Madhya Pradesh',
     pincode: '',
     receiverName: currentUser?.name || '',
     receiverPhone: currentUser?.phone || '',
@@ -80,8 +116,20 @@ export default function CartScreen() {
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [addressFormError, setAddressFormError] = useState('');
 
-  // Fallback / legacy delivery address string
+  // Fallback / legacy delivery address string with instant localStorage cache
   const [deliveryAddress, setDeliveryAddress] = useState(() => {
+    try {
+      const cachedStr = localStorage.getItem('zeebac_delivery_address_str');
+      if (cachedStr) return cachedStr;
+      const cached = localStorage.getItem('zeebac_saved_addresses');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const def = parsed.find((a) => a.isDefault) || parsed[0];
+          return formatSavedAddressString(def);
+        }
+      }
+    } catch (_) {}
     return (
       formatAddress(currentUser?.location?.address) ||
       formatAddress(currentUser?.address) ||
@@ -206,18 +254,35 @@ export default function CartScreen() {
     fetchVendorConfig();
   }, [vendor?.zeebacId, vendor?._id]);
 
-  // 2. Fetch User Saved Addresses on mount
+  // 2. Fetch User Saved Addresses on mount & sync with localStorage
   useEffect(() => {
     const loadSavedAddresses = async () => {
-      if (!currentUser) return;
       setIsLoadingAddresses(true);
       try {
         const res = await UserAPI.getSavedAddresses();
         if (res.success && res.data?.addresses?.length > 0) {
-          setSavedAddresses(res.data.addresses);
-          const defaultAddr = res.data.addresses.find((a) => a.isDefault) || res.data.addresses[0];
-          setSelectedAddressId(defaultAddr._id);
-          setDeliveryAddress(formatSavedAddressString(defaultAddr));
+          const list = res.data.addresses;
+          setSavedAddresses(list);
+          try {
+            localStorage.setItem('zeebac_saved_addresses', JSON.stringify(list));
+          } catch (_) {}
+
+          const cachedId = localStorage.getItem('zeebac_selected_address_id');
+          const active =
+            list.find((a) => a._id === selectedAddressId) ||
+            list.find((a) => a._id === cachedId) ||
+            list.find((a) => a.isDefault) ||
+            list[0];
+
+          if (active) {
+            setSelectedAddressId(active._id);
+            const str = formatSavedAddressString(active);
+            setDeliveryAddress(str);
+            try {
+              localStorage.setItem('zeebac_selected_address_id', active._id);
+              localStorage.setItem('zeebac_delivery_address_str', str);
+            } catch (_) {}
+          }
         } else if (currentUser?.location?.address && formatAddress(currentUser.location.address)) {
           const autoAddr = {
             _id: 'auto_addr_1',
@@ -225,8 +290,8 @@ export default function CartScreen() {
             houseNo: formatAddress(currentUser.location.address),
             street: '',
             landmark: '',
-            city: currentUser.location.city || 'Lucknow',
-            state: currentUser.location.state || 'Uttar Pradesh',
+            city: currentUser.location.city || 'Indore',
+            state: currentUser.location.state || 'Madhya Pradesh',
             pincode: currentUser.location.pincode || '',
             receiverName: currentUser.name || 'Customer',
             receiverPhone: currentUser.phone || '',
@@ -234,7 +299,13 @@ export default function CartScreen() {
           };
           setSavedAddresses([autoAddr]);
           setSelectedAddressId(autoAddr._id);
-          setDeliveryAddress(formatSavedAddressString(autoAddr));
+          const str = formatSavedAddressString(autoAddr);
+          setDeliveryAddress(str);
+          try {
+            localStorage.setItem('zeebac_saved_addresses', JSON.stringify([autoAddr]));
+            localStorage.setItem('zeebac_selected_address_id', autoAddr._id);
+            localStorage.setItem('zeebac_delivery_address_str', str);
+          } catch (_) {}
         }
       } catch (err) {
         console.warn('Failed to load saved addresses', err);
@@ -244,18 +315,6 @@ export default function CartScreen() {
     };
     loadSavedAddresses();
   }, [currentUser]);
-
-  const formatSavedAddressString = (addr) => {
-    if (!addr) return '';
-    const parts = [
-      addr.houseNo,
-      addr.street,
-      addr.landmark ? `Near ${addr.landmark}` : '',
-      addr.city,
-      addr.pincode ? `PIN: ${addr.pincode}` : '',
-    ].filter(Boolean);
-    return parts.join(', ');
-  };
 
   const selectedSavedAddress = savedAddresses.find((a) => a._id === selectedAddressId) || savedAddresses[0] || null;
 
@@ -382,7 +441,46 @@ export default function CartScreen() {
     setTimeout(() => setCopySuccess(false), 2500);
   };
 
-  // ── Address Actions (Add, Select, Delete) ──
+  // ── Address Actions (Add, Edit, Select, Delete) ──
+  const handleOpenEditAddress = (addr, e) => {
+    if (e) e.stopPropagation();
+    setEditingAddressId(addr._id);
+    setNewAddressForm({
+      label: addr.label || 'Home',
+      houseNo: addr.houseNo || '',
+      street: addr.street || '',
+      landmark: addr.landmark || '',
+      city: addr.city || currentUser?.location?.city || 'Indore',
+      state: addr.state || currentUser?.location?.state || 'Madhya Pradesh',
+      pincode: addr.pincode || '',
+      receiverName: addr.receiverName || currentUser?.name || '',
+      receiverPhone: addr.receiverPhone || currentUser?.phone || '',
+      isDefault: Boolean(addr.isDefault),
+    });
+    setAddressFormError('');
+    setShowAddressPickerModal(false);
+    setShowAddAddressModal(true);
+  };
+
+  const handleOpenAddNewAddress = () => {
+    setEditingAddressId(null);
+    setNewAddressForm({
+      label: 'Home',
+      houseNo: '',
+      street: '',
+      landmark: '',
+      city: currentUser?.location?.city || 'Indore',
+      state: currentUser?.location?.state || 'Madhya Pradesh',
+      pincode: currentUser?.location?.pincode || '',
+      receiverName: currentUser?.name || '',
+      receiverPhone: currentUser?.phone || '',
+      isDefault: savedAddresses.length === 0,
+    });
+    setAddressFormError('');
+    setShowAddressPickerModal(false);
+    setShowAddAddressModal(true);
+  };
+
   const handleSaveNewAddress = async (e) => {
     e.preventDefault();
     if (!newAddressForm.houseNo.trim()) {
@@ -393,36 +491,90 @@ export default function CartScreen() {
     setIsSavingAddress(true);
 
     try {
-      let savedDoc = null;
-      try {
-        const res = await UserAPI.addSavedAddress(newAddressForm);
-        if (res.success && res.data) {
-          savedDoc = res.data;
-          const updatedList = res.addresses || [...savedAddresses, res.data];
-          setSavedAddresses(updatedList);
+      if (editingAddressId) {
+        // UPDATE EXISTING ADDRESS
+        let updatedDoc = null;
+        try {
+          const res = await UserAPI.updateSavedAddress(editingAddressId, newAddressForm);
+          if (res.success && res.addresses) {
+            setSavedAddresses(res.addresses);
+            updatedDoc = res.addresses.find((a) => a._id === editingAddressId) || res.data;
+            try {
+              localStorage.setItem('zeebac_saved_addresses', JSON.stringify(res.addresses));
+            } catch (_) {}
+          }
+        } catch (apiErr) {
+          console.warn('Backend address update failed, updating locally:', apiErr);
         }
-      } catch (apiErr) {
-        console.warn('Backend address save failed, falling back to local address:', apiErr);
+
+        if (!updatedDoc) {
+          setSavedAddresses((prev) =>
+            prev.map((a) => (a._id === editingAddressId ? { ...a, ...newAddressForm } : a))
+          );
+          updatedDoc = { _id: editingAddressId, ...newAddressForm };
+          try {
+            const current = JSON.parse(localStorage.getItem('zeebac_saved_addresses') || '[]');
+            const nextList = current.map((a) => (a._id === editingAddressId ? { ...a, ...newAddressForm } : a));
+            localStorage.setItem('zeebac_saved_addresses', JSON.stringify(nextList));
+          } catch (_) {}
+        }
+
+        setSelectedAddressId(updatedDoc._id);
+        const str = formatSavedAddressString(updatedDoc);
+        setDeliveryAddress(str);
+        try {
+          localStorage.setItem('zeebac_selected_address_id', updatedDoc._id);
+          localStorage.setItem('zeebac_delivery_address_str', str);
+        } catch (_) {}
+      } else {
+        // CREATE NEW ADDRESS
+        let savedDoc = null;
+        try {
+          const res = await UserAPI.addSavedAddress(newAddressForm);
+          if (res.success && (res.addresses || res.data)) {
+            const list = res.addresses || [...savedAddresses, res.data];
+            setSavedAddresses(list);
+            savedDoc = res.data || list[list.length - 1];
+            try {
+              localStorage.setItem('zeebac_saved_addresses', JSON.stringify(list));
+            } catch (_) {}
+          }
+        } catch (apiErr) {
+          console.warn('Backend address save failed, falling back to local address:', apiErr);
+        }
+
+        if (!savedDoc) {
+          savedDoc = {
+            _id: 'addr_' + Date.now(),
+            ...newAddressForm,
+          };
+          setSavedAddresses((prev) => {
+            const next = [...prev, savedDoc];
+            try {
+              localStorage.setItem('zeebac_saved_addresses', JSON.stringify(next));
+            } catch (_) {}
+            return next;
+          });
+        }
+
+        setSelectedAddressId(savedDoc._id);
+        const str = formatSavedAddressString(savedDoc);
+        setDeliveryAddress(str);
+        try {
+          localStorage.setItem('zeebac_selected_address_id', savedDoc._id);
+          localStorage.setItem('zeebac_delivery_address_str', str);
+        } catch (_) {}
       }
 
-      if (!savedDoc) {
-        savedDoc = {
-          _id: 'addr_' + Date.now(),
-          ...newAddressForm,
-        };
-        setSavedAddresses((prev) => [...prev, savedDoc]);
-      }
-
-      setSelectedAddressId(savedDoc._id);
-      setDeliveryAddress(formatSavedAddressString(savedDoc));
       setShowAddAddressModal(false);
       setShowAddressPickerModal(false);
+      setEditingAddressId(null);
       setNewAddressForm({
         houseNo: '',
         street: '',
         landmark: '',
-        city: currentUser?.location?.city || 'Lucknow',
-        state: currentUser?.location?.state || 'Uttar Pradesh',
+        city: currentUser?.location?.city || 'Indore',
+        state: currentUser?.location?.state || 'Madhya Pradesh',
         pincode: '',
         receiverName: currentUser?.name || '',
         receiverPhone: currentUser?.phone || '',
@@ -438,7 +590,12 @@ export default function CartScreen() {
 
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr._id);
-    setDeliveryAddress(formatSavedAddressString(addr));
+    const str = formatSavedAddressString(addr);
+    setDeliveryAddress(str);
+    try {
+      localStorage.setItem('zeebac_selected_address_id', addr._id);
+      localStorage.setItem('zeebac_delivery_address_str', str);
+    } catch (_) {}
     setShowAddressPickerModal(false);
   };
 
@@ -447,12 +604,25 @@ export default function CartScreen() {
     try {
       const res = await UserAPI.deleteSavedAddress(id);
       if (res.success) {
-        const remaining = (res.addresses || savedAddresses.filter((a) => a._id !== id));
+        const remaining = res.addresses || savedAddresses.filter((a) => a._id !== id);
         setSavedAddresses(remaining);
+        try {
+          localStorage.setItem('zeebac_saved_addresses', JSON.stringify(remaining));
+        } catch (_) {}
         if (selectedAddressId === id) {
           const next = remaining[0] || null;
           setSelectedAddressId(next?._id || null);
-          setDeliveryAddress(next ? formatSavedAddressString(next) : '');
+          const str = next ? formatSavedAddressString(next) : '';
+          setDeliveryAddress(str);
+          try {
+            if (next?._id) {
+              localStorage.setItem('zeebac_selected_address_id', next._id);
+              localStorage.setItem('zeebac_delivery_address_str', str);
+            } else {
+              localStorage.removeItem('zeebac_selected_address_id');
+              localStorage.removeItem('zeebac_delivery_address_str');
+            }
+          } catch (_) {}
         }
       }
     } catch (err) {
@@ -1362,13 +1532,24 @@ export default function CartScreen() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowAddressPickerModal(true)}
-                  className="text-[11.5px] font-bold text-purple-700 hover:text-purple-900 cursor-pointer hover:underline"
-                >
-                  Change
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => handleOpenEditAddress(selectedSavedAddress, e)}
+                    className="text-[11.5px] font-bold text-slate-700 hover:text-slate-900 cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">edit</span>
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddressPickerModal(true)}
+                    className="text-[11.5px] font-bold text-purple-700 hover:text-purple-900 cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">swap_horiz</span>
+                    <span>Change</span>
+                  </button>
+                </div>
               </div>
 
               <div className="pl-6 space-y-0.5">
@@ -1589,7 +1770,14 @@ export default function CartScreen() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => handleOpenEditAddress(addr, e)}
+                          className="w-7 h-7 rounded-full text-slate-400 hover:text-purple-700 hover:bg-purple-50 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Edit address"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">edit</span>
+                        </button>
                         <button
                           onClick={(e) => handleDeleteAddress(addr._id, e)}
                           className="w-7 h-7 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer"
@@ -1627,10 +1815,7 @@ export default function CartScreen() {
             </div>
 
             <button
-              onClick={() => {
-                setShowAddressPickerModal(false);
-                setShowAddAddressModal(true);
-              }}
+              onClick={handleOpenAddNewAddress}
               className="w-full py-3 rounded-xl border-2 border-dashed border-purple-300 text-purple-700 hover:bg-purple-50 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">add_circle</span>
@@ -1641,18 +1826,25 @@ export default function CartScreen() {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* MODAL 2: ADD NEW DELIVERY ADDRESS (ZOMATO STEP-BY-STEP FORM) */}
+      {/* MODAL 2: ADD / EDIT DELIVERY ADDRESS (ZOMATO STEP-BY-STEP FORM) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {showAddAddressModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-reveal">
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-purple-700 text-[22px]">add_location</span>
-                <h3 className="font-display font-black text-base text-slate-900">Add Delivery Address</h3>
+                <span className="material-symbols-outlined text-purple-700 text-[22px]">
+                  {editingAddressId ? 'edit_location' : 'add_location'}
+                </span>
+                <h3 className="font-display font-black text-base text-slate-900">
+                  {editingAddressId ? 'Edit Delivery Address' : 'Add Delivery Address'}
+                </h3>
               </div>
               <button
-                onClick={() => setShowAddAddressModal(false)}
+                onClick={() => {
+                  setShowAddAddressModal(false);
+                  setEditingAddressId(null);
+                }}
                 className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
@@ -1803,12 +1995,12 @@ export default function CartScreen() {
                 {isSavingAddress ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Saving Address...</span>
+                    <span>{editingAddressId ? 'Updating Address...' : 'Saving Address...'}</span>
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                    <span>Save & Deliver Here</span>
+                    <span>{editingAddressId ? 'Update & Deliver Here' : 'Save & Deliver Here'}</span>
                   </>
                 )}
               </button>

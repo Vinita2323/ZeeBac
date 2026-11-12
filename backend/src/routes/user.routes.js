@@ -39,6 +39,7 @@ import {
     claimWalletUpiPayment,
   getSavedAddresses,
   addSavedAddress,
+  updateSavedAddress,
   deleteSavedAddress,
   setDefaultAddress
 } from '../controllers/user.controller.js';
@@ -110,6 +111,7 @@ router.post('/wallet/claim-upi-utr', claimWalletUpiPayment);
 // Saved Delivery Addresses (Zomato-style step-by-step address management)
 router.get('/addresses', getSavedAddresses);
 router.post('/addresses', addSavedAddress);
+router.put('/addresses/:id', updateSavedAddress);
 router.delete('/addresses/:id', deleteSavedAddress);
 router.put('/addresses/:id/default', setDefaultAddress);
 

@@ -1012,6 +1012,10 @@ export const UserAPI = {
     const res = await apiClient.post('/user/addresses', data);
     return res.data;
   },
+  updateSavedAddress: async (addressId, data) => {
+    const res = await apiClient.put(`/user/addresses/${addressId}`, data);
+    return res.data;
+  },
   deleteSavedAddress: async (addressId) => {
     const res = await apiClient.delete(`/user/addresses/${addressId}`);
     return res.data;

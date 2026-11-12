@@ -180,6 +180,44 @@ export const createOrder = async (req, res) => {
           ].filter(Boolean).join(', ') || 'Customer Address');
     }
 
+    // Auto-save delivery address to customer profile if not already saved
+    if (fulfillmentType === 'delivery' && resolvedDeliveryAddress && resolvedDeliveryAddress !== 'Customer Address') {
+      try {
+        if (!customer.savedAddresses) customer.savedAddresses = [];
+        const isAlreadySaved = customer.savedAddresses.some((a) => {
+          return a.houseNo && resolvedDeliveryAddress.includes(a.houseNo);
+        });
+        if (!isAlreadySaved) {
+          let recName = customer.name || 'Customer';
+          let recPhone = customer.phone || '';
+          let house = resolvedDeliveryAddress;
+          const recipientMatch = resolvedDeliveryAddress.match(/\(([^,]+),\s*(\d+)\)$/);
+          if (recipientMatch) {
+            recName = recipientMatch[1].trim();
+            recPhone = recipientMatch[2].trim();
+            house = resolvedDeliveryAddress.replace(/\s*\([^)]+\)$/, '').trim();
+          }
+
+          customer.savedAddresses.push({
+            label: customer.savedAddresses.length === 0 ? 'Home' : 'Other',
+            houseNo: house,
+            street: '',
+            landmark: '',
+            city: customer.location?.city || 'Indore',
+            state: customer.location?.state || 'Madhya Pradesh',
+            pincode: customer.location?.pincode || '',
+            receiverName: recName,
+            receiverPhone: recPhone,
+            isDefault: customer.savedAddresses.length === 0,
+            createdAt: new Date(),
+          });
+          await customer.save();
+        }
+      } catch (saveAddrErr) {
+        logger.warn(`Could not auto-save address to customer: ${saveAddrErr.message}`);
+      }
+    }
+
     // ── Generate Order ID & Delivery OTP ──
     const orderId = `ZBC-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
     const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
