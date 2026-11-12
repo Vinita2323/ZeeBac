@@ -253,6 +253,11 @@ export const lookupVendorById = async (req, res) => {
     vendorObj.cashbackBlockedReason = subState.cashbackBlockedReason;
     vendorObj.subscriptionState = subState;
 
+    // Attach Admin configured Order GST Tax Percentage
+    const rewardConfig = (await RewardConfig.findOne()) || {};
+    const isTaxEnabled = rewardConfig.enableOrderTax !== false;
+    vendorObj.platformTaxPercent = isTaxEnabled ? Number(rewardConfig.orderGstTaxPercent ?? 5) : 0;
+
     res.status(200).json({ success: true, data: vendorObj });
   } catch (error) {
     logger.error(`lookupVendorById error: ${error.message}`);

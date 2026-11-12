@@ -45,6 +45,16 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  orderGstTaxPercent: {
+    type: Number,
+    default: 5,
+    min: 0,
+    max: 28,
+  },
+  enableOrderTax: {
+    type: Boolean,
+    default: true,
+  },
   customerWalletPayCommissionPercent: {
     type: Number,
     default: 0, // 0% convenience fee - zero extra charges when paying merchant from wallet
