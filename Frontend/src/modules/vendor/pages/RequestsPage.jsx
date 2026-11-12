@@ -26,11 +26,6 @@ export default function RequestsPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
 
-  // Rider assignment modal
-  const [assignRiderModalOrder, setAssignRiderModalOrder] = useState(null);
-  const [riderForm, setRiderForm] = useState({ name: '', phone: '', vehicleNo: '' });
-  const [isAssigningRider, setIsAssigningRider] = useState(false);
-
   // Store Order Rejection modal
   const [rejectModalOrder, setRejectModalOrder] = useState(null);
   const [rejectReason, setRejectReason] = useState('Item out of stock');
@@ -297,31 +292,6 @@ export default function RequestsPage() {
       alert(err.response?.data?.message || 'Failed to reject order');
     } finally {
       setIsRejecting(false);
-    }
-  };
-
-  // ── Assign Rider Submission ──
-  const handleAssignRiderSubmit = async (e) => {
-    e.preventDefault();
-    if (!riderForm.name || !riderForm.phone || isAssigningRider) return;
-
-    setIsAssigningRider(true);
-    try {
-      const res = await OrderAPI.assignRider(assignRiderModalOrder.orderId, riderForm);
-      if (res.success) {
-        setOrders((prev) =>
-          prev.map((o) => (o.orderId === assignRiderModalOrder.orderId ? { ...o, ...res.data.order } : o))
-        );
-        playNotificationChime('incoming');
-        speakVoice(`Rider ${riderForm.name} assigned to order.`);
-        setAssignRiderModalOrder(null);
-        setRiderForm({ name: '', phone: '', vehicleNo: '' });
-      }
-    } catch (err) {
-      console.error('Failed to assign rider', err);
-      alert(err.response?.data?.message || 'Failed to assign rider');
-    } finally {
-      setIsAssigningRider(false);
     }
   };
 
@@ -650,23 +620,6 @@ export default function RequestsPage() {
                             <span>Cancel Order</span>
                           </button>
                         </div>
-
-                        {/* Optional manual override for store's own staff delivery (subtle link) */}
-                        {!isRiderAssigned && (
-                          <div className="pt-0.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAssignRiderModalOrder(order);
-                                setRiderForm({ name: '', phone: '', vehicleNo: '' });
-                              }}
-                              className="text-[10.5px] text-slate-400 hover:text-primary underline flex items-center gap-1 cursor-pointer"
-                            >
-                              <span className="material-symbols-outlined text-[13px]">person_add</span>
-                              <span>Have your own in-house staff? Assign own rider manually</span>
-                            </button>
-                          </div>
-                        )}
                       </div>
                     )}
 
@@ -788,99 +741,6 @@ export default function RequestsPage() {
               );
             })
           )}
-        </div>
-      )}
-
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* ASSIGN IN-HOUSE RIDER MODAL (MANUAL OVERRIDE ONLY) */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      {assignRiderModalOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-left max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">two_wheeler</span>
-                <h3 className="font-display font-black text-[15px] text-slate-900">
-                  Assign In-House Staff Rider
-                </h3>
-              </div>
-              <button
-                onClick={() => setAssignRiderModalOrder(null)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <div className="bg-purple-50/70 border border-purple-200/90 rounded-2xl p-3 text-[11px] text-purple-900 space-y-1">
-              <p className="font-black flex items-center gap-1 text-primary">
-                <span className="material-symbols-outlined text-[15px]">radar</span>
-                <span>Platform riders are notified automatically</span>
-              </p>
-              <p className="text-[10.5px] text-purple-800/90 leading-relaxed">
-                Platform riders ko radius ke hisaab se order broadcast ho chuka hai. Ye form sirf tab bharein agar aap apna personal store boy ya private staff bhej rahe hain.
-              </p>
-            </div>
-
-            <p className="text-[11.5px] text-slate-600 font-medium">
-              Order #{assignRiderModalOrder.orderId} ke liye private staff delivery partner details:
-            </p>
-
-            <form onSubmit={handleAssignRiderSubmit} className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Rider Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={riderForm.name}
-                  onChange={(e) => setRiderForm({ ...riderForm, name: e.target.value })}
-                  placeholder="e.g. Ramesh Kumar"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white focus:border-primary transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Rider Mobile Number *</label>
-                <input
-                  type="tel"
-                  required
-                  maxLength={10}
-                  value={riderForm.phone}
-                  onChange={(e) => setRiderForm({ ...riderForm, phone: e.target.value.replace(/\D/g, '') })}
-                  placeholder="e.g. 9876543210"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white focus:border-primary transition-colors font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Vehicle Number (Optional)</label>
-                <input
-                  type="text"
-                  value={riderForm.vehicleNo}
-                  onChange={(e) => setRiderForm({ ...riderForm, vehicleNo: e.target.value.toUpperCase() })}
-                  placeholder="e.g. UP32 AB 1234"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white focus:border-primary transition-colors font-mono"
-                />
-              </div>
-
-              <div className="pt-1 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAssignRiderModalOrder(null)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[12px] hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isAssigningRider}
-                  className="flex-1 py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shadow-sm cursor-pointer disabled:opacity-50"
-                >
-                  {isAssigningRider ? 'Assigning...' : 'Assign Staff Rider'}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 
