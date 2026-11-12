@@ -560,7 +560,11 @@ function App() {
 
           {/* ─── Delivery Partner App (Rider) ─── */}
           <Route path="/delivery/login" element={<DeliveryLoginScreen />} />
+          <Route path="/delivery/onboard" element={<DeliveryOnboardingWizard />} />
+          <Route path="/delivery/onboarding" element={<DeliveryOnboardingWizard />} />
+          <Route path="/delivery/status" element={<DeliveryStatusScreen />} />
           <Route path="/delivery/dashboard" element={<DeliveryDashboardScreen />} />
+          <Route path="/delivery/earnings" element={<DeliveryEarningsScreen />} />
           <Route path="/delivery/history" element={<DeliveryHistoryScreen />} />
           <Route path="/delivery/profile" element={<DeliveryProfileScreen />} />
           <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />
