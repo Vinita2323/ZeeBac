@@ -106,3 +106,64 @@ export const playCustomerCashbackCreditedVoice = (cashbackAmount) => {
   const numericAmount = Math.round(Number(cashbackAmount) || 0);
   speakVoice(`${numericAmount} rupaye cashback credited`);
 };
+
+// Driver incoming delivery request alarm chime & announcement (Zomato/Swiggy style)
+export const playDeliveryOrderAlarm = ({ storeName = '', payout = 0 } = {}) => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx) {
+      const now = ctx.currentTime;
+      // Play 3 energetic alert pulses: beep-boop, beep-boop, beep-boop
+      [0, 0.22, 0.44].forEach((offset) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, now + offset); // A5
+        osc.frequency.exponentialRampToValueAtTime(1318.51, now + offset + 0.12); // E6
+        gain.gain.setValueAtTime(0.35, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.18);
+
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.18);
+      });
+    }
+
+    // Vibrate mobile device if supported
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([300, 150, 300, 150, 400]);
+    }
+
+    // Voice announcement
+    const voiceText = storeName
+      ? `Naya delivery order aaya hai ${storeName} se! Payout rupaye ${payout || 50}.`
+      : `Naya delivery order request aaya hai! Payout rupaye ${payout || 50}.`;
+    speakVoice(voiceText, 700);
+  } catch (err) {
+    console.warn('Delivery alarm audio error:', err);
+  }
+};
+
+// Formats order timestamp cleanly: "4:21 PM (2m ago)"
+export const formatOrderTime = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+
+  const timeStr = d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const diffMs = Date.now() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return `${timeStr} (Just now)`;
+  if (diffMins < 60) return `${timeStr} (${diffMins}m ago)`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${timeStr} (${diffHours}h ago)`;
+  return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} ${timeStr}`;
+};

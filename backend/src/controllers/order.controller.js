@@ -315,12 +315,22 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // ── Real-time Socket Event to Vendor ──
+    // ── Real-time Socket Event to Vendor & Delivery Fleet ──
     try {
       getIO().to(`vendor_${vendor._id}`).emit('order:new', {
         order: createdOrder,
         message: `New order #${orderId} received!`,
       });
+      if (fulfillmentType === 'delivery') {
+        getIO().emit('delivery:new_order', {
+          order: createdOrder,
+          orderId,
+          storeName: vendor.storeName,
+          payout: createdOrder.deliveryPayout || 50,
+          distanceKm: createdOrder.deliveryDistanceKm || 2.0,
+          message: `New delivery request from ${vendor.storeName}!`,
+        });
+      }
     } catch (ioErr) {
       logger.warn(`createOrder socket emit skipped: ${ioErr.message}`);
     }
@@ -412,7 +422,7 @@ export const verifyOrderUpiPayment = async (req, res) => {
     }
     await order.save();
 
-    // Notify vendor
+    // Notify vendor & delivery fleet
     try {
       getIO().to(`vendor_${order.vendorId}`).emit('order:paid', {
         orderId: order.orderId,
@@ -423,6 +433,16 @@ export const verifyOrderUpiPayment = async (req, res) => {
         orderId: order.orderId,
         paymentStatus: 'PAID',
       });
+      if (order.fulfillmentType === 'delivery') {
+        getIO().emit('delivery:new_order', {
+          order,
+          orderId: order.orderId,
+          storeName: order.storeName,
+          payout: order.deliveryPayout || 50,
+          distanceKm: order.deliveryDistanceKm || 2.0,
+          message: `New paid delivery request from ${order.storeName}!`,
+        });
+      }
     } catch (ioErr) {}
 
     sendNotification({
@@ -681,6 +701,16 @@ export const updateOrderStatus = async (req, res) => {
         orderId: order.orderId,
         orderStatus: status,
       });
+      if (['CONFIRMED', 'PREPARING'].includes(status) && order.fulfillmentType === 'delivery') {
+        getIO().emit('delivery:new_order', {
+          order,
+          orderId: order.orderId,
+          storeName: order.storeName,
+          payout: order.deliveryPayout || 50,
+          distanceKm: order.deliveryDistanceKm || 2.0,
+          message: `Delivery request from ${order.storeName}!`,
+        });
+      }
     } catch (_) {}
 
     res.status(200).json({

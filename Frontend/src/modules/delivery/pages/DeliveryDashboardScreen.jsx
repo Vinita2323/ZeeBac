@@ -4,6 +4,8 @@ import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import DeliveryBottomNav from '../components/DeliveryBottomNav';
 import { toast } from 'react-hot-toast';
+import { getSocket } from '../../../services/socket';
+import { playDeliveryOrderAlarm, formatOrderTime } from '../../../utils/voiceUtils';
 
 const formatAddress = (addr) => {
   if (!addr) return '';
@@ -44,6 +46,11 @@ export default function DeliveryDashboardScreen() {
   const [rejectOrderId, setRejectOrderId] = useState(null);
   const [rejectReason, setRejectReason] = useState('Too far from pickup');
 
+  // Ringing Order Alert banner
+  const [ringingOrderAlert, setRingingOrderAlert] = useState(null);
+  const knownOrderIdsRef = useRef(new Set());
+  const initialLoadDoneRef = useRef(false);
+
   // Geolocation watcher ref
   const watchIdRef = useRef(null);
 
@@ -65,10 +72,33 @@ export default function DeliveryDashboardScreen() {
       const res = await DeliveryAPI.getOrders();
       if (res.success && res.data) {
         setActiveOrder(res.data.activeOrder || null);
-        setAvailableOrders(res.data.availableOrders || []);
+        const incomingList = res.data.availableOrders || [];
+        setAvailableOrders(incomingList);
         if (res.data.isOnline !== undefined) {
           setOnlineStatus(res.data.isOnline);
         }
+
+        // Ring audio alarm for online rider when new orders arrive
+        if (isOnline && !res.data.activeOrder && initialLoadDoneRef.current) {
+          const newlyArrived = incomingList.filter(
+            (o) => !knownOrderIdsRef.current.has(o._id)
+          );
+          if (newlyArrived.length > 0) {
+            const latest = newlyArrived[0];
+            const storeName = latest.vendor?.storeName || latest.vendorName || 'Partner Store';
+            const payout = latest.deliveryPayout || 50;
+            playDeliveryOrderAlarm({ storeName, payout });
+            setRingingOrderAlert({
+              orderId: latest.orderId || latest._id,
+              storeName,
+              payout,
+            });
+            toast.success(`🔔 Naya Order Aaya! +₹${payout} from ${storeName}`, { duration: 6000 });
+          }
+        }
+
+        knownOrderIdsRef.current = new Set(incomingList.map((o) => o._id));
+        initialLoadDoneRef.current = true;
       }
     } catch (err) {
       console.error('Failed to load rider orders', err);
@@ -78,13 +108,54 @@ export default function DeliveryDashboardScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, setOnlineStatus]);
+  }, [navigate, setOnlineStatus, isOnline]);
 
   useEffect(() => {
     fetchDashboardData();
     const interval = setInterval(fetchDashboardData, 5000); // Poll every 5 seconds for new assignments
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
+
+  // Real-time socket listener for incoming delivery orders
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewOrder = (data) => {
+      console.log('Realtime delivery order received:', data);
+      if (isOnline && !activeOrder) {
+        const storeName = data.storeName || data.order?.vendor?.storeName || 'Partner Store';
+        const payout = data.payout || data.order?.deliveryPayout || 50;
+        playDeliveryOrderAlarm({ storeName, payout });
+        setRingingOrderAlert({
+          orderId: data.orderId || data.order?._id,
+          storeName,
+          payout,
+        });
+        toast.success(`🔔 Naya Delivery Order: +₹${payout} from ${storeName}`, { duration: 6000 });
+      }
+      fetchDashboardData();
+    };
+
+    socket.on('delivery:new_order', handleNewOrder);
+    return () => {
+      socket.off('delivery:new_order', handleNewOrder);
+    };
+  }, [isOnline, activeOrder, fetchDashboardData]);
+
+  // Test ring function for rider to test sound and audio permissions
+  const handleTestRing = () => {
+    playDeliveryOrderAlarm({
+      storeName: 'Shree Shyama',
+      payout: 60,
+    });
+    setRingingOrderAlert({
+      orderId: 'TEST-1001',
+      storeName: 'Shree Shyama',
+      payout: 60,
+    });
+    toast.success('🔊 Playing test delivery chime & voice ringtone!');
+  };
 
   // GPS Location Tracking when online
   useEffect(() => {
@@ -273,6 +344,34 @@ export default function DeliveryDashboardScreen() {
 
       {/* Main Body */}
       <main className="flex-1 max-w-[480px] w-full mx-auto p-4 space-y-4 text-left">
+        {/* Ringing New Order Banner */}
+        {ringingOrderAlert && (
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white p-4 rounded-3xl shadow-xl flex items-center justify-between border-2 border-white/40 animate-pulse">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[24px] text-white">notifications_active</span>
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-display font-black text-[14px] leading-tight flex items-center gap-1.5">
+                  <span>Naya Order Received!</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/30 text-[10.5px] font-mono">
+                    +₹{ringingOrderAlert.payout}
+                  </span>
+                </h3>
+                <p className="text-[11.5px] text-white/90 truncate">
+                  {ringingOrderAlert.storeName}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setRingingOrderAlert(null)}
+              className="px-3 py-1.5 rounded-xl bg-white text-slate-900 font-bold text-[11.5px] hover:bg-slate-100 cursor-pointer shadow-sm shrink-0 ml-2"
+            >
+              Mute
+            </button>
+          </div>
+        )}
+
         {/* Offline Warning Banner */}
         {!isOnline && (
           <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex items-center gap-3">
@@ -304,9 +403,17 @@ export default function DeliveryDashboardScreen() {
                   Active Delivery In Progress
                 </span>
               </div>
-              <span className="font-mono text-[11.5px] font-bold text-slate-500">
-                #{String(activeOrder.orderId || activeOrder._id).slice(-6)}
-              </span>
+              <div className="flex items-center gap-2">
+                {activeOrder.createdAt && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px]">schedule</span>
+                    <span>{formatOrderTime(activeOrder.createdAt)}</span>
+                  </span>
+                )}
+                <span className="font-mono text-[11.5px] font-bold text-slate-500">
+                  #{String(activeOrder.orderId || activeOrder._id).slice(-6)}
+                </span>
+              </div>
             </div>
 
             {/* Zomato-style Stepper indicator */}
@@ -497,13 +604,23 @@ export default function DeliveryDashboardScreen() {
                 </span>
               )}
             </h2>
-            <button
-              onClick={fetchDashboardData}
-              className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-0.5"
-            >
-              <span className="material-symbols-outlined text-[14px]">refresh</span>
-              <span>Refresh</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleTestRing}
+                title="Test order ringtone sound & audio"
+                className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full cursor-pointer flex items-center gap-1 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[13px]">volume_up</span>
+                <span>Test Ring</span>
+              </button>
+              <button
+                onClick={fetchDashboardData}
+                className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-0.5"
+              >
+                <span className="material-symbols-outlined text-[14px]">refresh</span>
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
 
           {availableOrders.length === 0 ? (
@@ -536,6 +653,12 @@ export default function DeliveryDashboardScreen() {
                       <span className="font-mono text-[11px] font-bold text-slate-400">
                         Order #{String(ord.orderId || ord._id).slice(-6)}
                       </span>
+                      {ord.createdAt && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[12px]">schedule</span>
+                          <span>{formatOrderTime(ord.createdAt)}</span>
+                        </span>
+                      )}
                       {ord.pickupDistanceKm && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-primary border border-purple-200 flex items-center gap-0.5">
                           <span className="material-symbols-outlined text-[12px]">near_me</span>
