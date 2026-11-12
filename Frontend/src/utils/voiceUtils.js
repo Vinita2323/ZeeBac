@@ -154,6 +154,58 @@ export const playDeliveryOrderAlarm = ({ storeName = '', payout = 0 } = {}) => {
   }
 };
 
+// Store incoming order soundbox alarm chime & English announcement
+export const playStoreNewOrderAlarm = ({ orderId = '', amount = 0, customerName = '' } = {}) => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx) {
+      const now = ctx.currentTime;
+      // Loud energetic double chime (Paytm/Zomato merchant soundbox style)
+      [0, 0.18, 0.45, 0.63].forEach((offset, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'triangle';
+        const freq = idx % 2 === 0 ? 659.25 : 880.0; // E5, A5
+        osc.frequency.setValueAtTime(freq, now + offset);
+        gain.gain.setValueAtTime(0.4, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.16);
+
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.16);
+      });
+    }
+
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([250, 100, 250, 100, 400]);
+    }
+
+    const shortId = String(orderId).slice(-4);
+    const numAmt = Math.round(Number(amount) || 0);
+    const voiceText = numAmt > 0
+      ? `New order received! Order number ${shortId}, amount rupees ${numAmt}!`
+      : `New order received! Order number ${shortId}!`;
+    speakVoice(voiceText, 800, 'en-IN');
+  } catch (err) {
+    console.warn('Store new order alarm error:', err);
+  }
+};
+
+// Store alert when a delivery rider declines the order
+export const playRiderDeclinedTone = ({ riderName = '', reason = '' } = {}) => {
+  try {
+    playNotificationChime('incoming');
+    const text = riderName
+      ? `Delivery rider ${riderName} declined the order. Reason: ${reason || 'Not available'}.`
+      : `Delivery rider declined the order. Searching next rider.`;
+    speakVoice(text, 500, 'en-IN');
+  } catch (err) {
+    console.warn('Rider declined tone error:', err);
+  }
+};
+
 // Formats order timestamp cleanly: "4:21 PM (2m ago)"
 export const formatOrderTime = (dateStr) => {
   if (!dateStr) return '';

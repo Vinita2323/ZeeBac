@@ -150,6 +150,12 @@ const deliveryPartnerSchema = new mongoose.Schema(
       ref: 'Order',
       default: null,
     },
+    rejectedOrders: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Order',
+      },
+    ],
 
     // ── Performance & Metrics ──
     completedDeliveries: {

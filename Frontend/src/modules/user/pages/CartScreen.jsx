@@ -405,10 +405,27 @@ export default function CartScreen() {
       }
     };
 
+    const handleCancelled = (data) => {
+      if (data?.orderId === activeOrder.orderId) {
+        setActiveOrder((prev) => ({
+          ...prev,
+          orderStatus: 'CANCELLED',
+          cancellationReason: data.cancellationReason || 'Store was unable to accept this order',
+          cancelledBy: data.cancelledBy || 'VENDOR',
+        }));
+        if (data.pointsRefunded && data.refundedPoints && updateBalance) {
+          updateBalance(Math.round((walletBalance + Number(data.refundedPoints || 0)) * 100) / 100);
+        }
+        playNotificationChime('incoming');
+        speakVoice(`Your order has been cancelled by the store. Reason: ${data.cancellationReason || 'Store unavailable'}.`);
+      }
+    };
+
     if (socket) {
       socket.on('order:status_update', handleStatusUpdate);
       socket.on('order:rider_assigned', handleRiderAssigned);
       socket.on('order:delivered', handleDelivered);
+      socket.on('order:cancelled', handleCancelled);
     }
 
     const interval = setInterval(async () => {
@@ -416,7 +433,7 @@ export default function CartScreen() {
         const res = await OrderAPI.getOrderById(activeOrder.orderId);
         if (res.success && res.data) {
           setActiveOrder(res.data);
-          if (res.data.orderStatus === 'DELIVERED') {
+          if (res.data.orderStatus === 'DELIVERED' || res.data.orderStatus === 'CANCELLED') {
             clearInterval(interval);
           }
         }
@@ -428,6 +445,7 @@ export default function CartScreen() {
         socket.off('order:status_update', handleStatusUpdate);
         socket.off('order:rider_assigned', handleRiderAssigned);
         socket.off('order:delivered', handleDelivered);
+        socket.off('order:cancelled', handleCancelled);
       }
       clearInterval(interval);
     };
@@ -838,21 +856,42 @@ export default function CartScreen() {
   // ─────────────────────────────────────────────────────────────
   if (activeOrder) {
     const isDelivered = activeOrder.orderStatus === 'DELIVERED';
+    const isCancelled = activeOrder.orderStatus === 'CANCELLED';
     const isRiderAssigned = ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeOrder.orderStatus);
 
     return (
       <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md px-4 py-3 border-b border-slate-100 shadow-xs flex items-center justify-between">
           <h1 className="font-display font-black text-[18px] text-slate-900 mx-auto">
-            {isDelivered ? 'Order Delivered 🎉' : 'Order Tracking & Delivery'}
+            {isDelivered
+              ? 'Order Delivered 🎉'
+              : isCancelled
+              ? 'Order Cancelled ❌'
+              : 'Order Tracking & Delivery'}
           </h1>
         </header>
 
         <main className="flex-1 app-container px-4 py-6 space-y-4 text-left">
           {/* Status Progress Card */}
-          <div className="bg-white rounded-3xl p-5 border border-purple-100 shadow-md space-y-4">
+          <div
+            className={`rounded-3xl p-5 border shadow-md space-y-4 transition-all ${
+              isCancelled
+                ? 'bg-rose-50/50 border-rose-200'
+                : isDelivered
+                ? 'bg-emerald-50/40 border-emerald-200'
+                : 'bg-white border-purple-100'
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full bg-purple-50 text-primary font-black text-[11px] tracking-wider uppercase">
+              <span
+                className={`px-3 py-1 rounded-full font-black text-[11px] tracking-wider uppercase ${
+                  isCancelled
+                    ? 'bg-rose-100 text-rose-800'
+                    : isDelivered
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-purple-50 text-primary'
+                }`}
+              >
                 Order #{activeOrder.orderId}
               </span>
               <span className="text-[12px] font-bold text-slate-500">
@@ -863,78 +902,109 @@ export default function CartScreen() {
             <h2 className="font-display font-black text-[20px] text-slate-900">
               {isDelivered
                 ? 'Order Delivered Successfully!'
+                : isCancelled
+                ? 'Order Cancelled by Store'
                 : activeOrder.orderStatus === 'OUT_FOR_DELIVERY'
                 ? 'Rider is Out for Delivery! 🛵'
                 : activeOrder.orderStatus === 'RIDER_ASSIGNED'
                 ? 'Rider Assigned & Packing Order'
                 : activeOrder.orderStatus === 'CONFIRMED' || activeOrder.orderStatus === 'PREPARING'
                 ? 'Store Accepted & Preparing Order'
-                : 'Order Placed with Store'}
+                : 'Order Placed with Store (Waiting for Store to Accept)'}
             </h2>
 
-            {/* Live Progress Bar */}
-            <div className="grid grid-cols-4 gap-2 pt-1 text-center">
-              {[
-                { label: 'Placed', active: true, icon: 'receipt_long' },
-                {
-                  label: 'Prepared',
-                  active: ['CONFIRMED', 'PREPARING', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(
-                    activeOrder.orderStatus
-                  ),
-                  icon: 'inventory_2',
-                },
-                {
-                  label: 'On the Way',
-                  active: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeOrder.orderStatus),
-                  icon: 'two_wheeler',
-                },
-                {
-                  label: 'Delivered',
-                  active: isDelivered,
-                  icon: 'check_circle',
-                },
-              ].map((step, idx) => (
-                <div key={idx} className="flex flex-col items-center gap-1">
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                      step.active
-                        ? 'btn-primary-gradient text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-400'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">{step.icon}</span>
-                  </div>
-                  <span
-                    className={`text-[10px] font-bold ${
-                      step.active ? 'text-primary' : 'text-slate-400'
-                    }`}
-                  >
-                    {step.label}
-                  </span>
+            {isCancelled ? (
+              <div className="bg-white rounded-2xl p-4 border border-rose-200 space-y-2.5">
+                <div className="flex items-center gap-2 text-rose-700 font-bold text-[13.5px]">
+                  <span className="material-symbols-outlined text-[20px] text-rose-600">info</span>
+                  <span>Cancellation Reason</span>
                 </div>
-              ))}
-            </div>
+                <p className="text-[12.5px] text-rose-950 leading-relaxed font-semibold">
+                  "{activeOrder.cancellationReason || 'Store was unable to fulfill this order at this time.'}"
+                </p>
+                {activeOrder.pointsRedeemed > 0 && (
+                  <div className="bg-emerald-50 rounded-xl p-2.5 border border-emerald-200 text-[11.5px] text-emerald-800 font-bold flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+                    <span>₹{activeOrder.pointsRedeemed} Zeebac Points refunded to your wallet.</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setActiveOrder(null);
+                    navigate('/explore');
+                  }}
+                  className="w-full mt-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[12.5px] cursor-pointer shadow-xs active:scale-95 transition-all text-center"
+                >
+                  Explore Other Partner Stores
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Live Progress Bar */}
+                <div className="grid grid-cols-4 gap-2 pt-1 text-center">
+                  {[
+                    { label: 'Placed', active: true, icon: 'receipt_long' },
+                    {
+                      label: 'Prepared',
+                      active: ['CONFIRMED', 'PREPARING', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(
+                        activeOrder.orderStatus
+                      ),
+                      icon: 'inventory_2',
+                    },
+                    {
+                      label: 'On the Way',
+                      active: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeOrder.orderStatus),
+                      icon: 'two_wheeler',
+                    },
+                    {
+                      label: 'Delivered',
+                      active: isDelivered,
+                      icon: 'check_circle',
+                    },
+                  ].map((step, idx) => (
+                    <div key={idx} className="flex flex-col items-center gap-1">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                          step.active
+                            ? 'btn-primary-gradient text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">{step.icon}</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold ${
+                          step.active ? 'text-primary' : 'text-slate-400'
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
 
-            {/* Guaranteed Product Cashback Reward Banner */}
-            <div
-              className={`p-4 rounded-2xl border text-center space-y-1 transition-all ${
-                isDelivered
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : 'bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-100/60 border-purple-200'
-              }`}
-            >
-              <p className="text-[11px] uppercase tracking-wider font-extrabold text-primary">
-                {isDelivered ? '🎉 Points Credited to Zeebac Wallet' : 'Decided Product Cashback Reward'}
-              </p>
-              <p className="font-display font-black text-[24px] text-primary">
-                +{activeOrder.totalCashbackPoints} Zeebac Points
-              </p>
-              <p className="text-[11px] text-slate-600">
-                {isDelivered
-                  ? 'Aapke Zeebac Wallet me 1 Point = ₹1 credit ho chuka hai. Kisi bhi partner store par use karein!'
-                  : 'Order deliver hote hi ye points aapke wallet me automatic credit honge.'}
-              </p>
-            </div>
+                {/* Guaranteed Product Cashback Reward Banner */}
+                <div
+                  className={`p-4 rounded-2xl border text-center space-y-1 transition-all ${
+                    isDelivered
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-100/60 border-purple-200'
+                  }`}
+                >
+                  <p className="text-[11px] uppercase tracking-wider font-extrabold text-primary">
+                    {isDelivered ? '🎉 Points Credited to Zeebac Wallet' : 'Decided Product Cashback Reward'}
+                  </p>
+                  <p className="font-display font-black text-[24px] text-primary">
+                    +{activeOrder.totalCashbackPoints} Zeebac Points
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    {isDelivered
+                      ? 'Aapke Zeebac Wallet me 1 Point = ₹1 credit ho chuka hai. Kisi bhi partner store par use karein!'
+                      : 'Order deliver hote hi ye points aapke wallet me automatic credit honge.'}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Rider Details Card */}

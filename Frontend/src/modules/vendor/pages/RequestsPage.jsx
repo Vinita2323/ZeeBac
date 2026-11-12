@@ -5,7 +5,13 @@ import { VendorAPI, OrderAPI } from '../../../services/api';
 import { getSocket } from '../../../services/socket';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
-import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+import {
+  playNotificationChime,
+  speakVoice,
+  playStoreNewOrderAlarm,
+  playRiderDeclinedTone,
+  formatOrderTime,
+} from '../../../utils/voiceUtils';
 
 export default function RequestsPage() {
   const navigate = useNavigate();
@@ -24,6 +30,12 @@ export default function RequestsPage() {
   const [assignRiderModalOrder, setAssignRiderModalOrder] = useState(null);
   const [riderForm, setRiderForm] = useState({ name: '', phone: '', vehicleNo: '' });
   const [isAssigningRider, setIsAssigningRider] = useState(false);
+
+  // Store Order Rejection modal
+  const [rejectModalOrder, setRejectModalOrder] = useState(null);
+  const [rejectReason, setRejectReason] = useState('Item out of stock');
+  const [customRejectReason, setCustomRejectReason] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const currentUser = useAuthStore((state) => state.currentUser);
 
@@ -87,9 +99,12 @@ export default function RequestsPage() {
     if (socket) {
       const handleNewOrder = (data) => {
         if (data?.order) {
-          setOrders((prev) => [data.order, ...prev.filter((o) => o._id !== data.order._id)]);
-          playNotificationChime('incoming');
-          speakVoice('New online order received with product cashback!');
+          setOrders((prev) => [data.order, ...prev.filter((o) => o._id !== data.order._id && o.orderId !== data.order.orderId)]);
+          playStoreNewOrderAlarm({
+            orderId: data.order.orderId,
+            amount: data.order.finalPayableAmount || data.order.totalAmount,
+            customerName: data.order.customerName,
+          });
         }
       };
 
@@ -97,6 +112,67 @@ export default function RequestsPage() {
         setOrders((prev) =>
           prev.map((o) => (o.orderId === data.orderId ? { ...o, paymentStatus: 'PAID', orderStatus: 'CONFIRMED' } : o))
         );
+      };
+
+      const handleRiderAssigned = (data) => {
+        if (data?.orderId) {
+          setOrders((prev) =>
+            prev.map((o) =>
+              o.orderId === data.orderId
+                ? {
+                    ...o,
+                    orderStatus: data.orderStatus || 'RIDER_ASSIGNED',
+                    riderDetails: data.rider || o.riderDetails,
+                  }
+                : o
+            )
+          );
+          playNotificationChime('incoming');
+          speakVoice(`Delivery partner ${data.rider?.name || 'Rider'} assigned to order!`, 300, 'en-IN');
+        }
+      };
+
+      const handleRiderDeclined = (data) => {
+        if (data?.orderId) {
+          setOrders((prev) =>
+            prev.map((o) => {
+              if (o.orderId === data.orderId) {
+                const existingRejections = o.riderRejections || [];
+                return {
+                  ...o,
+                  riderRejections: [
+                    ...existingRejections,
+                    {
+                      riderName: data.riderName,
+                      riderPhone: data.riderPhone,
+                      reason: data.reason,
+                      rejectedAt: data.timestamp || new Date(),
+                    },
+                  ],
+                };
+              }
+              return o;
+            })
+          );
+          playRiderDeclinedTone({ riderName: data.riderName, reason: data.reason });
+        }
+      };
+
+      const handleOrderCancelled = (data) => {
+        if (data?.orderId) {
+          setOrders((prev) =>
+            prev.map((o) =>
+              o.orderId === data.orderId
+                ? {
+                    ...o,
+                    orderStatus: 'CANCELLED',
+                    cancellationReason: data.cancellationReason || o.cancellationReason,
+                    cancelledBy: data.cancelledBy || 'VENDOR',
+                  }
+                : o
+            )
+          );
+        }
       };
 
       const handleNewRequest = (data) => {
@@ -140,12 +216,18 @@ export default function RequestsPage() {
 
       socket.on('order:new', handleNewOrder);
       socket.on('order:paid', handleOrderPaid);
+      socket.on('order:rider_assigned', handleRiderAssigned);
+      socket.on('delivery:rider_declined', handleRiderDeclined);
+      socket.on('order:cancelled', handleOrderCancelled);
       socket.on('new_cash_request', handleNewRequest);
       socket.on('cash_request_verified', handleVerified);
 
       return () => {
         socket.off('order:new', handleNewOrder);
         socket.off('order:paid', handleOrderPaid);
+        socket.off('order:rider_assigned', handleRiderAssigned);
+        socket.off('delivery:rider_declined', handleRiderDeclined);
+        socket.off('order:cancelled', handleOrderCancelled);
         socket.off('new_cash_request', handleNewRequest);
         socket.off('cash_request_verified', handleVerified);
       };
@@ -164,6 +246,8 @@ export default function RequestsPage() {
         playNotificationChime('incoming');
         if (newStatus === 'DELIVERED') {
           speakVoice('Order marked delivered. Cashback points paid to customer.');
+        } else if (newStatus === 'PREPARING' || newStatus === 'CONFIRMED') {
+          speakVoice('Order accepted and preparing. Dispatching to nearby riders.');
         }
       }
     } catch (err) {
@@ -171,6 +255,48 @@ export default function RequestsPage() {
       alert(err.response?.data?.message || 'Failed to update order status');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // ── Store Order Rejection Submission ──
+  const handleRejectOrderSubmit = async (e) => {
+    e?.preventDefault();
+    if (!rejectModalOrder) return;
+    const finalReason =
+      rejectReason === 'Other'
+        ? customRejectReason.trim() || 'Store unable to fulfill order at this time'
+        : rejectReason;
+
+    setIsRejecting(true);
+    try {
+      const res = await OrderAPI.updateOrderStatus(rejectModalOrder.orderId, {
+        status: 'CANCELLED',
+        cancellationReason: finalReason,
+      });
+      if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.orderId === rejectModalOrder.orderId
+              ? {
+                  ...o,
+                  orderStatus: 'CANCELLED',
+                  cancellationReason: finalReason,
+                  cancelledBy: 'VENDOR',
+                }
+              : o
+          )
+        );
+        playNotificationChime('incoming');
+        speakVoice('Order cancelled.');
+        setRejectModalOrder(null);
+        setRejectReason('Item out of stock');
+        setCustomRejectReason('');
+      }
+    } catch (err) {
+      console.error('Failed to reject order', err);
+      alert(err.response?.data?.message || 'Failed to reject order');
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -330,6 +456,8 @@ export default function RequestsPage() {
                               ? 'bg-purple-100 text-purple-800'
                               : order.orderStatus === 'RIDER_ASSIGNED'
                               ? 'bg-indigo-100 text-indigo-800'
+                              : order.orderStatus === 'CANCELLED'
+                              ? 'bg-rose-100 text-rose-800'
                               : 'bg-amber-100 text-amber-800'
                           }`}
                         >
@@ -339,11 +467,17 @@ export default function RequestsPage() {
                       <p className="text-[11.5px] text-slate-500 mt-0.5">
                         Customer: <strong className="text-slate-800">{order.customerName}</strong> ({order.customerPhone})
                       </p>
+                      {order.createdAt && (
+                        <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px]">schedule</span>
+                          <span>{formatOrderTime(order.createdAt)}</span>
+                        </p>
+                      )}
                     </div>
 
                     <div className="text-right">
                       <p className="font-black text-[16px] text-slate-900 font-mono">
-                        ₹{order.totalAmount}
+                        ₹{order.finalPayableAmount || order.totalAmount}
                       </p>
                       <span className="text-[10px] font-extrabold text-primary bg-purple-50 px-1.5 py-0.2 rounded-md">
                         +{order.totalCashbackPoints} Pts Cashback
@@ -413,30 +547,83 @@ export default function RequestsPage() {
                     </div>
                   )}
 
+                  {/* Rider Declined Alert (if any driver rejected this order) */}
+                  {order.riderRejections && order.riderRejections.length > 0 && order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11.5px] text-amber-950 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                        <span className="material-symbols-outlined text-[16px] text-amber-600">warning</span>
+                        <span>Delivery Rider Alert ({order.riderRejections.length} Declined):</span>
+                      </div>
+                      {order.riderRejections.slice(-2).map((rej, rIdx) => (
+                        <p key={rIdx} className="text-[11px] leading-tight text-amber-900">
+                          ⚠️ <strong>{rej.riderName || 'Rider'}</strong> declined: "{rej.reason || 'Not available'}" {rej.rejectedAt ? `(${formatOrderTime(rej.rejectedAt)})` : ''}
+                        </p>
+                      ))}
+                      <p className="text-[10.5px] text-amber-700 italic font-medium">
+                        Searching for other nearby available delivery partners...
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Cancelled Alert Banner */}
+                  {order.orderStatus === 'CANCELLED' && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-[11.5px] text-rose-950 space-y-0.5">
+                      <p className="font-bold text-rose-800 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">cancel</span>
+                        <span>Order Cancelled</span>
+                      </p>
+                      <p className="text-[11px] text-rose-700">
+                        Reason: <strong>{order.cancellationReason || 'Cancelled by store'}</strong>
+                      </p>
+                    </div>
+                  )}
+
                   {/* Order Status Action Controls */}
                   <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
                     {order.orderStatus === 'PLACED' && (
-                      <button
-                        disabled={isProcessing}
-                        onClick={() => handleOrderStatusUpdate(order.orderId, 'PREPARING')}
-                        className="py-2.5 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                        <span>Accept & Prepare Order</span>
-                      </button>
+                      <>
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleOrderStatusUpdate(order.orderId, 'PREPARING')}
+                          className="py-2.5 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                          <span>Accept & Prepare Order</span>
+                        </button>
+
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => setRejectModalOrder(order)}
+                          className="py-2.5 px-3.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-[12px] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">close</span>
+                          <span>Reject Order</span>
+                        </button>
+                      </>
                     )}
 
                     {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING') && (
-                      <button
-                        onClick={() => {
-                          setAssignRiderModalOrder(order);
-                          setRiderForm({ name: '', phone: '', vehicleNo: '' });
-                        }}
-                        className="py-2.5 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
-                        <span>Assign Delivery Rider</span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setAssignRiderModalOrder(order);
+                            setRiderForm({ name: '', phone: '', vehicleNo: '' });
+                          }}
+                          className="py-2.5 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
+                          <span>Assign Delivery Rider</span>
+                        </button>
+
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => setRejectModalOrder(order)}
+                          className="py-2.5 px-3 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-[11px] flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">close</span>
+                          <span>Cancel Order</span>
+                        </button>
+                      </>
                     )}
 
                     {(order.orderStatus === 'RIDER_ASSIGNED' || order.orderStatus === 'OUT_FOR_DELIVERY') && (
@@ -454,6 +641,13 @@ export default function RequestsPage() {
                       <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-emerald-700 bg-emerald-100/70 px-3 py-1.5 rounded-xl">
                         <span className="material-symbols-outlined text-[15px]">check_circle</span>
                         <span>Order Completed • Points Paid to Customer</span>
+                      </span>
+                    )}
+
+                    {order.orderStatus === 'CANCELLED' && (
+                      <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-rose-700 bg-rose-100/70 px-3 py-1.5 rounded-xl">
+                        <span className="material-symbols-outlined text-[15px]">cancel</span>
+                        <span>Cancelled / Rejected</span>
                       </span>
                     )}
                   </div>
@@ -623,6 +817,91 @@ export default function RequestsPage() {
                 {isAssigningRider ? 'Assigning...' : 'Confirm & Dispatch Order'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* STORE ORDER REJECTION MODAL */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {rejectModalOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-rose-600 text-[22px]">cancel</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Reject Order #{rejectModalOrder.orderId}
+                </h3>
+              </div>
+              <button
+                onClick={() => setRejectModalOrder(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p className="text-[12px] text-slate-600 leading-snug">
+              Please select a reason for rejecting this order. The customer will be informed immediately in real time, and any redeemed points will be refunded.
+            </p>
+
+            <div className="space-y-2">
+              {[
+                'Item out of stock',
+                'Store closed / closing soon',
+                'Kitchen overloaded / cannot prepare in time',
+                'Delivery address outside serviceable area',
+                'Other',
+              ].map((reasonOption) => (
+                <label
+                  key={reasonOption}
+                  onClick={() => setRejectReason(reasonOption)}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-[12px] font-semibold cursor-pointer transition-all ${
+                    rejectReason === reasonOption
+                      ? 'bg-rose-50 border-rose-300 text-rose-900'
+                      : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="rejectReason"
+                    checked={rejectReason === reasonOption}
+                    onChange={() => setRejectReason(reasonOption)}
+                    className="accent-rose-600"
+                  />
+                  <span>{reasonOption}</span>
+                </label>
+              ))}
+
+              {rejectReason === 'Other' && (
+                <textarea
+                  rows={2}
+                  value={customRejectReason}
+                  onChange={(e) => setCustomRejectReason(e.target.value)}
+                  placeholder="Specify exact reason to notify customer..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] outline-none focus:bg-white resize-none"
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectModalOrder(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isRejecting}
+                onClick={handleRejectOrderSubmit}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[12px] shadow-sm cursor-pointer"
+              >
+                {isRejecting ? 'Rejecting...' : 'Confirm Reject'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -207,6 +207,30 @@ const orderSchema = new mongoose.Schema(
       deliveredAt: Date,
     },
 
+    // ── Rider Rejection Audit History ──
+    riderRejections: [
+      {
+        riderId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner' },
+        riderName: String,
+        riderPhone: String,
+        reason: String,
+        rejectedAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    // ── Order Cancellation Details ──
+    cancellationReason: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    cancelledBy: {
+      type: String,
+      enum: ['CUSTOMER', 'VENDOR', 'ADMIN', 'SYSTEM'],
+      default: null,
+    },
+    cancelledAt: Date,
+
     // ── Rider Dynamic Payout & Distance ──
     deliveryDistanceKm: {
       type: Number,

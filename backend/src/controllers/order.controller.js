@@ -353,22 +353,23 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // ── Real-time Socket Event to Vendor & Delivery Fleet ──
+    // ── Real-time Socket Event to Vendor ──
     try {
-      getIO().to(`vendor_${vendor._id}`).emit('order:new', {
+      const vendorPayload = {
         order: createdOrder,
+        orderId,
+        storeName: vendor.storeName,
+        totalAmount: totalGrossAmount,
+        finalAmount: finalPayableAmount,
+        customerName: customer.name || 'Customer',
+        customerPhone: customer.phone || '',
+        items: processedItems,
+        deliveryAddress: resolvedDeliveryAddress,
+        fulfillmentType,
         message: `New order #${orderId} received!`,
-      });
-      if (fulfillmentType === 'delivery') {
-        getIO().emit('delivery:new_order', {
-          order: createdOrder,
-          orderId,
-          storeName: vendor.storeName,
-          payout: createdOrder.deliveryPayout || 50,
-          distanceKm: createdOrder.deliveryDistanceKm || 2.0,
-          message: `New delivery request from ${vendor.storeName}!`,
-        });
-      }
+      };
+      getIO().to(`vendor_${vendor._id}`).emit('order:new', vendorPayload);
+      getIO().to(`vendor:${vendor._id}`).emit('order:new', vendorPayload);
     } catch (ioErr) {
       logger.warn(`createOrder socket emit skipped: ${ioErr.message}`);
     }
@@ -460,9 +461,14 @@ export const verifyOrderUpiPayment = async (req, res) => {
     }
     await order.save();
 
-    // Notify vendor & delivery fleet
+    // Notify vendor
     try {
       getIO().to(`vendor_${order.vendorId}`).emit('order:paid', {
+        orderId: order.orderId,
+        paymentStatus: 'PAID',
+        utr: cleanUtr,
+      });
+      getIO().to(`vendor:${order.vendorId}`).emit('order:paid', {
         orderId: order.orderId,
         paymentStatus: 'PAID',
         utr: cleanUtr,
@@ -471,16 +477,6 @@ export const verifyOrderUpiPayment = async (req, res) => {
         orderId: order.orderId,
         paymentStatus: 'PAID',
       });
-      if (order.fulfillmentType === 'delivery') {
-        getIO().emit('delivery:new_order', {
-          order,
-          orderId: order.orderId,
-          storeName: order.storeName,
-          payout: order.deliveryPayout || 50,
-          distanceKm: order.deliveryDistanceKm || 2.0,
-          message: `New paid delivery request from ${order.storeName}!`,
-        });
-      }
     } catch (ioErr) {}
 
     sendNotification({
@@ -697,9 +693,13 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Handle Order Cancellation ──
     if (status === 'CANCELLED') {
-      await session.withTransaction(async () => {
-        order.orderStatus = 'CANCELLED';
+      const reason = req.body.cancellationReason || req.body.reason || 'Store is unable to accept this order at the moment';
+      order.orderStatus = 'CANCELLED';
+      order.cancellationReason = reason.trim();
+      order.cancelledBy = req.user.role === 'vendor' ? 'VENDOR' : req.user.role === 'admin' ? 'ADMIN' : 'CUSTOMER';
+      order.cancelledAt = new Date();
 
+      await session.withTransaction(async () => {
         // Refund redeemed Zeebac points if any
         if (order.pointsRedeemed > 0) {
           const customer = await User.findById(order.customerId);
@@ -720,7 +720,16 @@ export const updateOrderStatus = async (req, res) => {
       });
 
       try {
-        getIO().to(`user_${order.customerId}`).emit('order:cancelled', { orderId: order.orderId });
+        const cancelPayload = {
+          orderId: order.orderId,
+          reason: order.cancellationReason,
+          cancelledBy: order.cancelledBy === 'VENDOR' ? 'Store' : 'Admin',
+          refundedPoints: order.pointsRedeemed || 0,
+          message: `Your order #${order.orderId} was cancelled by ${order.cancelledBy === 'VENDOR' ? 'Store' : 'Admin'}: "${order.cancellationReason}"`,
+        };
+        getIO().to(`user_${order.customerId}`).emit('order:cancelled', cancelPayload);
+        getIO().to(`vendor_${order.vendorId}`).emit('order:cancelled', cancelPayload);
+        getIO().to(`vendor:${order.vendorId}`).emit('order:cancelled', cancelPayload);
       } catch (_) {}
 
       return res.status(200).json({
@@ -736,6 +745,17 @@ export const updateOrderStatus = async (req, res) => {
 
     try {
       getIO().to(`user_${order.customerId}`).emit('order:status_update', {
+        orderId: order.orderId,
+        orderStatus: status,
+        message: status === 'CONFIRMED' || status === 'PREPARING'
+          ? `Store has accepted your order #${order.orderId} and started preparing!`
+          : `Order status updated to ${status}`,
+      });
+      getIO().to(`vendor_${order.vendorId}`).emit('order:status_update', {
+        orderId: order.orderId,
+        orderStatus: status,
+      });
+      getIO().to(`vendor:${order.vendorId}`).emit('order:status_update', {
         orderId: order.orderId,
         orderStatus: status,
       });

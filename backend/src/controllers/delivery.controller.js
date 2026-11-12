@@ -623,15 +623,16 @@ export const getDeliveryOrders = async (req, res) => {
       }
     }
 
-    // Available orders ready for assignment in the area
+    // Available orders ready for assignment in the area (Only store-confirmed orders)
     let availableOrders = [];
     if (rider.isOnline && !rider.activeOrderId && rider.applicationStatus === 'APPROVED') {
       const rawOrders = await Order.find({
         fulfillmentType: 'delivery',
+        _id: { $nin: rider.rejectedOrders || [] },
         $or: [
           { orderStatus: 'CONFIRMED', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'PREPARING', 'riderDetails.name': { $in: [null, ''] } },
-          { orderStatus: 'PLACED', 'riderDetails.name': { $in: [null, ''] } },
+          { orderStatus: 'READY_FOR_PICKUP', 'riderDetails.name': { $in: [null, ''] } },
         ],
       })
         .populate('vendorId', 'storeName phone address location storeLogo city')
@@ -764,21 +765,18 @@ export const acceptDeliveryOrder = async (req, res) => {
     await rider.save();
 
     // Broadcast notifications to store and customer
-    safeSocketEmit(`vendor:${order.vendorId}`, 'order:rider_assigned', {
+    const riderAssignedPayload = {
       orderId: order.orderId,
       riderName: rider.name,
       riderPhone: rider.phone,
       vehicleNo: rider.vehicleNo,
       deliveryOtp,
-    });
-
-    safeSocketEmit(`order:${order.orderId}`, 'order:rider_assigned', {
-      orderId: order.orderId,
-      riderName: rider.name,
-      riderPhone: rider.phone,
-      vehicleNo: rider.vehicleNo,
-      deliveryOtp,
-    });
+      message: `Delivery partner ${rider.name} accepted order #${order.orderId}!`,
+    };
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`order:${order.orderId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`user_${order.customerId}`, 'order:rider_assigned', riderAssignedPayload);
 
     logger.info(`[Delivery] Order ${order.orderId} accepted by rider ${rider.name} (${rider.phone})`);
 
@@ -798,15 +796,72 @@ export const acceptDeliveryOrder = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 11. REJECT ORDER REQUEST
+// 11. REJECT ORDER REQUEST (WITH REASON & VENDOR REAL-TIME ALERT)
 // ─────────────────────────────────────────────────────────────
 export const rejectDeliveryOrder = async (req, res) => {
   try {
+    const { id } = req.params;
+    const { reason = 'Too far from pickup' } = req.body;
+
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // 1. Add to rider's personal rejectedOrders list
+    if (!rider.rejectedOrders) rider.rejectedOrders = [];
+    if (!rider.rejectedOrders.some((oid) => String(oid) === String(order._id))) {
+      rider.rejectedOrders.push(order._id);
+    }
+    if (String(rider.activeOrderId) === String(order._id)) {
+      rider.activeOrderId = null;
+      rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
+    }
+    await rider.save();
+
+    // 2. Record rider rejection on order
+    if (!order.riderRejections) order.riderRejections = [];
+    order.riderRejections.push({
+      riderId: rider._id,
+      riderName: rider.name,
+      riderPhone: rider.phone,
+      reason: reason.trim(),
+      rejectedAt: new Date(),
+    });
+
+    // If this rider was already assigned, release order back to CONFIRMED for fleet
+    if (order.riderDetails?.phone === rider.phone) {
+      order.riderDetails = {};
+      order.orderStatus = 'CONFIRMED';
+    }
+    await order.save();
+
+    // 3. Real-time alert to Store with Rider Name and Exact Reason
+    const declinePayload = {
+      orderId: order.orderId,
+      riderName: rider.name,
+      riderPhone: rider.phone,
+      reason: reason.trim(),
+      message: `Delivery Partner ${rider.name} declined order #${order.orderId}: "${reason.trim()}". Searching for other nearby riders.`,
+      rejectedAt: new Date(),
+    };
+    safeSocketEmit(`vendor:${order.vendorId}`, 'delivery:rider_declined', declinePayload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'delivery:rider_declined', declinePayload);
+
+    logger.info(`[Delivery] Order ${order.orderId} rejected by rider ${rider.name}. Reason: ${reason}`);
+
     return res.status(200).json({
       success: true,
-      message: 'Order request dismissed. Looking for other orders in your area.',
+      message: 'Order request declined',
+      data: { orderId: order.orderId, reason: reason.trim() },
     });
   } catch (error) {
+    logger.error(`rejectDeliveryOrder error: ${error.message}`);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
