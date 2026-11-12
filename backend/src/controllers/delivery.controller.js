@@ -7,6 +7,7 @@ import User from '../models/User.js';
 import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import logger from '../utils/logger.js';
 import { getIO } from '../socket/index.js';
+import { haversineDistanceMeters } from '../utils/geo.util.js';
 
 const safeSocketEmit = (room, event, data) => {
   try {
@@ -543,22 +544,26 @@ export const toggleAvailability = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const updateDeliveryLocation = async (req, res) => {
   try {
-    const { latitude, longitude, address } = req.body;
+    const rawLat = req.body.latitude ?? req.body.lat;
+    const rawLng = req.body.longitude ?? req.body.lng;
+    const address = req.body.address;
     const rider = await DeliveryPartner.findById(req.user.id);
     if (!rider) {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
     }
 
-    rider.currentLocation = {
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      address: address || rider.currentLocation?.address,
-      updatedAt: new Date(),
-    };
-    await rider.save();
+    if (rawLat !== undefined && rawLng !== undefined) {
+      rider.currentLocation = {
+        latitude: Number(rawLat),
+        longitude: Number(rawLng),
+        address: address || rider.currentLocation?.address || '',
+        updatedAt: new Date(),
+      };
+      await rider.save();
+    }
 
     // If rider has an active order, broadcast location to customer room
-    if (rider.activeOrderId) {
+    if (rider.activeOrderId && rider.currentLocation?.latitude && rider.currentLocation?.longitude) {
       safeSocketEmit(`order:${rider.activeOrderId}`, 'delivery:location_update', {
         riderId: rider.riderId,
         latitude: rider.currentLocation.latitude,
@@ -573,7 +578,7 @@ export const updateDeliveryLocation = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 9. GET AVAILABLE ORDERS FEED & ACTIVE ORDER
+// 9. GET AVAILABLE ORDERS FEED & ACTIVE ORDER (WITH DISTANCE & 5KM PROXIMITY)
 // ─────────────────────────────────────────────────────────────
 export const getDeliveryOrders = async (req, res) => {
   try {
@@ -581,6 +586,9 @@ export const getDeliveryOrders = async (req, res) => {
     if (!rider) {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
     }
+
+    const riderLat = rider.currentLocation?.latitude;
+    const riderLng = rider.currentLocation?.longitude;
 
     let activeOrder = null;
     if (rider.activeOrderId) {
@@ -593,23 +601,68 @@ export const getDeliveryOrders = async (req, res) => {
         rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
         await rider.save();
         activeOrder = null;
+      } else if (activeOrder) {
+        activeOrder.vendor = activeOrder.vendorId;
+        const vendorCoords = activeOrder.vendorId?.location?.coordinates;
+        if (riderLat && riderLng && Array.isArray(vendorCoords) && vendorCoords.length === 2) {
+          const m = haversineDistanceMeters([riderLng, riderLat], vendorCoords);
+          activeOrder.pickupDistanceKm = (m / 1000).toFixed(1);
+          activeOrder.pickupDistanceMeters = m;
+        }
       }
     }
 
     // Available orders ready for assignment in the area
     let availableOrders = [];
     if (rider.isOnline && !rider.activeOrderId && rider.applicationStatus === 'APPROVED') {
-      availableOrders = await Order.find({
+      const rawOrders = await Order.find({
         fulfillmentType: 'delivery',
         $or: [
           { orderStatus: 'CONFIRMED', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'PREPARING', 'riderDetails.name': { $in: [null, ''] } },
+          { orderStatus: 'PLACED', 'riderDetails.name': { $in: [null, ''] } },
         ],
       })
         .populate('vendorId', 'storeName phone address location storeLogo city')
         .sort({ createdAt: -1 })
-        .limit(20)
+        .limit(30)
         .lean();
+
+      availableOrders = rawOrders.map((ord) => {
+        let pickupDistanceMeters = null;
+        let pickupDistanceKm = null;
+        const vendorCoords = ord.vendorId?.location?.coordinates;
+
+        if (
+          riderLat &&
+          riderLng &&
+          Array.isArray(vendorCoords) &&
+          vendorCoords.length === 2 &&
+          !isNaN(vendorCoords[0]) &&
+          !isNaN(vendorCoords[1])
+        ) {
+          pickupDistanceMeters = haversineDistanceMeters([riderLng, riderLat], vendorCoords);
+          pickupDistanceKm = (pickupDistanceMeters / 1000).toFixed(1);
+        }
+
+        return {
+          ...ord,
+          vendor: ord.vendorId,
+          pickupDistanceMeters,
+          pickupDistanceKm,
+          isWithin5km: pickupDistanceMeters !== null ? pickupDistanceMeters <= 5000 : true,
+        };
+      });
+
+      // Sort by proximity: nearest store first!
+      availableOrders.sort((a, b) => {
+        if (a.pickupDistanceMeters !== null && b.pickupDistanceMeters !== null) {
+          return a.pickupDistanceMeters - b.pickupDistanceMeters;
+        }
+        if (a.pickupDistanceMeters !== null) return -1;
+        if (b.pickupDistanceMeters !== null) return 1;
+        return 0;
+      });
     }
 
     return res.status(200).json({

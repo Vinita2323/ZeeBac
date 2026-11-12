@@ -345,10 +345,17 @@ export default function DeliveryDashboardScreen() {
             {/* Store Pickup Section */}
             <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-100 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">storefront</span>
-                  <span>Pickup Store</span>
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">storefront</span>
+                    <span>Pickup Store</span>
+                  </span>
+                  {activeOrder.pickupDistanceKm && (
+                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-purple-100 text-purple-800">
+                      {activeOrder.pickupDistanceKm} km away
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => openMaps(formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress), activeOrder.vendor?.storeName || activeOrder.vendorName)}
                   className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5"
@@ -520,10 +527,23 @@ export default function DeliveryDashboardScreen() {
                   className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-md space-y-3"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold text-slate-400">
-                      Order #{String(ord.orderId || ord._id).slice(-6)}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-mono font-bold text-[12px] border border-emerald-200">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono text-[11px] font-bold text-slate-400">
+                        Order #{String(ord.orderId || ord._id).slice(-6)}
+                      </span>
+                      {ord.pickupDistanceKm && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-primary border border-purple-200 flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[12px]">near_me</span>
+                          <span>{ord.pickupDistanceKm} km away</span>
+                        </span>
+                      )}
+                      {ord.isWithin5km && ord.pickupDistanceKm && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Within 5km
+                        </span>
+                      )}
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-mono font-bold text-[12px] border border-emerald-200 shrink-0">
                       +₹50 Payout
                     </span>
                   </div>
