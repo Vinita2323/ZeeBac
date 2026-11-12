@@ -8,8 +8,8 @@ export default function VendorBottomNav() {
 
   const navItems = [
     { label: 'Home', icon: 'home', path: '/vendor', exact: true },
+    { label: 'Orders', icon: 'receipt_long', path: '/vendor/requests' },
     { label: 'Chat', icon: 'chat', path: '/vendor/chat' },
-    { label: 'Bills', icon: 'sync_alt', path: '/vendor/transactions' },
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },
     { label: 'Store', icon: 'storefront', path: '/vendor/storefront' },
     { label: 'Profile', icon: 'person', path: '/vendor/profile' },

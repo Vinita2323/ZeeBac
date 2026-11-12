@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
-import { VendorAPI, PosAPI, API_BASE_URL } from '../../../services/api';
+import { VendorAPI, PosAPI, OrderAPI, API_BASE_URL } from '../../../services/api';
 import useQrCode from '../../../hooks/useQrCode';
 import { downloadImage, shareContent } from '../../../utils/exportUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
@@ -11,6 +11,7 @@ import VendorPayLaterModal from '../components/VendorPayLaterModal';
 import SalesAnalyticsModal from '../components/SalesAnalyticsModal';
 import { getSocket } from '../../../services/socket';
 import useLanguageStore from '../../../store/useLanguageStore';
+import { formatOrderTime, playStoreNewOrderAlarm, playRiderDeclinedTone } from '../../../utils/voiceUtils';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -28,6 +29,9 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [dashboardOrders, setDashboardOrders] = useState([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+  const [isAcceptingOrder, setIsAcceptingOrder] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
@@ -74,11 +78,12 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [statsRes, txnsRes, reqsRes, subRes] = await Promise.allSettled([
+        const [statsRes, txnsRes, reqsRes, subRes, ordersRes] = await Promise.allSettled([
           VendorAPI.getDashboardStats(),
           VendorAPI.getTransactions(),
           VendorAPI.getPendingRequests(),
           VendorAPI.getSubscriptionStatus(),
+          OrderAPI.getVendorOrders(),
         ]);
 
         if (statsRes.status === 'fulfilled') {
@@ -90,6 +95,10 @@ export default function DashboardPage() {
 
         if (subRes.status === 'fulfilled' && subRes.value.success) {
           setSubscriptionInfo(subRes.value.data);
+        }
+
+        if (ordersRes.status === 'fulfilled' && ordersRes.value.success) {
+          setDashboardOrders(ordersRes.value.data || []);
         }
 
         if (reqsRes.status === 'fulfilled' && reqsRes.value.success) {
@@ -128,19 +137,88 @@ export default function DashboardPage() {
         console.error('Failed to fetch dashboard stats', error);
       } finally {
         setIsLoading(false);
+        setIsOrdersLoading(false);
       }
     };
     fetchStats();
   }, [currentUser.cashbackRate]);
 
-  // Real-time socket sync for new incoming cash requests with OTP
+  // Real-time socket sync for incoming orders and cash requests
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
 
+    const handleNewOrder = (data) => {
+      if (data?.order) {
+        setDashboardOrders(prev => [data.order, ...prev.filter(o => o._id !== data.order._id && o.orderId !== data.order.orderId)]);
+      }
+    };
+
+    const handleOrderPaid = (data) => {
+      setDashboardOrders(prev =>
+        prev.map(o => (o.orderId === data.orderId ? { ...o, paymentStatus: 'PAID', orderStatus: 'CONFIRMED' } : o))
+      );
+    };
+
+    const handleStatusUpdate = (data) => {
+      if (data?.orderId) {
+        setDashboardOrders(prev =>
+          prev.map(o => (o.orderId === data.orderId ? { ...o, orderStatus: data.orderStatus } : o))
+        );
+      }
+    };
+
+    const handleRiderAssigned = (data) => {
+      if (data?.orderId) {
+        setDashboardOrders(prev =>
+          prev.map(o =>
+            o.orderId === data.orderId
+              ? { ...o, orderStatus: data.orderStatus || 'RIDER_ASSIGNED', riderDetails: data.rider || o.riderDetails }
+              : o
+          )
+        );
+      }
+    };
+
+    const handleRiderDeclined = (data) => {
+      if (data?.orderId) {
+        setDashboardOrders(prev =>
+          prev.map(o => {
+            if (o.orderId === data.orderId) {
+              const existing = o.riderRejections || [];
+              return {
+                ...o,
+                riderRejections: [
+                  ...existing,
+                  {
+                    riderName: data.riderName,
+                    riderPhone: data.riderPhone,
+                    reason: data.reason,
+                    rejectedAt: data.timestamp || new Date(),
+                  },
+                ],
+              };
+            }
+            return o;
+          })
+        );
+      }
+    };
+
+    const handleOrderCancelled = (data) => {
+      if (data?.orderId) {
+        setDashboardOrders(prev =>
+          prev.map(o =>
+            o.orderId === data.orderId
+              ? { ...o, orderStatus: 'CANCELLED', cancellationReason: data.cancellationReason || o.cancellationReason }
+              : o
+          )
+        );
+      }
+    };
+
     const handleNewCashRequest = (data) => {
       setPendingRequests(prev => {
-        // Filter out any older pending requests from the same customer or with the same requestId
         const newCustId = data.customerId?._id || data.customerId || data.customerName;
         const filtered = prev.filter(r => {
           if (r._id === data.requestId) return false;
@@ -171,14 +249,44 @@ export default function DashboardPage() {
       setPendingRequests(prev => prev.filter(r => r._id !== data.requestId && r.verificationCode !== data.verificationCode));
     };
 
+    socket.on('order:new', handleNewOrder);
+    socket.on('order:paid', handleOrderPaid);
+    socket.on('order:status_update', handleStatusUpdate);
+    socket.on('order:rider_assigned', handleRiderAssigned);
+    socket.on('delivery:rider_declined', handleRiderDeclined);
+    socket.on('order:cancelled', handleOrderCancelled);
     socket.on('new_cash_request', handleNewCashRequest);
     socket.on('cash_request_verified', handleCashVerified);
 
     return () => {
+      socket.off('order:new', handleNewOrder);
+      socket.off('order:paid', handleOrderPaid);
+      socket.off('order:status_update', handleStatusUpdate);
+      socket.off('order:rider_assigned', handleRiderAssigned);
+      socket.off('delivery:rider_declined', handleRiderDeclined);
+      socket.off('order:cancelled', handleOrderCancelled);
       socket.off('new_cash_request', handleNewCashRequest);
       socket.off('cash_request_verified', handleCashVerified);
     };
   }, []);
+
+  // Quick Accept Order from Dashboard
+  const handleQuickAcceptOrder = async (orderId) => {
+    setIsAcceptingOrder(true);
+    try {
+      const res = await OrderAPI.updateOrderStatus(orderId, { status: 'PREPARING' });
+      if (res.success) {
+        setDashboardOrders(prev =>
+          prev.map(o => (o.orderId === orderId ? { ...o, ...res.data.order } : o))
+        );
+      }
+    } catch (err) {
+      console.error('Failed to accept order', err);
+      alert(err.response?.data?.message || 'Failed to accept order');
+    } finally {
+      setIsAcceptingOrder(false);
+    }
+  };
 
   const todaySales = dashboardData?.data?.todaySales || {
     total: 0,
@@ -189,12 +297,13 @@ export default function DashboardPage() {
 
   const stats = [
     {
-      id: 'total-revenue',
-      label: t('Total Revenue'),
-      value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString('en-IN') || 0}` : '₹0',
-      icon: 'account_balance',
-      trend: t('All time'),
-      link: '/vendor/transactions'
+      id: 'active-orders',
+      label: t('Customer Orders'),
+      value: `${dashboardOrders.length}`,
+      icon: 'receipt_long',
+      trend: `${dashboardOrders.filter(o => o.orderStatus === 'PLACED').length} New`,
+      isLive: dashboardOrders.filter(o => o.orderStatus === 'PLACED').length > 0,
+      link: '/vendor/requests'
     },
     {
       id: 'today-sales',
@@ -208,12 +317,12 @@ export default function DashboardPage() {
       onClick: () => setShowSalesModal(true)
     },
     {
-      id: 'cashback-given',
-      label: t('Cashback Given'),
-      value: dashboardData ? `₹${dashboardData.data?.totalCashbackGiven?.toLocaleString('en-IN') || 0}` : '₹0',
-      icon: 'savings',
+      id: 'total-revenue',
+      label: t('Total Revenue'),
+      value: dashboardData ? `₹${dashboardData.data?.totalRevenue?.toLocaleString('en-IN') || 0}` : '₹0',
+      icon: 'account_balance',
       trend: t('All time'),
-      link: '/vendor/passbook'
+      link: '/vendor/transactions'
     },
     {
       id: 'customers',
@@ -503,8 +612,25 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions Toolbar - Aesthetic, Theme-Branded & Responsive */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 mx-auto w-full">
-        {/* 1. Merchant Payment */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 mx-auto w-full">
+        {/* 1. Customer Orders */}
+        <button
+          onClick={() => navigate('/vendor/requests')}
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/25 hover:border-primary shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center"
+        >
+          {dashboardOrders.filter(o => o.orderStatus === 'PLACED').length > 0 && (
+            <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-white bg-amber-500 border border-amber-400 px-1.5 py-0.5 rounded-md uppercase animate-pulse">
+              {dashboardOrders.filter(o => o.orderStatus === 'PLACED').length} NEW
+            </span>
+          )}
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+          </div>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Customer Orders')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{dashboardOrders.length} {t('Orders')}</p>
+        </button>
+
+        {/* 2. Merchant Payment */}
         <button
           onClick={() => navigate('/vendor/merchant-payment')}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/25 hover:border-primary shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -690,6 +816,150 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* LIVE CUSTOMER ORDERS (PRODUCT ORDERS) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h3 className="font-display text-[16px] font-bold text-on-surface">
+              {t('Live Customer Orders')} ({dashboardOrders.length})
+            </h3>
+          </div>
+          <button
+            onClick={() => navigate('/vendor/requests')}
+            className="text-[12px] text-primary font-bold cursor-pointer hover:underline flex items-center gap-1"
+          >
+            <span>{t('View All Orders')}</span>
+            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+          </button>
+        </div>
+
+        {isOrdersLoading ? (
+          <div className="bg-white rounded-2xl border border-primary/10 p-6 text-center text-[12px] text-slate-500 font-bold">
+            Loading orders...
+          </div>
+        ) : dashboardOrders.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-primary/10 p-6 text-center shadow-[0_2px_8px_rgba(22,8,47,0.02)] space-y-2">
+            <div className="w-12 h-12 bg-purple-50 text-primary rounded-full flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[24px]">shopping_bag</span>
+            </div>
+            <p className="text-[12.5px] font-bold text-slate-800">{t('No live customer orders right now')}</p>
+            <p className="text-[11.5px] text-slate-500 max-w-xs mx-auto">
+              Customer jab aapke store se delivery ya pickup order place karenge, wo yahan live dikhenge.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {dashboardOrders.slice(0, 4).map((order) => {
+              const isDelivered = order.orderStatus === 'DELIVERED';
+              const isCancelled = order.orderStatus === 'CANCELLED';
+              const isPlaced = order.orderStatus === 'PLACED';
+
+              return (
+                <div
+                  key={order._id || order.orderId}
+                  className={`rounded-2xl border p-4 transition-all space-y-3 shadow-2xs ${
+                    isPlaced
+                      ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-300'
+                      : isCancelled
+                      ? 'bg-rose-50/30 border-rose-200'
+                      : isDelivered
+                      ? 'bg-emerald-50/30 border-emerald-200'
+                      : 'bg-white border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-display font-black text-[13.5px] text-slate-900">
+                          #{order.orderId}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider ${
+                            isPlaced
+                              ? 'bg-amber-500 text-white animate-pulse'
+                              : isCancelled
+                              ? 'bg-rose-100 text-rose-800'
+                              : isDelivered
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-indigo-100 text-indigo-800'
+                          }`}
+                        >
+                          {order.orderStatus.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {order.customerName} ({order.customerPhone})
+                      </p>
+                      {order.createdAt && (
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">schedule</span>
+                          <span>{formatOrderTime(order.createdAt)}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <p className="font-mono font-black text-[15px] text-slate-900">
+                        ₹{order.finalPayableAmount || order.totalAmount}
+                      </p>
+                      <span className="text-[9.5px] font-extrabold text-primary bg-purple-50 px-1.5 py-0.5 rounded">
+                        +{order.totalCashbackPoints} Pts CB
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Items summary */}
+                  <div className="bg-slate-50/80 rounded-xl p-2.5 text-[11.5px] space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {order.items?.length || 0} Products
+                    </p>
+                    <p className="text-slate-700 font-medium truncate">
+                      {order.items?.map((it) => `${it.name} (x${it.quantity})`).join(', ') || 'Order details'}
+                    </p>
+                  </div>
+
+                  {/* Rejections warning */}
+                  {order.riderRejections && order.riderRejections.length > 0 && !isDelivered && !isCancelled && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 text-[11px] text-amber-900">
+                      ⚠️ Rider declined: "{order.riderRejections[order.riderRejections.length - 1]?.reason || 'Not available'}". Searching next rider...
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    {isPlaced && (
+                      <button
+                        disabled={isAcceptingOrder}
+                        onClick={() => handleQuickAcceptOrder(order.orderId)}
+                        className="flex-1 py-2 px-3 rounded-xl btn-primary-gradient text-white font-bold text-[11.5px] flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                        <span>{isAcceptingOrder ? 'Accepting...' : 'Accept & Prepare'}</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => navigate('/vendor/requests')}
+                      className={`py-2 px-3 rounded-xl font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all ${
+                        isPlaced
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          : 'w-full btn-primary-gradient text-white'
+                      }`}
+                    >
+                      <span>Manage Order</span>
+                      <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Action Required (Pending Approvals) */}

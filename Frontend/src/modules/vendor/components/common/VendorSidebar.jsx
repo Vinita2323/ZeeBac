@@ -17,6 +17,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
+    { label: 'Orders & Requests', icon: 'receipt_long', path: '/vendor/requests', badge: 'Live', isHighlight: true },
     { label: 'Merchant Payment', icon: 'swap_horiz', path: '/vendor/merchant-payment', badge: 'B2B' },
     { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },

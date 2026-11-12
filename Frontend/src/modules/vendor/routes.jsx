@@ -75,6 +75,7 @@ export default function VendorRoutes() {
             <Route path="chat" element={<ChatPage />} />
             <Route path="log-transaction" element={<VendorLogTransactionScreen />} />
             <Route path="requests" element={<RequestsPage />} />
+            <Route path="orders" element={<RequestsPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
             <Route path="b2b-billing" element={<B2BBillingPage />} />
             <Route path="b2b" element={<B2BBillingPage />} />
