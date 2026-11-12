@@ -147,6 +147,16 @@ describe('Production Delivery Partner (Rider) & Admin Suite', () => {
     expect(body.data.token).toBeDefined();
     expect(body.data.rider.applicationStatus).toBe('PENDING_REVIEW');
     expect(body.data.rider.isOnline).toBe(false);
+    expect(body.data.rider.address.currentAddress).toBe('12 Vikas Nagar');
+
+    // Duplicate submission test
+    const dupRes = makeRes();
+    await deliveryRegister(req, dupRes);
+    expect(dupRes.status).toHaveBeenCalledWith(400);
+    const dupBody = dupRes.json.mock.calls[0][0];
+    expect(dupBody.success).toBe(false);
+    expect(dupBody.existingStatus).toBe('PENDING_REVIEW');
+    expect(dupBody.message).toContain('already exists');
   });
 
   it('rejects unregistered mobile on login with 404', async () => {

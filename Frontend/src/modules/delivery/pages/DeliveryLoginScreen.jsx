@@ -1,14 +1,21 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { toast } from 'react-hot-toast';
 
 export default function DeliveryLoginScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setAuth = useDeliveryStore((state) => state.setAuth);
 
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(location.state?.phone || '');
+
+  useEffect(() => {
+    if (location.state?.phone) {
+      setPhone(location.state.phone);
+    }
+  }, [location.state?.phone]);
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpStep, setShowOtpStep] = useState(false);
   const [otp, setOtp] = useState('1234');

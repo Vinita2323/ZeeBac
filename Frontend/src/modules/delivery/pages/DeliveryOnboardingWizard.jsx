@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
@@ -10,6 +10,13 @@ export default function DeliveryOnboardingWizard() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
+  // Field errors state for inline red validation
+  const [errors, setErrors] = useState({});
+
+  // Existing application modal state (when duplicate phone detected)
+  const [existingApplication, setExistingApplication] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -56,6 +63,13 @@ export default function DeliveryOnboardingWizard() {
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
   // Convert uploaded image to base64 string
@@ -71,99 +85,199 @@ export default function DeliveryOnboardingWizard() {
     const reader = new FileReader();
     reader.onloadend = () => {
       handleChange(field, reader.result);
+      if (errors[field]) {
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+      }
       toast.success('Document uploaded successfully');
     };
     reader.readAsDataURL(file);
   };
 
-  // Validation per step
-  const validateStep = (step) => {
+  // Strict per-step validation returning { isValid, stepErrors }
+  const validateStep = (step, data = formData) => {
+    const stepErrors = {};
+
     if (step === 1) {
-      if (!formData.name.trim()) {
-        toast.error('Please enter your full name');
-        return false;
+      if (!data.name || !data.name.trim()) {
+        stepErrors.name = 'Full name is required as per government ID';
+      } else if (data.name.trim().length < 2) {
+        stepErrors.name = 'Full name must be at least 2 characters';
       }
-      const cleanPhone = formData.phone.replace(/\D/g, '');
-      if (cleanPhone.length < 10) {
-        toast.error('Please enter a valid 10-digit mobile number');
-        return false;
+
+      const cleanPhone = (data.phone || '').replace(/\D/g, '');
+      if (!cleanPhone) {
+        stepErrors.phone = 'Mobile number is required';
+      } else if (cleanPhone.length !== 10) {
+        stepErrors.phone = 'Please enter an exact 10-digit mobile number';
+      } else if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+        stepErrors.phone = 'Please enter a valid Indian mobile number starting with 6-9';
       }
-      return true;
+
+      if (data.email && data.email.trim()) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
+          stepErrors.email = 'Please enter a valid email address';
+        }
+      }
+
+      if (!data.gender) {
+        stepErrors.gender = 'Please select your gender';
+      }
     }
 
     if (step === 2) {
-      if (!formData.street.trim() || !formData.city.trim() || !formData.pincode.trim()) {
-        toast.error('Please fill street address, city, and pincode');
-        return false;
+      if (!data.street || !data.street.trim()) {
+        stepErrors.street = 'Street address / House / Area is required';
+      } else if (data.street.trim().length < 3) {
+        stepErrors.street = 'Street address must be at least 3 characters';
       }
-      if (formData.pincode.replace(/\D/g, '').length !== 6) {
-        toast.error('Please enter a valid 6-digit pincode');
-        return false;
+
+      if (!data.city || !data.city.trim()) {
+        stepErrors.city = 'City is required';
       }
-      return true;
+
+      const cleanPin = (data.pincode || '').replace(/\D/g, '');
+      if (!cleanPin) {
+        stepErrors.pincode = 'Pincode is required';
+      } else if (cleanPin.length !== 6) {
+        stepErrors.pincode = 'Pincode must be exactly 6 digits';
+      }
     }
 
     if (step === 3) {
-      if (!formData.aadhaarNo.trim()) {
-        toast.error('Aadhaar number is required for identity verification');
-        return false;
+      const cleanAadhaar = (data.aadhaarNo || '').replace(/\D/g, '');
+      if (!cleanAadhaar) {
+        stepErrors.aadhaarNo = '12-digit Aadhaar number is required';
+      } else if (cleanAadhaar.length !== 12) {
+        stepErrors.aadhaarNo = 'Aadhaar number must be exactly 12 digits';
       }
-      if (formData.vehicleType !== 'Cycle' && !formData.drivingLicenceNo.trim()) {
-        toast.error('Driving licence number is required for motorized vehicles');
-        return false;
+
+      if (!data.aadhaarDoc) {
+        stepErrors.aadhaarDoc = 'Please upload a photo of your Aadhaar card';
       }
-      return true;
+
+      if (data.panNo && data.panNo.trim()) {
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(data.panNo.trim().toUpperCase())) {
+          stepErrors.panNo = 'Please enter a valid 10-character PAN (e.g. ABCDE1234F)';
+        }
+      }
+
+      if (data.vehicleType !== 'Cycle') {
+        if (!data.drivingLicenceNo || !data.drivingLicenceNo.trim()) {
+          stepErrors.drivingLicenceNo = 'Driving licence number is required for motorized vehicles';
+        } else if (data.drivingLicenceNo.trim().length < 5) {
+          stepErrors.drivingLicenceNo = 'Please enter a valid driving licence number';
+        }
+
+        if (!data.drivingLicenceDoc) {
+          stepErrors.drivingLicenceDoc = 'Please upload a photo of your driving licence';
+        }
+      }
     }
 
     if (step === 4) {
-      if (formData.vehicleType !== 'Cycle' && !formData.vehicleNo.trim()) {
-        toast.error('Vehicle registration number is required');
-        return false;
+      if (data.vehicleType !== 'Cycle') {
+        if (!data.vehicleNo || !data.vehicleNo.trim()) {
+          stepErrors.vehicleNo = 'Vehicle registration number is required (e.g. UP32 AB 1234)';
+        } else if (data.vehicleNo.trim().length < 4) {
+          stepErrors.vehicleNo = 'Please enter a valid vehicle number';
+        }
       }
-      return true;
     }
 
     if (step === 5) {
-      if (!formData.accountNumber.trim() && !formData.upiId.trim()) {
-        toast.error('Please provide either bank account details or a UPI ID for payouts');
-        return false;
+      const hasUpi = Boolean(data.upiId && data.upiId.trim());
+      const hasAccount = Boolean(data.accountNumber && data.accountNumber.trim());
+      const hasIfsc = Boolean(data.ifscCode && data.ifscCode.trim());
+
+      if (!hasUpi && !hasAccount) {
+        stepErrors.upiId = 'Please provide either a UPI ID or Bank Account for earning payouts';
+        stepErrors.accountNumber = 'Required if not using UPI';
+      } else {
+        if (hasUpi && !/.+@.+/.test(data.upiId.trim())) {
+          stepErrors.upiId = 'Please enter a valid UPI ID (e.g. name@upi)';
+        }
+        if (hasAccount) {
+          const cleanAcc = data.accountNumber.replace(/\D/g, '');
+          if (cleanAcc.length < 9) {
+            stepErrors.accountNumber = 'Bank account number must be at least 9 digits';
+          }
+          if (!hasIfsc) {
+            stepErrors.ifscCode = 'IFSC code is required when providing bank account';
+          } else if (data.ifscCode.trim().length !== 11) {
+            stepErrors.ifscCode = 'IFSC code must be exactly 11 characters (e.g. SBIN0001234)';
+          }
+        }
       }
-      return true;
     }
 
-    return true;
+    return {
+      isValid: Object.keys(stepErrors).length === 0,
+      stepErrors,
+    };
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 6));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    const { isValid, stepErrors } = validateStep(currentStep);
+    if (!isValid) {
+      setErrors(stepErrors);
+      const firstMsg = Object.values(stepErrors)[0];
+      if (firstMsg) toast.error(firstMsg);
+      return;
     }
+    setErrors({});
+    setCurrentStep((prev) => Math.min(prev + 1, 6));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handlePrev = () => {
+    setErrors({});
     setCurrentStep((prev) => Math.max(prev - 1, 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Final Submission
+  // Final Submission with duplicate guard & strict validation
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (submittingRef.current || isSubmitting) return;
+
+    // Strict validation of ALL steps before firing API request
+    for (let s = 1; s <= 5; s++) {
+      const { isValid, stepErrors } = validateStep(s);
+      if (!isValid) {
+        setErrors(stepErrors);
+        setCurrentStep(s);
+        const firstMsg = Object.values(stepErrors)[0];
+        toast.error(`Step ${s}: ${firstMsg}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+
     if (!formData.acceptedTerms) {
+      setErrors({ acceptedTerms: 'Please accept the declaration before submitting' });
       toast.error('Please accept the declaration before submitting');
       return;
     }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
+    const cleanPhone = formData.phone.replace(/\D/g, '').slice(-10);
+
     try {
       const payload = {
         name: formData.name.trim(),
-        phone: formData.phone.replace(/\D/g, '').slice(-10),
+        phone: cleanPhone,
         email: formData.email.trim() || undefined,
         dateOfBirth: formData.dateOfBirth || undefined,
         gender: formData.gender,
+        profilePhoto: formData.profilePhoto,
         address: {
           street: formData.street.trim(),
+          currentAddress: formData.street.trim(),
           landmark: formData.landmark.trim(),
           city: formData.city.trim(),
           state: formData.state.trim() || 'Uttar Pradesh',
@@ -198,13 +312,31 @@ export default function DeliveryOnboardingWizard() {
         toast.success('Registration successful! Application submitted for review.');
         navigate('/delivery/status');
       } else {
-        toast.error(res.message || 'Registration failed');
+        if (res.existingStatus || res.message?.toLowerCase().includes('already exists')) {
+          setExistingApplication({
+            phone: cleanPhone,
+            status: res.existingStatus || 'PENDING_REVIEW',
+            message: res.message || 'An application with this mobile number already exists.',
+          });
+        } else {
+          toast.error(res.message || 'Registration failed');
+        }
       }
     } catch (err) {
       console.error('Registration failed', err);
-      toast.error(err.response?.data?.message || 'Failed to submit application. Please verify all details.');
+      const errData = err.response?.data;
+      if (errData?.existingStatus || errData?.message?.toLowerCase().includes('already exists')) {
+        setExistingApplication({
+          phone: cleanPhone,
+          status: errData?.existingStatus || 'PENDING_REVIEW',
+          message: errData?.message || 'An application with this mobile number already exists.',
+        });
+      } else {
+        toast.error(errData?.message || 'Failed to submit application. Please verify all details.');
+      }
     } finally {
       setIsSubmitting(false);
+      submittingRef.current = false;
     }
   };
 
@@ -219,6 +351,53 @@ export default function DeliveryOnboardingWizard() {
 
   return (
     <div className="mesh-gradient min-h-screen flex flex-col font-body-lg pb-12 text-on-surface">
+      {/* Duplicate Application Modal */}
+      {existingApplication && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-[420px] w-full text-center space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[32px]">contact_phone</span>
+            </div>
+            <div>
+              <h3 className="font-display font-black text-[18px] text-slate-900">
+                Application Already Exists
+              </h3>
+              <p className="text-[13px] text-slate-600 mt-1.5 leading-relaxed">
+                A delivery partner registration with mobile number{' '}
+                <strong className="text-slate-900 font-mono">+91 {existingApplication.phone}</strong> already exists on Zeebac.
+              </p>
+              <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-bold bg-purple-50 text-primary border border-purple-200">
+                <span className="material-symbols-outlined text-[14px]">info</span>
+                <span>Status: {existingApplication.status.replace(/_/g, ' ')}</span>
+              </div>
+            </div>
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigate('/delivery/login', { state: { phone: existingApplication.phone } });
+                }}
+                className="w-full py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] shadow-md shadow-primary/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">login</span>
+                <span>Log In with OTP (1234)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExistingApplication(null);
+                  setCurrentStep(1);
+                  handleChange('phone', '');
+                }}
+                className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12.5px] transition-colors cursor-pointer"
+              >
+                Use Different Mobile Number
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3.5 border-b border-slate-100 shadow-xs">
         <div className="max-w-[520px] mx-auto flex items-center justify-between">
@@ -251,7 +430,21 @@ export default function DeliveryOnboardingWizard() {
             <div
               key={s.num}
               onClick={() => {
-                if (s.num < currentStep) setCurrentStep(s.num);
+                if (s.num < currentStep) {
+                  setErrors({});
+                  setCurrentStep(s.num);
+                } else if (s.num > currentStep) {
+                  // Validate current step before advancing
+                  const { isValid, stepErrors } = validateStep(currentStep);
+                  if (!isValid) {
+                    setErrors(stepErrors);
+                    const firstMsg = Object.values(stepErrors)[0];
+                    if (firstMsg) toast.error(firstMsg);
+                  } else {
+                    setErrors({});
+                    setCurrentStep(s.num);
+                  }
+                }
               }}
               className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
                 s.num === currentStep
@@ -304,9 +497,17 @@ export default function DeliveryOnboardingWizard() {
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   placeholder="e.g. Ramesh Kumar Sharma"
-                  className="w-full py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-[14px] font-semibold text-slate-900 focus:outline-none focus:border-primary"
+                  className={`w-full py-3 px-3.5 rounded-2xl bg-slate-50 border text-[14px] font-semibold text-slate-900 focus:outline-none transition-all ${
+                    errors.name ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                  }`}
                   required
                 />
+                {errors.name && (
+                  <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    {errors.name}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -323,10 +524,18 @@ export default function DeliveryOnboardingWizard() {
                     value={formData.phone}
                     onChange={(e) => handleChange('phone', e.target.value.replace(/\D/g, ''))}
                     placeholder="9876543210"
-                    className="flex-1 py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-[14px] font-bold text-slate-900 font-mono focus:outline-none focus:border-primary"
+                    className={`flex-1 py-3 px-3.5 rounded-2xl bg-slate-50 border text-[14px] font-bold text-slate-900 font-mono focus:outline-none transition-all ${
+                      errors.phone ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                     required
                   />
                 </div>
+                {errors.phone && (
+                  <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    {errors.phone}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -338,8 +547,16 @@ export default function DeliveryOnboardingWizard() {
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
                   placeholder="ramesh.kumar@example.com"
-                  className="w-full py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-[13.5px] font-medium text-slate-900 focus:outline-none focus:border-primary"
+                  className={`w-full py-3 px-3.5 rounded-2xl bg-slate-50 border text-[13.5px] font-medium text-slate-900 focus:outline-none transition-all ${
+                    errors.email ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                  }`}
                 />
+                {errors.email && (
+                  <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    {errors.email}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -357,17 +574,25 @@ export default function DeliveryOnboardingWizard() {
 
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                    Gender
+                    Gender *
                   </label>
                   <select
                     value={formData.gender}
                     onChange={(e) => handleChange('gender', e.target.value)}
-                    className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-primary"
+                    className={`w-full py-3 px-3 rounded-2xl bg-slate-50 border text-[13px] font-semibold text-slate-800 focus:outline-none transition-all ${
+                      errors.gender ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                   >
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
+                  {errors.gender && (
+                    <p className="text-[11px] font-bold text-red-600 mt-1 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">error</span>
+                      {errors.gender}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -420,9 +645,17 @@ export default function DeliveryOnboardingWizard() {
                   value={formData.street}
                   onChange={(e) => handleChange('street', e.target.value)}
                   placeholder="e.g. Flat 302, Sector 12, Vikas Nagar"
-                  className="w-full py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-[14px] font-medium text-slate-900 focus:outline-none focus:border-primary"
+                  className={`w-full py-3 px-3.5 rounded-2xl bg-slate-50 border text-[14px] font-medium text-slate-900 focus:outline-none transition-all ${
+                    errors.street ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                  }`}
                   required
                 />
+                {errors.street && (
+                  <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    {errors.street}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -448,9 +681,17 @@ export default function DeliveryOnboardingWizard() {
                     value={formData.city}
                     onChange={(e) => handleChange('city', e.target.value)}
                     placeholder="Lucknow"
-                    className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13.5px] font-semibold text-slate-900 focus:outline-none focus:border-primary"
+                    className={`w-full py-3 px-3 rounded-2xl bg-slate-50 border text-[13.5px] font-semibold text-slate-900 focus:outline-none transition-all ${
+                      errors.city ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                     required
                   />
+                  {errors.city && (
+                    <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      {errors.city}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -463,9 +704,17 @@ export default function DeliveryOnboardingWizard() {
                     value={formData.pincode}
                     onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
                     placeholder="226022"
-                    className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13.5px] font-bold text-slate-900 font-mono focus:outline-none focus:border-primary"
+                    className={`w-full py-3 px-3 rounded-2xl bg-slate-50 border text-[13.5px] font-bold text-slate-900 font-mono focus:outline-none transition-all ${
+                      errors.pincode ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                     required
                   />
+                  {errors.pincode && (
+                    <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      {errors.pincode}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -493,7 +742,9 @@ export default function DeliveryOnboardingWizard() {
               </div>
 
               {/* Aadhaar */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className={`p-3.5 rounded-2xl bg-slate-50 border transition-all space-y-2 ${
+                errors.aadhaarNo || errors.aadhaarDoc ? 'border-red-500 bg-red-50/20' : 'border-slate-200'
+              }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px] text-primary">badge</span>
@@ -512,11 +763,21 @@ export default function DeliveryOnboardingWizard() {
                   value={formData.aadhaarNo}
                   onChange={(e) => handleChange('aadhaarNo', e.target.value.replace(/\D/g, ''))}
                   placeholder="12-digit Aadhaar Number"
-                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary"
+                  className={`w-full py-2.5 px-3 rounded-xl bg-white border text-[13px] font-mono font-bold text-slate-900 focus:outline-none transition-all ${
+                    errors.aadhaarNo ? 'border-red-500' : 'border-slate-200 focus:border-primary'
+                  }`}
                   required
                 />
-                <label className="block cursor-pointer py-2 px-3 rounded-xl bg-purple-50 border border-purple-200 text-primary text-[11.5px] font-bold text-center hover:bg-purple-100 transition-colors">
-                  <span>{formData.aadhaarDoc ? 'Replace Aadhaar Photo' : '+ Upload Aadhaar Front / Full Card'}</span>
+                {errors.aadhaarNo && (
+                  <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
+                    {errors.aadhaarNo}
+                  </p>
+                )}
+                <label className={`block cursor-pointer py-2 px-3 rounded-xl text-[11.5px] font-bold text-center transition-colors ${
+                  errors.aadhaarDoc ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-purple-50 border border-purple-200 text-primary hover:bg-purple-100'
+                }`}>
+                  <span>{formData.aadhaarDoc ? 'Replace Aadhaar Photo' : '+ Upload Aadhaar Front / Full Card *'}</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -524,10 +785,18 @@ export default function DeliveryOnboardingWizard() {
                     onChange={(e) => handleFileUpload('aadhaarDoc', e)}
                   />
                 </label>
+                {errors.aadhaarDoc && (
+                  <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
+                    {errors.aadhaarDoc}
+                  </p>
+                )}
               </div>
 
               {/* PAN */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className={`p-3.5 rounded-2xl bg-slate-50 border transition-all space-y-2 ${
+                errors.panNo ? 'border-red-500 bg-red-50/20' : 'border-slate-200'
+              }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px] text-primary">credit_card</span>
@@ -546,8 +815,16 @@ export default function DeliveryOnboardingWizard() {
                   value={formData.panNo}
                   onChange={(e) => handleChange('panNo', e.target.value.toUpperCase())}
                   placeholder="ABCDE1234F"
-                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary uppercase"
+                  className={`w-full py-2.5 px-3 rounded-xl bg-white border text-[13px] font-mono font-bold text-slate-900 focus:outline-none uppercase transition-all ${
+                    errors.panNo ? 'border-red-500' : 'border-slate-200 focus:border-primary'
+                  }`}
                 />
+                {errors.panNo && (
+                  <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
+                    {errors.panNo}
+                  </p>
+                )}
                 <label className="block cursor-pointer py-2 px-3 rounded-xl bg-purple-50 border border-purple-200 text-primary text-[11.5px] font-bold text-center hover:bg-purple-100 transition-colors">
                   <span>{formData.panDoc ? 'Replace PAN Photo' : '+ Upload PAN Photo'}</span>
                   <input
@@ -561,7 +838,9 @@ export default function DeliveryOnboardingWizard() {
 
               {/* Driving Licence */}
               {formData.vehicleType !== 'Cycle' && (
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className={`p-3.5 rounded-2xl bg-slate-50 border transition-all space-y-2 ${
+                  errors.drivingLicenceNo || errors.drivingLicenceDoc ? 'border-red-500 bg-red-50/20' : 'border-slate-200'
+                }`}>
                   <div className="flex items-center justify-between">
                     <span className="text-[12px] font-bold text-slate-800 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px] text-primary">license</span>
@@ -579,11 +858,21 @@ export default function DeliveryOnboardingWizard() {
                     value={formData.drivingLicenceNo}
                     onChange={(e) => handleChange('drivingLicenceNo', e.target.value.toUpperCase())}
                     placeholder="DL Number (e.g. UP3220200012345)"
-                    className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary uppercase"
+                    className={`w-full py-2.5 px-3 rounded-xl bg-white border text-[13px] font-mono font-bold text-slate-900 focus:outline-none uppercase transition-all ${
+                      errors.drivingLicenceNo ? 'border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                     required
                   />
-                  <label className="block cursor-pointer py-2 px-3 rounded-xl bg-purple-50 border border-purple-200 text-primary text-[11.5px] font-bold text-center hover:bg-purple-100 transition-colors">
-                    <span>{formData.drivingLicenceDoc ? 'Replace DL Photo' : '+ Upload Driving Licence Photo'}</span>
+                  {errors.drivingLicenceNo && (
+                    <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">error</span>
+                      {errors.drivingLicenceNo}
+                    </p>
+                  )}
+                  <label className={`block cursor-pointer py-2 px-3 rounded-xl text-[11.5px] font-bold text-center transition-colors ${
+                    errors.drivingLicenceDoc ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-purple-50 border border-purple-200 text-primary hover:bg-purple-100'
+                  }`}>
+                    <span>{formData.drivingLicenceDoc ? 'Replace DL Photo' : '+ Upload Driving Licence Photo *'}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -591,6 +880,12 @@ export default function DeliveryOnboardingWizard() {
                       onChange={(e) => handleFileUpload('drivingLicenceDoc', e)}
                     />
                   </label>
+                  {errors.drivingLicenceDoc && (
+                    <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">error</span>
+                      {errors.drivingLicenceDoc}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -641,9 +936,17 @@ export default function DeliveryOnboardingWizard() {
                         value={formData.vehicleNo}
                         onChange={(e) => handleChange('vehicleNo', e.target.value.toUpperCase())}
                         placeholder="UP32 AB 1234"
-                        className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13.5px] font-mono font-bold text-slate-900 uppercase focus:outline-none focus:border-primary"
+                        className={`w-full py-3 px-3 rounded-2xl bg-slate-50 border text-[13.5px] font-mono font-bold text-slate-900 uppercase focus:outline-none transition-all ${
+                          errors.vehicleNo ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                        }`}
                         required
                       />
+                      {errors.vehicleNo && (
+                        <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">error</span>
+                          {errors.vehicleNo}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -710,8 +1013,16 @@ export default function DeliveryOnboardingWizard() {
                   value={formData.upiId}
                   onChange={(e) => handleChange('upiId', e.target.value)}
                   placeholder="e.g. mobile@upi or username@okhdfcbank"
-                  className="w-full py-3 px-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-[13.5px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary"
+                  className={`w-full py-3 px-3.5 rounded-2xl bg-slate-50 border text-[13.5px] font-mono font-bold text-slate-900 focus:outline-none transition-all ${
+                    errors.upiId ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                  }`}
                 />
+                {errors.upiId && (
+                  <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    {errors.upiId}
+                  </p>
+                )}
               </div>
 
               <div className="relative flex py-1 items-center">
@@ -756,8 +1067,16 @@ export default function DeliveryOnboardingWizard() {
                     value={formData.accountNumber}
                     onChange={(e) => handleChange('accountNumber', e.target.value.replace(/\D/g, ''))}
                     placeholder="••••••••••••"
-                    className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary"
+                    className={`w-full py-3 px-3 rounded-2xl bg-slate-50 border text-[13px] font-mono font-bold text-slate-900 focus:outline-none transition-all ${
+                      errors.accountNumber ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                   />
+                  {errors.accountNumber && (
+                    <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      {errors.accountNumber}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -770,8 +1089,16 @@ export default function DeliveryOnboardingWizard() {
                     value={formData.ifscCode}
                     onChange={(e) => handleChange('ifscCode', e.target.value.toUpperCase())}
                     placeholder="SBIN0001234"
-                    className="w-full py-3 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-[13px] font-mono font-bold text-slate-900 uppercase focus:outline-none focus:border-primary"
+                    className={`w-full py-3 px-3 rounded-2xl bg-slate-50 border text-[13px] font-mono font-bold text-slate-900 uppercase focus:outline-none transition-all ${
+                      errors.ifscCode ? 'border-red-500 bg-red-50/20 focus:border-red-500' : 'border-slate-200 focus:border-primary'
+                    }`}
                   />
+                  {errors.ifscCode && (
+                    <p className="text-[11px] font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      {errors.ifscCode}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -795,7 +1122,11 @@ export default function DeliveryOnboardingWizard() {
                     <span className="text-slate-600 font-mono">+91 {formData.phone}</span>
                   </div>
                   <button
-                    onClick={() => setCurrentStep(1)}
+                    type="button"
+                    onClick={() => {
+                      setErrors({});
+                      setCurrentStep(1);
+                    }}
                     className="text-primary text-[11px] font-bold hover:underline"
                   >
                     Edit
@@ -811,7 +1142,11 @@ export default function DeliveryOnboardingWizard() {
                     </span>
                   </div>
                   <button
-                    onClick={() => setCurrentStep(2)}
+                    type="button"
+                    onClick={() => {
+                      setErrors({});
+                      setCurrentStep(2);
+                    }}
                     className="text-primary text-[11px] font-bold hover:underline"
                   >
                     Edit
@@ -827,7 +1162,11 @@ export default function DeliveryOnboardingWizard() {
                     </span>
                   </div>
                   <button
-                    onClick={() => setCurrentStep(4)}
+                    type="button"
+                    onClick={() => {
+                      setErrors({});
+                      setCurrentStep(4);
+                    }}
                     className="text-primary text-[11px] font-bold hover:underline"
                   >
                     Edit
@@ -843,7 +1182,11 @@ export default function DeliveryOnboardingWizard() {
                     </span>
                   </div>
                   <button
-                    onClick={() => setCurrentStep(5)}
+                    type="button"
+                    onClick={() => {
+                      setErrors({});
+                      setCurrentStep(5);
+                    }}
                     className="text-primary text-[11px] font-bold hover:underline"
                   >
                     Edit
@@ -852,17 +1195,27 @@ export default function DeliveryOnboardingWizard() {
               </div>
 
               {/* Declaration Checkbox */}
-              <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-purple-50/60 border border-purple-100 cursor-pointer text-left">
-                <input
-                  type="checkbox"
-                  checked={formData.acceptedTerms}
-                  onChange={(e) => handleChange('acceptedTerms', e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-                />
-                <span className="text-[11.5px] text-slate-700 leading-snug">
-                  I hereby declare that the documents and information provided are true to the best of my knowledge. I agree to ZeeBac delivery partner service terms and conduct guidelines.
-                </span>
-              </label>
+              <div>
+                <label className={`flex items-start gap-2.5 p-3 rounded-2xl border cursor-pointer text-left transition-all ${
+                  errors.acceptedTerms ? 'bg-red-50 border-red-300' : 'bg-purple-50/60 border-purple-100'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.acceptedTerms}
+                    onChange={(e) => handleChange('acceptedTerms', e.target.checked)}
+                    className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <span className="text-[11.5px] text-slate-700 leading-snug">
+                    I hereby declare that the documents and information provided are true to the best of my knowledge. I agree to ZeeBac delivery partner service terms and conduct guidelines.
+                  </span>
+                </label>
+                {errors.acceptedTerms && (
+                  <p className="text-[11px] font-bold text-red-600 mt-1 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
+                    {errors.acceptedTerms}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -918,4 +1271,3 @@ export default function DeliveryOnboardingWizard() {
     </div>
   );
 }
-
