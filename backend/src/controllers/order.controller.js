@@ -353,38 +353,49 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // ── Real-time Socket Event to Vendor ──
-    try {
-      const vendorPayload = {
-        order: createdOrder,
-        orderId,
-        storeName: vendor.storeName,
-        totalAmount: totalGrossAmount,
-        finalAmount: finalPayableAmount,
-        customerName: customer.name || 'Customer',
-        customerPhone: customer.phone || '',
-        items: processedItems,
-        deliveryAddress: resolvedDeliveryAddress,
-        fulfillmentType,
-        message: `New order #${orderId} received!`,
-      };
-      getIO().to(`vendor_${vendor._id}`).emit('order:new', vendorPayload);
-      getIO().to(`vendor:${vendor._id}`).emit('order:new', vendorPayload);
-    } catch (ioErr) {
-      logger.warn(`createOrder socket emit skipped: ${ioErr.message}`);
-    }
+    // ── Real-time Socket Event & Push Notification to Vendor ──
+    // IMPORTANT: For online/UPI payments, do NOT notify the store until payment is verified and confirmed!
+    const isOnlinePaymentPending =
+      (createdOrder.paymentMethod === 'UPI' ||
+        createdOrder.paymentMethod === 'UPI_INTENT' ||
+        createdOrder.paymentMethod?.startsWith('UPI')) &&
+      createdOrder.paymentStatus !== 'PAID';
 
-    // Send push notification to vendor
-    sendNotification({
-      recipientId: vendor._id,
-      recipientType: 'vendor',
-      fcmTokens: vendor.fcmTokens || [],
-      type: 'system',
-      title: 'New Store Order Received!',
-      message: `Order #${orderId} of ₹${totalGrossAmount} placed by ${customer.name}.`,
-      referenceId: createdOrder._id,
-      referenceType: 'Order',
-    }).catch(() => {});
+    if (!isOnlinePaymentPending) {
+      try {
+        const vendorPayload = {
+          order: createdOrder,
+          orderId,
+          storeName: vendor.storeName,
+          totalAmount: totalGrossAmount,
+          finalAmount: finalPayableAmount,
+          customerName: customer.name || 'Customer',
+          customerPhone: customer.phone || '',
+          items: processedItems,
+          deliveryAddress: resolvedDeliveryAddress,
+          fulfillmentType,
+          message: `New order #${orderId} received!`,
+        };
+        getIO().to(`vendor_${vendor._id}`).emit('order:new', vendorPayload);
+        getIO().to(`vendor:${vendor._id}`).emit('order:new', vendorPayload);
+      } catch (ioErr) {
+        logger.warn(`createOrder socket emit skipped: ${ioErr.message}`);
+      }
+
+      // Send push notification to vendor
+      sendNotification({
+        recipientId: vendor._id,
+        recipientType: 'vendor',
+        fcmTokens: vendor.fcmTokens || [],
+        type: 'system',
+        title: 'New Store Order Received!',
+        message: `Order #${orderId} of ₹${totalGrossAmount} placed by ${customer.name}.`,
+        referenceId: createdOrder._id,
+        referenceType: 'Order',
+      }).catch(() => {});
+    } else {
+      logger.info(`[createOrder] Order #${orderId} created with PENDING UPI payment. Store notification held until payment verification.`);
+    }
 
     logger.info(`[Order] Created: ${orderId} | Customer: ${customer.zeebacId} | Payable: ₹${finalPayableAmount} | Points Earned: ${totalCashbackPoints}`);
 
@@ -456,13 +467,29 @@ export const verifyOrderUpiPayment = async (req, res) => {
 
     order.paymentStatus = 'PAID';
     order.upiDetails.paidAt = new Date();
-    if (order.orderStatus === 'PLACED') {
-      order.orderStatus = 'CONFIRMED';
+    // Keep as PLACED so the Store sees the "Accept & Prepare Order" button with soundbox alert!
+    if (!order.orderStatus || order.orderStatus === 'PLACED') {
+      order.orderStatus = 'PLACED';
     }
     await order.save();
 
-    // Notify vendor
+    // ── Emit order:new to Store with full order details and soundbox chime! ──
     try {
+      const vendorPayload = {
+        order,
+        orderId: order.orderId,
+        storeName: order.storeName,
+        totalAmount: order.totalAmount,
+        finalAmount: order.finalPayableAmount,
+        customerName: order.customerName || 'Customer',
+        customerPhone: order.customerPhone || '',
+        items: order.items,
+        deliveryAddress: order.deliveryAddress,
+        fulfillmentType: order.fulfillmentType,
+        message: `New paid order #${order.orderId} received!`,
+      };
+      getIO().to(`vendor_${order.vendorId}`).emit('order:new', vendorPayload);
+      getIO().to(`vendor:${order.vendorId}`).emit('order:new', vendorPayload);
       getIO().to(`vendor_${order.vendorId}`).emit('order:paid', {
         orderId: order.orderId,
         paymentStatus: 'PAID',
@@ -476,15 +503,18 @@ export const verifyOrderUpiPayment = async (req, res) => {
       getIO().to(`user_${order.customerId}`).emit('order:paid', {
         orderId: order.orderId,
         paymentStatus: 'PAID',
+        order,
       });
-    } catch (ioErr) {}
+    } catch (ioErr) {
+      logger.warn(`verifyOrderUpiPayment socket emit skipped: ${ioErr.message}`);
+    }
 
     sendNotification({
       recipientId: order.vendorId,
       recipientType: 'vendor',
       type: 'credit',
-      title: 'UPI Payment Confirmed!',
-      message: `Payment of ₹${order.finalPayableAmount} received for Order #${order.orderId}.`,
+      title: 'New Paid Store Order Received! 🔔',
+      message: `Payment of ₹${order.finalPayableAmount} verified for Order #${order.orderId}. Please accept and prepare.`,
       referenceId: order._id,
       referenceType: 'Order',
     }).catch(() => {});
@@ -843,7 +873,14 @@ export const getOrderById = async (req, res) => {
 export const getVendorOrders = async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
-    const query = { vendorId: req.user.id };
+    const query = {
+      vendorId: req.user.id,
+      // Strictly exclude online UPI orders that have not been verified/paid yet
+      $or: [
+        { paymentStatus: 'PAID' },
+        { paymentMethod: { $in: ['CASH', 'ZEEBAC_POINTS'] } },
+      ],
+    };
     if (status) query.orderStatus = status;
 
     const orders = await Order.find(query)
