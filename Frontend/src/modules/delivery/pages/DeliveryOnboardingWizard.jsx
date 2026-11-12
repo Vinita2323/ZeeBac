@@ -129,19 +129,59 @@ export default function DeliveryOnboardingWizard() {
     }
   };
 
-  // Convert uploaded image to base64 string
-  const handleFileUpload = (field, e) => {
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      if (!file.type || !file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        img.onerror = () => resolve(e.target?.result || '');
+        img.src = e.target?.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Convert uploaded image to optimized base64 string
+  const handleFileUpload = async (field, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be under 5MB');
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be under 10MB');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      handleChange(field, reader.result);
+    try {
+      const optimized = await compressImage(file);
+      handleChange(field, optimized);
       if (errors[field]) {
         setErrors((prev) => {
           const next = { ...prev };
@@ -150,8 +190,10 @@ export default function DeliveryOnboardingWizard() {
         });
       }
       toast.success('Document uploaded successfully');
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Image processing error', err);
+      toast.error('Could not process document file');
+    }
   };
 
   // Strict per-step validation returning { isValid, stepErrors }
@@ -396,9 +438,14 @@ export default function DeliveryOnboardingWizard() {
 
       const res = await DeliveryAPI.register(payload);
       if (res.success) {
-        setAuth(res.data.rider, res.data.token);
+        try {
+          setAuth(res.data.rider, res.data.token);
+        } catch (authErr) {
+          console.warn('[DeliveryOnboarding] setAuth warning (non-fatal):', authErr);
+        }
         toast.success('Registration successful! Application submitted for review.');
         navigate('/delivery/status');
+        return;
       } else {
         if (res.existingStatus || res.message?.toLowerCase().includes('already exists')) {
           setExistingApplication({

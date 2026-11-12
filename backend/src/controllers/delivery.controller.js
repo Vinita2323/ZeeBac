@@ -151,12 +151,24 @@ export const deliveryRegister = async (req, res) => {
     const token = createRiderToken(newRider);
     logger.info(`[DeliveryPartner] Application submitted: ${newRider.riderId} (${newRider.name})`);
 
+    const riderObj = newRider.toObject ? newRider.toObject() : { ...newRider };
+    if (riderObj.documents) {
+      delete riderObj.documents.aadhaarDoc;
+      delete riderObj.documents.panDoc;
+      delete riderObj.documents.drivingLicenceDoc;
+      delete riderObj.documents.vehicleRcDoc;
+      delete riderObj.documents.insuranceDoc;
+    }
+    if (riderObj.profileImage && riderObj.profileImage.startsWith('data:')) {
+      riderObj.profileImage = '';
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Application submitted successfully! It is now pending admin review.',
       data: {
         token,
-        rider: newRider,
+        rider: riderObj,
       },
     });
   } catch (error) {
