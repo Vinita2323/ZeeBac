@@ -69,6 +69,8 @@ import {
   adminGetLiveDeliveryOperations,
   adminAssignDeliveryOrder,
   adminCancelDeliveryAssignment,
+  getAdminDeliveryPayoutConfig,
+  updateAdminDeliveryPayoutConfig,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -192,5 +194,9 @@ router.post('/delivery/partners/:id/reactivate', adminReactivateDeliveryPartner)
 router.get('/delivery/operations/live', adminGetLiveDeliveryOperations);
 router.post('/delivery/operations/assign', adminAssignDeliveryOrder);
 router.post('/delivery/operations/cancel-assignment', adminCancelDeliveryAssignment);
+
+// Dynamic Payout Configuration
+router.get('/delivery/payout-config', getAdminDeliveryPayoutConfig);
+router.put('/delivery/payout-config', updateAdminDeliveryPayoutConfig);
 
 export default router;

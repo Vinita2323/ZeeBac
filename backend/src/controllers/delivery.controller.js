@@ -4,6 +4,8 @@ import DeliveryPartner from '../models/DeliveryPartner.js';
 import Order from '../models/Order.js';
 import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
+import DeliveryPayoutConfig from '../models/DeliveryPayoutConfig.js';
+import { calculateDeliveryPayout } from '../utils/deliveryPayout.util.js';
 import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import logger from '../utils/logger.js';
 import { getIO } from '../socket/index.js';
@@ -590,6 +592,8 @@ export const getDeliveryOrders = async (req, res) => {
     const riderLat = rider.currentLocation?.latitude;
     const riderLng = rider.currentLocation?.longitude;
 
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+
     let activeOrder = null;
     if (rider.activeOrderId) {
       activeOrder = await Order.findById(rider.activeOrderId)
@@ -608,6 +612,13 @@ export const getDeliveryOrders = async (req, res) => {
           const m = haversineDistanceMeters([riderLng, riderLat], vendorCoords);
           activeOrder.pickupDistanceKm = (m / 1000).toFixed(1);
           activeOrder.pickupDistanceMeters = m;
+        }
+
+        if (!activeOrder.deliveryPayout || activeOrder.deliveryPayout <= 0) {
+          const payoutInfo = calculateDeliveryPayout(activeOrder.deliveryDistanceKm || 2.0, payoutConfig);
+          activeOrder.deliveryPayout = payoutInfo.totalPayout;
+          activeOrder.deliveryDistanceKm = payoutInfo.distanceKm;
+          activeOrder.deliveryPayoutBreakdown = payoutInfo;
         }
       }
     }
@@ -645,11 +656,25 @@ export const getDeliveryOrders = async (req, res) => {
           pickupDistanceKm = (pickupDistanceMeters / 1000).toFixed(1);
         }
 
+        let deliveryPayout = ord.deliveryPayout;
+        let deliveryDistanceKm = ord.deliveryDistanceKm || 2.0;
+        let deliveryPayoutBreakdown = ord.deliveryPayoutBreakdown;
+
+        if (!deliveryPayout || deliveryPayout <= 0) {
+          const payoutInfo = calculateDeliveryPayout(deliveryDistanceKm, payoutConfig);
+          deliveryPayout = payoutInfo.totalPayout;
+          deliveryDistanceKm = payoutInfo.distanceKm;
+          deliveryPayoutBreakdown = payoutInfo;
+        }
+
         return {
           ...ord,
           vendor: ord.vendorId,
           pickupDistanceMeters,
           pickupDistanceKm,
+          deliveryDistanceKm,
+          deliveryPayout,
+          deliveryPayoutBreakdown,
           isWithin5km: pickupDistanceMeters !== null ? pickupDistanceMeters <= 5000 : true,
         };
       });
@@ -918,10 +943,21 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         order.cashbackSettled = true;
       }
 
+      // Update Rider earnings & ledger with dynamic distance payout
+      const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+      let deliveryPayout = Number(order.deliveryPayout);
+      if (!deliveryPayout || deliveryPayout <= 0) {
+        const payoutInfo = calculateDeliveryPayout(order.deliveryDistanceKm || 2.0, payoutConfig);
+        deliveryPayout = payoutInfo.totalPayout;
+        order.deliveryPayout = deliveryPayout;
+        order.deliveryDistanceKm = payoutInfo.distanceKm;
+        order.deliveryPayoutBreakdown = payoutInfo;
+      }
+
+      order.riderDetails = order.riderDetails || {};
+      order.riderDetails.deliveredAt = new Date();
       await order.save();
 
-      // Update Rider earnings & ledger
-      const deliveryPayout = 50; // Standard ₹50 delivery payout
       rider.completedDeliveries = (rider.completedDeliveries || 0) + 1;
       rider.totalEarnings = Math.round(((rider.totalEarnings || 0) + deliveryPayout) * 100) / 100;
       rider.activeOrderId = null;
@@ -932,7 +968,9 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         orderId: order.orderId,
         amount: deliveryPayout,
         type: 'DELIVERY_PAYOUT',
-        description: `Delivery payout for Order #${order.orderId} (${order.storeName})`,
+        description: `Delivery payout for Order #${order.orderId} (${order.storeName}) • ${order.deliveryDistanceKm || 2.0} km`,
+        distanceKm: order.deliveryDistanceKm || 2.0,
+        breakdown: order.deliveryPayoutBreakdown,
         date: new Date(),
       });
 
@@ -1053,6 +1091,8 @@ export const getDeliveryEarnings = async (req, res) => {
       .filter((e) => new Date(e.date) >= startOfMonth)
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+
     return res.status(200).json({
       success: true,
       data: {
@@ -1065,7 +1105,14 @@ export const getDeliveryEarnings = async (req, res) => {
         totalEarnings: rider.totalEarnings || 0,
         completedDeliveries: rider.completedDeliveries || 0,
         totalCompletedDeliveries: rider.completedDeliveries || 0,
-        perDeliveryRate: 50,
+        perDeliveryRate: payoutConfig.baseFare || 30,
+        payoutConfig: {
+          baseFare: payoutConfig.baseFare,
+          baseDistanceIncludedKm: payoutConfig.baseDistanceIncludedKm,
+          perKmRate: payoutConfig.perKmRate,
+          minPayout: payoutConfig.minPayout,
+          surgeBonus: payoutConfig.surgeBonus,
+        },
         ledger: ledger.slice(0, 30),
         bankDetails: rider.bankDetails || {},
       },
@@ -1552,5 +1599,117 @@ export const adminCancelDeliveryAssignment = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 25. GET PUBLIC / RIDER DELIVERY PAYOUT CONFIG
+// ─────────────────────────────────────────────────────────────
+export const getDeliveryPayoutConfig = async (req, res) => {
+  try {
+    const config = await DeliveryPayoutConfig.getEffectiveConfig();
+    return res.status(200).json({
+      success: true,
+      data: {
+        baseFare: config.baseFare,
+        baseDistanceIncludedKm: config.baseDistanceIncludedKm,
+        perKmRate: config.perKmRate,
+        minPayout: config.minPayout,
+        surgeBonus: config.surgeBonus,
+        nightSurgeBonus: config.nightSurgeBonus,
+        maxDeliveryRadiusKm: config.maxDeliveryRadiusKm,
+        freeDeliveryRadiusKm: config.freeDeliveryRadiusKm,
+      },
+    });
+  } catch (error) {
+    logger.error(`[getDeliveryPayoutConfig] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error fetching payout config' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 26. ADMIN: GET DELIVERY PAYOUT CONFIG WITH AUDIT HISTORY
+// ─────────────────────────────────────────────────────────────
+export const getAdminDeliveryPayoutConfig = async (req, res) => {
+  try {
+    const config = await DeliveryPayoutConfig.getEffectiveConfig();
+    return res.status(200).json({
+      success: true,
+      data: config,
+    });
+  } catch (error) {
+    logger.error(`[getAdminDeliveryPayoutConfig] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error fetching admin payout config' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 27. ADMIN: UPDATE DELIVERY PAYOUT CONFIG
+// ─────────────────────────────────────────────────────────────
+export const updateAdminDeliveryPayoutConfig = async (req, res) => {
+  try {
+    const {
+      baseFare,
+      baseDistanceIncludedKm,
+      perKmRate,
+      minPayout,
+      surgeBonus,
+      nightSurgeBonus,
+      maxDeliveryRadiusKm,
+      freeDeliveryRadiusKm,
+      notes,
+    } = req.body;
+
+    if (baseFare !== undefined && (isNaN(baseFare) || Number(baseFare) < 0)) {
+      return res.status(400).json({ success: false, message: 'Base fare must be a positive number' });
+    }
+    if (perKmRate !== undefined && (isNaN(perKmRate) || Number(perKmRate) < 0)) {
+      return res.status(400).json({ success: false, message: 'Per km rate must be a positive number' });
+    }
+    if (minPayout !== undefined && (isNaN(minPayout) || Number(minPayout) < 0)) {
+      return res.status(400).json({ success: false, message: 'Minimum payout must be a positive number' });
+    }
+
+    const config = await DeliveryPayoutConfig.getEffectiveConfig();
+
+    // Record change history snapshot
+    if (!config.changeHistory) config.changeHistory = [];
+    config.changeHistory.unshift({
+      baseFare: config.baseFare,
+      baseDistanceIncludedKm: config.baseDistanceIncludedKm,
+      perKmRate: config.perKmRate,
+      minPayout: config.minPayout,
+      surgeBonus: config.surgeBonus,
+      changedBy: req.user?.name || req.user?.email || 'Super Admin',
+      changedAt: new Date(),
+    });
+
+    if (baseFare !== undefined) config.baseFare = Number(baseFare);
+    if (baseDistanceIncludedKm !== undefined) config.baseDistanceIncludedKm = Math.max(0, Number(baseDistanceIncludedKm));
+    if (perKmRate !== undefined) config.perKmRate = Number(perKmRate);
+    if (minPayout !== undefined) config.minPayout = Number(minPayout);
+    if (surgeBonus !== undefined) config.surgeBonus = Math.max(0, Number(surgeBonus));
+    if (nightSurgeBonus !== undefined) config.nightSurgeBonus = Math.max(0, Number(nightSurgeBonus));
+    if (maxDeliveryRadiusKm !== undefined) config.maxDeliveryRadiusKm = Math.max(1, Number(maxDeliveryRadiusKm));
+    if (freeDeliveryRadiusKm !== undefined) config.freeDeliveryRadiusKm = Math.max(0, Number(freeDeliveryRadiusKm));
+    if (notes !== undefined) config.notes = String(notes).trim();
+
+    config.updatedBy = req.user?.id || req.user?._id;
+    config.updatedByName = req.user?.name || req.user?.email || 'Super Admin';
+
+    await config.save();
+
+    logger.info(
+      `[Admin] Delivery Payout Config updated by ${config.updatedByName}: Base=₹${config.baseFare}, BaseKm=${config.baseDistanceIncludedKm}, PerKm=₹${config.perKmRate}, Min=₹${config.minPayout}, Surge=₹${config.surgeBonus}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Delivery payout configuration updated successfully!',
+      data: config,
+    });
+  } catch (error) {
+    logger.error(`[updateAdminDeliveryPayoutConfig] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server error updating payout config' });
   }
 };

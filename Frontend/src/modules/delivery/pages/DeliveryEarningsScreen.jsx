@@ -63,7 +63,9 @@ export default function DeliveryEarningsScreen() {
             </h1>
           </div>
           <span className="text-[11.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            ₹50 / Delivery
+            {earningsData?.payoutConfig
+              ? `₹${earningsData.payoutConfig.baseFare} Base + ₹${earningsData.payoutConfig.perKmRate}/km`
+              : 'Dynamic Distance Payout'}
           </span>
         </div>
       </header>
@@ -155,7 +157,7 @@ export default function DeliveryEarningsScreen() {
               </div>
               <p className="text-[13px] font-bold text-slate-800">No deliveries yet</p>
               <p className="text-[11.5px] text-slate-500 max-w-[260px] mx-auto">
-                Go online from the Deliveries tab to receive pickup requests and start earning ₹50 per order!
+                Go online from the Deliveries tab to receive pickup requests and start earning per delivery based on distance!
               </p>
             </div>
           ) : (
@@ -170,8 +172,13 @@ export default function DeliveryEarningsScreen() {
                       <span className="material-symbols-outlined text-[18px]">add</span>
                     </div>
                     <div>
-                      <p className="text-[12.5px] font-bold text-slate-900">
-                        Delivery Payout {item.orderId ? `(#${String(item.orderId).slice(-6)})` : ''}
+                      <p className="text-[12.5px] font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                        <span>Delivery Payout {item.orderId ? `(#${String(item.orderId).slice(-6)})` : ''}</span>
+                        {item.distanceKm && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-full border border-purple-200">
+                            {item.distanceKm} km
+                          </span>
+                        )}
                       </p>
                       <p className="text-[10.5px] text-slate-500 font-mono">
                         {item.date ? new Date(item.date).toLocaleDateString('en-IN', {

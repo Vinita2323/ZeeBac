@@ -36,6 +36,22 @@ export default function DeliveryPartnersPage() {
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [suspensionReason, setSuspensionReason] = useState('');
 
+  // Dynamic Payout Configuration Modal State
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+  const [payoutConfigLoading, setPayoutConfigLoading] = useState(false);
+  const [payoutConfigSaving, setPayoutConfigSaving] = useState(false);
+  const [payoutForm, setPayoutForm] = useState({
+    baseFare: 30,
+    baseDistanceIncludedKm: 0,
+    perKmRate: 10,
+    minPayout: 30,
+    surgeBonus: 0,
+    nightSurgeBonus: 0,
+    notes: '',
+  });
+  const [payoutChangeHistory, setPayoutChangeHistory] = useState([]);
+  const [testDistanceKm, setTestDistanceKm] = useState(5.0);
+
   // Fetch Stats
   const fetchStats = useCallback(async () => {
     try {
@@ -77,6 +93,56 @@ export default function DeliveryPartnersPage() {
     fetchStats();
     fetchPartners();
   }, [fetchStats, fetchPartners]);
+
+  // Fetch Payout Configuration
+  const fetchPayoutConfig = useCallback(async () => {
+    setPayoutConfigLoading(true);
+    try {
+      const res = await AdminAPI.getDeliveryPayoutConfig();
+      if (res.success && res.data) {
+        setPayoutForm({
+          baseFare: res.data.baseFare ?? 30,
+          baseDistanceIncludedKm: res.data.baseDistanceIncludedKm ?? 0,
+          perKmRate: res.data.perKmRate ?? 10,
+          minPayout: res.data.minPayout ?? 30,
+          surgeBonus: res.data.surgeBonus ?? 0,
+          nightSurgeBonus: res.data.nightSurgeBonus ?? 0,
+          notes: res.data.notes || '',
+        });
+        setPayoutChangeHistory(res.data.changeHistory || []);
+      }
+    } catch (err) {
+      console.error('Failed to load payout config', err);
+      toast.error('Failed to load payout settings');
+    } finally {
+      setPayoutConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isPayoutModalOpen) {
+      fetchPayoutConfig();
+    }
+  }, [isPayoutModalOpen, fetchPayoutConfig]);
+
+  const handleSavePayoutConfig = async (e) => {
+    e.preventDefault();
+    setPayoutConfigSaving(true);
+    try {
+      const res = await AdminAPI.updateDeliveryPayoutConfig(payoutForm);
+      if (res.success) {
+        toast.success(res.message || 'Payout configuration saved successfully!');
+        setIsPayoutModalOpen(false);
+      } else {
+        toast.error(res.message || 'Failed to save payout configuration');
+      }
+    } catch (err) {
+      console.error('Error saving payout config', err);
+      toast.error(err.response?.data?.message || 'Error saving payout configuration');
+    } finally {
+      setPayoutConfigSaving(false);
+    }
+  };
 
   // Open Partner Detail (accepts either partner id or partner object)
   const handleOpenDetail = async (partnerOrId) => {
@@ -327,17 +393,27 @@ export default function DeliveryPartnersPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            fetchStats();
-            fetchPartners();
-            toast.success('Data refreshed');
-          }}
-          className="py-2 px-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[16px]">refresh</span>
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={() => setIsPayoutModalOpen(true)}
+            className="py-2 px-3.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[17px]">calculate</span>
+            <span>Rider Payout Settings</span>
+          </button>
+
+          <button
+            onClick={() => {
+              fetchStats();
+              fetchPartners();
+              toast.success('Data refreshed');
+            }}
+            className="py-2 px-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">refresh</span>
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats KPI Cards */}
@@ -1286,6 +1362,399 @@ export default function DeliveryPartnersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* RIDER PAYOUT & DYNAMIC PRICING CONFIGURATION MODAL */}
+      {isPayoutModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-5 sm:p-7 border border-slate-100 shadow-2xl space-y-5 text-left my-8">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#7c3aed] text-2xl">calculate</span>
+                  <h3 className="font-display font-black text-xl text-slate-900">
+                    Rider Payout & Dynamic Distance Pricing
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Configure production payout rates: Base Fare + (Distance in KM × Rate/km) + Surge Bonus. Applied automatically upon OTP delivery verification.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsPayoutModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {payoutConfigLoading ? (
+              <div className="py-16 flex items-center justify-center">
+                <div className="w-8 h-8 border-3 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <form onSubmit={handleSavePayoutConfig} className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left Column: Form Inputs (7 cols) */}
+                  <div className="lg:col-span-7 space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Payout Rule Parameters
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Base Fare */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Base Fare (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={payoutForm.baseFare}
+                            onChange={(e) =>
+                              setPayoutForm({ ...payoutForm, baseFare: Number(e.target.value) })
+                            }
+                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            required
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400">Guaranteed fixed amount per order</p>
+                      </div>
+
+                      {/* Per KM Rate */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Per KM Rate (₹/KM)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={payoutForm.perKmRate}
+                            onChange={(e) =>
+                              setPayoutForm({ ...payoutForm, perKmRate: Number(e.target.value) })
+                            }
+                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            required
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400">Multiplied by drop distance (e.g. ₹10/km)</p>
+                      </div>
+
+                      {/* Base Distance Included */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Base Distance Included (KM)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={payoutForm.baseDistanceIncludedKm}
+                            onChange={(e) =>
+                              setPayoutForm({
+                                ...payoutForm,
+                                baseDistanceIncludedKm: Number(e.target.value),
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            required
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                            KM
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">
+                          Set 0 to bill every km (Base + Dist × Rate)
+                        </p>
+                      </div>
+
+                      {/* Guaranteed Min Payout */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Guaranteed Min Payout (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={payoutForm.minPayout}
+                            onChange={(e) =>
+                              setPayoutForm({ ...payoutForm, minPayout: Number(e.target.value) })
+                            }
+                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            required
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400">Minimum floor for any completed drop</p>
+                      </div>
+
+                      {/* Weather / Rain Surge */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Rain / Demand Surge Bonus (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="5"
+                            value={payoutForm.surgeBonus}
+                            onChange={(e) =>
+                              setPayoutForm({ ...payoutForm, surgeBonus: Number(e.target.value) })
+                            }
+                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400">Added to all orders when rain/surge active</p>
+                      </div>
+
+                      {/* Night Surge */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Night Hours Bonus (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="5"
+                            value={payoutForm.nightSurgeBonus}
+                            onChange={(e) =>
+                              setPayoutForm({
+                                ...payoutForm,
+                                nightSurgeBonus: Number(e.target.value),
+                              })
+                            }
+                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400">Late night delivery incentive</p>
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-600 block">
+                        Admin Changelog Note / Description
+                      </label>
+                      <input
+                        type="text"
+                        value={payoutForm.notes}
+                        onChange={(e) => setPayoutForm({ ...payoutForm, notes: e.target.value })}
+                        placeholder="e.g. Base ₹30 + ₹10/km standard dynamic rate card"
+                        className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Column: Live Calculator Simulator (5 cols) */}
+                  <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-purple-950 to-indigo-950 text-white rounded-3xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[15px]">sensors</span>
+                          <span>Live Calculator Preview</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Active Simulator
+                        </span>
+                      </div>
+
+                      {/* Calculation Outcome */}
+                      {(() => {
+                        const billableKm = Math.max(
+                          0,
+                          testDistanceKm - (Number(payoutForm.baseDistanceIncludedKm) || 0)
+                        );
+                        const distPayout =
+                          Math.round(billableKm * (Number(payoutForm.perKmRate) || 0) * 100) / 100;
+                        const raw =
+                          (Number(payoutForm.baseFare) || 0) +
+                          distPayout +
+                          (Number(payoutForm.surgeBonus) || 0);
+                        const total = Math.max(Number(payoutForm.minPayout) || 0, Math.round(raw * 100) / 100);
+
+                        return (
+                          <div className="mt-4 space-y-3">
+                            <div>
+                              <span className="text-[11px] text-purple-200 block font-medium">
+                                Rider Earns on a {testDistanceKm} km Delivery:
+                              </span>
+                              <div className="text-4xl font-black font-mono tracking-tight text-white mt-1">
+                                ₹{total}
+                              </div>
+                            </div>
+
+                            {/* Formula Breakdown pill */}
+                            <div className="bg-white/10 rounded-2xl p-3 border border-white/10 space-y-1.5 text-xs">
+                              <div className="flex justify-between text-purple-200">
+                                <span>Base Fare:</span>
+                                <span className="font-mono font-bold text-white">
+                                  ₹{payoutForm.baseFare || 0}
+                                </span>
+                              </div>
+                              <div className="flex justify-between text-purple-200">
+                                <span>
+                                  Distance Pay ({billableKm.toFixed(1)} km × ₹{payoutForm.perKmRate}/km):
+                                </span>
+                                <span className="font-mono font-bold text-emerald-400">
+                                  +₹{distPayout}
+                                </span>
+                              </div>
+                              {Number(payoutForm.surgeBonus) > 0 && (
+                                <div className="flex justify-between text-purple-200">
+                                  <span>Surge / Rain Bonus:</span>
+                                  <span className="font-mono font-bold text-amber-300">
+                                    +₹{payoutForm.surgeBonus}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="pt-1.5 border-t border-white/15 flex justify-between font-bold text-white">
+                                <span>Guaranteed Min:</span>
+                                <span className="font-mono">₹{payoutForm.minPayout || 0}</span>
+                              </div>
+                            </div>
+
+                            {/* Mobile Badge Preview */}
+                            <div className="pt-1">
+                              <span className="text-[10px] font-bold text-purple-300 uppercase block mb-1">
+                                How Rider sees it on Mobile App:
+                              </span>
+                              <div className="bg-white text-slate-900 rounded-xl p-2.5 flex items-center justify-between border border-white/20">
+                                <span className="text-xs font-bold text-slate-800">
+                                  Drop #{testDistanceKm}km
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-mono font-black text-xs border border-emerald-200">
+                                  +₹{total} Payout
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Distance Slider & Presets */}
+                    <div className="pt-3 border-t border-white/10 space-y-2">
+                      <div className="flex justify-between items-center text-xs text-purple-200">
+                        <span className="font-bold">Test Distance:</span>
+                        <span className="font-mono font-black text-white text-sm">
+                          {testDistanceKm} KM
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="15"
+                        step="0.5"
+                        value={testDistanceKm}
+                        onChange={(e) => setTestDistanceKm(Number(e.target.value))}
+                        className="w-full accent-[#a855f7] cursor-pointer"
+                      />
+                      {/* Presets */}
+                      <div className="grid grid-cols-4 gap-1.5 pt-1">
+                        {[2, 5, 8, 12].map((km) => (
+                          <button
+                            key={km}
+                            type="button"
+                            onClick={() => setTestDistanceKm(km)}
+                            className={`py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                              testDistanceKm === km
+                                ? 'bg-[#7c3aed] text-white shadow-xs'
+                                : 'bg-white/10 text-purple-200 hover:bg-white/20'
+                            }`}
+                          >
+                            {km} km
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Change History Snapshot */}
+                {payoutChangeHistory && payoutChangeHistory.length > 0 && (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Recent Rate Card Revisions ({payoutChangeHistory.length})
+                    </span>
+                    <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
+                      {payoutChangeHistory.slice(0, 5).map((h, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between text-[11px] bg-white p-2 rounded-xl border border-slate-100"
+                        >
+                          <span className="font-bold text-slate-700">
+                            Base: ₹{h.baseFare} • PerKm: ₹{h.perKmRate} • Min: ₹{h.minPayout}
+                          </span>
+                          <span className="text-slate-400 font-mono text-[10px]">
+                            by {h.changedBy || 'Admin'} on{' '}
+                            {h.changedAt
+                              ? new Date(h.changedAt).toLocaleDateString('en-IN', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                })
+                              : 'Recent'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Form Action Buttons */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsPayoutModalOpen(false)}
+                    className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={payoutConfigSaving}
+                    className="py-2.5 px-6 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-xs shadow-md shadow-[#7c3aed]/25 flex items-center gap-2 cursor-pointer"
+                  >
+                    {payoutConfigSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Saving Rates...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[16px]">save</span>
+                        <span>Save Payout Configuration</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

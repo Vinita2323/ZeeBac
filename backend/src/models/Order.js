@@ -207,6 +207,29 @@ const orderSchema = new mongoose.Schema(
       deliveredAt: Date,
     },
 
+    // ── Rider Dynamic Payout & Distance ──
+    deliveryDistanceKm: {
+      type: Number,
+      default: 2.0,
+      min: 0,
+    },
+    deliveryPayout: {
+      type: Number,
+      default: 50,
+      min: 0,
+    },
+    deliveryPayoutBreakdown: {
+      baseFare: { type: Number, default: 30 },
+      baseDistanceIncludedKm: { type: Number, default: 0 },
+      distanceKm: { type: Number, default: 2.0 },
+      billableDistanceKm: { type: Number, default: 2.0 },
+      perKmRate: { type: Number, default: 10 },
+      distancePayout: { type: Number, default: 20 },
+      surgeBonus: { type: Number, default: 0 },
+      minPayout: { type: Number, default: 30 },
+      totalPayout: { type: Number, default: 50 },
+    },
+
     // Tracks if cashback points were settled to customer and debited from vendor pool
     cashbackSettled: {
       type: Boolean,

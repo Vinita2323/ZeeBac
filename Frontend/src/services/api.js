@@ -276,6 +276,14 @@ export const AdminAPI = {
     const res = await apiClient.post('/admin/delivery/operations/cancel-assignment', { orderId, reason });
     return res.data;
   },
+  getDeliveryPayoutConfig: async () => {
+    const res = await apiClient.get('/admin/delivery/payout-config');
+    return res.data;
+  },
+  updateDeliveryPayoutConfig: async (data) => {
+    const res = await apiClient.put('/admin/delivery/payout-config', data);
+    return res.data;
+  },
   saveAdminFcmToken: async (token) => {
     const res = await apiClient.post('/admin/fcm-token', { token });
     return res.data;
@@ -1279,6 +1287,10 @@ export const DeliveryAPI = {
   },
   getEarnings: async () => {
     const res = await apiClient.get('/delivery/earnings');
+    return res.data;
+  },
+  getPayoutConfig: async () => {
+    const res = await apiClient.get('/delivery/payout-config');
     return res.data;
   },
 };

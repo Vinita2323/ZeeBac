@@ -6,6 +6,8 @@ import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import RewardConfig from '../models/RewardConfig.js';
+import DeliveryPayoutConfig from '../models/DeliveryPayoutConfig.js';
+import { calculateDeliveryPayout, estimateDistanceKm } from '../utils/deliveryPayout.util.js';
 import { creditWallet, debitWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
@@ -215,6 +217,35 @@ export const createOrder = async (req, res) => {
         });
       }
 
+      // ── Calculate Dynamic Distance-Based Rider Payout ──
+      let orderDistanceKm = 2.0;
+      let payoutBreakdown = {
+        baseFare: 30,
+        baseDistanceIncludedKm: 0,
+        distanceKm: 2.0,
+        billableDistanceKm: 2.0,
+        perKmRate: 10,
+        distancePayout: 20,
+        surgeBonus: 0,
+        minPayout: 30,
+        totalPayout: 50,
+      };
+
+      try {
+        const vendorCoords = vendor.location?.coordinates;
+        const customerCoords = customer.location?.coordinates;
+        orderDistanceKm = estimateDistanceKm({
+          vendorCoords,
+          customerCoords,
+          fallbackKm: 2.0,
+        });
+
+        const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+        payoutBreakdown = calculateDeliveryPayout(orderDistanceKm, payoutConfig);
+      } catch (payoutErr) {
+        logger.warn(`[createOrder] Error calculating dynamic delivery payout: ${payoutErr.message}`);
+      }
+
       const newOrder = new Order({
         orderId,
         customerId: customer._id,
@@ -253,6 +284,9 @@ export const createOrder = async (req, res) => {
         riderDetails: {
           deliveryOtp,
         },
+        deliveryDistanceKm: payoutBreakdown.distanceKm,
+        deliveryPayout: payoutBreakdown.totalPayout,
+        deliveryPayoutBreakdown: payoutBreakdown,
         cashbackSettled: false,
       });
 

@@ -424,8 +424,13 @@ export default function DeliveryDashboardScreen() {
               <span className="text-slate-500 font-medium">
                 {activeOrder.items?.length || 1} items • ₹{activeOrder.finalAmount || activeOrder.totalAmount}
               </span>
-              <span className="font-bold text-emerald-600 font-mono">
-                Payout: +₹50
+              <span className="font-bold text-emerald-600 font-mono flex items-center gap-1">
+                <span>Payout: +₹{activeOrder.deliveryPayout || 50}</span>
+                {activeOrder.deliveryDistanceKm && (
+                  <span className="text-[10.5px] font-medium text-emerald-700/70">
+                    ({activeOrder.deliveryDistanceKm} km)
+                  </span>
+                )}
               </span>
             </div>
 
@@ -543,9 +548,16 @@ export default function DeliveryDashboardScreen() {
                         </span>
                       )}
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-mono font-bold text-[12px] border border-emerald-200 shrink-0">
-                      +₹50 Payout
-                    </span>
+                    <div className="text-right shrink-0">
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-mono font-bold text-[12px] border border-emerald-200 block">
+                        +₹{ord.deliveryPayout || 50} Payout
+                      </span>
+                      {ord.deliveryDistanceKm && (
+                        <span className="text-[9.5px] text-slate-400 font-medium block mt-0.5">
+                          {ord.deliveryDistanceKm} km drop
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Store pickup */}

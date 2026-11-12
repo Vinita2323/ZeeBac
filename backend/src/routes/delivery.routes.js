@@ -16,6 +16,7 @@ import {
   updateDeliveryOrderStatus,
   getDeliveryHistory,
   getDeliveryEarnings,
+  getDeliveryPayoutConfig,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ const router = express.Router();
 router.get('/check-phone', checkDeliveryPhone);
 router.post('/register', deliveryRegister);
 router.post('/login', deliveryLogin);
+router.get('/payout-config', getDeliveryPayoutConfig);
 
 // Protected Delivery Partner endpoints
 router.use(protect);
