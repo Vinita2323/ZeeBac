@@ -591,6 +591,30 @@ export default function CartScreen() {
     }
   };
 
+  // 1-Click Dummy Test Payment for development & manual testing
+  const handleDummyTestPay = async () => {
+    if (!upiIntentData?.orderId || isVerifyingUpi) return;
+    const dummyUtr = '9' + Date.now().toString().slice(-11);
+    setUtrInput(dummyUtr);
+    setIsVerifyingUpi(true);
+    try {
+      const res = await OrderAPI.verifyOrderUpi(upiIntentData.orderId, dummyUtr);
+      if (res.success && res.data?.order) {
+        playNotificationChime('incoming');
+        speakVoice('Dummy UPI payment confirmed! Order placed successfully for testing.');
+        clearCart();
+        setActiveOrder(res.data.order);
+        setUpiIntentData(null);
+      } else {
+        alert(res.message || 'Payment verification failed');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not verify test payment.');
+    } finally {
+      setIsVerifyingUpi(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────
   // 1. EMPTY CART STATE
   // ─────────────────────────────────────────────────────────────
@@ -1888,6 +1912,17 @@ export default function CartScreen() {
                   {isVerifyingUpi ? 'Verifying...' : 'Verify'}
                 </button>
               </div>
+
+              {/* ⚡ One-Tap Test Dummy Payment Button for Manual E2E Testing */}
+              <button
+                type="button"
+                onClick={handleDummyTestPay}
+                disabled={isVerifyingUpi}
+                className="w-full py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[15px] text-amber-600">bolt</span>
+                <span>⚡ Test Mode: 1-Click Dummy Payment & Verify</span>
+              </button>
             </div>
           </div>
         </div>
