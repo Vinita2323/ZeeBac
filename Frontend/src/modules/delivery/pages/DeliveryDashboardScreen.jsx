@@ -93,7 +93,7 @@ export default function DeliveryDashboardScreen() {
               storeName,
               payout,
             });
-            toast.success(`🔔 Naya Order Aaya! +₹${payout} from ${storeName}`, { duration: 6000 });
+            toast.success(`🔔 New Order Received! +₹${payout} from ${storeName}`, { duration: 6000 });
           }
         }
 
@@ -132,7 +132,7 @@ export default function DeliveryDashboardScreen() {
           storeName,
           payout,
         });
-        toast.success(`🔔 Naya Delivery Order: +₹${payout} from ${storeName}`, { duration: 6000 });
+        toast.success(`🔔 New Delivery Order: +₹${payout} from ${storeName}`, { duration: 6000 });
       }
       fetchDashboardData();
     };
@@ -154,7 +154,7 @@ export default function DeliveryDashboardScreen() {
       storeName: 'Shree Shyama',
       payout: 60,
     });
-    toast.success('🔊 Playing test delivery chime & voice ringtone!');
+    toast.success('🔊 Playing test delivery chime & English announcement!');
   };
 
   // GPS Location Tracking when online
@@ -353,7 +353,7 @@ export default function DeliveryDashboardScreen() {
               </div>
               <div className="min-w-0">
                 <h3 className="font-display font-black text-[14px] leading-tight flex items-center gap-1.5">
-                  <span>Naya Order Received!</span>
+                  <span>New Delivery Order Received!</span>
                   <span className="px-1.5 py-0.5 rounded-full bg-white/30 text-[10.5px] font-mono">
                     +₹{ringingOrderAlert.payout}
                   </span>

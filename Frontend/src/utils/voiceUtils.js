@@ -56,7 +56,7 @@ export const playNotificationChime = (type = 'incoming') => {
 };
 
 // Speaks Hindi/Indian English voice announcement
-export const speakVoice = (text, delayMs = 250) => {
+export const speakVoice = (text, delayMs = 250, preferredLang = 'en-IN') => {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     console.warn('SpeechSynthesis not supported on this device.');
     return;
@@ -67,23 +67,31 @@ export const speakVoice = (text, delayMs = 250) => {
       window.speechSynthesis.cancel(); // Stop any pending speech
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95; // Crisp and natural pace
+      utterance.rate = 0.98; // Crisp and natural pace
       utterance.pitch = 1.0;
 
-      // Select Indian Hindi or English voice if available
+      // Select voice based on preferredLang ('en-IN', 'en', 'hi-IN')
       const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(
-        (v) =>
-          v.lang.startsWith('hi') ||
-          v.lang === 'en-IN' ||
-          v.name.toLowerCase().includes('india') ||
-          v.name.toLowerCase().includes('hindi')
-      );
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-        utterance.lang = preferredVoice.lang;
+      let selectedVoice = null;
+
+      if (preferredLang.startsWith('en')) {
+        selectedVoice =
+          voices.find(
+            (v) =>
+              v.lang === 'en-IN' ||
+              v.lang === 'en_IN' ||
+              (v.lang.startsWith('en') && v.name.toLowerCase().includes('india'))
+          ) || voices.find((v) => v.lang.startsWith('en'));
+        utterance.lang = selectedVoice?.lang || 'en-IN';
       } else {
-        utterance.lang = 'hi-IN';
+        selectedVoice = voices.find(
+          (v) => v.lang.startsWith('hi') || v.name.toLowerCase().includes('hindi')
+        );
+        utterance.lang = selectedVoice?.lang || 'hi-IN';
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
       }
 
       window.speechSynthesis.speak(utterance);
@@ -136,11 +144,11 @@ export const playDeliveryOrderAlarm = ({ storeName = '', payout = 0 } = {}) => {
       navigator.vibrate([300, 150, 300, 150, 400]);
     }
 
-    // Voice announcement
+    // English voice announcement for driver order alert
     const voiceText = storeName
-      ? `Naya delivery order aaya hai ${storeName} se! Payout rupaye ${payout || 50}.`
-      : `Naya delivery order request aaya hai! Payout rupaye ${payout || 50}.`;
-    speakVoice(voiceText, 700);
+      ? `New delivery order received from ${storeName}! Payout rupees ${payout || 50}.`
+      : `New delivery order request received! Payout rupees ${payout || 50}.`;
+    speakVoice(voiceText, 700, 'en-IN');
   } catch (err) {
     console.warn('Delivery alarm audio error:', err);
   }
