@@ -233,14 +233,23 @@ export const getDeliveryStatus = async (req, res) => {
         riderId: rider.riderId,
         name: rider.name,
         phone: rider.phone,
+        email: rider.email || '',
+        dateOfBirth: rider.dateOfBirth || '',
+        gender: rider.gender || '',
+        profileImage: rider.profileImage || rider.documents?.profilePhoto || '',
         applicationStatus: rider.applicationStatus,
         rejectionReason: rider.rejectionReason,
+        lastRejectionReason: rider.lastRejectionReason || rider.rejectionReason || '',
         rejectedAt: rider.rejectedAt,
+        resubmissionCount: rider.resubmissionCount || 0,
+        resubmittedAt: rider.resubmittedAt,
+        resubmittedChanges: rider.resubmittedChanges || [],
         suspendedAt: rider.suspendedAt,
         suspensionReason: rider.suspensionReason,
         documents: rider.documents,
         documentVerification: rider.documentVerification,
         address: rider.address,
+        bankDetails: rider.bankDetails,
         vehicle: {
           type: rider.vehicleType,
           no: rider.vehicleNo,
@@ -254,6 +263,87 @@ export const getDeliveryStatus = async (req, res) => {
   }
 };
 
+// Helper: Compute diff of delivery partner fields
+export function computeDeliveryPartnerDiff(rider, update) {
+  const changes = [];
+
+  const checkField = (field, label, category, oldVal, newVal, isDoc = false) => {
+    if (newVal === undefined || newVal === null) return;
+    const cleanOld = String(oldVal || '').trim();
+    const cleanNew = String(newVal || '').trim();
+    if (!cleanNew) return;
+
+    if (isDoc) {
+      if (cleanNew !== cleanOld) {
+        changes.push({
+          field,
+          label,
+          category,
+          oldValue: cleanOld ? 'Previous Document' : 'None',
+          newValue: 'New Document Uploaded',
+          isDocument: true,
+        });
+      }
+    } else if (cleanOld !== cleanNew) {
+      changes.push({
+        field,
+        label,
+        category,
+        oldValue: cleanOld || 'None',
+        newValue: cleanNew,
+        isDocument: false,
+      });
+    }
+  };
+
+  // Personal
+  checkField('name', 'Full Name', 'personal', rider.name, update.name);
+  checkField('email', 'Email Address', 'personal', rider.email, update.email);
+  checkField('dateOfBirth', 'Date of Birth', 'personal', rider.dateOfBirth, update.dateOfBirth);
+  checkField('gender', 'Gender', 'personal', rider.gender, update.gender);
+  if (update.profilePhoto || update.documents?.profilePhoto || update.profileImage) {
+    const newPic = update.profilePhoto || update.documents?.profilePhoto || update.profileImage;
+    checkField('profilePhoto', 'Profile Photo', 'personal', rider.profileImage || rider.documents?.profilePhoto, newPic, true);
+  }
+
+  // Address
+  if (update.address) {
+    checkField('address.currentAddress', 'Current Address', 'address', rider.address?.currentAddress, update.address.currentAddress);
+    checkField('address.city', 'City', 'address', rider.address?.city, update.address.city);
+    checkField('address.state', 'State', 'address', rider.address?.state, update.address.state);
+    checkField('address.pincode', 'Pincode', 'address', rider.address?.pincode, update.address.pincode);
+    checkField('address.permanentAddress', 'Permanent Address', 'address', rider.address?.permanentAddress, update.address.permanentAddress);
+  }
+
+  // Vehicle
+  checkField('vehicleType', 'Vehicle Type', 'vehicle', rider.vehicleType, update.vehicleType);
+  checkField('vehicleNo', 'Vehicle Number', 'vehicle', rider.vehicleNo, update.vehicleNo ? update.vehicleNo.toUpperCase() : undefined);
+  checkField('vehicleModel', 'Vehicle Model', 'vehicle', rider.vehicleModel, update.vehicleModel);
+
+  // Documents
+  if (update.documents) {
+    checkField('documents.aadhaarNo', 'Aadhaar Number', 'documents', rider.documents?.aadhaarNo, update.documents.aadhaarNo);
+    checkField('documents.aadhaarDoc', 'Aadhaar Card Document', 'documents', rider.documents?.aadhaarDoc, update.documents.aadhaarDoc, true);
+    checkField('documents.panNo', 'PAN Number', 'documents', rider.documents?.panNo, update.documents.panNo ? update.documents.panNo.toUpperCase() : undefined);
+    checkField('documents.panDoc', 'PAN Card Document', 'documents', rider.documents?.panDoc, update.documents.panDoc, true);
+    checkField('documents.drivingLicenceNo', 'Driving Licence Number', 'documents', rider.documents?.drivingLicenceNo, update.documents.drivingLicenceNo ? update.documents.drivingLicenceNo.toUpperCase() : undefined);
+    checkField('documents.drivingLicenceDoc', 'Driving Licence Document', 'documents', rider.documents?.drivingLicenceDoc, update.documents.drivingLicenceDoc, true);
+    checkField('documents.vehicleRcDoc', 'Vehicle RC Document', 'documents', rider.documents?.vehicleRcDoc, update.documents.vehicleRcDoc, true);
+    checkField('documents.insuranceDoc', 'Insurance Document', 'documents', rider.documents?.insuranceDoc, update.documents.insuranceDoc, true);
+  }
+
+  // Bank
+  if (update.bankDetails) {
+    checkField('bankDetails.accountHolderName', 'Account Holder Name', 'bank', rider.bankDetails?.accountHolderName, update.bankDetails.accountHolderName);
+    checkField('bankDetails.bankName', 'Bank Name', 'bank', rider.bankDetails?.bankName, update.bankDetails.bankName);
+    checkField('bankDetails.accountNumber', 'Account Number', 'bank', rider.bankDetails?.accountNumber, update.bankDetails.accountNumber);
+    checkField('bankDetails.ifscCode', 'IFSC Code', 'bank', rider.bankDetails?.ifscCode, update.bankDetails.ifscCode ? update.bankDetails.ifscCode.toUpperCase() : undefined);
+    checkField('bankDetails.upiId', 'UPI ID', 'bank', rider.bankDetails?.upiId, update.bankDetails.upiId);
+  }
+
+  return changes;
+}
+
 // ─────────────────────────────────────────────────────────────
 // 4. RESUBMIT APPLICATION AFTER REJECTION
 // ─────────────────────────────────────────────────────────────
@@ -266,32 +356,83 @@ export const resubmitApplication = async (req, res) => {
 
     const {
       name,
+      email,
+      dateOfBirth,
+      gender,
       address,
       vehicleType,
       vehicleNo,
       vehicleModel,
       documents,
       bankDetails,
+      profilePhoto,
     } = req.body;
 
+    const previousRejectionReason = rider.rejectionReason || rider.lastRejectionReason || '';
+    const changes = computeDeliveryPartnerDiff(rider, req.body);
+
     if (name) rider.name = name.trim();
+    if (email) rider.email = email.trim().toLowerCase();
+    if (dateOfBirth) rider.dateOfBirth = dateOfBirth;
+    if (gender) rider.gender = gender;
     if (address) rider.address = { ...rider.address, ...address };
     if (vehicleType) rider.vehicleType = vehicleType;
     if (vehicleNo) rider.vehicleNo = vehicleNo.trim().toUpperCase();
     if (vehicleModel) rider.vehicleModel = vehicleModel.trim();
-    if (documents) rider.documents = { ...rider.documents, ...documents };
     if (bankDetails) rider.bankDetails = { ...rider.bankDetails, ...bankDetails };
 
-    rider.applicationStatus = 'RESUBMITTED';
+    if (documents) {
+      rider.documents = { ...rider.documents, ...documents };
+      if (documents.profilePhoto) {
+        rider.profileImage = documents.profilePhoto;
+      }
+    }
+    if (profilePhoto) {
+      rider.profileImage = profilePhoto;
+      if (!rider.documents) rider.documents = {};
+      rider.documents.profilePhoto = profilePhoto;
+    }
+
+    const now = new Date();
+    rider.resubmissionCount = (rider.resubmissionCount || 0) + 1;
+    rider.resubmittedAt = now;
+    rider.lastRejectionReason = previousRejectionReason;
     rider.rejectionReason = null;
+    rider.applicationStatus = 'RESUBMITTED';
+
+    if (!rider.resubmittedChanges) rider.resubmittedChanges = [];
+    rider.resubmittedChanges.push({
+      resubmittedAt: now,
+      previousRejectionReason,
+      changesCount: changes.length,
+      changedFields: changes,
+    });
+
+    if (!rider.adminAuditLogs) rider.adminAuditLogs = [];
+    rider.adminAuditLogs.push({
+      adminName: `${rider.name} (Partner Resubmission #${rider.resubmissionCount})`,
+      action: 'RESUBMITTED_APPLICATION',
+      reason: `Partner resubmitted corrections (${changes.length} fields modified)`,
+      timestamp: now,
+    });
+
     await rider.save();
 
-    logger.info(`[DeliveryPartner] Application resubmitted: ${rider.riderId}`);
+    safeSocketEmit('admin:delivery:update', {
+      type: 'PARTNER_RESUBMITTED',
+      riderId: rider.riderId,
+      name: rider.name,
+      changesCount: changes.length,
+      changes,
+    });
+
+    logger.info(`[DeliveryPartner] Application resubmitted: ${rider.riderId} with ${changes.length} changes`);
 
     return res.status(200).json({
       success: true,
       message: 'Application resubmitted successfully! Admin will review your updated details.',
       data: rider,
+      changes,
     });
   } catch (error) {
     logger.error(`[resubmitApplication] Error: ${error.message}`);
@@ -890,6 +1031,7 @@ export const getAdminDeliveryStats = async (req, res) => {
     const [
       total,
       pending,
+      resubmitted,
       underReview,
       approved,
       rejected,
@@ -898,6 +1040,7 @@ export const getAdminDeliveryStats = async (req, res) => {
     ] = await Promise.all([
       DeliveryPartner.countDocuments(),
       DeliveryPartner.countDocuments({ applicationStatus: 'PENDING_REVIEW' }),
+      DeliveryPartner.countDocuments({ applicationStatus: 'RESUBMITTED' }),
       DeliveryPartner.countDocuments({ applicationStatus: 'UNDER_REVIEW' }),
       DeliveryPartner.countDocuments({ applicationStatus: 'APPROVED' }),
       DeliveryPartner.countDocuments({ applicationStatus: 'REJECTED' }),
@@ -909,7 +1052,9 @@ export const getAdminDeliveryStats = async (req, res) => {
       success: true,
       data: {
         total,
-        pending,
+        pending: pending + resubmitted,
+        rawPending: pending,
+        resubmitted,
         underReview,
         approved,
         rejected,
@@ -933,7 +1078,12 @@ export const getAdminDeliveryPartners = async (req, res) => {
 
     const query = {};
     if (status && status.toLowerCase() !== 'all') {
-      query.applicationStatus = status.toUpperCase();
+      const upStatus = status.toUpperCase();
+      if (upStatus === 'PENDING_REVIEW') {
+        query.applicationStatus = { $in: ['PENDING_REVIEW', 'RESUBMITTED'] };
+      } else {
+        query.applicationStatus = upStatus;
+      }
     }
     if (vehicleType && vehicleType.toLowerCase() !== 'all') {
       query.vehicleType = vehicleType;
@@ -1072,6 +1222,7 @@ export const adminRejectDeliveryPartner = async (req, res) => {
 
     partner.applicationStatus = 'REJECTED';
     partner.rejectionReason = reason.trim();
+    partner.lastRejectionReason = reason.trim();
     partner.rejectedAt = new Date();
     partner.isOnline = false;
     partner.status = 'OFFLINE';

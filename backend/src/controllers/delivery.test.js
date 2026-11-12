@@ -437,4 +437,82 @@ describe('Production Delivery Partner (Rider) & Admin Suite', () => {
     expect(updated.isSuspended).toBe(true);
     expect(updated.isOnline).toBe(false);
   });
+
+  it('admin rejects partner with reason, partner resubmits with updated DL & vehicle, tracking exact diffs', async () => {
+    const rider = await DeliveryPartner.create({
+      riderId: 'DLV-1007',
+      name: 'Rohan Sharma',
+      phone: '9222211111',
+      vehicleType: 'Bike',
+      vehicleNo: 'UP32 1234',
+      documents: {
+        drivingLicenceNo: 'DL12345',
+        drivingLicenceDoc: 'old_blurry_dl_url',
+        aadhaarNo: '111122223333',
+        aadhaarDoc: 'aadhaar_doc_url',
+      },
+      applicationStatus: 'PENDING_REVIEW',
+    });
+
+    // 1. Admin rejects application with reason
+    const rejectReq = {
+      user: { id: 'admin1', name: 'Compliance Admin' },
+      params: { id: rider._id.toString() },
+      body: { reason: 'Driving licence photo is blurry and vehicle number needs correction' },
+    };
+    const rejectRes = makeRes();
+    await adminRejectDeliveryPartner(rejectReq, rejectRes);
+
+    expect(rejectRes.status).toHaveBeenCalledWith(200);
+    const rejectedRider = await DeliveryPartner.findById(rider._id);
+    expect(rejectedRider.applicationStatus).toBe('REJECTED');
+    expect(rejectedRider.rejectionReason).toBe('Driving licence photo is blurry and vehicle number needs correction');
+    expect(rejectedRider.lastRejectionReason).toBe('Driving licence photo is blurry and vehicle number needs correction');
+
+    // 2. Rider gets status and verifies rejection reason and details
+    const statusReq = { user: { id: rider._id.toString() } };
+    const statusRes = makeRes();
+    await getDeliveryStatus(statusReq, statusRes);
+    expect(statusRes.status).toHaveBeenCalledWith(200);
+    const statusBody = statusRes.json.mock.calls[0][0];
+    expect(statusBody.data.applicationStatus).toBe('REJECTED');
+    expect(statusBody.data.rejectionReason).toContain('blurry');
+    expect(statusBody.data.vehicle.no).toBe('UP32 1234');
+
+    // 3. Rider resubmits with updated vehicle number and new DL photo
+    const resubmitReq = {
+      user: { id: rider._id.toString() },
+      body: {
+        name: 'Rohan Sharma',
+        vehicleType: 'Bike',
+        vehicleNo: 'UP32 AB 9999',
+        documents: {
+          drivingLicenceNo: 'DL12345',
+          drivingLicenceDoc: 'new_clear_hd_dl_url',
+          aadhaarNo: '111122223333',
+          aadhaarDoc: 'aadhaar_doc_url',
+        },
+      },
+    };
+    const resubmitRes = makeRes();
+    await resubmitApplication(resubmitReq, resubmitRes);
+
+    expect(resubmitRes.status).toHaveBeenCalledWith(200);
+    const resubmitBody = resubmitRes.json.mock.calls[0][0];
+    expect(resubmitBody.success).toBe(true);
+    expect(resubmitBody.changes.length).toBe(2);
+
+    const changedFieldNames = resubmitBody.changes.map((c) => c.field);
+    expect(changedFieldNames).toContain('vehicleNo');
+    expect(changedFieldNames).toContain('documents.drivingLicenceDoc');
+
+    // Verify DB state
+    const resubmittedRider = await DeliveryPartner.findById(rider._id);
+    expect(resubmittedRider.applicationStatus).toBe('RESUBMITTED');
+    expect(resubmittedRider.resubmissionCount).toBe(1);
+    expect(resubmittedRider.rejectionReason).toBeNull();
+    expect(resubmittedRider.lastRejectionReason).toContain('blurry');
+    expect(resubmittedRider.resubmittedChanges.length).toBe(1);
+    expect(resubmittedRider.resubmittedChanges[0].changedFields.length).toBe(2);
+  });
 });

@@ -44,6 +44,29 @@ const deliveryPartnerSchema = new mongoose.Schema(
       default: null,
     },
     rejectedAt: Date,
+    lastRejectionReason: String,
+    resubmissionCount: {
+      type: Number,
+      default: 0,
+    },
+    resubmittedAt: Date,
+    resubmittedChanges: [
+      {
+        resubmittedAt: { type: Date, default: Date.now },
+        previousRejectionReason: String,
+        changesCount: { type: Number, default: 0 },
+        changedFields: [
+          {
+            field: String,
+            label: String,
+            category: String,
+            oldValue: String,
+            newValue: String,
+            isDocument: { type: Boolean, default: false },
+          },
+        ],
+      },
+    ],
     approvedAt: Date,
     suspendedAt: Date,
     suspensionReason: String,
