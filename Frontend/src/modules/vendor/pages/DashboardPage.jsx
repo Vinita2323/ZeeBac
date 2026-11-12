@@ -930,6 +930,24 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* Auto-dispatch / Rider info badge */}
+                  {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING' || order.orderStatus === 'READY_FOR_PICKUP') && (
+                    <div className="bg-purple-50/70 border border-purple-200/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[11px]">
+                      {order.riderDetails?.name ? (
+                        <span className="flex items-center gap-1.5 text-purple-900 font-bold truncate">
+                          <span className="material-symbols-outlined text-[15px] text-purple-600">two_wheeler</span>
+                          <span>Rider: {order.riderDetails.name} ({order.riderDetails.phone || 'Assigned'})</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-purple-900 font-bold">
+                          <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                          <span>Auto-dispatching to nearby riders...</span>
+                        </span>
+                      )}
+                      <span className="text-[10px] text-purple-700 font-semibold uppercase">{order.orderStatus.replace(/_/g, ' ')}</span>
+                    </div>
+                  )}
+
                   {/* Action buttons */}
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
                     {isPlaced && (

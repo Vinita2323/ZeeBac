@@ -412,11 +412,11 @@ export default function RequestsPage() {
       {/* TAB 1: ONLINE STORE ORDERS & RIDER DELIVERY MANAGEMENT */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'orders' && (
-        <div className="space-y-3 pb-[100px] md:pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 pb-[100px] md:pb-6">
           {isOrdersLoading ? (
-            <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
+            <p className="col-span-1 lg:col-span-2 text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
           ) : orders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 p-6 shadow-2xs">
+            <div className="col-span-1 lg:col-span-2 text-center py-12 bg-white rounded-3xl border border-slate-100 p-6 shadow-2xs">
               <div className="w-16 h-16 bg-purple-50 text-primary rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="material-symbols-outlined text-[30px]">shopping_bag</span>
               </div>
@@ -602,28 +602,72 @@ export default function RequestsPage() {
                       </>
                     )}
 
-                    {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING') && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setAssignRiderModalOrder(order);
-                            setRiderForm({ name: '', phone: '', vehicleNo: '' });
-                          }}
-                          className="py-2.5 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
-                          <span>Assign Delivery Rider</span>
-                        </button>
+                    {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING' || order.orderStatus === 'READY_FOR_PICKUP') && (
+                      <div className="w-full space-y-2">
+                        {/* Auto-Dispatch Radar Status (Automatic radius matching) */}
+                        {!isRiderAssigned && (
+                          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-purple-50/80 border border-purple-200 text-purple-950 text-[12px]">
+                            <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
+                              <span className="w-4 h-4 rounded-full bg-primary/25 animate-ping absolute"></span>
+                              <span className="material-symbols-outlined text-primary text-[18px] relative z-10">radar</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-slate-900 leading-tight">
+                                Auto-Dispatching to Nearby Delivery Riders...
+                              </p>
+                              <p className="text-[10.5px] text-slate-500 mt-0.5">
+                                Order broadcast to active riders in store radius. Partner will be automatically assigned upon acceptance.
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
-                        <button
-                          disabled={isProcessing}
-                          onClick={() => setRejectModalOrder(order)}
-                          className="py-2.5 px-3 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-[11px] flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">close</span>
-                          <span>Cancel Order</span>
-                        </button>
-                      </>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {order.orderStatus === 'PREPARING' && (
+                            <button
+                              disabled={isProcessing}
+                              onClick={() => handleOrderStatusUpdate(order.orderId, 'READY_FOR_PICKUP')}
+                              className="py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">inventory</span>
+                              <span>Mark Ready for Pickup</span>
+                            </button>
+                          )}
+
+                          {order.orderStatus === 'READY_FOR_PICKUP' && (
+                            <span className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl">
+                              <span className="material-symbols-outlined text-[15px]">done_all</span>
+                              <span>Food/Order Packed & Ready for Pickup</span>
+                            </span>
+                          )}
+
+                          <button
+                            disabled={isProcessing}
+                            onClick={() => setRejectModalOrder(order)}
+                            className="py-2 px-3 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-[11.5px] flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">close</span>
+                            <span>Cancel Order</span>
+                          </button>
+                        </div>
+
+                        {/* Optional manual override for store's own staff delivery (subtle link) */}
+                        {!isRiderAssigned && (
+                          <div className="pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAssignRiderModalOrder(order);
+                                setRiderForm({ name: '', phone: '', vehicleNo: '' });
+                              }}
+                              className="text-[10.5px] text-slate-400 hover:text-primary underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">person_add</span>
+                              <span>Have your own in-house staff? Assign own rider manually</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {(order.orderStatus === 'RIDER_ASSIGNED' || order.orderStatus === 'OUT_FOR_DELIVERY') && (
@@ -662,11 +706,11 @@ export default function RequestsPage() {
       {/* TAB 2: IN-STORE CLAIMS (CASH / POS BILL VERIFICATION) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'claims' && (
-        <div className="space-y-3 pb-[100px] md:pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 pb-[100px] md:pb-6">
           {isLoading ? (
-            <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading...')}</p>
+            <p className="col-span-1 lg:col-span-2 text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading...')}</p>
           ) : pendingRequests.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="col-span-1 lg:col-span-2 text-center py-12">
               <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="material-symbols-outlined text-[28px] text-on-surface-variant">check_circle</span>
               </div>
@@ -748,16 +792,16 @@ export default function RequestsPage() {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* ASSIGN RIDER MODAL */}
+      {/* ASSIGN IN-HOUSE RIDER MODAL (MANUAL OVERRIDE ONLY) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {assignRiderModalOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-left">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-left max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[22px]">two_wheeler</span>
                 <h3 className="font-display font-black text-[15px] text-slate-900">
-                  Assign Delivery Rider
+                  Assign In-House Staff Rider
                 </h3>
               </div>
               <button
@@ -768,8 +812,18 @@ export default function RequestsPage() {
               </button>
             </div>
 
-            <p className="text-[11.5px] text-slate-600 leading-snug">
-              Order #{assignRiderModalOrder.orderId} ke liye delivery partner ki details enter karein:
+            <div className="bg-purple-50/70 border border-purple-200/90 rounded-2xl p-3 text-[11px] text-purple-900 space-y-1">
+              <p className="font-black flex items-center gap-1 text-primary">
+                <span className="material-symbols-outlined text-[15px]">radar</span>
+                <span>Platform riders are notified automatically</span>
+              </p>
+              <p className="text-[10.5px] text-purple-800/90 leading-relaxed">
+                Platform riders ko radius ke hisaab se order broadcast ho chuka hai. Ye form sirf tab bharein agar aap apna personal store boy ya private staff bhej rahe hain.
+              </p>
+            </div>
+
+            <p className="text-[11.5px] text-slate-600 font-medium">
+              Order #{assignRiderModalOrder.orderId} ke liye private staff delivery partner details:
             </p>
 
             <form onSubmit={handleAssignRiderSubmit} className="space-y-3">
@@ -781,7 +835,7 @@ export default function RequestsPage() {
                   value={riderForm.name}
                   onChange={(e) => setRiderForm({ ...riderForm, name: e.target.value })}
                   placeholder="e.g. Ramesh Kumar"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white"
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white focus:border-primary transition-colors"
                 />
               </div>
 
@@ -794,7 +848,7 @@ export default function RequestsPage() {
                   value={riderForm.phone}
                   onChange={(e) => setRiderForm({ ...riderForm, phone: e.target.value.replace(/\D/g, '') })}
                   placeholder="e.g. 9876543210"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white font-mono"
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white focus:border-primary transition-colors font-mono"
                 />
               </div>
 
@@ -805,17 +859,26 @@ export default function RequestsPage() {
                   value={riderForm.vehicleNo}
                   onChange={(e) => setRiderForm({ ...riderForm, vehicleNo: e.target.value.toUpperCase() })}
                   placeholder="e.g. UP32 AB 1234"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white font-mono"
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white focus:border-primary transition-colors font-mono"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={isAssigningRider}
-                className="w-full py-3 rounded-xl btn-primary-gradient text-white font-bold text-[13px] shadow-sm cursor-pointer mt-2"
-              >
-                {isAssigningRider ? 'Assigning...' : 'Confirm & Dispatch Order'}
-              </button>
+              <div className="pt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignRiderModalOrder(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[12px] hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAssigningRider}
+                  className="flex-1 py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isAssigningRider ? 'Assigning...' : 'Assign Staff Rider'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
