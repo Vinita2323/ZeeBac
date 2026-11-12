@@ -127,6 +127,7 @@ export const deliveryRegister = async (req, res) => {
       vehicleNo: vehicleNo?.trim()?.toUpperCase() || 'UP32 AB 1234',
       vehicleModel: vehicleModel?.trim() || '',
       documents: {
+        profilePhoto: documents?.profilePhoto || req.body?.profilePhoto || '',
         aadhaarNo: documents?.aadhaarNo || '',
         aadhaarDoc: documents?.aadhaarDoc || '',
         panNo: documents?.panNo || '',
@@ -931,10 +932,10 @@ export const getAdminDeliveryPartners = async (req, res) => {
     const { status, search, vehicleType, page = 1, limit = 20 } = req.query;
 
     const query = {};
-    if (status && status !== 'all') {
+    if (status && status.toLowerCase() !== 'all') {
       query.applicationStatus = status.toUpperCase();
     }
-    if (vehicleType && vehicleType !== 'all') {
+    if (vehicleType && vehicleType.toLowerCase() !== 'all') {
       query.vehicleType = vehicleType;
     }
     if (search && search.trim()) {
@@ -961,8 +962,10 @@ export const getAdminDeliveryPartners = async (req, res) => {
       data: {
         partners,
         total,
+        totalPartners: total,
         page: Number(page),
         pages: Math.ceil(total / Number(limit)),
+        totalPages: Math.ceil(total / Number(limit)),
       },
     });
   } catch (error) {
@@ -990,6 +993,7 @@ export const getAdminDeliveryPartnerById = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
+        ...partner,
         partner,
         recentOrders,
       },

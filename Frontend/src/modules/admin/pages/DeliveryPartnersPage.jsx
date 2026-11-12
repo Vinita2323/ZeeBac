@@ -26,6 +26,9 @@ export default function DeliveryPartnersPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Lightbox Document Preview Modal
+  const [previewImage, setPreviewImage] = useState(null);
+
   // Rejection / Suspension prompt modals
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -57,8 +60,8 @@ export default function DeliveryPartnersPage() {
       if (res.success && res.data) {
         setPartners(res.data.partners || []);
         setPagination({
-          totalPages: res.data.totalPages || 1,
-          totalPartners: res.data.totalPartners || 0,
+          totalPages: res.data.totalPages || res.data.pages || 1,
+          totalPartners: res.data.totalPartners ?? res.data.total ?? 0,
         });
       }
     } catch (err) {
@@ -74,48 +77,62 @@ export default function DeliveryPartnersPage() {
     fetchPartners();
   }, [fetchStats, fetchPartners]);
 
-  // Open Partner Detail
-  const handleOpenDetail = async (partnerId) => {
+  // Open Partner Detail (accepts either partner id or partner object)
+  const handleOpenDetail = async (partnerOrId) => {
+    const partnerId = typeof partnerOrId === 'string' ? partnerOrId : partnerOrId?._id;
+    if (typeof partnerOrId === 'object' && partnerOrId !== null) {
+      setSelectedPartner(partnerOrId);
+      setIsDetailOpen(true);
+    }
     try {
       const res = await AdminAPI.getDeliveryPartnerById(partnerId);
       if (res.success && res.data) {
-        setSelectedPartner(res.data);
+        // Backend returns { partner, recentOrders } or { ...partner }
+        const fullPartner = res.data.partner || res.data;
+        setSelectedPartner(fullPartner);
         setIsDetailOpen(true);
       }
     } catch (err) {
-      toast.error('Could not load partner details');
+      console.warn('Could not load full partner details', err);
+      if (!selectedPartner) toast.error('Could not load partner details');
     }
   };
 
   // Actions
   const handleApprove = async () => {
-    if (!selectedPartner) return;
+    const partnerId = selectedPartner?._id || selectedPartner?.partner?._id;
+    if (!partnerId) return;
     setActionLoading(true);
     try {
-      const res = await AdminAPI.approveDeliveryPartner(selectedPartner._id);
+      const res = await AdminAPI.approveDeliveryPartner(partnerId);
       if (res.success) {
         toast.success(res.message || 'Delivery partner approved successfully!');
         setSelectedPartner((p) => ({ ...p, applicationStatus: 'APPROVED' }));
         fetchStats();
         fetchPartners();
+      } else {
+        toast.error(res.message || 'Approval failed');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to approve partner');
+      toast.error(err.response?.data?.message || 'Failed to approve delivery partner');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleMarkUnderReview = async () => {
-    if (!selectedPartner) return;
+    const partnerId = selectedPartner?._id || selectedPartner?.partner?._id;
+    if (!partnerId) return;
     setActionLoading(true);
     try {
-      const res = await AdminAPI.markDeliveryPartnerUnderReview(selectedPartner._id);
+      const res = await AdminAPI.markDeliveryPartnerUnderReview(partnerId, 'Under review by operations team');
       if (res.success) {
-        toast.success('Marked application as under review');
+        toast.success('Application marked Under Review');
         setSelectedPartner((p) => ({ ...p, applicationStatus: 'UNDER_REVIEW' }));
         fetchStats();
         fetchPartners();
+      } else {
+        toast.error(res.message || 'Update failed');
       }
     } catch (err) {
       toast.error('Failed to update status');
@@ -126,27 +143,31 @@ export default function DeliveryPartnersPage() {
 
   const handleConfirmReject = async (e) => {
     e.preventDefault();
-    if (!selectedPartner || !rejectionReason.trim()) {
-      toast.error('Please specify a rejection reason');
+    const partnerId = selectedPartner?._id || selectedPartner?.partner?._id;
+    if (!partnerId) return;
+    if (!rejectionReason.trim()) {
+      toast.error('Please enter a rejection reason');
       return;
     }
     setActionLoading(true);
     try {
-      const res = await AdminAPI.rejectDeliveryPartner(selectedPartner._id, rejectionReason.trim());
+      const res = await AdminAPI.rejectDeliveryPartner(partnerId, rejectionReason.trim());
       if (res.success) {
         toast.success('Application rejected');
+        setShowRejectModal(false);
+        setRejectionReason('');
         setSelectedPartner((p) => ({
           ...p,
           applicationStatus: 'REJECTED',
           rejectionReason: rejectionReason.trim(),
         }));
-        setShowRejectModal(false);
-        setRejectionReason('');
         fetchStats();
         fetchPartners();
+      } else {
+        toast.error(res.message || 'Rejection failed');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to reject application');
+      toast.error('Failed to reject application');
     } finally {
       setActionLoading(false);
     }
@@ -154,42 +175,55 @@ export default function DeliveryPartnersPage() {
 
   const handleConfirmSuspend = async (e) => {
     e.preventDefault();
-    if (!selectedPartner || !suspensionReason.trim()) {
-      toast.error('Please specify a suspension reason');
+    const partnerId = selectedPartner?._id || selectedPartner?.partner?._id;
+    if (!partnerId) return;
+    if (!suspensionReason.trim()) {
+      toast.error('Please enter a suspension reason');
       return;
     }
     setActionLoading(true);
     try {
-      const res = await AdminAPI.suspendDeliveryPartner(selectedPartner._id, suspensionReason.trim());
+      const res = await AdminAPI.suspendDeliveryPartner(partnerId, suspensionReason.trim());
       if (res.success) {
-        toast.success('Delivery partner suspended');
+        toast.success('Partner suspended');
+        setShowSuspendModal(false);
+        setSuspensionReason('');
         setSelectedPartner((p) => ({
           ...p,
           applicationStatus: 'SUSPENDED',
+          isSuspended: true,
           suspensionReason: suspensionReason.trim(),
         }));
-        setShowSuspendModal(false);
-        setSuspensionReason('');
         fetchStats();
         fetchPartners();
+      } else {
+        toast.error(res.message || 'Suspension failed');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to suspend partner');
+      toast.error('Failed to suspend partner');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleReactivate = async () => {
-    if (!selectedPartner) return;
+    const partnerId = selectedPartner?._id || selectedPartner?.partner?._id;
+    if (!partnerId) return;
     setActionLoading(true);
     try {
-      const res = await AdminAPI.reactivateDeliveryPartner(selectedPartner._id);
+      const res = await AdminAPI.reactivateDeliveryPartner(partnerId);
       if (res.success) {
-        toast.success('Delivery partner reactivated!');
-        setSelectedPartner((p) => ({ ...p, applicationStatus: 'APPROVED', isSuspended: false }));
+        toast.success('Partner reactivated and restored to approved fleet');
+        setSelectedPartner((p) => ({
+          ...p,
+          applicationStatus: 'APPROVED',
+          isSuspended: false,
+          suspensionReason: null,
+        }));
         fetchStats();
         fetchPartners();
+      } else {
+        toast.error(res.message || 'Reactivation failed');
       }
     } catch (err) {
       toast.error('Failed to reactivate partner');
@@ -198,62 +232,97 @@ export default function DeliveryPartnersPage() {
     }
   };
 
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'APPROVED':
+        return (
+          <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+            <span>APPROVED</span>
+          </span>
+        );
+      case 'PENDING_REVIEW':
+        return (
+          <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+            <span>PENDING REVIEW</span>
+          </span>
+        );
+      case 'UNDER_REVIEW':
+        return (
+          <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+            <span>UNDER REVIEW</span>
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+            <span>REJECTED</span>
+          </span>
+        );
+      case 'SUSPENDED':
+        return (
+          <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+            <span>SUSPENDED</span>
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
+            <span>{status || 'UNKNOWN'}</span>
+          </span>
+        );
+    }
+  };
+
   const tabs = [
     { key: 'ALL', label: 'All Partners', count: stats.total },
     { key: 'PENDING_REVIEW', label: 'Pending Review', count: stats.pending },
     { key: 'UNDER_REVIEW', label: 'Under Review', count: stats.underReview },
-    { key: 'APPROVED', label: 'Approved', count: stats.approved },
+    { key: 'APPROVED', label: 'Approved Fleet', count: stats.approved },
     { key: 'REJECTED', label: 'Rejected', count: stats.rejected },
     { key: 'SUSPENDED', label: 'Suspended', count: stats.suspended },
   ];
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'APPROVED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">Approved</span>;
-      case 'PENDING_REVIEW':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Pending Review</span>;
-      case 'UNDER_REVIEW':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">Under Review</span>;
-      case 'REJECTED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-800">Rejected</span>;
-      case 'SUSPENDED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">Suspended</span>;
-      case 'RESUBMITTED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">Resubmitted</span>;
-      default:
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">{status}</span>;
-    }
-  };
-
   return (
-    <div className="space-y-6 text-left">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      {/* Page Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <span className="material-symbols-outlined text-[28px] text-[#7c3aed]">two_wheeler</span>
-            <span>Delivery Partner Management</span>
+            <span className="material-symbols-outlined text-[#7c3aed] text-3xl">two_wheeler</span>
+            <span>Delivery Partners Management</span>
           </h1>
-          <p className="text-sm text-slate-500 font-medium mt-0.5">
-            Review onboarding applications, verify identity documents, and manage active delivery fleet.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Review onboarding applications, verify Aadhaar/PAN/DL documents, manage active delivery fleet
           </p>
         </div>
+
+        <button
+          onClick={() => {
+            fetchStats();
+            fetchPartners();
+            toast.success('Data refreshed');
+          }}
+          className="py-2 px-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[16px]">refresh</span>
+          <span>Refresh</span>
+        </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+      {/* Stats KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-500 uppercase block">Total Fleet</span>
+          <span className="text-[11px] font-bold text-slate-400 uppercase block">Total</span>
           <span className="text-2xl font-black text-slate-900 font-mono">{stats.total}</span>
         </div>
         <div className="bg-white p-3.5 rounded-2xl border border-amber-200 bg-amber-50/40 shadow-xs">
           <span className="text-[11px] font-bold text-amber-700 uppercase block">Pending</span>
           <span className="text-2xl font-black text-amber-800 font-mono">{stats.pending}</span>
-        </div>
-        <div className="bg-white p-3.5 rounded-2xl border border-blue-200 bg-blue-50/40 shadow-xs">
-          <span className="text-[11px] font-bold text-blue-700 uppercase block">In Review</span>
-          <span className="text-2xl font-black text-blue-800 font-mono">{stats.underReview}</span>
         </div>
         <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-xs">
           <span className="text-[11px] font-bold text-emerald-700 uppercase block">Approved</span>
@@ -354,64 +423,68 @@ export default function DeliveryPartnersPage() {
                   </td>
                 </tr>
               ) : (
-                partners.map((p) => (
-                  <tr key={p._id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                          {p.documents?.profilePhoto ? (
-                            <img src={p.documents.profilePhoto} alt={p.name} className="w-full h-full object-cover" />
-                          ) : (
-                            p.name?.charAt(0) || 'R'
-                          )}
+                partners.map((p) => {
+                  const avatar = p.profileImage || p.documents?.profilePhoto;
+                  return (
+                    <tr key={p._id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-full bg-purple-100 text-[#7c3aed] flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden border border-purple-200">
+                            {avatar ? (
+                              <img src={avatar} alt={p.name} className="w-full h-full object-cover" />
+                            ) : (
+                              p.name?.charAt(0) || 'R'
+                            )}
+                          </div>
+                          <div>
+                            <strong className="text-slate-900 block text-xs">{p.name}</strong>
+                            <span className="font-mono text-[10.5px] text-slate-400">{p.riderId}</span>
+                          </div>
                         </div>
-                        <div>
-                          <strong className="text-slate-900 block text-xs">{p.name}</strong>
-                          <span className="font-mono text-[10.5px] text-slate-400">{p.riderId}</span>
-                        </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <span className="font-mono text-slate-800 block">+91 {p.phone}</span>
-                      <span className="text-[10.5px] text-slate-400">{p.email || 'No email'}</span>
-                    </td>
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-slate-800 block">+91 {p.phone}</span>
+                        <span className="text-[10.5px] text-slate-400">{p.email || 'No email'}</span>
+                      </td>
 
-                    <td className="py-3 px-3 text-slate-700">
-                      <span>{p.address?.city || 'Lucknow'}</span>
-                      <span className="block text-[10.5px] text-slate-400 font-mono">{p.address?.pincode}</span>
-                    </td>
+                      <td className="py-3 px-3 text-slate-700">
+                        <span>{p.address?.city || 'Lucknow'}</span>
+                        <span className="block text-[10.5px] text-slate-400 font-mono">{p.address?.pincode}</span>
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <span className="font-bold text-slate-800 block">{p.vehicleType || 'Bike'}</span>
-                      <span className="font-mono text-[10.5px] text-slate-500 uppercase">{p.vehicleNo || 'Bicycle'}</span>
-                    </td>
+                      <td className="py-3 px-3">
+                        <span className="font-bold text-slate-800 block">{p.vehicleType || 'Bike'}</span>
+                        <span className="font-mono text-[10.5px] text-slate-500 uppercase">{p.vehicleNo || 'Bicycle'}</span>
+                      </td>
 
-                    <td className="py-3 px-3">
-                      {getStatusBadge(p.applicationStatus)}
-                    </td>
+                      <td className="py-3 px-3">
+                        {getStatusBadge(p.applicationStatus)}
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${p.isOnline ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        <span className={`w-2 h-2 rounded-full ${p.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                        <span>{p.isOnline ? 'ONLINE' : 'OFFLINE'}</span>
-                      </span>
-                    </td>
+                      <td className="py-3 px-3">
+                        <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${p.isOnline ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          <span className={`w-2 h-2 rounded-full ${p.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                          <span>{p.isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+                        </span>
+                      </td>
 
-                    <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                      {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : 'Recent'}
-                    </td>
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : 'Recent'}
+                      </td>
 
-                    <td className="py-3 px-3 text-right">
-                      <button
-                        onClick={() => handleOpenDetail(p._id)}
-                        className="py-1 px-3 rounded-lg bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-bold text-xs transition-colors cursor-pointer"
-                      >
-                        Review Application
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          onClick={() => handleOpenDetail(p)}
+                          className="py-1.5 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-bold text-xs transition-colors cursor-pointer flex items-center gap-1 ml-auto"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">visibility</span>
+                          <span>Review Application</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -446,15 +519,23 @@ export default function DeliveryPartnersPage() {
       {/* DETAIL MODAL / DRAWER */}
       {isDetailOpen && selectedPartner && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-end">
-          <div className="bg-white w-full max-w-[620px] h-full shadow-2xl flex flex-col text-left overflow-hidden">
+          <div className="bg-white w-full max-w-[660px] h-full shadow-2xl flex flex-col text-left overflow-hidden animate-in slide-in-from-right duration-200">
             {/* Drawer Header */}
             <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#7c3aed] flex items-center justify-center font-black text-base shrink-0 overflow-hidden">
-                  {selectedPartner.documents?.profilePhoto ? (
-                    <img src={selectedPartner.documents.profilePhoto} alt={selectedPartner.name} className="w-full h-full object-cover" />
+                <div className="w-13 h-13 rounded-2xl bg-purple-100 text-[#7c3aed] flex items-center justify-center font-black text-base shrink-0 overflow-hidden border border-purple-200">
+                  {selectedPartner.profileImage || selectedPartner.documents?.profilePhoto ? (
+                    <img
+                      src={selectedPartner.profileImage || selectedPartner.documents?.profilePhoto}
+                      alt={selectedPartner.name}
+                      className="w-full h-full object-cover cursor-pointer hover:opacity-90"
+                      onClick={() => setPreviewImage({
+                        url: selectedPartner.profileImage || selectedPartner.documents?.profilePhoto,
+                        title: `${selectedPartner.name} - Profile Selfie`,
+                      })}
+                    />
                   ) : (
-                    <span className="material-symbols-outlined text-[26px]">sports_motorsports</span>
+                    <span className="material-symbols-outlined text-[28px]">sports_motorsports</span>
                   )}
                 </div>
                 <div>
@@ -486,7 +567,7 @@ export default function DeliveryPartnersPage() {
                   <button
                     onClick={handleApprove}
                     disabled={actionLoading}
-                    className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                    className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[16px]">check_circle</span>
                     <span>Approve Application</span>
@@ -497,7 +578,7 @@ export default function DeliveryPartnersPage() {
                   <button
                     onClick={() => setShowRejectModal(true)}
                     disabled={actionLoading}
-                    className="py-2 px-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                    className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[16px]">cancel</span>
                     <span>Reject Application</span>
@@ -508,7 +589,7 @@ export default function DeliveryPartnersPage() {
                   <button
                     onClick={handleMarkUnderReview}
                     disabled={actionLoading}
-                    className="py-2 px-3 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 font-bold hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1"
+                    className="py-2 px-3.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 font-bold hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1"
                   >
                     <span className="material-symbols-outlined text-[16px]">fact_check</span>
                     <span>Mark Under Review</span>
@@ -540,57 +621,74 @@ export default function DeliveryPartnersPage() {
 
               {/* Rejection / Suspension Notice if any */}
               {selectedPartner.rejectionReason && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 space-y-0.5">
                   <span className="font-bold uppercase text-[10px] text-red-700">Rejection Reason:</span>
                   <p className="font-semibold">{selectedPartner.rejectionReason}</p>
                 </div>
               )}
 
               {selectedPartner.suspensionReason && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-0.5">
                   <span className="font-bold uppercase text-[10px] text-rose-700">Suspension Reason:</span>
                   <p className="font-semibold">{selectedPartner.suspensionReason}</p>
                 </div>
               )}
 
               {/* 1. Personal & Contact Details */}
-              <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-2">
+              <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-2.5">
                 <h4 className="font-bold uppercase tracking-wider text-[11px] text-[#7c3aed]">
                   Personal & Contact Information
                 </h4>
-                <div className="grid grid-cols-2 gap-2 text-slate-800">
+                <div className="grid grid-cols-2 gap-3 text-slate-800">
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Full Name:</span>
-                    <strong className="text-slate-900">{selectedPartner.name}</strong>
+                    <strong className="text-slate-900 text-[13px]">{selectedPartner.name || 'N/A'}</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Mobile Phone:</span>
-                    <strong className="text-slate-900 font-mono">+91 {selectedPartner.phone}</strong>
+                    <strong className="text-slate-900 font-mono text-[13px]">+91 {selectedPartner.phone}</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Email Address:</span>
-                    <span>{selectedPartner.email || 'Not provided'}</span>
+                    <span className="font-medium text-slate-700">{selectedPartner.email || 'Not provided'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10.5px]">Gender / DOB:</span>
-                    <span>{selectedPartner.gender || 'Male'} • {selectedPartner.dateOfBirth || 'N/A'}</span>
+                    <span className="text-slate-400 block text-[10.5px]">Gender / Date of Birth:</span>
+                    <span className="font-medium text-slate-700">
+                      {selectedPartner.gender || 'Male'} • {selectedPartner.dateOfBirth || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10.5px]">Application ID:</span>
+                    <span className="font-mono font-bold text-purple-700">{selectedPartner.riderId}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10.5px]">Registered On:</span>
+                    <span className="font-mono text-slate-600">
+                      {selectedPartner.createdAt ? new Date(selectedPartner.createdAt).toLocaleString('en-IN') : 'N/A'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* 2. Address Details */}
+              {/* 2. Residential Address Details */}
               <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-2">
                 <h4 className="font-bold uppercase tracking-wider text-[11px] text-[#7c3aed]">
                   Residential Address
                 </h4>
                 <div className="text-slate-800 space-y-1">
-                  <p className="font-medium">
-                    {selectedPartner.address?.street || 'N/A'}
+                  <p className="font-medium text-[12.5px]">
+                    {selectedPartner.address?.currentAddress || selectedPartner.address?.street || 'Address not available'}
                     {selectedPartner.address?.landmark ? `, Near ${selectedPartner.address.landmark}` : ''}
                   </p>
-                  <p className="font-mono text-slate-600">
-                    {selectedPartner.address?.city || 'Lucknow'}, {selectedPartner.address?.state || 'Uttar Pradesh'} - {selectedPartner.address?.pincode || '226001'}
+                  <p className="font-mono text-slate-600 text-[12px]">
+                    {selectedPartner.address?.city || 'Lucknow'}, {selectedPartner.address?.state || 'Uttar Pradesh'} - {selectedPartner.address?.pincode || 'N/A'}
                   </p>
+                  {selectedPartner.address?.permanentAddress && selectedPartner.address.permanentAddress !== (selectedPartner.address.currentAddress || selectedPartner.address.street) && (
+                    <p className="text-[11px] text-slate-500 font-normal pt-1 border-t border-slate-200">
+                      Permanent: {selectedPartner.address.permanentAddress}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -599,127 +697,273 @@ export default function DeliveryPartnersPage() {
                 <h4 className="font-bold uppercase tracking-wider text-[11px] text-[#7c3aed]">
                   Vehicle Information
                 </h4>
-                <div className="grid grid-cols-3 gap-2 text-slate-800">
+                <div className="grid grid-cols-3 gap-3 text-slate-800">
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Vehicle Type:</span>
-                    <strong className="text-slate-900">{selectedPartner.vehicleType}</strong>
+                    <strong className="text-slate-900 text-[13px]">{selectedPartner.vehicleType || 'Bike'}</strong>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10.5px]">Registration No:</span>
-                    <strong className="text-slate-900 font-mono uppercase">{selectedPartner.vehicleNo || 'Bicycle'}</strong>
+                    <span className="text-slate-400 block text-[10.5px]">Registration Number:</span>
+                    <strong className="text-slate-900 font-mono uppercase text-[13px]">
+                      {selectedPartner.vehicleNo || 'Bicycle / None'}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Model / Make:</span>
-                    <span>{selectedPartner.vehicleModel || 'N/A'}</span>
+                    <span className="text-slate-700 font-medium">{selectedPartner.vehicleModel || 'Not specified'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* 4. Bank Account Details (Masked) */}
-              <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-2">
+              {/* 4. Bank Account & Payout Details */}
+              <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-2.5">
                 <h4 className="font-bold uppercase tracking-wider text-[11px] text-[#7c3aed]">
-                  Settlement & Bank Details
+                  Settlement & Payout Details
                 </h4>
-                <div className="grid grid-cols-2 gap-2 text-slate-800">
+                <div className="grid grid-cols-2 gap-3 text-slate-800">
                   <div>
-                    <span className="text-slate-400 block text-[10.5px]">Account Holder:</span>
-                    <strong className="text-slate-900">{selectedPartner.bankDetails?.accountHolderName || selectedPartner.name}</strong>
+                    <span className="text-slate-400 block text-[10.5px]">Account Holder Name:</span>
+                    <strong className="text-slate-900">
+                      {selectedPartner.bankDetails?.accountHolderName || selectedPartner.name || 'N/A'}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Bank Name:</span>
-                    <span>{selectedPartner.bankDetails?.bankName || 'Direct UPI'}</span>
+                    <span className="font-medium text-slate-800">
+                      {selectedPartner.bankDetails?.bankName || 'Direct UPI'}
+                    </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">Account Number:</span>
-                    <span className="font-mono font-bold">
-                      {selectedPartner.bankDetails?.accountNumber
-                        ? `••••••••${String(selectedPartner.bankDetails.accountNumber).slice(-4)}`
-                        : 'N/A'}
+                    <span className="font-mono font-bold text-slate-900">
+                      {selectedPartner.bankDetails?.accountNumber || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10.5px]">IFSC Code:</span>
-                    <span className="font-mono font-bold uppercase">{selectedPartner.bankDetails?.ifscCode || 'N/A'}</span>
+                    <span className="font-mono font-bold uppercase text-purple-700">
+                      {selectedPartner.bankDetails?.ifscCode || 'N/A'}
+                    </span>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-slate-400 block text-[10.5px]">UPI ID:</span>
-                    <span className="font-mono font-bold text-emerald-700">{selectedPartner.bankDetails?.upiId || 'None'}</span>
+                  <div className="col-span-2 p-2.5 rounded-xl bg-purple-50/70 border border-purple-200">
+                    <span className="text-slate-500 block text-[10.5px] font-bold uppercase">UPI ID for Direct Payout:</span>
+                    <span className="font-mono font-bold text-emerald-800 text-[13px]">
+                      {selectedPartner.bankDetails?.upiId || 'No UPI ID provided'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* 5. Documents Preview */}
+              {/* 5. Complete Verification Documents Preview */}
               <div className="space-y-3">
-                <h4 className="font-bold uppercase tracking-wider text-[11px] text-[#7c3aed]">
-                  Verification Documents
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold uppercase tracking-wider text-[11px] text-[#7c3aed]">
+                    KYC & Vehicle Documents (Click to View Full Size)
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Click any document to inspect</span>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Aadhaar */}
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-                    <span className="font-bold text-slate-800 block">
-                      Aadhaar Card ({selectedPartner.documents?.aadhaarNo || 'No ID'})
-                    </span>
+                  {/* Selfie / Profile Photo */}
+                  <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">person</span>
+                        <span>Profile Photo / Selfie</span>
+                      </span>
+                    </div>
+                    {selectedPartner.profileImage || selectedPartner.documents?.profilePhoto ? (
+                      <div
+                        onClick={() => setPreviewImage({
+                          url: selectedPartner.profileImage || selectedPartner.documents?.profilePhoto,
+                          title: 'Applicant Profile Photo (Selfie)',
+                        })}
+                        className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                      >
+                        <img
+                          src={selectedPartner.profileImage || selectedPartner.documents?.profilePhoto}
+                          alt="Selfie"
+                          className="w-full h-36 object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to View Full</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-28 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-1">
+                        <span className="material-symbols-outlined text-[20px]">no_photography</span>
+                        <span className="text-[11px]">No photo uploaded</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Aadhaar Card */}
+                  <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">badge</span>
+                        <span>Aadhaar Card</span>
+                      </span>
+                      <span className="font-mono text-[11px] text-slate-500 font-bold">
+                        {selectedPartner.documents?.aadhaarNo || 'No Number'}
+                      </span>
+                    </div>
                     {selectedPartner.documents?.aadhaarDoc ? (
-                      <a href={selectedPartner.documents.aadhaarDoc} target="_blank" rel="noreferrer" className="block">
+                      <div
+                        onClick={() => setPreviewImage({
+                          url: selectedPartner.documents.aadhaarDoc,
+                          title: `Aadhaar Card (No: ${selectedPartner.documents?.aadhaarNo || 'N/A'})`,
+                        })}
+                        className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                      >
                         <img
                           src={selectedPartner.documents.aadhaarDoc}
                           alt="Aadhaar"
-                          className="w-full h-32 object-cover rounded-xl border border-slate-100 hover:opacity-90"
+                          className="w-full h-36 object-cover transition-transform group-hover:scale-105"
                         />
-                      </a>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to View Full</span>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="w-full h-24 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
-                        No image uploaded
+                      <div className="w-full h-28 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-1">
+                        <span className="material-symbols-outlined text-[20px]">image_not_supported</span>
+                        <span className="text-[11px]">No Aadhaar image uploaded</span>
                       </div>
                     )}
                   </div>
 
-                  {/* DL */}
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-                    <span className="font-bold text-slate-800 block">
-                      Driving Licence ({selectedPartner.documents?.drivingLicenceNo || 'No DL'})
-                    </span>
+                  {/* Driving Licence */}
+                  <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">license</span>
+                        <span>Driving Licence</span>
+                      </span>
+                      <span className="font-mono text-[11px] text-slate-500 font-bold uppercase">
+                        {selectedPartner.documents?.drivingLicenceNo || 'No DL'}
+                      </span>
+                    </div>
                     {selectedPartner.documents?.drivingLicenceDoc ? (
-                      <a href={selectedPartner.documents.drivingLicenceDoc} target="_blank" rel="noreferrer" className="block">
+                      <div
+                        onClick={() => setPreviewImage({
+                          url: selectedPartner.documents.drivingLicenceDoc,
+                          title: `Driving Licence (No: ${selectedPartner.documents?.drivingLicenceNo || 'N/A'})`,
+                        })}
+                        className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                      >
                         <img
                           src={selectedPartner.documents.drivingLicenceDoc}
                           alt="DL"
-                          className="w-full h-32 object-cover rounded-xl border border-slate-100 hover:opacity-90"
+                          className="w-full h-36 object-cover transition-transform group-hover:scale-105"
                         />
-                      </a>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to View Full</span>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="w-full h-24 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
-                        No image uploaded
+                      <div className="w-full h-28 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-1">
+                        <span className="material-symbols-outlined text-[20px]">image_not_supported</span>
+                        <span className="text-[11px]">{selectedPartner.vehicleType === 'Cycle' ? 'Not required for bicycle' : 'No DL uploaded'}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* RC */}
+                  {/* PAN Card */}
+                  <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">credit_card</span>
+                        <span>PAN Card</span>
+                      </span>
+                      <span className="font-mono text-[11px] text-slate-500 font-bold uppercase">
+                        {selectedPartner.documents?.panNo || 'No PAN'}
+                      </span>
+                    </div>
+                    {selectedPartner.documents?.panDoc ? (
+                      <div
+                        onClick={() => setPreviewImage({
+                          url: selectedPartner.documents.panDoc,
+                          title: `PAN Card (No: ${selectedPartner.documents?.panNo || 'N/A'})`,
+                        })}
+                        className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                      >
+                        <img
+                          src={selectedPartner.documents.panDoc}
+                          alt="PAN"
+                          className="w-full h-36 object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to View Full</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-28 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-1">
+                        <span className="material-symbols-outlined text-[20px]">image_not_supported</span>
+                        <span className="text-[11px]">Optional / No image uploaded</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vehicle RC */}
                   {selectedPartner.documents?.vehicleRcDoc && (
-                    <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-                      <span className="font-bold text-slate-800 block">Vehicle RC</span>
-                      <a href={selectedPartner.documents.vehicleRcDoc} target="_blank" rel="noreferrer" className="block">
+                    <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-primary">description</span>
+                          <span>Vehicle RC</span>
+                        </span>
+                      </div>
+                      <div
+                        onClick={() => setPreviewImage({
+                          url: selectedPartner.documents.vehicleRcDoc,
+                          title: `Vehicle Registration Certificate (${selectedPartner.vehicleNo || 'RC'})`,
+                        })}
+                        className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                      >
                         <img
                           src={selectedPartner.documents.vehicleRcDoc}
                           alt="RC"
-                          className="w-full h-32 object-cover rounded-xl border border-slate-100 hover:opacity-90"
+                          className="w-full h-36 object-cover transition-transform group-hover:scale-105"
                         />
-                      </a>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to View Full</span>
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   {/* Insurance */}
                   {selectedPartner.documents?.insuranceDoc && (
-                    <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-                      <span className="font-bold text-slate-800 block">Vehicle Insurance</span>
-                      <a href={selectedPartner.documents.insuranceDoc} target="_blank" rel="noreferrer" className="block">
+                    <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-primary">verified_user</span>
+                          <span>Vehicle Insurance</span>
+                        </span>
+                      </div>
+                      <div
+                        onClick={() => setPreviewImage({
+                          url: selectedPartner.documents.insuranceDoc,
+                          title: `Vehicle Insurance Policy`,
+                        })}
+                        className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                      >
                         <img
                           src={selectedPartner.documents.insuranceDoc}
                           alt="Insurance"
-                          className="w-full h-32 object-cover rounded-xl border border-slate-100 hover:opacity-90"
+                          className="w-full h-36 object-cover transition-transform group-hover:scale-105"
                         />
-                      </a>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to View Full</span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -741,6 +985,48 @@ export default function DeliveryPartnersPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN IMAGE LIGHTBOX MODAL */}
+      {previewImage && (
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-slate-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-slate-700 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 px-6 bg-slate-800 flex items-center justify-between border-b border-slate-700 text-white">
+              <span className="font-bold text-sm truncate flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#7c3aed] text-[20px]">image</span>
+                <span>{previewImage.title}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewImage.url}
+                  download="document.jpg"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="py-1.5 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition-colors flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  <span>Download</span>
+                </a>
+                <button
+                  onClick={() => setPreviewImage(null)}
+                  className="p-1 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[24px]">close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Image Display */}
+            <div className="p-4 flex items-center justify-center bg-black/50 max-h-[75vh] overflow-auto">
+              <img
+                src={previewImage.url}
+                alt={previewImage.title}
+                className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl shadow-lg border border-slate-800"
+              />
             </div>
           </div>
         </div>
@@ -801,9 +1087,9 @@ export default function DeliveryPartnersPage() {
               <textarea
                 value={suspensionReason}
                 onChange={(e) => setSuspensionReason(e.target.value)}
-                placeholder="e.g. Conduct violation / repeated order cancellations."
+                placeholder="e.g. Repeated customer complaints or delayed deliveries without valid explanation."
                 rows={3}
-                className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:border-rose-500"
+                className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:border-rose-600"
                 required
                 autoFocus
               />

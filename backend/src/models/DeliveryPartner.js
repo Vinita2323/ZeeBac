@@ -85,6 +85,7 @@ const deliveryPartnerSchema = new mongoose.Schema(
 
     // ── Identity & Vehicle Documents (URLs/Uploads) ──
     documents: {
+      profilePhoto: { type: String, get: sanitizeMediaUrl },
       aadhaarNo: { type: String, trim: true },
       aadhaarDoc: { type: String, get: sanitizeMediaUrl },
       panNo: { type: String, trim: true, uppercase: true },
