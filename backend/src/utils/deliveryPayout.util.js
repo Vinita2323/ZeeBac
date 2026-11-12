@@ -86,3 +86,4 @@ export function estimateDistanceKm({ vendorCoords, customerCoords, fallbackKm = 
 
   return Math.max(0.5, Number(fallbackKm) || 2.0);
 }
+

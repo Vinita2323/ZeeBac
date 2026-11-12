@@ -115,3 +115,4 @@ deliveryPayoutConfigSchema.statics.getEffectiveConfig = async function () {
 
 const DeliveryPayoutConfig = mongoose.model('DeliveryPayoutConfig', deliveryPayoutConfigSchema);
 export default DeliveryPayoutConfig;
+

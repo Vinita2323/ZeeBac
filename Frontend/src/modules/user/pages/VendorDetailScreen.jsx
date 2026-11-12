@@ -589,14 +589,17 @@ export default function VendorDetailScreen() {
   const { t } = useLanguageStore();
 
   const passedVendor = location.state?.vendor;
+  const queryParams = new URLSearchParams(location.search);
+  const queryId = queryParams.get('id') || queryParams.get('zeebacId');
+
   const defaultVendor = {
     _id: 'sharma_gen_store',
-    zeebacId: 'ZBV-1001',
-    storeName: "Sharma General Store",
+    zeebacId: queryId || 'ZBV-1001',
+    storeName: "Partner Store",
     cashbackRate: 3,
-    category: "Grocery",
-    address: "Kirana • FMCG • Household, Hazratganj, Lucknow",
-    city: "Lucknow",
+    category: "Store",
+    address: "Partner Store Address",
+    city: "Indore",
     storeLogo: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=400&auto=format&fit=crop&q=80",
     phone: "9876543210",
     openingHours: "9:00 AM – 10:00 PM",
@@ -697,10 +700,10 @@ export default function VendorDetailScreen() {
   // Fetch full vendor details if available
   useEffect(() => {
     const fetchVendorData = async () => {
-      const zeebacId = vendor.zeebacId;
-      if (!zeebacId) return;
+      const targetId = queryId || passedVendor?.zeebacId || vendor.zeebacId;
+      if (!targetId) return;
       try {
-        const res = await UserAPI.getVendorDetails(zeebacId);
+        const res = await UserAPI.getVendorDetails(targetId);
         if (res.success && res.data) {
           setVendor(prev => ({ ...prev, ...res.data }));
         }
@@ -709,7 +712,7 @@ export default function VendorDetailScreen() {
       }
     };
     fetchVendorData();
-  }, [vendor.zeebacId]);
+  }, [queryId, passedVendor?.zeebacId]);
 
   // Store Open / Closed Status based on operatingHours or businessHours
   const storeTimingInfo = useMemo(() => {
