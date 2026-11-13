@@ -77,6 +77,10 @@ export default function VendorRoutes() {
             <Route path="requests" element={<RequestsPage />} />
             <Route path="orders" element={<RequestsPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
+            <Route path="products" element={<StorefrontPage />} />
+            <Route path="inventory" element={<StorefrontPage />} />
+            <Route path="billing" element={<B2BBillingPage />} />
+            <Route path="pos" element={<B2BBillingPage />} />
             <Route path="b2b-billing" element={<B2BBillingPage />} />
             <Route path="b2b" element={<B2BBillingPage />} />
             <Route path="support" element={<SupportPage />} />

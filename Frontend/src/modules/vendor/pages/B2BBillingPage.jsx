@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { B2BAPI } from '../../../services/api';
+import { B2BAPI, VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
 import QRCode from 'qrcode';
@@ -7,28 +7,50 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function B2BBillingPage() {
   const currentVendor = useAuthStore((s) => s.currentUser) || {};
-  const [activeTab, setActiveTab] = useState('billing'); // 'billing' | 'invoices' | 'ledger'
+  const [activeTab, setActiveTab] = useState('retail'); // 'retail' | 'wholesale' | 'invoices' | 'ledger'
 
-  // Billing form state
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [isSearchingProduct, setIsSearchingProduct] = useState(false);
-  const [billItems, setBillItems] = useState([]);
+  // ══════════════════════════════════════════════════════════════
+  // ─── TAB 1: RETAIL POS (B2C) COUNTER BILLING STATE ──────────
+  // ══════════════════════════════════════════════════════════════
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [verifiedCustomer, setVerifiedCustomer] = useState(null);
+  const [customerError, setCustomerError] = useState('');
+
+  const [retailBarcode, setRetailBarcode] = useState('');
+  const [isLookingUpRetailProduct, setIsLookingUpRetailProduct] = useState(false);
+  const [retailItems, setRetailItems] = useState([]);
+  const [retailPaymentMethod, setRetailPaymentMethod] = useState('Cash'); // 'Cash' | 'UPI' | 'Card'
+  const [isLoggingRetailBill, setIsLoggingRetailBill] = useState(false);
+  const [completedRetailBill, setCompletedRetailBill] = useState(null);
+
+  // Catalog Picker & Custom Item Modals
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [vendorCatalog, setVendorCatalog] = useState([]);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+
+  const [showCustomItemModal, setShowCustomItemModal] = useState(false);
+  const [customItem, setCustomItem] = useState({
+    name: '',
+    price: '',
+    quantity: '1',
+    cashbackPercentage: currentVendor?.cashbackRate || 5,
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // ─── TAB 2: WHOLESALE (B2B) SUPPLY CHAIN BILLING STATE ───────
+  // ══════════════════════════════════════════════════════════════
+  const [wholesaleBarcode, setWholesaleBarcode] = useState('');
+  const [isSearchingWholesaleProduct, setIsSearchingWholesaleProduct] = useState(false);
+  const [wholesaleItems, setWholesaleItems] = useState([]);
   const [buyerQuery, setBuyerQuery] = useState('');
   const [buyerResults, setBuyerResults] = useState([]);
   const [selectedBuyer, setSelectedBuyer] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('UPI_INTENT'); // 'UPI_INTENT' | 'CASH'
-  const [notes, setNotes] = useState('');
+  const [wholesalePaymentMethod, setWholesalePaymentMethod] = useState('UPI_INTENT');
+  const [b2bNotes, setB2BNotes] = useState('');
 
-  // Camera scanner modal
-  const [showCameraScanner, setShowCameraScanner] = useState(false);
-  const scannerRef = useRef(null);
-
-  // Invoices & Ledger states
-  const [invoices, setInvoices] = useState([]);
-  const [ledger, setLedger] = useState([]);
-  const [isLoadingList, setIsLoadingList] = useState(false);
-
-  // Verification & Transfer Modal
+  // B2B Verification & Transfer Modal
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [invoiceUpiUri, setInvoiceUpiUri] = useState('');
@@ -36,15 +58,60 @@ export default function B2BBillingPage() {
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferSuccessData, setTransferSuccessData] = useState(null);
 
-  // Load Invoices / Ledger
+  // ══════════════════════════════════════════════════════════════
+  // ─── COMMON CAMERA SCANNER MODAL ─────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [cameraScanMode, setCameraScanMode] = useState('product'); // 'product' | 'customer'
+  const scannerRef = useRef(null);
+
+  // ══════════════════════════════════════════════════════════════
+  // ─── TABS 3 & 4: INVOICES & LEDGER DATA ──────────────────────
+  // ══════════════════════════════════════════════════════════════
+  const [invoicesFilter, setInvoicesFilter] = useState('all'); // 'all' | 'retail' | 'b2b'
+  const [retailTransactions, setRetailTransactions] = useState([]);
+  const [b2bInvoices, setB2BInvoices] = useState([]);
+  const [ledger, setLedger] = useState([]);
+  const [isLoadingList, setIsLoadingList] = useState(false);
+
+  // Print Receipt Viewer Modal (from Invoices list)
+  const [receiptToView, setReceiptToView] = useState(null);
+
+  // Fetch Vendor Catalog for Quick-Picker
+  const fetchCatalog = async () => {
+    setIsLoadingCatalog(true);
+    try {
+      const res = await VendorAPI.getProducts();
+      if (res.success) setVendorCatalog(res.data || []);
+    } catch (e) {
+      console.error('Failed to load catalog', e);
+    } finally {
+      setIsLoadingCatalog(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'retail' && vendorCatalog.length === 0) {
+      fetchCatalog();
+    }
+  }, [activeTab]);
+
+  // Load Invoices / Ledger upon tab switch
   useEffect(() => {
     if (activeTab === 'invoices') {
       setIsLoadingList(true);
-      B2BAPI.getSellerInvoices()
-        .then((res) => {
-          if (res.success) setInvoices(res.data || []);
+      Promise.allSettled([
+        VendorAPI.getTransactions(),
+        B2BAPI.getSellerInvoices(),
+      ])
+        .then(([retailRes, b2bRes]) => {
+          if (retailRes.status === 'fulfilled' && retailRes.value?.success) {
+            setRetailTransactions(retailRes.value.data || []);
+          }
+          if (b2bRes.status === 'fulfilled' && b2bRes.value?.success) {
+            setB2BInvoices(b2bRes.value.data || []);
+          }
         })
-        .catch(console.error)
         .finally(() => setIsLoadingList(false));
     } else if (activeTab === 'ledger') {
       setIsLoadingList(true);
@@ -57,37 +124,281 @@ export default function B2BBillingPage() {
     }
   }, [activeTab]);
 
-  // Search product by barcode or text
-  const handleProductLookup = async (codeToSearch) => {
-    const term = (codeToSearch || barcodeInput).trim();
+  // ══════════════════════════════════════════════════════════════
+  // ─── RETAIL POS BILLING HANDLERS (B2C) ────────────────────────
+  // ══════════════════════════════════════════════════════════════
+
+  // 1. Customer Zeebac ID Lookup
+  const handleLookupCustomer = async (termToLookup) => {
+    const raw = (termToLookup || customerQuery).trim();
+    if (!raw) {
+      setVerifiedCustomer(null);
+      setCustomerError('');
+      return;
+    }
+
+    setIsSearchingCustomer(true);
+    setCustomerError('');
+    try {
+      const res = await VendorAPI.lookupCustomerByPhone(raw);
+      if (res.success && res.data) {
+        setVerifiedCustomer(res.data);
+        toast.success(`Verified: ${res.data.name} (${res.data.zeebacId || res.data.phone})`);
+      } else {
+        setVerifiedCustomer(null);
+        setCustomerError('Customer not registered on Zeebac');
+      }
+    } catch (err) {
+      setVerifiedCustomer(null);
+      setCustomerError(err.response?.data?.message || 'Customer not found. Please verify Zeebac ID.');
+    } finally {
+      setIsSearchingCustomer(false);
+    }
+  };
+
+  // 2. Barcode Product Lookup in Vendor Inventory
+  const handleRetailProductLookup = async (codeToSearch) => {
+    const term = (codeToSearch || retailBarcode).trim();
     if (!term) return;
 
-    setIsSearchingProduct(true);
+    setIsLookingUpRetailProduct(true);
+    try {
+      // First check local catalog
+      const localMatch = vendorCatalog.find(
+        (p) =>
+          (p.barcode && p.barcode.toLowerCase() === term.toLowerCase()) ||
+          (p.productId && p.productId.toLowerCase() === term.toLowerCase()) ||
+          p.name.toLowerCase().includes(term.toLowerCase())
+      );
+
+      if (localMatch) {
+        addRetailItem(localMatch);
+        setRetailBarcode('');
+        toast.success(`Added "${localMatch.name}" to bill!`);
+      } else {
+        // Fallback to B2B search endpoint
+        const res = await B2BAPI.searchProducts({ query: term });
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          addRetailItem(res.data[0]);
+          setRetailBarcode('');
+          toast.success(`Added "${res.data[0].name}" to bill!`);
+        } else {
+          toast.error(`No product found matching "${term}" in store inventory`);
+        }
+      }
+    } catch {
+      toast.error('Product lookup failed');
+    } finally {
+      setIsLookingUpRetailProduct(false);
+    }
+  };
+
+  const addRetailItem = (product) => {
+    setRetailItems((prev) => {
+      const existingIdx = prev.findIndex((i) => i.productId === product._id);
+      if (existingIdx > -1) {
+        const existing = prev[existingIdx];
+        const nextQty = existing.quantity + 1;
+        if (product.stock && nextQty > product.stock) {
+          toast.error(`Max available stock is ${product.stock}`);
+          return prev;
+        }
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...existing,
+          quantity: nextQty,
+          total: Math.round(nextQty * existing.price * 100) / 100,
+        };
+        return updated;
+      }
+
+      const price = Number(product.price || product.mrp || 0);
+      const cashbackPct = Number(product.cashbackPercentage || currentVendor?.cashbackRate || 5);
+
+      return [
+        ...prev,
+        {
+          productId: product._id,
+          name: product.name,
+          barcode: product.barcode || '',
+          productIdString: product.productId || '',
+          price,
+          quantity: 1,
+          total: price,
+          cashbackPercentage: cashbackPct,
+          stock: product.stock ?? 999,
+          unit: product.unit || 'Pcs',
+          image: product.image || '',
+        },
+      ];
+    });
+  };
+
+  const updateRetailQty = (productId, delta) => {
+    setRetailItems((prev) =>
+      prev
+        .map((item) => {
+          if (item.productId === productId) {
+            const nextQty = item.quantity + delta;
+            if (nextQty <= 0) return null;
+            if (item.stock && nextQty > item.stock) {
+              toast.error(`Max stock available is ${item.stock}`);
+              return item;
+            }
+            return {
+              ...item,
+              quantity: nextQty,
+              total: Math.round(nextQty * item.price * 100) / 100,
+            };
+          }
+          return item;
+        })
+        .filter(Boolean)
+    );
+  };
+
+  const removeRetailItem = (productId) => {
+    setRetailItems((prev) => prev.filter((i) => i.productId !== productId));
+  };
+
+  const handleAddCustomItem = () => {
+    const { name, price, quantity, cashbackPercentage } = customItem;
+    const parsedPrice = parseFloat(price);
+    const parsedQty = parseInt(quantity, 10);
+    const parsedCB = parseFloat(cashbackPercentage);
+
+    if (!name.trim()) return toast.error('Enter item name');
+    if (!parsedPrice || parsedPrice <= 0) return toast.error('Enter valid unit price');
+    if (!parsedQty || parsedQty <= 0) return toast.error('Enter valid quantity');
+
+    const newItem = {
+      productId: null,
+      name: name.trim(),
+      barcode: '',
+      price: parsedPrice,
+      quantity: parsedQty,
+      total: Math.round(parsedPrice * parsedQty * 100) / 100,
+      cashbackPercentage: parsedCB > 0 ? parsedCB : (currentVendor?.cashbackRate || 5),
+      stock: 9999,
+      unit: 'Pcs',
+      image: '',
+    };
+
+    setRetailItems((prev) => [...prev, newItem]);
+    setShowCustomItemModal(false);
+    setCustomItem({
+      name: '',
+      price: '',
+      quantity: '1',
+      cashbackPercentage: currentVendor?.cashbackRate || 5,
+    });
+    toast.success(`Custom item "${name}" added!`);
+  };
+
+  // Retail Calculations
+  const retailSubtotal = Math.round(retailItems.reduce((acc, i) => acc + i.total, 0) * 100) / 100;
+  const retailTotalUnits = retailItems.reduce((acc, i) => acc + i.quantity, 0);
+  const retailTotalCashback = Math.round(
+    retailItems.reduce((acc, i) => acc + (i.total * (i.cashbackPercentage || 5)) / 100, 0) * 100
+  ) / 100;
+
+  // 3. Complete Sale & Credit Cashback to Customer Wallet
+  const handleCompleteRetailSale = async () => {
+    if (retailItems.length === 0) {
+      toast.error('Please add at least one item to generate bill');
+      return;
+    }
+
+    if (!verifiedCustomer && !customerQuery.trim()) {
+      toast.error('Enter Customer Zeebac ID or mobile number to credit cashback points');
+      return;
+    }
+
+    setIsLoggingRetailBill(true);
+    try {
+      const generatedBillNo = `BILL-${Date.now().toString().slice(-6)}`;
+      const payload = {
+        customerZeebacId: verifiedCustomer?.zeebacId || customerQuery.trim().toUpperCase(),
+        customerPhone: verifiedCustomer?.phone || customerQuery.trim(),
+        amount: retailSubtotal,
+        items: retailItems,
+        paymentMethod: retailPaymentMethod,
+        billNumber: generatedBillNo,
+        cashbackPercent: currentVendor?.cashbackRate || 5,
+      };
+
+      const res = await VendorAPI.logPurchase(payload);
+
+      if (res.success) {
+        const finalTxn = res.data;
+        setCompletedRetailBill({
+          ...finalTxn,
+          items: retailItems,
+          customerName: verifiedCustomer?.name || finalTxn.customerName || 'Valued Customer',
+          customerZeebacId: verifiedCustomer?.zeebacId || finalTxn.customerZeebacId,
+          customerPhone: verifiedCustomer?.phone || finalTxn.customerPhone,
+          vendorStoreName: currentVendor?.storeName || currentVendor?.ownerName || 'Zeebac Store',
+          vendorZeebacId: currentVendor?.zeebacId || 'ZBV-STORE',
+          vendorAddress: currentVendor?.address || 'Verified Merchant Store',
+          vendorPhone: currentVendor?.phone || '',
+          billNumber: generatedBillNo,
+          cashbackCredited: finalTxn.cashbackAmount || retailTotalCashback,
+          date: new Date().toLocaleString(),
+          paymentMethod: retailPaymentMethod,
+        });
+
+        toast.success(
+          `🎉 Bill Generated! ₹${finalTxn.cashbackAmount || retailTotalCashback} cashback points credited to customer wallet!`
+        );
+
+        // Reset form
+        setRetailItems([]);
+        setVerifiedCustomer(null);
+        setCustomerQuery('');
+      } else {
+        toast.error(res.message || 'Failed to generate bill');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Transaction failed. Check merchant wallet balance.');
+    } finally {
+      setIsLoggingRetailBill(false);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // ─── WHOLESALE B2B BILLING HANDLERS ──────────────────────────
+  // ══════════════════════════════════════════════════════════════
+
+  const handleWholesaleProductLookup = async (codeToSearch) => {
+    const term = (codeToSearch || wholesaleBarcode).trim();
+    if (!term) return;
+
+    setIsSearchingWholesaleProduct(true);
     try {
       const res = await B2BAPI.searchProducts({ query: term });
       if (res.success && Array.isArray(res.data) && res.data.length > 0) {
         const found = res.data[0];
-        addProductToBill(found);
-        setBarcodeInput('');
-        toast.success(`Added "${found.name}" to bill!`);
+        addWholesaleItem(found);
+        setWholesaleBarcode('');
+        toast.success(`Added "${found.name}" to wholesale bill!`);
       } else {
         toast.error(`No product found matching "${term}" in your catalog`);
       }
-    } catch (err) {
+    } catch {
       toast.error('Product lookup failed');
     } finally {
-      setIsSearchingProduct(false);
+      setIsSearchingWholesaleProduct(false);
     }
   };
 
-  const addProductToBill = (product) => {
-    setBillItems((prev) => {
+  const addWholesaleItem = (product) => {
+    setWholesaleItems((prev) => {
       const existingIndex = prev.findIndex((i) => i.productId === product._id);
       if (existingIndex > -1) {
         const existing = prev[existingIndex];
         const nextQty = existing.quantity + 1;
-        if (nextQty > product.stock) {
-          toast.error(`Cannot exceed available stock (${product.stock} ${product.unit || 'Pcs'})`);
+        if (product.stock && nextQty > product.stock) {
+          toast.error(`Cannot exceed stock (${product.stock} ${product.unit || 'Pcs'})`);
           return prev;
         }
         const updated = [...prev];
@@ -97,41 +408,37 @@ export default function B2BBillingPage() {
           totalAmount: Math.round(nextQty * existing.rate * 100) / 100,
         };
         return updated;
-      } else {
-        if (product.stock <= 0) {
-          toast.error(`"${product.name}" is currently out of stock!`);
-          return prev;
-        }
-        const rate = product.wholesalePrice || product.price || 0;
-        return [
-          ...prev,
-          {
-            productId: product._id,
-            productIdString: product.productId || '',
-            name: product.name,
-            barcode: product.barcode || '',
-            image: product.image || '',
-            category: product.category || 'General',
-            rate,
-            mrp: product.mrp || product.price,
-            stock: product.stock,
-            unit: product.unit || 'Pcs',
-            quantity: 1,
-            totalAmount: rate,
-          },
-        ];
       }
+      const rate = product.wholesalePrice || product.price || 0;
+      return [
+        ...prev,
+        {
+          productId: product._id,
+          productIdString: product.productId || '',
+          name: product.name,
+          barcode: product.barcode || '',
+          image: product.image || '',
+          category: product.category || 'General',
+          rate,
+          mrp: product.mrp || product.price,
+          stock: product.stock,
+          unit: product.unit || 'Pcs',
+          quantity: 1,
+          totalAmount: rate,
+          cashbackPercentage: product.cashbackPercentage || 0,
+        },
+      ];
     });
   };
 
-  const updateItemQty = (productId, delta) => {
-    setBillItems((prev) =>
+  const updateWholesaleQty = (productId, delta) => {
+    setWholesaleItems((prev) =>
       prev
         .map((item) => {
           if (item.productId === productId) {
             const nextQty = item.quantity + delta;
             if (nextQty <= 0) return null;
-            if (nextQty > item.stock) {
+            if (item.stock && nextQty > item.stock) {
               toast.error(`Max available stock is ${item.stock}`);
               return item;
             }
@@ -147,11 +454,11 @@ export default function B2BBillingPage() {
     );
   };
 
-  const removeItem = (productId) => {
-    setBillItems((prev) => prev.filter((i) => i.productId !== productId));
+  const removeWholesaleItem = (productId) => {
+    setWholesaleItems((prev) => prev.filter((i) => i.productId !== productId));
   };
 
-  // Search Wholesalers
+  // Search Buyers (Retailers)
   const handleBuyerSearch = async (val) => {
     setBuyerQuery(val);
     if (val.trim().length < 2) {
@@ -166,60 +473,32 @@ export default function B2BBillingPage() {
     }
   };
 
-  // Grand totals
-  const totalAmount = Math.round(billItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
-  const totalUnits = billItems.reduce((sum, item) => sum + item.quantity, 0);
-
-  // Initialize Camera Barcode Scanner
-  useEffect(() => {
-    if (showCameraScanner) {
-      const scanner = new Html5QrcodeScanner('b2b-qr-reader', {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-      });
-
-      scanner.render(
-        (decodedText) => {
-          handleProductLookup(decodedText);
-          setShowCameraScanner(false);
-          scanner.clear();
-        },
-        (error) => {
-          // ignore scan frame errors
-        }
-      );
-      scannerRef.current = scanner;
-
-      return () => {
-        try {
-          scanner.clear();
-        } catch (_) {}
-      };
-    }
-  }, [showCameraScanner]);
+  const wholesaleTotalAmount =
+    Math.round(wholesaleItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+  const wholesaleTotalUnits = wholesaleItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // Generate B2B Invoice & Open Transfer Modal
-  const handleGenerateInvoice = async () => {
-    if (billItems.length === 0) {
+  const handleGenerateWholesaleInvoice = async () => {
+    if (wholesaleItems.length === 0) {
       toast.error('Please scan or add at least one product');
       return;
     }
     if (!selectedBuyer) {
-      toast.error('Please select a Wholesaler buyer');
+      toast.error('Please select the Purchasing Retailer Merchant');
       return;
     }
 
     try {
       const res = await B2BAPI.createInvoice({
         buyerId: selectedBuyer._id,
-        items: billItems.map((i) => ({
+        items: wholesaleItems.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
           rate: i.rate,
           mrp: i.mrp,
         })),
-        paymentMethod,
-        notes,
+        paymentMethod: wholesalePaymentMethod,
+        notes: b2bNotes,
       });
 
       if (res.success) {
@@ -236,11 +515,11 @@ export default function B2BBillingPage() {
     }
   };
 
-  // Execute Stock Transfer upon payment confirmation
+  // Execute B2B Stock Transfer upon payment confirmation
   const handleExecuteTransfer = async () => {
     if (!createdInvoice || isTransferring) return;
 
-    if (paymentMethod === 'UPI_INTENT' && (!utrInput || utrInput.length !== 12)) {
+    if (wholesalePaymentMethod === 'UPI_INTENT' && (!utrInput || utrInput.length !== 12)) {
       toast.error('Please enter the 12-digit UPI UTR number from payment receipt');
       return;
     }
@@ -248,17 +527,16 @@ export default function B2BBillingPage() {
     setIsTransferring(true);
     try {
       const res = await B2BAPI.verifyAndTransferStock(createdInvoice._id, {
-        paymentMethod,
-        utr: paymentMethod === 'UPI_INTENT' ? utrInput.trim() : undefined,
-        cashConfirmed: paymentMethod === 'CASH' ? true : undefined,
+        paymentMethod: wholesalePaymentMethod,
+        utr: wholesalePaymentMethod === 'UPI_INTENT' ? utrInput.trim() : undefined,
+        cashConfirmed: wholesalePaymentMethod === 'CASH' ? true : undefined,
         confirmedBy: currentVendor?.storeName || currentVendor?.ownerName || 'Authorized Merchant',
       });
 
       if (res.success) {
         setTransferSuccessData(res.data);
-        toast.success('🎉 Products & Stock successfully transferred to Wholesaler!');
-        // Reset billing form
-        setBillItems([]);
+        toast.success('🎉 Products & Stock successfully imported into Retailer’s Zeebac ID!');
+        setWholesaleItems([]);
         setSelectedBuyer(null);
         setUtrInput('');
       }
@@ -269,67 +547,274 @@ export default function B2BBillingPage() {
     }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // ─── CAMERA BARCODE SCANNER EFFECT ───────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (showCameraScanner) {
+      const scanner = new Html5QrcodeScanner('billing-qr-reader', {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+      });
+
+      scanner.render(
+        (decodedText) => {
+          if (cameraScanMode === 'customer') {
+            setCustomerQuery(decodedText);
+            handleLookupCustomer(decodedText);
+          } else {
+            if (activeTab === 'retail') {
+              handleRetailProductLookup(decodedText);
+            } else {
+              handleWholesaleProductLookup(decodedText);
+            }
+          }
+          setShowCameraScanner(false);
+          scanner.clear();
+        },
+        () => {}
+      );
+      scannerRef.current = scanner;
+
+      return () => {
+        try {
+          scanner.clear();
+        } catch (_) {}
+      };
+    }
+  }, [showCameraScanner, cameraScanMode, activeTab]);
+
   return (
     <div className="mesh-gradient min-h-screen text-on-surface font-body-lg pb-24 text-left">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3.5 border-b border-slate-100 shadow-xs">
-        <div className="max-w-[1000px] mx-auto flex items-center justify-between">
+      {/* ── PRINT STYLES FOR THERMAL RECEIPT ── */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #pos-printable-receipt, #pos-printable-receipt * {
+            visibility: visible;
+          }
+          #pos-printable-receipt {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 80mm !important;
+            margin: 0 !important;
+            padding: 8px !important;
+            background: white !important;
+            color: black !important;
+          }
+        }
+      `}</style>
+
+      {/* ── TOP HEADER & MODE SWITCHER ── */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-3 sm:px-4 py-3 border-b border-slate-100 shadow-xs">
+        <div className="max-w-[1100px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-800 text-white flex items-center justify-center font-black shadow-md">
-              <span className="material-symbols-outlined text-[24px]">barcode_scanner</span>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-800 text-white flex items-center justify-center font-black shadow-md shrink-0">
+              <span className="material-symbols-outlined text-[24px]">point_of_sale</span>
             </div>
             <div>
-              <h1 className="font-display font-black text-[17px] text-slate-900 leading-tight">
-                Supply Chain & B2B Billing POS
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display font-black text-[16px] sm:text-[18px] text-slate-900 leading-tight">
+                  Zeebac Billing POS
+                </h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-50 text-purple-700 border border-purple-200">
+                  {activeTab === 'retail' ? 'B2C Counter POS' : activeTab === 'wholesale' ? 'B2B Trade' : 'History'}
+                </span>
+              </div>
               <p className="text-[11px] text-slate-500 font-medium">
-                Barcode & Product ID Billing • Multi-Tier Stock Transfer
+                {activeTab === 'retail'
+                  ? 'Cashier Billing • Instant Customer Wallet Cashback Points'
+                  : 'Supply Chain Trade • Automatic Retailer Stock Import'}
               </p>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl">
+          {/* Mode Navigation Tabs */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto hide-scrollbar">
             <button
-              onClick={() => setActiveTab('billing')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'billing' ? 'bg-white text-primary shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              onClick={() => setActiveTab('retail')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'retail' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Billing POS
+              <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
+              <span>Retail POS (B2C)</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('wholesale')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'wholesale' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+              <span>Wholesale (B2B)</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('invoices')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'invoices' ? 'bg-white text-primary shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'invoices' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Sales Invoices
+              <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+              <span>Invoices</span>
             </button>
+
             <button
               onClick={() => setActiveTab('ledger')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'ledger' ? 'bg-white text-primary shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'ledger' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Stock Ledger
+              <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+              <span>Stock Ledger</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-[1000px] mx-auto p-4 space-y-4">
-        {/* ─── TAB 1: CASHIER BARCODE BILLING ─── */}
-        {activeTab === 'billing' && (
+      {/* ── MAIN CONTENT CONTAINER ── */}
+      <main className="max-w-[1100px] mx-auto p-3 sm:p-4 space-y-4">
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* ─── TAB 1: RETAIL POS (B2C) CASHIER COUNTER BILLING ──── */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        {activeTab === 'retail' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Left 2 Cols: Barcode Input & Bill Table */}
+            {/* Left 2 Cols: Customer ID & Itemized Bill */}
             <div className="lg:col-span-2 space-y-4">
-              {/* Barcode Scanner Bar */}
-              <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-2">
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  Scan Barcode or Search Product ID / Name
-                </label>
+              {/* 1. Customer Zeebac ID Lookup Bar */}
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-purple-100 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-extrabold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[17px] text-purple-600">account_circle</span>
+                    <span>Customer Zeebac ID / Mobile Number</span>
+                  </label>
+                  <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    Instant Cashback Credit
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
+                      badge
+                    </span>
+                    <input
+                      type="text"
+                      value={customerQuery}
+                      onChange={(e) => {
+                        setCustomerQuery(e.target.value);
+                        if (e.target.value.trim().length >= 10 || e.target.value.toUpperCase().startsWith('ZBC')) {
+                          handleLookupCustomer(e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleLookupCustomer()}
+                      placeholder="Enter Zeebac ID (e.g. ZBC-10023) or Mobile (9876543210)..."
+                      className="w-full h-11 pl-10 pr-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[13.5px] font-bold text-slate-900 focus:outline-none focus:border-purple-600 transition-all uppercase placeholder:normal-case placeholder:font-normal placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => handleLookupCustomer()}
+                    disabled={isSearchingCustomer}
+                    className="h-11 px-4 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[12.5px] flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSearchingCustomer ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[18px]">verified</span>
+                        <span>Verify</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setCameraScanMode('customer');
+                      setShowCameraScanner(true);
+                    }}
+                    className="h-11 px-3.5 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[12.5px] flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                    title="Scan Customer QR Code"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+                  </button>
+                </div>
+
+                {/* Verified Customer Card */}
+                {verifiedCustomer && (
+                  <div className="p-3 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 animate-reveal">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[15px] shrink-0">
+                        {verifiedCustomer.name ? verifiedCustomer.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-[13.5px] text-slate-900 truncate">
+                            {verifiedCustomer.name}
+                          </p>
+                          <span className="material-symbols-outlined text-[16px] text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+                            verified
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-mono">
+                          ID: <strong className="text-purple-700">{verifiedCustomer.zeebacId}</strong> • {verifiedCustomer.phone}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-md block">
+                        Cashback Eligible
+                      </span>
+                      <button
+                        onClick={() => {
+                          setVerifiedCustomer(null);
+                          setCustomerQuery('');
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-red-500 font-semibold mt-0.5 cursor-pointer"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {customerError && !verifiedCustomer && (
+                  <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl font-medium">
+                    ⚠️ {customerError}
+                  </p>
+                )}
+              </div>
+
+              {/* 2. Barcode Scanner & Quick Add Toolbar */}
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                    Scan Barcode or Search Store Product
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowCatalogModal(true)}
+                      className="text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                      <span>Pick From Catalog</span>
+                    </button>
+                    <button
+                      onClick={() => setShowCustomItemModal(true)}
+                      className="text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                      <span>+ Custom Item</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
@@ -337,103 +822,115 @@ export default function B2BBillingPage() {
                     </span>
                     <input
                       type="text"
-                      value={barcodeInput}
-                      onChange={(e) => setBarcodeInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleProductLookup()}
-                      placeholder="Scan with barcode gun or type EAN (e.g. 8901008310247)..."
-                      className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13.5px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary transition-all"
+                      value={retailBarcode}
+                      onChange={(e) => setRetailBarcode(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleRetailProductLookup()}
+                      placeholder="Scan with barcode gun or type product name/barcode..."
+                      className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13.5px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600 transition-all placeholder:font-sans placeholder:font-normal placeholder:text-slate-400"
                     />
                   </div>
+
                   <button
-                    onClick={() => handleProductLookup()}
-                    disabled={isSearchingProduct}
-                    className="h-11 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[12.5px] flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    onClick={() => handleRetailProductLookup()}
+                    disabled={isLookingUpRetailProduct}
+                    className="h-11 px-4 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[12.5px] flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {isSearchingProduct ? 'Adding...' : 'Add Item'}
+                    {isLookingUpRetailProduct ? 'Adding...' : 'Add Item'}
                   </button>
+
                   <button
-                    onClick={() => setShowCameraScanner(true)}
-                    className="h-11 px-3.5 rounded-2xl bg-purple-50 text-primary border border-purple-200 font-bold text-[12.5px] flex items-center gap-1 hover:bg-purple-100 active:scale-95 transition-all cursor-pointer"
-                    title="Scan with Camera"
+                    onClick={() => {
+                      setCameraScanMode('product');
+                      setShowCameraScanner(true);
+                    }}
+                    className="h-11 px-3.5 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[12.5px] flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                    title="Scan Product with Camera"
                   >
                     <span className="material-symbols-outlined text-[20px]">photo_camera</span>
                   </button>
                 </div>
               </div>
 
-              {/* Items in Current Bill */}
+              {/* 3. Items in Current Bill */}
               <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <h3 className="font-display font-black text-[15px] text-slate-900">
-                    B2B Invoice Items ({billItems.length})
+                  <h3 className="font-display font-black text-[15px] text-slate-900 flex items-center gap-2">
+                    <span>Retail Bill Items</span>
+                    <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[11px] font-bold flex items-center justify-center">
+                      {retailItems.length}
+                    </span>
                   </h3>
-                  {billItems.length > 0 && (
+                  {retailItems.length > 0 && (
                     <button
-                      onClick={() => setBillItems([])}
+                      onClick={() => setRetailItems([])}
                       className="text-xs font-bold text-red-500 hover:underline cursor-pointer"
                     >
-                      Clear Bill
+                      Clear All
                     </button>
                   )}
                 </div>
 
-                {billItems.length === 0 ? (
+                {retailItems.length === 0 ? (
                   <div className="py-12 text-center space-y-2">
-                    <span className="material-symbols-outlined text-slate-300 text-[48px]">receipt_long</span>
-                    <p className="font-bold text-[14px] text-slate-700">No items added to bill yet</p>
-                    <p className="text-[12px] text-slate-400 max-w-[280px] mx-auto">
-                      Scan barcodes or type product names above. Products will automatically be added like a POS cashier software!
+                    <span className="material-symbols-outlined text-slate-300 text-[48px]">
+                      receipt_long
+                    </span>
+                    <p className="font-bold text-[14px] text-slate-700">No items in the bill yet</p>
+                    <p className="text-[12px] text-slate-400 max-w-[320px] mx-auto">
+                      Scan product barcode gun, pick from your catalog, or tap <strong>+ Custom Item</strong>. Cashback points calculate automatically!
                     </p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
-                    {billItems.map((item) => (
-                      <div key={item.productId} className="py-3 flex items-center gap-3">
+                  <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
+                    {retailItems.map((item, idx) => (
+                      <div key={item.productId || `custom-${idx}`} className="py-3 flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0">
                           {item.image ? (
                             <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
                           ) : (
-                            <span className="material-symbols-outlined text-slate-400">inventory_2</span>
+                            <span className="material-symbols-outlined text-purple-600">inventory_2</span>
                           )}
                         </div>
 
-                        <div className="flex-1 min-w-0 text-left">
+                        <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-[13px] text-slate-900 truncate">{item.name}</h4>
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-mono mt-0.5">
-                            {item.productIdString && (
-                              <span className="font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-[10px]">
-                                PID: {item.productIdString}
-                              </span>
+                            <span>₹{item.price}</span>
+                            <span className="text-purple-600 font-bold bg-purple-50 px-1 rounded text-[10px]">
+                              {item.cashbackPercentage}% CB (₹{((item.price * item.cashbackPercentage) / 100).toFixed(1)})
+                            </span>
+                            {item.stock < 999 && (
+                              <span className="text-slate-400 text-[10px]">Stock: {item.stock}</span>
                             )}
-                            {item.barcode && <span>Code: {item.barcode}</span>}
-                            <span>• Rate: ₹{item.rate}</span>
-                            <span className="text-emerald-600 font-bold">Avail: {item.stock} {item.unit}</span>
                           </div>
                         </div>
 
                         {/* Qty Stepper */}
                         <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
                           <button
-                            onClick={() => updateItemQty(item.productId, -1)}
-                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold"
+                            onClick={() => updateRetailQty(item.productId, -1)}
+                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold cursor-pointer"
                           >
                             -
                           </button>
-                          <span className="w-8 text-center font-mono font-bold text-[13px]">{item.quantity}</span>
+                          <span className="w-8 text-center font-mono font-bold text-[13px]">
+                            {item.quantity}
+                          </span>
                           <button
-                            onClick={() => updateItemQty(item.productId, 1)}
-                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold"
+                            onClick={() => updateRetailQty(item.productId, 1)}
+                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold cursor-pointer"
                           >
                             +
                           </button>
                         </div>
 
+                        {/* Line Total */}
                         <div className="text-right min-w-[70px]">
                           <p className="font-display font-black text-[14px] text-slate-900">
-                            ₹{item.totalAmount}
+                            ₹{item.total}
                           </p>
                           <button
-                            onClick={() => removeItem(item.productId)}
+                            onClick={() => removeRetailItem(item.productId)}
                             className="text-[11px] text-red-500 hover:underline cursor-pointer"
                           >
                             Remove
@@ -446,39 +943,280 @@ export default function B2BBillingPage() {
               </div>
             </div>
 
-            {/* Right Col: Buyer Wholesaler & Payment */}
+            {/* Right Col: Bill Summary, Cashback & Payment */}
             <div className="space-y-4">
-              {/* Buyer Selector Card */}
+              {/* Payment Method Selector */}
               <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  Select Wholesaler Buyer *
+                  Customer Payment Method
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'Cash', label: 'Cash', icon: 'payments' },
+                    { id: 'UPI', label: 'UPI / QR', icon: 'qr_code_2' },
+                    { id: 'Card', label: 'Card Swipe', icon: 'credit_card' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setRetailPaymentMethod(m.id)}
+                      className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                        retailPaymentMethod === m.id
+                          ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">{m.icon}</span>
+                      <span className="text-[11.5px] font-bold">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bill Calculation & Cashback Points Card */}
+              <div className="bg-white rounded-3xl p-5 border border-purple-100 shadow-sm space-y-4">
+                <h3 className="font-display font-black text-[15px] text-slate-900 pb-2 border-b border-slate-100">
+                  Bill Calculation
+                </h3>
+
+                <div className="space-y-2 text-[13px]">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Total Items</span>
+                    <span className="font-bold">{retailItems.length} ({retailTotalUnits} Units)</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal</span>
+                    <span className="font-mono font-bold">₹{retailSubtotal}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>GST / Taxes</span>
+                    <span className="text-emerald-600 font-bold">Included</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100 flex justify-between items-baseline">
+                    <span className="font-bold text-slate-900 text-[14px]">Net Payable Total</span>
+                    <span className="font-display font-black text-[22px] text-purple-700">
+                      ₹{retailSubtotal}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Instant Cashback Highlight Box */}
+                <div className="p-3.5 bg-gradient-to-br from-purple-900 to-indigo-950 text-white rounded-2xl space-y-1.5 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-200">
+                      Customer Reward
+                    </span>
+                    <span className="material-symbols-outlined text-amber-400 text-[18px]">
+                      stars
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[12px] font-semibold text-purple-100">
+                      Zeebac Cashback Points:
+                    </span>
+                    <span className="font-display font-black text-[20px] text-amber-300">
+                      +₹{retailTotalCashback}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-purple-200/80 leading-tight">
+                    {verifiedCustomer
+                      ? `Deposited instantly into ${verifiedCustomer.name}'s Zeebac wallet upon payment.`
+                      : 'Points will be credited to the entered Customer Zeebac ID.'}
+                  </p>
+                </div>
+
+                {/* Submit Action */}
+                <button
+                  onClick={handleCompleteRetailSale}
+                  disabled={isLoggingRetailBill || retailItems.length === 0}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white font-bold text-[14px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoggingRetailBill ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[20px]">bolt</span>
+                      <span>Generate Bill & Credit Cashback</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* ─── TAB 2: WHOLESALE (B2B) SUPPLY CHAIN BILLING ───────── */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        {activeTab === 'wholesale' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Left 2 Cols: Barcode Input & Wholesale Bill Table */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Barcode Scanner Bar */}
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-2">
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Scan Barcode or Search Master Catalogue (EAN / Product ID)
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
+                      barcode
+                    </span>
+                    <input
+                      type="text"
+                      value={wholesaleBarcode}
+                      onChange={(e) => setWholesaleBarcode(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleWholesaleProductLookup()}
+                      placeholder="Scan with barcode gun or type EAN (e.g. 8901008310247)..."
+                      className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13.5px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600 transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleWholesaleProductLookup()}
+                    disabled={isSearchingWholesaleProduct}
+                    className="h-11 px-4 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[12.5px] flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSearchingWholesaleProduct ? 'Adding...' : 'Add Item'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCameraScanMode('product');
+                      setShowCameraScanner(true);
+                    }}
+                    className="h-11 px-3.5 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[12.5px] flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                    title="Scan with Camera"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">photo_camera</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Items in Wholesale Bill */}
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h3 className="font-display font-black text-[15px] text-slate-900">
+                    B2B Wholesale Items ({wholesaleItems.length})
+                  </h3>
+                  {wholesaleItems.length > 0 && (
+                    <button
+                      onClick={() => setWholesaleItems([])}
+                      className="text-xs font-bold text-red-500 hover:underline cursor-pointer"
+                    >
+                      Clear Bill
+                    </button>
+                  )}
+                </div>
+
+                {wholesaleItems.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <span className="material-symbols-outlined text-slate-300 text-[48px]">
+                      local_shipping
+                    </span>
+                    <p className="font-bold text-[14px] text-slate-700">No items added to wholesale trade bill</p>
+                    <p className="text-[12px] text-slate-400 max-w-[320px] mx-auto">
+                      Scan product barcodes above. Upon payment confirmation, all these items and stock quantities will be automatically imported into the purchasing retailer’s inventory!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
+                    {wholesaleItems.map((item) => (
+                      <div key={item.productId} className="py-3 flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0">
+                          {item.image ? (
+                            <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <span className="material-symbols-outlined text-slate-400">inventory_2</span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-[13px] text-slate-900 truncate">{item.name}</h4>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-mono mt-0.5">
+                            {item.productIdString && (
+                              <span className="font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-[10px]">
+                                PID: {item.productIdString}
+                              </span>
+                            )}
+                            <span>Rate: ₹{item.rate}</span>
+                            <span>MRP: ₹{item.mrp}</span>
+                            <span className="text-emerald-600 font-bold">Avail: {item.stock} {item.unit}</span>
+                          </div>
+                        </div>
+
+                        {/* Qty Stepper */}
+                        <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
+                          <button
+                            onClick={() => updateWholesaleQty(item.productId, -1)}
+                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold cursor-pointer"
+                          >
+                            -
+                          </button>
+                          <span className="w-8 text-center font-mono font-bold text-[13px]">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateWholesaleQty(item.productId, 1)}
+                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <div className="text-right min-w-[70px]">
+                          <p className="font-display font-black text-[14px] text-slate-900">
+                            ₹{item.totalAmount}
+                          </p>
+                          <button
+                            onClick={() => removeWholesaleItem(item.productId)}
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Col: Buyer Retailer & B2B Payment */}
+            <div className="space-y-4">
+              {/* Select Purchasing Retailer */}
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Purchasing Retailer Zeebac ID / Store Name
                 </label>
 
                 {!selectedBuyer ? (
-                  <div className="space-y-2 relative">
-                    <input
-                      type="text"
-                      value={buyerQuery}
-                      onChange={(e) => handleBuyerSearch(e.target.value)}
-                      placeholder="Search Wholesaler Zeebac ID / Phone..."
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-primary"
-                    />
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+                        search
+                      </span>
+                      <input
+                        type="text"
+                        value={buyerQuery}
+                        onChange={(e) => handleBuyerSearch(e.target.value)}
+                        placeholder="Search Retailer ID (e.g. ZBV-5706) or store..."
+                        className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
 
                     {buyerResults.length > 0 && (
-                      <div className="absolute top-12 left-0 right-0 z-20 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
-                        {buyerResults.map((b) => (
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white shadow-lg">
+                        {buyerResults.map((buyer) => (
                           <div
-                            key={b._id}
+                            key={buyer._id}
                             onClick={() => {
-                              setSelectedBuyer(b);
-                              setBuyerQuery('');
+                              setSelectedBuyer(buyer);
                               setBuyerResults([]);
+                              setBuyerQuery('');
                             }}
-                            className="p-3 hover:bg-purple-50 cursor-pointer text-left transition-colors"
+                            className="p-2.5 hover:bg-purple-50 cursor-pointer transition-colors text-left"
                           >
-                            <p className="font-bold text-[13px] text-slate-900">{b.storeName || b.ownerName}</p>
+                            <p className="font-bold text-[13px] text-slate-900">{buyer.storeName}</p>
                             <p className="text-[11px] text-slate-500 font-mono">
-                              {b.zeebacId} • {b.phone} • {b.city || 'Lucknow'}
+                              Zeebac ID: <strong className="text-purple-700">{buyer.zeebacId}</strong> • {buyer.phone}
                             </p>
                           </div>
                         ))}
@@ -486,244 +1224,668 @@ export default function B2BBillingPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-3 flex items-center justify-between">
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between">
                     <div>
-                      <span className="text-[9.5px] uppercase font-bold text-primary px-2 py-0.5 rounded-full bg-white">
-                        {selectedBuyer.businessType || 'Wholesaler'}
-                      </span>
-                      <h4 className="font-extrabold text-[14px] text-slate-900 mt-1">
-                        {selectedBuyer.storeName || selectedBuyer.ownerName}
-                      </h4>
-                      <p className="text-[11px] font-mono text-slate-500">
-                        ID: {selectedBuyer.zeebacId} • {selectedBuyer.phone}
+                      <p className="font-bold text-[13.5px] text-purple-950">{selectedBuyer.storeName}</p>
+                      <p className="text-[11px] text-purple-700 font-mono">
+                        Zeebac ID: <strong>{selectedBuyer.zeebacId}</strong>
                       </p>
+                      <p className="text-[10px] text-purple-600 mt-0.5">{selectedBuyer.phone}</p>
                     </div>
                     <button
                       onClick={() => setSelectedBuyer(null)}
-                      className="text-xs font-bold text-slate-500 hover:text-red-600 cursor-pointer"
+                      className="text-xs font-bold text-purple-700 hover:underline cursor-pointer"
                     >
                       Change
                     </button>
                   </div>
                 )}
+              </div>
 
-                {/* Payment Mode Selector */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('UPI_INTENT')}
-                      className={`py-2 px-3 rounded-xl border text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        paymentMethod === 'UPI_INTENT'
-                          ? 'bg-purple-50 border-primary text-primary shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
-                      <span>Direct UPI Intent</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('CASH')}
-                      className={`py-2 px-3 rounded-xl border text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        paymentMethod === 'CASH'
-                          ? 'bg-purple-50 border-primary text-primary shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">payments</span>
-                      <span>Cash Received</span>
-                    </button>
+              {/* B2B Payment Mode */}
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Wholesale Payment Terms
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setWholesalePaymentMethod('UPI_INTENT')}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                      wholesalePaymentMethod === 'UPI_INTENT'
+                        ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold'
+                        : 'border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[20px] block mb-1">qr_code_2</span>
+                    <span className="text-[12px]">UPI Intent / QR</span>
+                  </button>
+                  <button
+                    onClick={() => setWholesalePaymentMethod('CASH')}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                      wholesalePaymentMethod === 'CASH'
+                        ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold'
+                        : 'border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[20px] block mb-1">payments</span>
+                    <span className="text-[12px]">Cash Confirmed</span>
+                  </button>
+                </div>
+
+                <textarea
+                  value={b2bNotes}
+                  onChange={(e) => setB2BNotes(e.target.value)}
+                  placeholder="Optional delivery or wholesale order notes..."
+                  className="w-full h-16 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] text-slate-800 focus:outline-none focus:border-purple-600 resize-none"
+                />
+              </div>
+
+              {/* Wholesale Totals & Action */}
+              <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+                <div className="space-y-1.5 text-[13px]">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Total Items</span>
+                    <span className="font-bold">{wholesaleItems.length} ({wholesaleTotalUnits} Units)</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100 flex justify-between items-baseline">
+                    <span className="font-bold text-slate-900 text-[14px]">Wholesale Bill Total</span>
+                    <span className="font-display font-black text-[22px] text-purple-700">
+                      ₹{wholesaleTotalAmount}
+                    </span>
                   </div>
                 </div>
 
-                {/* Bill Summary */}
-                <div className="bg-slate-50 rounded-2xl p-3.5 space-y-1.5 text-[12.5px]">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Total Products:</span>
-                    <strong className="text-slate-800">{billItems.length} lines ({totalUnits} units)</strong>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal:</span>
-                    <span className="font-mono text-slate-800 font-bold">₹{totalAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-display">
-                    <span className="text-[13px] font-black text-slate-900">Total Payable:</span>
-                    <span className="text-[18px] font-black text-primary font-mono">₹{totalAmount.toFixed(2)}</span>
-                  </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-[11px] text-emerald-800 space-y-0.5">
+                  <p className="font-bold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">sync</span>
+                    <span>Automatic Stock Import</span>
+                  </p>
+                  <p className="text-[10.5px]">
+                    Upon payment confirmation, all {wholesaleItems.length} products and stock will be immediately imported into the retailer’s Zeebac catalog.
+                  </p>
                 </div>
 
-                {/* Generate Invoice Action */}
                 <button
-                  onClick={handleGenerateInvoice}
-                  disabled={billItems.length === 0 || !selectedBuyer}
-                  className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-black text-[13.5px] shadow-lg shadow-primary/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={handleGenerateWholesaleInvoice}
+                  disabled={wholesaleItems.length === 0 || !selectedBuyer}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-800 text-white font-bold text-[14px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  <span className="material-symbols-outlined text-[18px]">receipt</span>
-                  <span>Generate B2B Invoice & Transfer</span>
+                  <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+                  <span>Generate Wholesale Invoice</span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ─── TAB 2: INVOICES HISTORY ─── */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* ─── TAB 3: SALES INVOICES HISTORY ─────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════ */}
         {activeTab === 'invoices' && (
-          <div className="space-y-3">
-            <h3 className="font-display font-black text-[16px] text-slate-900">
-              B2B Sales Invoices
-            </h3>
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-display font-black text-[17px] text-slate-900">
+                  Sales & Billing Invoices
+                </h3>
+                <p className="text-[12px] text-slate-500">
+                  View, re-print thermal receipts, or audit customer and wholesale transactions.
+                </p>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                {['all', 'retail', 'b2b'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setInvoicesFilter(f)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer capitalize ${
+                      invoicesFilter === f ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600'
+                    }`}
+                  >
+                    {f === 'retail' ? 'Retail (B2C)' : f === 'b2b' ? 'Wholesale (B2B)' : 'All Invoices'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {isLoadingList ? (
-              <div className="py-12 flex justify-center">
-                <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
-              </div>
-            ) : invoices.length === 0 ? (
-              <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm space-y-2">
-                <span className="material-symbols-outlined text-slate-300 text-[40px]">description</span>
-                <p className="font-bold text-[14px] text-slate-700">No B2B invoices generated yet</p>
+              <div className="py-16 text-center">
+                <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-xs text-slate-500 font-bold">Loading invoices...</p>
               </div>
             ) : (
-              invoices.map((inv) => (
-                <div
-                  key={inv._id}
-                  className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Invoice</span>
-                      <h4 className="font-mono font-bold text-[13.5px] text-slate-900">{inv.invoiceNumber}</h4>
-                      <p className="text-[11.5px] text-slate-500">
-                        Buyer: <strong>{inv.buyerDetails?.storeName}</strong> ({inv.buyerDetails?.zeebacId})
-                      </p>
-                    </div>
-
-                    <div className="text-right space-y-1">
-                      <p className="font-display font-black text-[16px] text-slate-900">₹{inv.totalAmount}</p>
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                          inv.isTransferred
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
+              <div className="space-y-3">
+                {/* Retail Invoices */}
+                {(invoicesFilter === 'all' || invoicesFilter === 'retail') &&
+                  retailTransactions
+                    .filter((t) => t.type === 'pos_bill' || t.source === 'vendor_pos_billing' || t.initiatedBy === 'vendor')
+                    .map((tx) => (
+                      <div
+                        key={tx._id || tx.transactionId}
+                        className="p-3.5 sm:p-4 rounded-2xl border border-slate-100 hover:border-purple-200 bg-white hover:bg-purple-50/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
-                        {inv.isTransferred ? 'Stock Transferred' : 'Payment Pending'}
-                      </span>
-                    </div>
-                  </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[13.5px] text-slate-900">
+                                {tx.billNumber || tx.transactionId}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase bg-purple-50 text-purple-700 border border-purple-200">
+                                Retail B2C
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                              Customer: <strong>{tx.customerName || 'Walk-in'}</strong> ({tx.customerZeebacId || tx.customerPhone}) • {new Date(tx.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
 
-                  <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
-                    <span>
-                      {inv.items?.length || 1} Products • {inv.totalQuantity} Units
-                    </span>
-                    <span>{new Date(inv.createdAt).toLocaleString()}</span>
-                  </div>
-                </div>
-              ))
+                        <div className="flex items-center justify-between sm:justify-end gap-4">
+                          <div className="text-right">
+                            <p className="font-display font-black text-[15px] text-slate-900">₹{tx.amount}</p>
+                            <p className="text-[10.5px] font-bold text-emerald-600">
+                              +₹{tx.cashbackAmount} Cashback Points
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setReceiptToView({
+                                billNumber: tx.billNumber || tx.transactionId,
+                                customerName: tx.customerName || 'Valued Customer',
+                                customerZeebacId: tx.customerZeebacId || tx.customerPhone,
+                                customerPhone: tx.customerPhone,
+                                vendorStoreName: currentVendor?.storeName || 'Zeebac Store',
+                                vendorZeebacId: currentVendor?.zeebacId || 'ZBV-STORE',
+                                vendorAddress: currentVendor?.address || 'Verified Store',
+                                vendorPhone: currentVendor?.phone || '',
+                                items: tx.items && tx.items.length > 0 ? tx.items : [{ name: 'Store Items', quantity: 1, price: tx.amount, total: tx.amount }],
+                                amount: tx.amount,
+                                cashbackCredited: tx.cashbackAmount,
+                                paymentMethod: tx.paymentMethod || 'Cash',
+                                date: new Date(tx.createdAt).toLocaleString(),
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-purple-600 text-purple-700 font-bold text-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">print</span>
+                            <span>View Receipt</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                {/* Wholesale B2B Invoices */}
+                {(invoicesFilter === 'all' || invoicesFilter === 'b2b') &&
+                  b2bInvoices.map((inv) => (
+                    <div
+                      key={inv._id}
+                      className="p-3.5 sm:p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 bg-white hover:bg-indigo-50/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-[20px]">local_shipping</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[13.5px] text-slate-900">
+                              #{inv.invoiceNumber}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              Wholesale B2B
+                            </span>
+                            {inv.isTransferred && (
+                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Stock Imported
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            Purchasing Retailer: <strong>{inv.buyerDetails?.storeName}</strong> ({inv.buyerDetails?.zeebacId}) • {new Date(inv.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-4">
+                        <div className="text-right">
+                          <p className="font-display font-black text-[15px] text-slate-900">₹{inv.totalAmount}</p>
+                          <p className="text-[10.5px] text-slate-500 font-mono">
+                            {inv.items?.length || 0} Products
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold ${
+                            inv.paymentStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {inv.paymentStatus}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
             )}
           </div>
         )}
 
-        {/* ─── TAB 3: STOCK MOVEMENT LEDGER ─── */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* ─── TAB 4: STOCK LEDGER ───────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════ */}
         {activeTab === 'ledger' && (
-          <div className="space-y-3">
-            <h3 className="font-display font-black text-[16px] text-slate-900">
-              Stock Movement Audit Trail
-            </h3>
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm space-y-4">
+            <div className="pb-3 border-b border-slate-100">
+              <h3 className="font-display font-black text-[17px] text-slate-900">
+                Multi-Tier Stock Movement Ledger
+              </h3>
+              <p className="text-[12px] text-slate-500">
+                Complete audit trail of stock inwards (B2B purchases) and outward sales (POS counter & wholesale).
+              </p>
+            </div>
 
             {isLoadingList ? (
-              <div className="py-12 flex justify-center">
-                <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <div className="py-16 text-center">
+                <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-xs text-slate-500 font-bold">Loading stock ledger...</p>
               </div>
             ) : ledger.length === 0 ? (
-              <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-sm space-y-2">
-                <span className="material-symbols-outlined text-slate-300 text-[40px]">history_edu</span>
-                <p className="font-bold text-[14px] text-slate-700">No stock movements recorded yet</p>
+              <div className="py-12 text-center text-slate-400">
+                <span className="material-symbols-outlined text-[40px] mb-1">inventory_2</span>
+                <p className="text-sm font-bold">No stock movements recorded yet</p>
               </div>
             ) : (
-              ledger.map((entry) => (
-                <div
-                  key={entry._id}
-                  className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-                        entry.movementType === 'IN'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : 'bg-red-50 text-red-600'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {entry.movementType === 'IN' ? 'arrow_downward' : 'arrow_upward'}
-                      </span>
+              <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto pr-1">
+                {ledger.map((entry) => (
+                  <div key={entry._id} className="py-3 flex items-center justify-between gap-3 text-left">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+                          entry.movementType === 'INWARD'
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : 'bg-indigo-50 text-indigo-600'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {entry.movementType === 'INWARD' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-[13px] text-slate-900">{entry.productName}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          ID: {entry.movementId} • {new Date(entry.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-[13px] text-slate-900">{entry.productName}</h4>
-                      <p className="text-[11px] text-slate-500 font-mono">
-                        {entry.reason} • {entry.notes || 'Inventory updated'}
+
+                    <div className="text-right">
+                      <span
+                        className={`text-[12.5px] font-bold font-mono ${
+                          entry.movementType === 'INWARD' ? 'text-emerald-600' : 'text-indigo-600'
+                        }`}
+                      >
+                        {entry.movementType === 'INWARD' ? '+' : '-'}
+                        {entry.quantity} {entry.unit || 'Pcs'}
+                      </span>
+                      <p className="text-[10px] text-slate-400 font-mono">
+                        {entry.stockBefore} → <strong>{entry.stockAfter}</strong>
                       </p>
                     </div>
                   </div>
-
-                  <div className="text-right">
-                    <p
-                      className={`font-mono font-black text-[14px] ${
-                        entry.movementType === 'IN' ? 'text-emerald-600' : 'text-red-600'
-                      }`}
-                    >
-                      {entry.movementType === 'IN' ? `+${entry.quantity}` : `-${entry.quantity}`}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-mono">
-                      {entry.previousStock} → {entry.newStock}
-                    </p>
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         )}
       </main>
 
-      {/* ── CAMERA SCANNER MODAL ── */}
-      {showCameraScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-5 max-w-[360px] w-full shadow-2xl text-center space-y-3 relative">
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: QUICK CATALOG PRODUCT PICKER ─────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {showCatalogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+          <div className="bg-white rounded-3xl p-5 max-w-[500px] w-full shadow-2xl space-y-4 relative max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-purple-700">menu_book</span>
+                <h3 className="font-display font-black text-[16px] text-slate-900">
+                  Select Product From Store Catalog
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCatalogModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+                search
+              </span>
+              <input
+                type="text"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Search products in your catalog..."
+                className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-900 focus:outline-none focus:border-purple-600"
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1">
+              {vendorCatalog
+                .filter((p) => p.name.toLowerCase().includes(catalogSearch.toLowerCase()))
+                .map((product) => (
+                  <div key={product._id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0">
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="material-symbols-outlined text-purple-600 text-[18px]">inventory_2</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-[13px] text-slate-900 truncate">{product.name}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          ₹{product.price || product.mrp} • Stock: {product.stock ?? 'N/A'} • {product.cashbackPercentage || 5}% CB
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        addRetailItem(product);
+                        toast.success(`Added ${product.name}`);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 cursor-pointer active:scale-95 transition-all"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                ))}
+            </div>
+
             <button
-              onClick={() => setShowCameraScanner(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
+              onClick={() => setShowCatalogModal(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              Done Adding
             </button>
-            <h3 className="font-display font-black text-[16px] text-slate-900">
-              Scan Product Barcode
-            </h3>
-            <p className="text-[12px] text-slate-500">Hold barcode inside the square box to scan</p>
-            <div id="b2b-qr-reader" className="w-full rounded-2xl overflow-hidden" />
           </div>
         </div>
       )}
 
-      {/* ── PAYMENT & STOCK TRANSFER MODAL ── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: ADD CUSTOM ITEM (NON-CATALOG PRODUCT) ────────── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {showCustomItemModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+          <div className="bg-white rounded-3xl p-5 max-w-[380px] w-full shadow-2xl space-y-4 relative">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-indigo-700">add_circle</span>
+                <h3 className="font-display font-black text-[16px] text-slate-900">
+                  Add Custom Item to Bill
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCustomItemModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 text-left">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Item / Product Name *
+                </label>
+                <input
+                  type="text"
+                  value={customItem.name}
+                  onChange={(e) => setCustomItem({ ...customItem, name: e.target.value })}
+                  placeholder="e.g. Sugar 1kg, Loose Tea, Rice 5kg..."
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Price (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    value={customItem.price}
+                    onChange={(e) => setCustomItem({ ...customItem, price: e.target.value })}
+                    placeholder="100"
+                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    value={customItem.quantity}
+                    onChange={(e) => setCustomItem({ ...customItem, quantity: e.target.value })}
+                    placeholder="1"
+                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Cashback Rate (%)
+                </label>
+                <input
+                  type="number"
+                  value={customItem.cashbackPercentage}
+                  onChange={(e) => setCustomItem({ ...customItem, cashbackPercentage: e.target.value })}
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleAddCustomItem}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-800 text-white font-bold text-[13px] shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              Add to Bill
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: CAMERA BARCODE SCANNER ────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {showCameraScanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+          <div className="bg-white rounded-3xl p-6 max-w-[360px] w-full shadow-2xl text-center space-y-3 relative">
+            <button
+              onClick={() => setShowCameraScanner(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+            <h3 className="font-display font-black text-[16px] text-slate-900">
+              {cameraScanMode === 'customer' ? 'Scan Customer App QR' : 'Scan Product Barcode'}
+            </h3>
+            <p className="text-[12px] text-slate-500">
+              {cameraScanMode === 'customer'
+                ? 'Align the customer’s Zeebac App QR inside the box'
+                : 'Hold product barcode inside the square box to add'}
+            </p>
+            <div id="billing-qr-reader" className="w-full rounded-2xl overflow-hidden" />
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: THERMAL POS RECEIPT (PRINTABLE & SHAREABLE) ───── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {(completedRetailBill || receiptToView) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-[420px] w-full shadow-2xl text-left space-y-4 relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setCompletedRetailBill(null);
+                setReceiptToView(null);
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+
+            {/* Receipt Body (Targeted by @media print) */}
+            <div
+              id="pos-printable-receipt"
+              className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200/80 font-mono text-[12px] space-y-3"
+            >
+              {/* Receipt Header */}
+              <div className="text-center space-y-1 pb-2 border-b border-dashed border-slate-300">
+                <h2 className="font-black text-[16px] text-slate-900 tracking-tight">
+                  {(completedRetailBill || receiptToView).vendorStoreName}
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Zeebac Store ID: {(completedRetailBill || receiptToView).vendorZeebacId}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {(completedRetailBill || receiptToView).vendorAddress}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  Ph: {(completedRetailBill || receiptToView).vendorPhone || 'N/A'}
+                </p>
+              </div>
+
+              {/* Bill Details */}
+              <div className="space-y-0.5 text-[11px] pb-2 border-b border-dashed border-slate-300">
+                <div className="flex justify-between">
+                  <span>Bill No:</span>
+                  <span className="font-bold">{(completedRetailBill || receiptToView).billNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Date:</span>
+                  <span>{(completedRetailBill || receiptToView).date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Customer:</span>
+                  <span className="font-bold">{(completedRetailBill || receiptToView).customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Zeebac ID:</span>
+                  <span className="font-bold text-purple-700">
+                    {(completedRetailBill || receiptToView).customerZeebacId || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Payment Mode:</span>
+                  <span className="font-bold">{(completedRetailBill || receiptToView).paymentMethod}</span>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="space-y-1.5 pb-2 border-b border-dashed border-slate-300 text-[11px]">
+                <div className="flex justify-between font-bold text-slate-700 pb-1 border-b border-slate-200">
+                  <span className="flex-1">Item</span>
+                  <span className="w-10 text-center">Qty</span>
+                  <span className="w-14 text-right">Rate</span>
+                  <span className="w-14 text-right">Amt</span>
+                </div>
+                {((completedRetailBill || receiptToView).items || []).map((it, idx) => (
+                  <div key={idx} className="flex justify-between text-slate-800">
+                    <span className="flex-1 truncate">{it.name}</span>
+                    <span className="w-10 text-center">{it.quantity}</span>
+                    <span className="w-14 text-right">₹{it.price || it.rate || 0}</span>
+                    <span className="w-14 text-right font-bold">
+                      ₹{it.total || ((it.price || 0) * (it.quantity || 1))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total Summary */}
+              <div className="space-y-1 text-[12px]">
+                <div className="flex justify-between font-black text-[15px] pt-1 text-slate-900">
+                  <span>NET TOTAL:</span>
+                  <span>₹{(completedRetailBill || receiptToView).amount}</span>
+                </div>
+              </div>
+
+              {/* Boxed Cashback Credited Stamp */}
+              <div className="p-2.5 bg-purple-50 border-2 border-dashed border-purple-400 rounded-xl text-center space-y-0.5">
+                <p className="text-[10px] font-extrabold uppercase text-purple-900 tracking-wider">
+                  ★ ZEEBAC CASHBACK CREDITED ★
+                </p>
+                <p className="font-black text-[18px] text-purple-700">
+                  ₹{(completedRetailBill || receiptToView).cashbackCredited}
+                </p>
+                <p className="text-[9.5px] text-purple-800 font-bold">
+                  Points Credited Instantly to Customer Wallet!
+                </p>
+              </div>
+
+              <div className="text-center pt-1 text-[10px] text-slate-400 leading-tight">
+                <p>Thank you for shopping with us!</p>
+                <p>Powered by Zeebac Retail POS Network</p>
+              </div>
+            </div>
+
+            {/* Receipt Modal Action Buttons */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => window.print()}
+                className="py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[17px]">print</span>
+                <span>Print Thermal Receipt</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const bill = completedRetailBill || receiptToView;
+                  const text = `🧾 *Zeebac Bill Receipt*\nStore: ${bill.vendorStoreName}\nBill No: ${bill.billNumber}\nCustomer: ${bill.customerName} (${bill.customerZeebacId})\nTotal: ₹${bill.amount}\n🎁 *Cashback Credited:* ₹${bill.cashbackCredited} Points deposited in your Zeebac Wallet!\nThank you!`;
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                className="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[17px]">share</span>
+                <span>WhatsApp Receipt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: WHOLESALE B2B PAYMENT & STOCK TRANSFER ────────── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
       {createdInvoice && !transferSuccessData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
           <div className="bg-white rounded-3xl p-6 max-w-[380px] w-full shadow-2xl text-center space-y-4 relative">
             <button
               onClick={() => setCreatedInvoice(null)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
 
             <div>
-              <span className="text-[10.5px] uppercase font-bold text-primary px-3 py-1 rounded-full bg-purple-50">
+              <span className="text-[10.5px] uppercase font-bold text-purple-700 px-3 py-1 rounded-full bg-purple-50">
                 Invoice #{createdInvoice.invoiceNumber}
               </span>
               <h3 className="font-display font-black text-[18px] text-slate-900 mt-2">
-                Verify Payment & Transfer
+                Verify Payment & Transfer Stock
               </h3>
               <p className="text-[12px] text-slate-500">
                 Total: <strong>₹{createdInvoice.totalAmount}</strong> to{' '}
@@ -731,7 +1893,7 @@ export default function B2BBillingPage() {
               </p>
             </div>
 
-            {paymentMethod === 'UPI_INTENT' ? (
+            {wholesalePaymentMethod === 'UPI_INTENT' ? (
               <div className="space-y-3">
                 {qrCodeUrl && (
                   <div className="w-48 h-48 mx-auto p-2 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center justify-center">
@@ -757,7 +1919,7 @@ export default function B2BBillingPage() {
                     value={utrInput}
                     onChange={(e) => setUtrInput(e.target.value.replace(/\D/g, ''))}
                     placeholder="e.g. 425512345678"
-                    className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[14px] font-mono font-bold text-slate-900 focus:outline-none focus:border-primary"
+                    className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[14px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
                     autoFocus
                   />
                 </div>
@@ -766,7 +1928,7 @@ export default function B2BBillingPage() {
               <div className="bg-purple-50 rounded-2xl p-4 text-left space-y-1 text-[12px]">
                 <p className="font-bold text-purple-900">Cash Payment Confirmation</p>
                 <p className="text-purple-800">
-                  You are confirming receipt of ₹{createdInvoice.totalAmount} cash from buyer. Stock will automatically transfer upon confirmation.
+                  You are confirming receipt of ₹{createdInvoice.totalAmount} cash from retailer. Stock will automatically transfer upon confirmation.
                 </p>
               </div>
             )}
@@ -774,7 +1936,7 @@ export default function B2BBillingPage() {
             <button
               onClick={handleExecuteTransfer}
               disabled={isTransferring}
-              className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] shadow-lg shadow-primary/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-800 text-white font-bold text-[13.5px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {isTransferring ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -789,7 +1951,9 @@ export default function B2BBillingPage() {
         </div>
       )}
 
-      {/* ── TRANSFER SUCCESS AUDIT MODAL ── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: WHOLESALE TRANSFER SUCCESS CELEBRATION ────────── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
       {transferSuccessData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
           <div className="bg-white rounded-3xl p-6 max-w-[400px] w-full shadow-2xl text-center space-y-4">
@@ -802,7 +1966,7 @@ export default function B2BBillingPage() {
                 Stock Transferred Successfully!
               </h3>
               <p className="text-[12px] text-slate-500 mt-1">
-                Products have been transferred directly to Wholesaler's inventory.
+                All products and stock have been automatically imported into the purchasing retailer’s inventory!
               </p>
             </div>
 
@@ -815,7 +1979,7 @@ export default function B2BBillingPage() {
                 <div key={idx} className="space-y-0.5 pb-1 border-b border-slate-200/60 last:border-0">
                   <p className="font-bold text-slate-900">{audit.name}</p>
                   <p className="text-slate-500 font-mono text-[11px]">
-                    Qty: <strong>{audit.quantity}</strong> | Manufacturer: {audit.sellerStockBefore} → <strong>{audit.sellerStockAfter}</strong> | Wholesaler: {audit.buyerStockBefore} → <strong>{audit.buyerStockAfter}</strong>
+                    Qty: <strong>{audit.quantity}</strong> | Retailer Stock: {audit.buyerStockBefore} → <strong>{audit.buyerStockAfter}</strong>
                   </p>
                 </div>
               ))}
@@ -826,7 +1990,7 @@ export default function B2BBillingPage() {
                 setTransferSuccessData(null);
                 setCreatedInvoice(null);
               }}
-              className="w-full py-3 rounded-2xl btn-primary-gradient text-white font-bold text-[13px] shadow-sm active:scale-95 transition-all cursor-pointer"
+              className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[13px] shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               Done & Return to Billing
             </button>

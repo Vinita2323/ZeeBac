@@ -1327,10 +1327,19 @@ export const logPurchase = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     const vendorId = req.user.id;
-    const { customerPhone, amount } = req.body;
+    const { 
+      customerPhone, 
+      customerZeebacId, 
+      amount, 
+      items = [], 
+      paymentMethod = 'Cash', 
+      billNumber,
+      cashbackPercent: customCashbackPercent,
+    } = req.body;
 
-    if (!customerPhone || !amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid input data' });
+    const parsedAmount = Number(amount);
+    if (!parsedAmount || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid bill amount' });
     }
 
     const vendor = await Vendor.findById(vendorId);
@@ -1344,22 +1353,48 @@ export const logPurchase = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cashback blocked due to subscription expiry' });
     }
 
-    const customer = await User.findOne({ phone: customerPhone });
-    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
+    // Lookup customer by Zeebac ID or Phone
+    let customerFilter;
+    if (customerZeebacId && String(customerZeebacId).trim()) {
+      customerFilter = { zeebacId: String(customerZeebacId).trim().toUpperCase() };
+    } else if (customerPhone && String(customerPhone).trim()) {
+      const cleanPhone = String(customerPhone).trim();
+      customerFilter = { $or: [{ phone: cleanPhone }, { zeebacId: cleanPhone.toUpperCase() }] };
+    } else {
+      return res.status(400).json({ success: false, message: 'Customer Zeebac ID or phone number is required' });
+    }
 
-    const cashbackAmount = calculateCashback(amount, vendor.cashbackRate);
-    // Higher-entropy id than the old `TX-####` (only ~9,000 possible values,
-    // a >50% collision chance after ~100 uses of this endpoint).
+    const customer = await User.findOne(customerFilter);
+    if (!customer) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Customer not found. Please verify the Customer Zeebac ID (e.g. ZBC-XXXXX) or registered mobile number.' 
+      });
+    }
+
+    const effectiveCashbackPercent = Number(customCashbackPercent) > 0 ? Number(customCashbackPercent) : (vendor.cashbackRate || 5);
+    const cashbackAmount = calculateCashback(parsedAmount, effectiveCashbackPercent);
     const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const generatedBillNo = billNumber || `BILL-${Date.now().toString().slice(-6)}`;
 
     let tx;
     let referralAward = null;
 
     await session.withTransaction(async () => {
-      // Created (and, if anything below fails, rolled back) inside the same
-      // transaction as the wallet movements — previously the wallets were
-      // debited/credited BEFORE this record existed, so a failure here left
-      // money moved with no Transaction or ledger row to show for it.
+      // 1. Deduct stock for inventory products in items
+      if (Array.isArray(items) && items.length > 0) {
+        for (const it of items) {
+          if (it.productId && it.quantity > 0) {
+            await Product.updateOne(
+              { _id: it.productId, vendorId: vendor._id, stock: { $gte: it.quantity } },
+              { $inc: { stock: -it.quantity } },
+              { session }
+            );
+          }
+        }
+      }
+
+      // 2. Create Transaction
       const created = await Transaction.create([{
         transactionId,
         customerId: customer._id,
@@ -1371,28 +1406,40 @@ export const logPurchase = async (req, res) => {
         vendorName: vendor.storeName,
         vendorPhone: vendor.phone,
         vendorCategory: vendor.category,
-        type: 'manual',
+        type: 'pos_bill',
         initiatedBy: 'vendor',
-        amount,
-        cashbackPercent: vendor.cashbackRate,
+        amount: parsedAmount,
+        cashbackPercent: effectiveCashbackPercent,
         cashbackAmount,
-        status: 'Approved', // Auto-approved since vendor initiated
-        source: 'vendor_manual',
+        paymentMethod: paymentMethod || 'Cash',
+        status: 'Approved',
+        source: 'vendor_pos_billing',
+        billNumber: generatedBillNo,
+        items: items.map(i => ({
+          productId: i.productId || null,
+          name: i.name,
+          price: Number(i.price || i.rate || 0),
+          quantity: Number(i.quantity || 1),
+          total: Number(i.total || (i.price * i.quantity) || 0),
+          cashbackPercentage: Number(i.cashbackPercentage || effectiveCashbackPercent || 0),
+        })),
       }], { session });
       tx = created[0];
 
+      // 3. Debit Vendor Wallet
       await debitWallet({
         session,
         ownerId: vendor._id,
         ownerType: 'Vendor',
         amount: cashbackAmount,
         category: 'cashback',
-        description: `Cashback given to ${customer.name}`,
+        description: `Cashback given to ${customer.name} (Bill #${generatedBillNo})`,
         referenceId: tx._id,
         referenceType: 'Transaction',
         allowNegativeBalance: true,
       });
 
+      // 4. Credit Customer Wallet instantly
       await creditWallet({
         session,
         ownerId: customer._id,
@@ -1400,12 +1447,26 @@ export const logPurchase = async (req, res) => {
         ownerZeebacId: customer.zeebacId,
         amount: cashbackAmount,
         category: 'cashback',
-        description: `Cashback from ${vendor.storeName}`,
+        description: `Cashback from ${vendor.storeName} (Bill #${generatedBillNo})`,
         referenceId: tx._id,
         referenceType: 'Transaction',
       });
 
       referralAward = await claimFirstPurchaseReferralBonus({ session, customer });
+    });
+
+    // Real-time socket alerts to customer
+    safeSocketEmit(`user:${customer._id}`, 'wallet:updated', {
+      transactionId: tx.transactionId,
+      amount: parsedAmount,
+      cashbackAmount,
+      storeName: vendor.storeName,
+    });
+    safeSocketEmit(`user:${customer._id}`, 'cashback:credited', {
+      transactionId: tx.transactionId,
+      amount: cashbackAmount,
+      storeName: vendor.storeName,
+      billNumber: generatedBillNo,
     });
 
     if (referralAward) {
@@ -1420,11 +1481,14 @@ export const logPurchase = async (req, res) => {
         referenceId: referralAward.referralId,
         referenceType: 'Referral',
       });
-      logger.info(`[Referral] Awarded ₹${referralAward.rewardAmount} to user ${referralAward.referrerId} for referring ${customer._id} (Vendor Initiated)`);
     }
 
-    logger.info(`[vendor.controller] Purchase logged: ${tx.transactionId} by Vendor: ${vendor.storeName} for Customer: ${customer.name}`);
-    res.status(201).json({ success: true, message: 'Purchase logged and cashback sent successfully', data: tx });
+    logger.info(`[POS Billing] Bill logged: ${tx.transactionId} (${generatedBillNo}) by ${vendor.storeName} for customer ${customer.name} (${customer.zeebacId})`);
+    return res.status(201).json({ 
+      success: true, 
+      message: `Bill generated! ₹${cashbackAmount} cashback points credited to ${customer.name}'s wallet.`, 
+      data: tx 
+    });
 
   } catch (error) {
     if (error instanceof InsufficientBalanceError) {
@@ -1437,7 +1501,6 @@ export const logPurchase = async (req, res) => {
   }
 };
 
-// 3. Get Vendor Transactions
 export const getVendorTransactions = async (req, res) => {
   try {
     const transactions = await Transaction.find({

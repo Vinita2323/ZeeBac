@@ -17,7 +17,8 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
 
   const navItems = [
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
-    { label: 'Orders & Requests', icon: 'receipt_long', path: '/vendor/requests', badge: 'Live', isHighlight: true },
+    { label: 'Billing POS', icon: 'point_of_sale', path: '/vendor/billing', badge: 'POS Bill', isHighlight: true },
+    { label: 'Orders & Requests', icon: 'receipt_long', path: '/vendor/requests', badge: 'Live' },
     { label: 'Merchant Payment', icon: 'swap_horiz', path: '/vendor/merchant-payment', badge: 'B2B' },
     { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },
@@ -28,7 +29,6 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Passbook', icon: 'receipt_long', path: '/vendor/passbook' },
     { label: 'Customers', icon: 'groups', path: '/vendor/customers' },
     { label: 'Storefront', icon: 'storefront', path: '/vendor/storefront' },
-    { label: 'B2B Billing POS', icon: 'barcode_scanner', path: '/vendor/b2b-billing', badge: 'Auto Stock' },
     { label: 'Profile', icon: 'person', path: '/vendor/profile' },
     { label: 'Ratings', icon: 'star_rate', path: '/vendor/ratings' },
     { label: 'Notifications', icon: 'notifications', path: '/vendor/notifications' },

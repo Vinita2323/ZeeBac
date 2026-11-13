@@ -669,16 +669,19 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Standee')}</p>
         </button>
 
-        {/* 4. Accept Cash (POS) */}
+        {/* 4. Billing POS */}
         <button
-          onClick={() => setShowPosModal(true)}
-          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
+          onClick={() => navigate('/vendor/billing')}
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-purple-300 hover:border-purple-600 shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center ring-1 ring-purple-100"
         >
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
+          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md uppercase">
+            {t('POS')}
+          </span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-800 text-white group-hover:scale-105 transition-all flex items-center justify-center mb-2 shadow-xs">
             <span className="material-symbols-outlined text-[20px]">point_of_sale</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Accept Cash')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Instant POS')}</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Billing POS')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Retail & B2B')}</p>
         </button>
 
         {/* 5. Pay Later */}
