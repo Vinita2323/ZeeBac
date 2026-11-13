@@ -204,6 +204,11 @@ const orderSchema = new mongoose.Schema(
       vehicleNo: String,
       deliveryOtp: String,
       assignedAt: Date,
+      pickupProofImage: {
+        type: String,
+        default: null,
+      },
+      pickedUpAt: Date,
       deliveredAt: Date,
     },
 

@@ -1270,7 +1270,10 @@ export const DeliveryAPI = {
     return res.data;
   },
   updateOrderStatus: async (id, data) => {
-    const res = await apiClient.patch(`/delivery/orders/${id}/status`, data);
+    const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+    const res = await apiClient.patch(`/delivery/orders/${id}/status`, data, {
+      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
+    });
     return res.data;
   },
   getHistory: async (params) => {

@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
+import { upload } from '../middlewares/multer.middleware.js';
 import {
   checkDeliveryPhone,
   deliveryRegister,
@@ -41,7 +42,7 @@ router.patch('/location', updateDeliveryLocation);
 router.get('/orders', getDeliveryOrders);
 router.post('/orders/:id/accept', acceptDeliveryOrder);
 router.post('/orders/:id/reject', rejectDeliveryOrder);
-router.patch('/orders/:id/status', updateDeliveryOrderStatus);
+router.patch('/orders/:id/status', upload.single('pickupProof'), updateDeliveryOrderStatus);
 
 router.get('/history', getDeliveryHistory);
 router.get('/earnings', getDeliveryEarnings);

@@ -1045,6 +1045,25 @@ export default function CartScreen() {
                 </div>
               </div>
 
+              {/* Pickup Verification Badge */}
+              {activeOrder.riderDetails?.pickupProofImage && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-emerald-900">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
+                    <span>Order Bill & Package Inspected at Pickup</span>
+                  </div>
+                  <a
+                    href={activeOrder.riderDetails.pickupProofImage}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10.5px] text-emerald-700 font-extrabold underline flex items-center gap-0.5"
+                  >
+                    <span>View Proof</span>
+                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                  </a>
+                </div>
+              )}
+
               {/* Delivery OTP Badge */}
               {activeOrder.riderDetails?.deliveryOtp && !isDelivered && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center space-y-0.5">

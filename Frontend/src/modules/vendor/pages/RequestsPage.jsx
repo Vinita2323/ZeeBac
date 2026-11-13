@@ -495,25 +495,44 @@ export default function RequestsPage() {
 
                   {/* Assigned Rider Info (if present) */}
                   {isRiderAssigned && order.riderDetails?.name && (
-                    <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3 flex items-center justify-between text-[12px]">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary text-[20px]">two_wheeler</span>
-                        <div>
-                          <p className="font-bold text-slate-900">
-                            Rider: {order.riderDetails.name} ({order.riderDetails.phone})
-                          </p>
-                          <p className="text-[10.5px] text-slate-500">
-                            Vehicle: {order.riderDetails.vehicleNo || 'N/A'} • OTP: <strong>{order.riderDetails.deliveryOtp}</strong>
-                          </p>
+                    <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3 space-y-2 text-[12px]">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-primary text-[20px]">two_wheeler</span>
+                          <div>
+                            <p className="font-bold text-slate-900">
+                              Rider: {order.riderDetails.name} ({order.riderDetails.phone})
+                            </p>
+                            <p className="text-[10.5px] text-slate-500">
+                              Vehicle: {order.riderDetails.vehicleNo || 'N/A'} • OTP: <strong>{order.riderDetails.deliveryOtp}</strong>
+                            </p>
+                          </div>
                         </div>
+
+                        <a
+                          href={`tel:${order.riderDetails.phone}`}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-primary font-bold text-[11px]"
+                        >
+                          Call
+                        </a>
                       </div>
 
-                      <a
-                        href={`tel:${order.riderDetails.phone}`}
-                        className="px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-primary font-bold text-[11px]"
-                      >
-                        Call
-                      </a>
+                      {order.riderDetails.pickupProofImage && (
+                        <div className="pt-2 border-t border-purple-200/60 flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>
+                            <span>Pickup Proof (Bill/Bag) Attached</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setViewReceiptUrl(order.riderDetails.pickupProofImage)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-[13px]">visibility</span>
+                            <span>View Photo</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -824,6 +843,55 @@ export default function RequestsPage() {
               >
                 {isRejecting ? 'Rejecting...' : 'Confirm Reject'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* PHOTO LIGHTBOX MODAL (FOR BILL / PICKUP PROOF) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {viewReceiptUrl && (
+        <div
+          onClick={() => setViewReceiptUrl(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-reveal cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl relative text-left"
+          >
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[20px]">verified</span>
+                <h4 className="font-display font-black text-[14px] text-slate-900">
+                  Verified Bill / Pickup Proof Photo
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewReceiptUrl(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+            <div className="p-3 bg-slate-950 flex items-center justify-center min-h-[300px] max-h-[75vh]">
+              <img
+                src={viewReceiptUrl}
+                alt="Pickup Proof"
+                className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg"
+              />
+            </div>
+            <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">
+              <a
+                href={viewReceiptUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[12px] font-bold text-primary hover:underline inline-flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                <span>Open Full Image in New Tab</span>
+              </a>
             </div>
           </div>
         </div>

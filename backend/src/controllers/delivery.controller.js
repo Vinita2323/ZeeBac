@@ -909,23 +909,47 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       });
     }
 
-    // ── STEP B: PICKED UP (OUT FOR DELIVERY) ──
+    // ── STEP B: PICKED UP (OUT FOR DELIVERY WITH MANDATORY PROOF) ──
     if (status === 'PICKED_UP' || status === 'OUT_FOR_DELIVERY') {
+      let fileUrl = req.file?.url;
+      if (!fileUrl && req.file?.filename?.startsWith('http')) {
+        fileUrl = req.file.filename;
+      }
+      if (!fileUrl && req.file?.path) {
+        const cleanPath = req.file.path.replace(/\\/g, '/');
+        fileUrl = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+      }
+      if (!fileUrl && req.body?.pickupProofImage) {
+        fileUrl = req.body.pickupProofImage;
+      }
+
+      if (!fileUrl) {
+        return res.status(400).json({
+          success: false,
+          message: 'Pickup verification proof required! Please capture and upload a clear photo of the store invoice/bill or packed parcel to confirm pickup.',
+        });
+      }
+
       order.orderStatus = 'OUT_FOR_DELIVERY';
+      order.riderDetails = order.riderDetails || {};
+      order.riderDetails.pickupProofImage = fileUrl;
+      order.riderDetails.pickedUpAt = new Date();
       await order.save();
 
       safeSocketEmit(`order:${order.orderId}`, 'order:out_for_delivery', {
         orderId: order.orderId,
         orderStatus: 'OUT_FOR_DELIVERY',
+        pickupProofImage: fileUrl,
       });
       safeSocketEmit(`vendor:${order.vendorId}`, 'order:out_for_delivery', {
         orderId: order.orderId,
         orderStatus: 'OUT_FOR_DELIVERY',
+        pickupProofImage: fileUrl,
       });
 
       return res.status(200).json({
         success: true,
-        message: 'Order picked up! Now on the way to customer.',
+        message: 'Order picked up successfully with verified invoice/bill proof! Out for delivery.',
         data: { order },
       });
     }

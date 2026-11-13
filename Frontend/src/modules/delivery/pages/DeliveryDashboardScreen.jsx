@@ -46,6 +46,12 @@ export default function DeliveryDashboardScreen() {
   const [rejectOrderId, setRejectOrderId] = useState(null);
   const [rejectReason, setRejectReason] = useState('Too far from pickup');
 
+  // Pickup Proof Image Capture
+  const [pickupProofFile, setPickupProofFile] = useState(null);
+  const [pickupProofPreview, setPickupProofPreview] = useState(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+
   // Ringing Order Alert banner
   const [ringingOrderAlert, setRingingOrderAlert] = useState(null);
   const knownOrderIdsRef = useRef(new Set());
@@ -247,15 +253,30 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
-  // Update Stepper Status
+  // Pickup Photo Selection handler
+  const handlePickupPhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (JPEG, PNG, WebP)');
+      return;
+    }
+    setPickupProofFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPickupProofPreview(objectUrl);
+  };
+
+  // Update Stepper Status (supports JSON and multipart FormData)
   const handleUpdateStatus = async (newStatus, extra = {}) => {
     if (!activeOrder) return;
     setActionLoadingId(activeOrder._id);
     try {
-      const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, {
-        status: newStatus,
-        ...extra,
-      });
+      const dataToSend =
+        extra instanceof FormData
+          ? extra
+          : { status: newStatus, ...extra };
+
+      const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, dataToSend);
       if (res.success) {
         toast.success(res.message || 'Status updated');
         setActiveOrder(res.data.order);
@@ -268,6 +289,23 @@ export default function DeliveryDashboardScreen() {
     } finally {
       setActionLoadingId(null);
     }
+  };
+
+  // Confirm Pickup with Mandatory Bill Photo Proof
+  const handleConfirmPickupWithProof = async () => {
+    if (!activeOrder) return;
+    if (!pickupProofFile) {
+      toast.error('Store invoice/bill ya packed bag ki photo attach karna zaroori hai');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('status', 'PICKED_UP');
+    formData.append('pickupProof', pickupProofFile);
+
+    await handleUpdateStatus('PICKED_UP', formData);
+    setPickupProofFile(null);
+    setPickupProofPreview(null);
   };
 
   // Complete Delivery with OTP
@@ -555,28 +593,171 @@ export default function DeliveryDashboardScreen() {
                 </button>
               )}
 
-              {/* State 2: ARRIVED_AT_PICKUP -> Pick up order */}
+              {/* State 2: ARRIVED_AT_PICKUP -> Mandatory Bill / Order Photo Proof */}
               {activeOrder.orderStatus === 'ARRIVED_AT_PICKUP' && (
-                <button
-                  onClick={() => handleUpdateStatus('PICKED_UP')}
-                  disabled={actionLoadingId === activeOrder._id}
-                  className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[14px] shadow-lg shadow-amber-600/25 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">inventory_2</span>
-                  <span>Confirm Order Picked Up</span>
-                </button>
+                <div className="space-y-3.5 bg-gradient-to-b from-amber-500/[0.08] via-amber-500/[0.03] to-transparent border border-amber-300 rounded-2xl p-3.5 text-left">
+                  <div className="flex items-center justify-between border-b border-amber-200/70 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-600 text-[20px]">verified</span>
+                      <h4 className="font-display font-black text-[13.5px] text-slate-900">
+                        Store Pickup Verification Required
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-extrabold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                      Mandatory
+                    </span>
+                  </div>
+
+                  {/* Verification Checklist */}
+                  <div className="space-y-1 text-[11.5px] text-slate-700 bg-white/70 p-2.5 rounded-xl border border-amber-200/60">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-emerald-600 text-[15px]">check_circle</span>
+                      <span>Order ID: <strong>#{activeOrder.orderId}</strong> bill se match karein</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-emerald-600 text-[15px]">check_circle</span>
+                      <span><strong>{activeOrder.items?.length || 0} products</strong> packed & sealed hain</span>
+                    </div>
+                  </div>
+
+                  {/* Photo Capture / Preview Box */}
+                  {!pickupProofPreview ? (
+                    <div className="bg-white rounded-xl border-2 border-dashed border-amber-300 p-4 text-center space-y-2.5">
+                      <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                        <span className="material-symbols-outlined text-[26px]">photo_camera</span>
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-bold text-slate-800">
+                          Click Store Invoice Bill or Packed Bag
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Order pick up karne ke liye invoice bill ya packed parcel ki photo zaroori hai
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="flex-1 py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">photo_camera</span>
+                          <span>Take Photo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => galleryInputRef.current?.click()}
+                          className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer border border-slate-200"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">upload_file</span>
+                          <span>Gallery</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-emerald-300 p-3 space-y-2.5 shadow-xs">
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 max-h-52 bg-slate-900 flex items-center justify-center">
+                        <img
+                          src={pickupProofPreview}
+                          alt="Pickup Invoice Proof"
+                          className="max-h-52 w-auto object-contain"
+                        />
+                        <div className="absolute top-2 left-2 bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 backdrop-blur-xs">
+                          <span className="material-symbols-outlined text-[12px]">done</span>
+                          <span>Proof Attached</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 pt-0.5">
+                        <span className="truncate max-w-[200px] font-medium text-slate-700">
+                          {pickupProofFile?.name || 'Invoice Proof Photo'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPickupProofFile(null);
+                            setPickupProofPreview(null);
+                          }}
+                          className="text-rose-600 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">replay</span>
+                          <span>Retake Photo</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hidden file inputs */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePickupPhotoSelect}
+                  />
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePickupPhotoSelect}
+                  />
+
+                  {/* Confirm Pickup Button */}
+                  <button
+                    onClick={handleConfirmPickupWithProof}
+                    disabled={!pickupProofFile || actionLoadingId === activeOrder._id}
+                    className={`w-full py-3.5 rounded-2xl font-bold text-[14px] shadow-lg flex items-center justify-center gap-2 transition-all ${
+                      pickupProofFile && actionLoadingId !== activeOrder._id
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/25 active:scale-95 cursor-pointer'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[19px]">
+                      {actionLoadingId === activeOrder._id ? 'sync' : 'inventory_2'}
+                    </span>
+                    <span>
+                      {actionLoadingId === activeOrder._id
+                        ? 'Verifying & Confirming Pickup...'
+                        : pickupProofFile
+                        ? 'Verify & Confirm Order Picked Up'
+                        : 'Upload Bill Photo to Confirm Pickup'}
+                    </span>
+                  </button>
+                </div>
               )}
 
               {/* State 3: PICKED_UP / OUT_FOR_DELIVERY -> Arrived at customer */}
               {['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(activeOrder.orderStatus) && (
-                <button
-                  onClick={() => handleUpdateStatus('ARRIVED_AT_CUSTOMER')}
-                  disabled={actionLoadingId === activeOrder._id}
-                  className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg shadow-primary/25 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">near_me</span>
-                  <span>Arrived at Customer Location</span>
-                </button>
+                <div className="space-y-2">
+                  {activeOrder.riderDetails?.pickupProofImage && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-emerald-900">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
+                        <span>Pickup Proof Uploaded & Verified</span>
+                      </div>
+                      <a
+                        href={activeOrder.riderDetails.pickupProofImage}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10.5px] text-emerald-700 font-extrabold underline flex items-center gap-0.5"
+                      >
+                        <span>View</span>
+                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                      </a>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => handleUpdateStatus('ARRIVED_AT_CUSTOMER')}
+                    disabled={actionLoadingId === activeOrder._id}
+                    className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg shadow-primary/25 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">near_me</span>
+                    <span>Arrived at Customer Location</span>
+                  </button>
+                </div>
               )}
 
               {/* State 4: ARRIVED_AT_CUSTOMER -> Enter OTP & Complete */}

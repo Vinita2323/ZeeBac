@@ -948,6 +948,26 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* Out for delivery / Rider info badge */}
+                  {(order.orderStatus === 'OUT_FOR_DELIVERY' || order.orderStatus === 'RIDER_ASSIGNED') && (
+                    <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[11px]">
+                      <span className="flex items-center gap-1.5 text-indigo-950 font-bold truncate">
+                        <span className="material-symbols-outlined text-[15px] text-indigo-600">two_wheeler</span>
+                        <span>Rider: {order.riderDetails?.name || 'Assigned'} ({order.riderDetails?.phone || 'On the way'})</span>
+                      </span>
+                      {order.riderDetails?.pickupProofImage ? (
+                        <span className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-0.5 shrink-0">
+                          <span className="material-symbols-outlined text-[12px] text-emerald-600">verified</span>
+                          <span>Proof Attached</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-indigo-700 font-semibold uppercase">
+                          {order.orderStatus.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Action buttons */}
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
                     {isPlaced && (

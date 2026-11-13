@@ -63,6 +63,8 @@ const FOLDER_MAP = {
   mediaFile: 'media',
   image: 'products',
   brandLogo: 'products',
+  pickupProof: 'pickup_proofs',
+  pickupProofImage: 'pickup_proofs',
   aadhaarPan: 'documents',
   gstCertificate: 'documents',
   shopLicense: 'documents',
