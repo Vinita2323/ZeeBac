@@ -1,1645 +1,1516 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
-import { VendorAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
-import { downloadImage, shareContent } from '../../../utils/exportUtils';
-import useQrCode from '../../../hooks/useQrCode';
+import useLanguageStore from '../../../store/useLanguageStore';
+import { VendorAPI, getMediaUrl } from '../../../services/api';
+import { toast } from 'react-hot-toast';
+import { safeNavigateBack } from '../../../utils/navigationUtils';
+import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
-import useLanguageStore from '../../../store/useLanguageStore';
 import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
-import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
-import { safeNavigateBack } from '../../../utils/navigationUtils';
+import {
+  getBiometricSupportStatus,
+  describeBiometricUnsupportedReason,
+  registerBiometricCredential,
+} from '../../../utils/biometric.util';
+import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { language, t } = useLanguageStore();
-  const [showLangModal, setShowLangModal] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showLoanModal, setShowLoanModal] = useState(false);
-  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
 
-  // Biometric & Security PIN States
-  const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinMode, setPinMode] = useState('setup'); // 'setup' | 'change'
-  const [securityToast, setSecurityToast] = useState('');
-  // Checked once on mount so an unsupported device (e.g. Play Services FIDO
-  // module missing/outdated — common on older/budget Android phones) shows a
-  // disabled toggle with the real reason upfront, instead of letting the
-  // vendor go through PIN setup only to have biometric enrollment fail after.
-  const [biometricSupport, setBiometricSupport] = useState({ checked: false, supported: true, reason: null, detail: null });
-
-  useEffect(() => {
-    if (currentUser?.security) {
-      setBiometrics(!!currentUser.security.biometricEnabled);
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    let cancelled = false;
-    getBiometricSupportStatus().then((status) => {
-      if (!cancelled) setBiometricSupport({ checked: true, ...status });
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const enrollBiometrics = async () => {
-    try {
-      const status = await getBiometricSupportStatus();
-      if (!status.supported) {
-        setBiometrics(false);
-        setSecurityToast(`⚠️ ${describeBiometricUnsupportedReason(status.reason, status.detail)}`);
-        setTimeout(() => setSecurityToast(''), 7000);
-        return;
-      }
-
-      const bioRes = await registerBiometricCredential(currentUser);
-      if (bioRes.success) {
-        await VendorAPI.toggleBiometricSecurity(true, bioRes.credentialId);
-        updateProfileStore({
-          security: {
-            // Fresh read, not the closured `currentUser` prop — this can run
-            // right after handleSavePin's own hasPin:true update in the same
-            // PIN-setup flow, before this component re-renders, and spreading
-            // the stale prop here would silently revert hasPin to false.
-            ...useAuthStore.getState().currentUser?.security,
-            biometricEnabled: true,
-            biometricCredentialId: bioRes.credentialId,
-          }
-        });
-        setBiometrics(true);
-        setSecurityToast('✅ Biometric security enabled! Store cashouts are now protected with your fingerprint / Face ID.');
-        setTimeout(() => setSecurityToast(''), 4000);
-      } else {
-        setSecurityToast(bioRes.error || 'Biometric registration cancelled.');
-        setBiometrics(false);
-        setTimeout(() => setSecurityToast(''), 4000);
-      }
-    } catch (err) {
-      console.error(err);
-      setSecurityToast('Failed to setup biometrics.');
-      setBiometrics(false);
-      setTimeout(() => setSecurityToast(''), 4000);
-    }
-  };
-
-  const handleToggleBiometrics = async (e) => {
-    const shouldEnable = e.target.checked;
-    setSecurityToast('');
-
-    if (shouldEnable) {
-      // If vendor hasn't configured a backup PIN yet, prompt PIN setup first
-      if (!currentUser?.security?.hasPin) {
-        setPinMode('setup');
-        setShowPinModal(true);
-        return;
-      }
-      await enrollBiometrics();
-    } else {
-      try {
-        const res = await VendorAPI.toggleBiometricSecurity(false);
-        if (res.success) {
-          updateProfileStore({ security: { ...useAuthStore.getState().currentUser?.security, biometricEnabled: false } });
-          setBiometrics(false);
-          setSecurityToast('Biometric security disabled.');
-          setTimeout(() => setSecurityToast(''), 3500);
-        }
-      } catch (err) {
-        console.error('Failed to disable biometrics', err);
-      }
-    }
-  };
-
-  const handlePinSubmit = async (pin, currentPin) => {
-    const res = await VendorAPI.setupSecurityPin(pin, currentPin || null);
-    if (res.success) {
-      updateProfileStore({
-        security: {
-          ...useAuthStore.getState().currentUser?.security,
-          hasPin: true,
-        },
-      });
-      if (pinMode === 'setup') {
-        await enrollBiometrics();
-      } else {
-        setSecurityToast('✅ 4-Digit Security PIN updated successfully.');
-        setTimeout(() => setSecurityToast(''), 3500);
-      }
-    }
-  };
-
+  // Loading & Data States
+  const [isLoading, setIsLoading] = useState(true);
   const [vendorData, setVendorData] = useState(null);
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    totalTransactions: 0,
-    totalCashbackGiven: 0
-  });
-  
-  const storeName = vendorData?.storeName || currentUser.storeName || 'Vini Business';
-  const category = vendorData?.category || currentUser.category || 'Fashion & Apparel';
-  const phone = vendorData?.phone || currentUser.phone || '+91 9111966732';
-  const email = vendorData?.email || currentUser.email || 'No email provided';
-  const zeebacId = vendorData?.zeebacId || currentUser.zeebacId || 'ZBV-XXXX';
-  
-  const getCleanAddress = (rawObj) => {
-    if (!rawObj || typeof rawObj !== 'object') return rawObj || 'Indore, India';
-    const p = [rawObj.fullAddress];
-    const full = (rawObj.fullAddress || '').toLowerCase();
-    if (rawObj.landmark && !full.includes(rawObj.landmark.toLowerCase())) p.push(rawObj.landmark);
-    if (rawObj.city && !full.includes(rawObj.city.toLowerCase())) p.push(rawObj.city);
-    if (rawObj.state && !full.includes(rawObj.state.toLowerCase())) p.push(rawObj.state);
-    if (rawObj.pincode && String(rawObj.pincode) && !full.includes(String(rawObj.pincode).toLowerCase())) p.push(rawObj.pincode);
-    return p.filter(Boolean).join(', ');
-  };
+  const [stats, setStats] = useState({ walletBalance: 0, totalRevenue: 0, todaySales: 0 });
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
-  const rawAddress = vendorData?.address || currentUser.address;
-  let address = getCleanAddress(rawAddress);
-  const firstLetter = storeName.charAt(0).toUpperCase();
-
+  // Profile Image State
   const [profilePic, setProfilePic] = useState(currentUser.profilePic || null);
   const fileInputRef = useRef(null);
-  const chequeInputRef = useRef(null);
 
-  const [previewDoc, setPreviewDoc] = useState(null); // 'gst', 'pan', 'cheque', or null
-  const [chequeUploaded, setChequeUploaded] = useState(false);
-  const [toastMessage, setToastMessage] = useState(null);
-  const [supportModalOpen, setSupportModalOpen] = useState(false);
+  // Modal Visibility States
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
+  const [showOpeningHoursModal, setShowOpeningHoursModal] = useState(false);
+  const [showBusinessDetailsModal, setShowBusinessDetailsModal] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [showLangModal, setShowLangModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
 
-  const handleShareStore = () => {
-    const link = `https://zeebac.com/store/${storeName.toLowerCase().replace(/\s+/g, '-')}`;
-    navigator.clipboard.writeText(link).then(() => {
-      setToastMessage('Store link copied to clipboard!');
-      setTimeout(() => setToastMessage(null), 2500);
-    }).catch(() => {
-      alert(`Store Link: ${link}`);
-    });
-  };
+  // Biometrics & PIN States
+  const [biometrics, setBiometrics] = useState(currentUser?.security?.biometricEnabled || false);
+  const [biometricSupport, setBiometricSupport] = useState({ checked: false, supported: true });
+  const [securityToast, setSecurityToast] = useState('');
+  const [pinInput, setPinInput] = useState('');
+  const [isSavingPin, setIsSavingPin] = useState(false);
 
-  const handleChequeUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setChequeUploaded(true);
-      alert('Bank Cheque uploaded successfully!');
+  // Notification sound settings (stored in localStorage)
+  const [soundSettings, setSoundSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zeebac_vendor_sound_settings');
+      return saved ? JSON.parse(saved) : { chimesEnabled: true, voiceEnabled: true, claimsEnabled: true };
+    } catch {
+      return { chimesEnabled: true, voiceEnabled: true, claimsEnabled: true };
     }
-  };
+  });
 
-  const [formData, setFormData] = useState({
-    storeName,
-    category,
-    phone,
-    email,
-    description: '',
-    operatingHours: '',
+  // Business & Timing Form State
+  const [businessForm, setBusinessForm] = useState({
+    storeName: '',
+    category: '',
+    phone: '',
+    email: '',
     fullAddress: '',
     landmark: '',
     city: '',
     state: '',
     pincode: '',
+    description: '',
+  });
+
+  const [timingForm, setTimingForm] = useState({
+    openingTime: '09:00',
+    closingTime: '22:00',
+    workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  });
+
+  const [bankForm, setBankForm] = useState({
     upiId: '',
     accountHolderName: '',
     bankName: '',
     accountNumber: '',
     ifscCode: '',
-    website: '',
-    instagram: '',
-    facebook: '',
-    whatsapp: '',
-    businessType: 'Retailer',
-    retailerSubtype: 'independent_store',
-    shopType: 'Independent Store',
   });
 
+  // Derived Display Values
+  const storeName = vendorData?.storeName || currentUser.storeName || 'My Store';
+  const category = vendorData?.category || currentUser.category || 'Retail Store';
+  const phone = vendorData?.phone || currentUser.phone || '+91 9876543210';
+  const email = vendorData?.email || currentUser.email || '';
+  const zeebacId = vendorData?.zeebacId || currentUser.zeebacId || 'ZBV-5706';
+
+  const locationDisplay = useMemo(() => {
+    const city = vendorData?.address?.city || currentUser.address?.city;
+    const state = vendorData?.address?.state || currentUser.address?.state;
+    if (city && state) return `${city}, ${state}`;
+    if (city) return city;
+    return 'India';
+  }, [vendorData, currentUser]);
+
+  const openingHoursText = useMemo(() => {
+    if (vendorData?.operatingHours) return vendorData.operatingHours;
+    if (vendorData?.businessHours?.openingTime && vendorData?.businessHours?.closingTime) {
+      return `${vendorData.businessHours.openingTime} - ${vendorData.businessHours.closingTime}`;
+    }
+    return '09:00 AM - 10:00 PM';
+  }, [vendorData]);
+
+  // Check if store is open right now based on hours
+  const isStoreOpenNow = useMemo(() => {
+    try {
+      const openTime = timingForm.openingTime || '09:00';
+      const closeTime = timingForm.closingTime || '22:00';
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const [openH, openM] = openTime.split(':').map(Number);
+      const [closeH, closeM] = closeTime.split(':').map(Number);
+      const openMinutes = (openH || 9) * 60 + (openM || 0);
+      const closeMinutes = (closeH || 22) * 60 + (closeM || 0);
+
+      return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+    } catch {
+      return true;
+    }
+  }, [timingForm]);
+
+  // Fetch full vendor profile & dashboard stats on mount
   useEffect(() => {
-    const fetchProfile = async () => {
+    let isMounted = true;
+    const loadProfileData = async () => {
+      setIsLoading(true);
       try {
-        const res = await VendorAPI.getProfile();
-        setVendorData(res.data);
-        if (res.data?.security) {
-          updateProfileStore({ security: res.data.security });
-        }
-        
-        let cleanedFullAddress = res.data.address?.fullAddress || '';
-        if (cleanedFullAddress) {
-          const r = res.data.address;
-          if (r.landmark) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.landmark, 'ig'), '');
-          if (r.city) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.city, 'ig'), '');
-          if (r.state) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.state, 'ig'), '');
-          if (r.pincode) cleanedFullAddress = cleanedFullAddress.replace(new RegExp(',?\\s*' + r.pincode, 'ig'), '');
-          cleanedFullAddress = cleanedFullAddress.replace(/,\s*,/g, ',').replace(/,\s*$/, '').replace(/^,\s*/, '').trim();
-        }
+        const [profileRes, statsRes, subRes] = await Promise.allSettled([
+          VendorAPI.getProfile(),
+          VendorAPI.getDashboardStats(),
+          VendorAPI.getSubscriptionStatus(),
+        ]);
 
-        const cleanedAddressObj = {
-          ...(res.data.address || {}),
-          fullAddress: cleanedFullAddress
-        };
+        if (isMounted && profileRes.status === 'fulfilled' && profileRes.value?.success) {
+          const v = profileRes.value.data;
+          setVendorData(v);
+          if (v.profilePic) setProfilePic(v.profilePic);
 
-        setFormData({
-          storeName: res.data.storeName || storeName,
-          category: res.data.category || category,
-          phone: res.data.phone || phone,
-          email: res.data.email || email,
-          address: getCleanAddress(cleanedAddressObj) || address,
-          fullAddress: cleanedFullAddress,
-          landmark: res.data.address?.landmark || '',
-          city: res.data.address?.city || '',
-          state: res.data.address?.state || '',
-          pincode: res.data.address?.pincode || '',
-          operatingHours: res.data.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM',
-          cashbackRate: res.data.cashbackRate ?? 5,
-          shopType: res.data.shopType || 'Independent Store',
-          businessType: res.data.businessType || 'Retailer',
-          retailerSubtype: res.data.retailerSubtype || (res.data.shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store'),
-          upiId: res.data.bankDetails?.upiId || '',
-          accountHolderName: res.data.bankDetails?.accountHolderName || '',
-          bankName: res.data.bankDetails?.bankName || '',
-          accountNumber: res.data.bankDetails?.accountNumber || '',
-          ifscCode: res.data.bankDetails?.ifscCode || '',
-          website: res.data.socialLinks?.website || '',
-          instagram: res.data.socialLinks?.instagram || '',
-          facebook: res.data.socialLinks?.facebook || '',
-          whatsapp: res.data.socialLinks?.whatsapp || ''
-        });
+          setBusinessForm({
+            storeName: v.storeName || '',
+            category: v.category || '',
+            phone: v.phone || '',
+            email: v.email || '',
+            fullAddress: v.address?.fullAddress || '',
+            landmark: v.address?.landmark || '',
+            city: v.address?.city || '',
+            state: v.address?.state || '',
+            pincode: v.address?.pincode || '',
+            description: v.description || '',
+          });
 
-        if (res.data.profilePic) {
-          const picUrl = getMediaUrl(res.data.profilePic);
-          setProfilePic(picUrl);
-        }
-
-        try {
-          const statsRes = await VendorAPI.getDashboardStats();
-          if (statsRes.success && statsRes.data) {
-            setStats(statsRes.data);
+          if (v.businessHours) {
+            setTimingForm({
+              openingTime: v.businessHours.openingTime || '09:00',
+              closingTime: v.businessHours.closingTime || '22:00',
+              workingDays: v.businessHours.workingDays?.length
+                ? v.businessHours.workingDays
+                : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            });
           }
-        } catch (e) {
-          console.error('Failed to fetch dashboard stats', e);
+
+          if (v.bankDetails) {
+            setBankForm({
+              upiId: v.bankDetails.upiId || '',
+              accountHolderName: v.bankDetails.accountHolderName || '',
+              bankName: v.bankDetails.bankName || '',
+              accountNumber: v.bankDetails.accountNumber || '',
+              ifscCode: v.bankDetails.ifscCode || '',
+            });
+          }
         }
-      } catch (error) {
-        console.error('Failed to fetch profile', error);
+
+        if (isMounted && statsRes.status === 'fulfilled' && statsRes.value?.success) {
+          setStats(statsRes.value.data || {});
+        }
+
+        if (isMounted && subRes.status === 'fulfilled' && subRes.value?.success) {
+          setSubscriptionInfo(subRes.value.data || null);
+        }
+      } catch (err) {
+        console.error('Failed to load vendor profile', err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
-    fetchProfile();
+
+    loadProfileData();
+
+    // Check biometric device capabilities
+    getBiometricSupportStatus().then((status) => {
+      if (isMounted) setBiometricSupport({ checked: true, ...status });
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleImageUpload = (e) => {
+  // Handle Profile Avatar Upload
+  const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result;
-        setProfilePic(base64String);
-        updateProfileStore({ profilePic: base64String });
-        
-        // Save to backend
-        try {
-          await VendorAPI.updateProfile({ profilePic: base64String });
-          setToastMessage('Profile photo updated!');
-          setTimeout(() => setToastMessage(null), 2500);
-        } catch (error) {
-          console.error("Failed to update profile photo on backend", error);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file (PNG, JPG, WebP)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result;
+      setProfilePic(base64String);
+      updateProfileStore({ profilePic: base64String });
+
+      try {
+        await VendorAPI.updateProfile({ profilePic: base64String });
+        toast.success('Store photo updated successfully!');
+      } catch (err) {
+        console.error('Failed to update store photo', err);
+        toast.error('Failed to save photo');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Copy Store Zeebac ID to clipboard
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(zeebacId);
+    toast.success(`Store ID ${zeebacId} copied!`);
+  };
+
+  // Save Business Details
+  const handleSaveBusinessDetails = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await VendorAPI.updateProfile({
+        storeName: businessForm.storeName,
+        email: businessForm.email,
+        description: businessForm.description,
+        address: {
+          fullAddress: businessForm.fullAddress,
+          landmark: businessForm.landmark,
+          city: businessForm.city,
+          state: businessForm.state,
+          pincode: businessForm.pincode,
+        },
+      });
+
+      if (res.success) {
+        toast.success('Business details saved!');
+        setVendorData((prev) => ({ ...prev, ...res.data }));
+        setShowBusinessDetailsModal(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save business details');
     }
   };
 
-  const handleEditSave = async () => {
-    if (isEditing) {
+  // Save Shop Opening Hours
+  const handleSaveOpeningHours = async (e) => {
+    e.preventDefault();
+    try {
+      const operatingHours = `${timingForm.openingTime} - ${timingForm.closingTime} (${timingForm.workingDays.length === 7 ? 'All Days' : timingForm.workingDays.join(', ')})`;
+
+      const res = await VendorAPI.updateProfile({
+        operatingHours,
+        businessHours: {
+          openingTime: timingForm.openingTime,
+          closingTime: timingForm.closingTime,
+          workingDays: timingForm.workingDays,
+        },
+      });
+
+      if (res.success) {
+        toast.success('Shop opening hours updated!');
+        setVendorData((prev) => ({
+          ...prev,
+          operatingHours,
+          businessHours: timingForm,
+        }));
+        setShowOpeningHoursModal(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update store hours');
+    }
+  };
+
+  // Save Bank Details
+  const handleSaveBankDetails = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await VendorAPI.updateProfile({
+        bankDetails: bankForm,
+      });
+
+      if (res.success) {
+        toast.success('Settlement bank details updated!');
+        setVendorData((prev) => ({ ...prev, bankDetails: bankForm }));
+        setShowBankModal(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update bank details');
+    }
+  };
+
+  // Toggle Day in Opening Hours
+  const handleToggleDay = (day) => {
+    setTimingForm((prev) => {
+      const exists = prev.workingDays.includes(day);
+      const updated = exists ? prev.workingDays.filter((d) => d !== day) : [...prev.workingDays, day];
+      return { ...prev, workingDays: updated.length ? updated : [day] };
+    });
+  };
+
+  // Toggle Sound Settings
+  const handleToggleSound = (key) => {
+    setSoundSettings((prev) => {
+      const updated = { ...prev, [key]: !prev[key] };
+      localStorage.setItem('zeebac_vendor_sound_settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Test Notification Sounds
+  const handleTestSound = () => {
+    playNotificationChime('incoming');
+    speakVoice('Zeebac order notification test sound');
+    toast.success('Playing test order alert!');
+  };
+
+  // Biometric Enrollment
+  const handleToggleBiometrics = async (e) => {
+    const shouldEnable = e.target.checked;
+    setSecurityToast('');
+
+    if (shouldEnable) {
       try {
-        const minAllowed = formData.shopType === 'Chain & Brand' ? 5 : 2;
-        if (formData.cashbackRate < minAllowed) {
-          alert(`Cashback rate cannot be less than ${minAllowed}% for ${formData.shopType}.`);
+        const status = await getBiometricSupportStatus();
+        if (!status.supported) {
+          setBiometrics(false);
+          toast.error(`⚠️ ${describeBiometricUnsupportedReason(status.reason, status.detail)}`);
           return;
         }
 
-        await VendorAPI.updateProfile({
-          email: formData.email,
-          businessType: formData.businessType,
-          retailerSubtype: formData.retailerSubtype,
-          shopType: formData.shopType,
-          cashbackRate: Number(formData.cashbackRate),
-          address: { 
-            fullAddress: formData.fullAddress,
-            landmark: formData.landmark,
-            city: formData.city,
-            state: formData.state,
-            pincode: formData.pincode
-          },
-          description: formData.description,
-          operatingHours: formData.operatingHours,
-          bankDetails: {
-            upiId: formData.upiId,
-            accountHolderName: formData.accountHolderName,
-            bankName: formData.bankName,
-            accountNumber: formData.accountNumber,
-            ifscCode: formData.ifscCode
-          },
-          socialLinks: {
-            website: formData.website,
-            instagram: formData.instagram,
-            facebook: formData.facebook,
-            whatsapp: formData.whatsapp
-          }
-        });
-        setToastMessage('Profile updated successfully!');
-        setTimeout(() => setToastMessage(null), 2500);
-      } catch (error) {
-        console.error('Failed to update profile', error);
-        alert(error.response?.data?.message || 'Failed to update profile.');
-        return;
+        const bioRes = await registerBiometricCredential(currentUser);
+        if (bioRes.success) {
+          await VendorAPI.toggleBiometricSecurity(true, bioRes.credentialId);
+          updateProfileStore({
+            security: {
+              ...useAuthStore.getState().currentUser?.security,
+              biometricEnabled: true,
+              biometricCredentialId: bioRes.credentialId,
+            },
+          });
+          setBiometrics(true);
+          toast.success('Fingerprint / Biometric lock enabled!');
+        } else {
+          toast.error(bioRes.error || 'Biometric setup cancelled');
+          setBiometrics(false);
+        }
+      } catch (err) {
+        toast.error('Failed to setup biometrics');
+        setBiometrics(false);
+      }
+    } else {
+      try {
+        const res = await VendorAPI.toggleBiometricSecurity(false);
+        if (res.success) {
+          updateProfileStore({
+            security: { ...useAuthStore.getState().currentUser?.security, biometricEnabled: false },
+          });
+          setBiometrics(false);
+          toast.success('Biometric lock disabled');
+        }
+      } catch (err) {
+        toast.error('Failed to disable biometrics');
       }
     }
-    setIsEditing(!isEditing);
+  };
+
+  // Save 4-Digit Security PIN
+  const handleSavePin = async (e) => {
+    e.preventDefault();
+    if (pinInput.length !== 4) {
+      toast.error('PIN must be 4 digits');
+      return;
+    }
+    setIsSavingPin(true);
+    try {
+      const res = await VendorAPI.setupSecurityPin(pinInput);
+      if (res.success) {
+        updateProfileStore({
+          security: { ...useAuthStore.getState().currentUser?.security, hasPin: true },
+        });
+        toast.success('4-Digit Security PIN set successfully!');
+        setPinInput('');
+        setShowSecurityModal(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to set PIN');
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
+
+  // Confirm and Execute Logout
+  const handleConfirmLogout = () => {
+    logout();
+    navigate('/auth/login');
   };
 
   return (
-    <div className="animate-reveal text-left" style={{ fontFamily: "'Quicksand', sans-serif" }}>
-      
-      {/* Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center justify-between border-b border-outline-variant/10 shadow-sm mb-0">
-        <div className="flex items-center">
-          <button onClick={() => safeNavigateBack(navigate, '/vendor')} className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer">
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
+    <div className="animate-reveal text-left max-w-xl mx-auto pb-12">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* TOP HEADER BAR (Matching reference screenshot) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-3 sm:px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => safeNavigateBack(navigate, '/vendor')}
+            className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 cursor-pointer"
+            title="Back to Dashboard"
+          >
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">{t('Profile')}</span>
+          <h1 className="font-display font-black text-[18px] text-slate-900 tracking-tight">
+            {t('Profile')}
+          </h1>
         </div>
-        <button 
-          onClick={handleEditSave}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 border border-primary text-primary rounded-full font-bold text-[12px] sm:text-[13px] hover:bg-primary/5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-        >
-          <span className="material-symbols-outlined text-[16px]">{isEditing ? 'save' : 'edit'}</span>
-          {isEditing ? t('Save') : t('Edit')}
-        </button>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowLangModal(true)}
+            className="px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-primary font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+            title="Change Language"
+          >
+            <span className="material-symbols-outlined text-[15px]">translate</span>
+            <span className="uppercase">{language || 'en'}</span>
+          </button>
+          <button
+            onClick={() => setShowBusinessDetailsModal(true)}
+            className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 cursor-pointer"
+            title="Store Settings"
+          >
+            <span className="material-symbols-outlined text-[20px]">settings</span>
+          </button>
+        </div>
       </header>
 
-      <div className="space-y-5 pt-0 pb-6">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* HERO STORE PROFILE CARD (Matching reference screenshot) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="pt-5 pb-3 px-4 text-center space-y-2.5">
+        {/* Hidden File Input for Avatar Photo */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
 
-        {/* Profile Card Banner */}
-        <div className="relative overflow-hidden -mx-3 sm:-mx-4 md:mx-0 px-4 sm:px-6 py-6 text-white shadow-md bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] flex flex-col justify-between rounded-b-3xl">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl -mt-10 -mr-10 pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/20 rounded-full blur-xl -mb-10 -ml-10 pointer-events-none" />
-          
-           <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept="image/*"
-            onChange={handleImageUpload}
-          />
-
-          <div className="flex items-center gap-4 relative z-10">
-            {/* White Square rounded Avatar with bottom-right camera badge (visible only in edit mode) */}
-            <div className="relative flex-shrink-0">
-              <div 
-                onClick={() => isEditing && fileInputRef.current?.click()}
-                className={`w-20 h-20 bg-white rounded-[20px] shadow-md flex items-center justify-center text-primary text-3xl font-black relative overflow-hidden ${isEditing ? 'cursor-pointer' : ''}`}
-              >
-                {profilePic ? (
-                  <img src={getMediaUrl(profilePic)} alt="Store" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{firstLetter}</span>
-                )}
-              </div>
-              {isEditing && (
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 translate-x-1 translate-y-1 w-7 h-7 bg-primary text-white rounded-full flex items-center justify-center border-2 border-white shadow-md active:scale-95 transition-transform cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[14px]">photo_camera</span>
-                </button>
-              )}
-            </div>
-            
-            <div className="flex-1 min-w-0 space-y-1">
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-[18px] font-black tracking-tight truncate">{storeName}</h2>
-                <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0" title="Verified">
-                  <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'wght' 900" }}>check</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[11px] font-mono font-bold bg-white/20 text-white px-2 py-0.5 rounded-md shadow-sm border border-white/10 flex items-center gap-1 cursor-pointer hover:bg-white/30 transition-colors" onClick={() => { navigator.clipboard.writeText(zeebacId); setToastMessage('ID Copied!'); setTimeout(() => setToastMessage(null), 2500); }}>
-                  {zeebacId}
-                  <span className="material-symbols-outlined text-[10px]">content_copy</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-1 font-medium mt-1">
-                <span className="text-[10px] text-white/80 font-medium">Verified</span>
-              </div>
-
-              {/* Tag Category */}
-              <div className="inline-flex items-center gap-1 bg-white/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                <span className="material-symbols-outlined text-[11px]">sell</span>
-                {category}
-              </div>
-
-              <p className="text-[11px] text-white/80 italic font-medium pt-0.5">Quality fashion, trusted by you.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Business Growth & Credit Section */}
-        <div className="space-y-3 px-1">
-          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Store Credit & Growth')}</h3>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Shop & Pay Later (Credit Limit Upto ₹25,000) */}
-            <div
-              onClick={() => setShowPayLaterModal(true)}
-              className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#2e1065] text-white rounded-2xl p-3.5 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.98] border border-indigo-900/30 flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 shrink-0 border border-white/10">
-                  <span className="material-symbols-outlined text-[20px]">credit_score</span>
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">{t('Coming Soon')}</span>
-                    <span className="text-[9.5px] font-bold text-indigo-200">{t('Store BNPL Credit')}</span>
-                  </div>
-                  <p className="text-[12.5px] font-black text-white leading-tight">{t('Shop & Pay Later')}</p>
-                  <p className="text-[9.5px] text-indigo-200/80 leading-tight mt-0.5 truncate">Credit limit up to ₹25,000 based on PAN & CIBIL</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2.5 py-1.5 rounded-xl font-black text-[10px] shadow-xs shrink-0 transition-colors">
-                <span>View</span>
-                <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-              </div>
-            </div>
-
-            {/* Merchant Business Loan (Up to ₹25L) */}
-            <div
-              onClick={() => setShowLoanModal(true)}
-              className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#312e81] text-white rounded-2xl p-3.5 shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.98] border border-indigo-900/30 flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-                  <span className="material-symbols-outlined text-[20px]">payments</span>
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className="text-[8px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full">{t('Coming Soon')}</span>
-                    <span className="text-[9.5px] font-bold text-indigo-200">{t('Merchant Capital')}</span>
-                  </div>
-                  <p className="text-[12.5px] font-black text-white leading-tight">{t('Apply for Business Loan')}</p>
-                  <p className="text-[9.5px] text-indigo-200/80 leading-tight mt-0.5 truncate">Up to ₹25L collateral-free • Auto daily sales deductions</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-900 px-2.5 py-1.5 rounded-xl font-black text-[10px] shadow-xs shrink-0 transition-colors">
-                <span>Apply</span>
-                <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* Business Information Section */}
-        <div className="space-y-4 px-1">
-          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Business Information')}</h3>
-          
-          <div className="divide-y divide-outline-variant/10">
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">storefront</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Business Name')}</span>
-              </div>
-              <span className="text-[12.5px] font-extrabold text-on-surface">{storeName}</span>
-            </div>
-
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">domain</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Merchant Trade Type')}</span>
-              </div>
-              {isEditing ? (
-                <select
-                  value={formData.businessType}
-                  onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
-                  className="text-[12px] font-extrabold text-primary border border-primary/30 rounded-lg px-2 py-1 bg-white focus:outline-none"
-                >
-                  <option value="Manufacturer">Manufacturer</option>
-                  <option value="Wholesaler">Wholesaler</option>
-                  <option value="Retailer">Retailer</option>
-                </select>
-              ) : (
-                <span className="text-[11px] font-extrabold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20">
-                  {formData.businessType || 'Retailer'}
-                </span>
-              )}
-            </div>
-
-            {(formData.businessType === 'Retailer' || !formData.businessType) && (
-              <div className="flex justify-between items-center py-2.5">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[18px]">store</span>
-                  </div>
-                  <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Retailer Type')}</span>
-                </div>
-                {isEditing ? (
-                  <select
-                    value={formData.retailerSubtype || (formData.shopType === 'Chain & Brand' ? 'chain_brand' : 'independent_store')}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setFormData({
-                        ...formData,
-                        retailerSubtype: val,
-                        shopType: val === 'chain_brand' ? 'Chain & Brand' : 'Independent Store'
-                      });
-                    }}
-                    className="text-[12px] font-extrabold text-primary border border-primary/30 rounded-lg px-2 py-1 bg-white focus:outline-none"
-                  >
-                    <option value="independent_store">{t('Independent Store')}</option>
-                    <option value="chain_brand">{t('Chain Brand')}</option>
-                  </select>
-                ) : (
-                  <span className="text-[11px] font-extrabold text-purple-700 px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200">
-                    {(formData.retailerSubtype === 'chain_brand' || formData.shopType === 'Chain & Brand') ? t('Chain Brand') : t('Independent Store')}
-                  </span>
-                )}
+        {/* Circular Avatar with Camera / Edit Badge */}
+        <div className="relative inline-block mx-auto">
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="w-24 h-24 sm:w-26 sm:h-26 rounded-full bg-gradient-to-br from-primary/10 to-purple-100 p-1 ring-4 ring-white shadow-md flex items-center justify-center relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+          >
+            {profilePic ? (
+              <img
+                src={getMediaUrl(profilePic)}
+                alt={storeName}
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full rounded-full bg-gradient-to-br from-primary via-purple-700 to-indigo-800 flex items-center justify-center text-white font-black text-3xl">
+                {storeName.charAt(0).toUpperCase()}
               </div>
             )}
-
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">sell</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Category')}</span>
-              </div>
-              <span className="text-[12.5px] font-extrabold text-on-surface">{category}</span>
-            </div>
-
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">call</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Contact Number')}</span>
-              </div>
-              <span className="text-[12.5px] font-extrabold text-on-surface">{phone}</span>
-            </div>
-
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">mail</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Business Email')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="email" 
-                  value={formData.email} 
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="name@business.com"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface truncate max-w-[180px]">{formData.email}</span>
-              )}
-            </div>
-
-            <div className={`flex justify-between items-start py-2.5 gap-2 ${isEditing ? 'flex-col' : ''}`}>
-              <div className="flex items-center gap-2.5 shrink-0 mt-0.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">pin_drop</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Store Address')}</span>
-              </div>
-              {isEditing ? (
-                <div className="w-full space-y-3 mt-2 bg-surface-variant/20 p-3 rounded-xl border border-outline-variant/20">
-                  
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Street Address / Area')}</label>
-                    <textarea 
-                      value={formData.fullAddress} 
-                      onChange={(e) => setFormData({ ...formData, fullAddress: e.target.value })}
-                      className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 min-h-[40px] resize-none"
-                      placeholder="Street, Sector, Block..."
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Landmark')}</label>
-                    <input 
-                      type="text" 
-                      value={formData.landmark} 
-                      onChange={(e) => setFormData({ ...formData, landmark: e.target.value })}
-                      className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                      placeholder="Near Apollo Hospital"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('City')}</label>
-                      <input 
-                        type="text" 
-                        value={formData.city} 
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                        placeholder="Indore"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('State')}</label>
-                      <input 
-                        type="text" 
-                        value={formData.state} 
-                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                        className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                        placeholder="MP"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{t('PIN Code')}</label>
-                    <input 
-                      type="text" 
-                      value={formData.pincode} 
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/[^0-9]/g, '') })}
-                      className="w-full text-[12.5px] font-extrabold text-on-surface border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                      placeholder="452010"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface text-right break-words flex-1 pt-1">{formData.address || address}</span>
-              )}
-            </div>
-
-            <div className="flex justify-between items-start py-2.5 gap-2">
-              <div className="flex items-center gap-2.5 shrink-0 mt-0.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">description</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Description')}</span>
-              </div>
-              {isEditing ? (
-                <textarea 
-                  value={formData.description} 
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 flex-1 pt-1 min-h-[40px] resize-none"
-                  placeholder="Short description"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface text-right break-words flex-1 pt-1">{formData.description || 'No description'}</span>
-              )}
-            </div>
-
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">schedule</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Store Hours')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.operatingHours} 
-                  onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="e.g. 09:00 AM - 10:00 PM"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.operatingHours || 'Open Daily: 09:00 AM - 10:00 PM'}</span>
-              )}
-            </div>
           </div>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary hover:bg-purple-800 text-white flex items-center justify-center shadow-md border-2 border-white active:scale-90 transition-transform cursor-pointer"
+            title="Change Store Logo"
+          >
+            <span className="material-symbols-outlined text-[15px]">photo_camera</span>
+          </button>
         </div>
 
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* Bank Details Section */}
-        <div className="space-y-4 px-1 mt-6">
-          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Bank Details')}</h3>
-          
-          <div className="divide-y divide-outline-variant/10">
-            {/* Account Holder Name */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">badge</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Account Holder Name')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.accountHolderName} 
-                  onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="John Doe"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.accountHolderName || '-'}</span>
-              )}
-            </div>
-
-            {/* Bank Name */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Bank Name')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.bankName} 
-                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="HDFC Bank"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.bankName || '-'}</span>
-              )}
-            </div>
-
-            {/* Account Number */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">money</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Account Number')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.accountNumber} 
-                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value.replace(/[^0-9]/g, '') })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="000000000000"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">
-                  {formData.accountNumber ? `••••${formData.accountNumber.slice(-4)}` : '-'}
-                </span>
-              )}
-            </div>
-
-            {/* IFSC Code */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">tag</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('IFSC Code')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.ifscCode} 
-                  onChange={(e) => setFormData({ ...formData, ifscCode: e.target.value.toUpperCase() })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="HDFC0001234"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.ifscCode || '-'}</span>
-              )}
-            </div>
-
-            {/* UPI ID */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">qr_code</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('UPI ID')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.upiId} 
-                  onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5"
-                  placeholder="example@upi"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface">{formData.upiId || 'Not provided'}</span>
-              )}
-            </div>
-          </div>
+        {/* Store ID Pill Badge (e.g. ZBV-5706) */}
+        <div>
+          <button
+            onClick={handleCopyId}
+            className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-purple-50 hover:bg-purple-100 border border-purple-200 text-primary text-[11px] font-mono font-bold tracking-wider cursor-pointer active:scale-95 transition-transform shadow-2xs"
+            title="Click to copy Store ID"
+          >
+            <span>{zeebacId}</span>
+            <span className="material-symbols-outlined text-[12px]">content_copy</span>
+          </button>
         </div>
 
-        {/* Social Links Section */}
-        <div className="space-y-4 px-1 mt-6">
-          <h3 className="font-display text-[15px] font-black text-on-surface">{t('Social Links')}</h3>
-          
-          <div className="divide-y divide-outline-variant/10">
-            {/* Website */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/5 text-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">language</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Website')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="url" 
-                  value={formData.website} 
-                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-primary/40 focus:border-primary focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="https://yourwebsite.com"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.website || '-'}</span>
-              )}
-            </div>
-
-            {/* Instagram */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-pink-500/10 text-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Instagram')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.instagram} 
-                  onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-pink-500/40 focus:border-pink-500 focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="@username"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.instagram || '-'}</span>
-              )}
-            </div>
-
-            {/* Facebook */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-blue-600/10 text-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">thumb_up</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('Facebook')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="text" 
-                  value={formData.facebook} 
-                  onChange={(e) => setFormData({ ...formData, facebook: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-blue-600/40 focus:border-blue-600 focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="Page Link or ID"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.facebook || '-'}</span>
-              )}
-            </div>
-
-            {/* WhatsApp */}
-            <div className="flex justify-between items-center py-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-green-500/10 text-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">chat</span>
-                </div>
-                <span className="text-[12.5px] font-bold text-on-surface-variant">{t('WhatsApp')}</span>
-              </div>
-              {isEditing ? (
-                <input 
-                  type="tel" 
-                  value={formData.whatsapp} 
-                  onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                  className="text-[12.5px] font-extrabold text-on-surface text-right border-b border-green-500/40 focus:border-green-500 focus:outline-none bg-transparent py-0.5 max-w-[180px] truncate"
-                  placeholder="Number"
-                />
-              ) : (
-                <span className="text-[12.5px] font-extrabold text-on-surface max-w-[180px] truncate">{formData.whatsapp || '-'}</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* My Store QR Card */}
-        <VendorStoreQrCard zeebacId={currentUser.zeebacId || 'ZBV-0000'} />
-
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* Store Performance Section */}
-        <div className="space-y-3 px-1">
-          <div className="flex justify-between items-center">
-            <h3 className="font-display text-[15px] font-black text-on-surface">{t('Store Performance')}</h3>
-            <div className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant bg-surface-container-low px-2.5 py-1 rounded-full cursor-pointer">
-              {t('All Time')}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-            <div className="space-y-1">
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[11px]">trending_up</span>
-                </div>
-                <span className="text-[10px] text-on-surface-variant font-bold">{t('Revenue')}</span>
-              </div>
-              <p className="text-[14px] font-black text-on-surface">₹{stats.totalRevenue.toLocaleString()}</p>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[11px]">shopping_bag</span>
-                </div>
-                <span className="text-[10px] text-on-surface-variant font-bold">{t('Orders')}</span>
-              </div>
-              <p className="text-[14px] font-black text-on-surface">{stats.totalTransactions}</p>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[11px]">payments</span>
-                </div>
-                <span className="text-[10px] text-on-surface-variant font-bold">{t('Cashback')}</span>
-              </div>
-              <p className="text-[14px] font-black text-on-surface">₹{stats.totalCashbackGiven.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* Documents Section */}
-        <div className="space-y-4 px-1">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-[#f3efff] flex items-center justify-center text-[#4f27e3] flex-shrink-0">
-              <span className="material-symbols-outlined text-[24px]">folder</span>
-            </div>
-            <div className="flex flex-col">
-              <h4 className="font-display text-[15px] font-black text-on-surface">{t('Documents')}</h4>
-              <span className="text-[11px] text-on-surface-variant font-bold">{t('KYC & business proofs')}</span>
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            <div className="bg-white border border-outline-variant/10 rounded-2xl p-4 flex items-center justify-between transition-all shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined font-bold text-[20px] ${vendorData?.documents?.gstCertificate?.fileUrl ? 'text-green-600' : 'text-orange-500'}`}>
-                  {vendorData?.documents?.gstCertificate?.fileUrl ? 'check_circle' : 'pending'}
-                </span>
-                <span className="text-[12.5px] font-bold text-on-surface">{t('GST Certificate')}</span>
-              </div>
-              <button onClick={() => setPreviewDoc('gst')} className="text-[12.5px] font-extrabold text-[#4f27e3] hover:underline cursor-pointer">
-                {vendorData?.documents?.gstCertificate?.fileUrl ? t('View') : t('Upload')}
-              </button>
-            </div>
-
-            <div className="bg-white border border-outline-variant/10 rounded-2xl p-4 flex items-center justify-between transition-all shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined font-bold text-[20px] ${vendorData?.documents?.aadhaarPan?.fileUrl ? 'text-green-600' : 'text-orange-500'}`}>
-                  {vendorData?.documents?.aadhaarPan?.fileUrl ? 'check_circle' : 'pending'}
-                </span>
-                <span className="text-[12.5px] font-bold text-on-surface">{t('Owner PAN Card')}</span>
-              </div>
-              <button onClick={() => setPreviewDoc('pan')} className="text-[12.5px] font-extrabold text-[#4f27e3] hover:underline cursor-pointer">
-                {vendorData?.documents?.aadhaarPan?.fileUrl ? t('View') : t('Upload')}
-              </button>
-            </div>
-
-            <div className="bg-white border border-outline-variant/10 rounded-2xl p-4 flex items-center justify-between transition-all shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined font-bold text-[20px] ${chequeUploaded ? 'text-green-600' : 'text-orange-500'}`}>
-                  {chequeUploaded ? 'check_circle' : 'pending'}
-                </span>
-                <span className="text-[12.5px] font-bold text-on-surface">{t('Bank Cheque')}</span>
-              </div>
-              <button 
-                onClick={() => chequeUploaded ? setPreviewDoc('cheque') : chequeInputRef.current?.click()} 
-                className="text-[12.5px] font-extrabold text-[#4f27e3] hover:underline cursor-pointer"
-              >
-                {chequeUploaded ? t('View') : t('Upload')}
-              </button>
-              <input 
-                type="file" 
-                ref={chequeInputRef} 
-                className="hidden" 
-                accept="image/*,.pdf"
-                onChange={handleChequeUpload}
-              />
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* Location Section */}
-        <div className="space-y-4 px-1">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
-              <span className="material-symbols-outlined text-[24px]">pin_drop</span>
-            </div>
-            <div className="flex flex-col">
-              <h4 className="font-display text-[15px] font-black text-on-surface">{t('Location')}</h4>
-              <span className="text-[11px] text-on-surface-variant font-bold">{t('Pinned for customers')}</span>
-            </div>
-          </div>
-
-          <div className="relative w-full h-[180px] bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center border border-outline-variant/10 shadow-inner">
-            {/* Subtle mock map roads using SVG/CSS grid patterns */}
-            <div className="absolute inset-0 opacity-20 bg-[linear-gradient(rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.05)_1px,transparent_1px)] bg-[size:20px_20px]" />
-            <div className="absolute top-[20%] left-0 w-full h-2 bg-white/60 blur-[1px]" />
-            <div className="absolute top-0 left-[40%] w-2 h-full bg-white/60 blur-[1px]" />
-            <div className="absolute bottom-[30%] left-0 w-full h-3 bg-white/60 blur-[1px] rotate-12" />
-            
-            <div className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center relative z-10 transition-transform hover:scale-105">
-              <span className="material-symbols-outlined text-red-500 text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
-
-        {/* Owner Identity Section */}
-        <div className="space-y-4 px-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-full bg-[#f3efff] flex items-center justify-center text-[#4f27e3] flex-shrink-0">
-                <span className="material-symbols-outlined text-[24px]">verified_user</span>
-              </div>
-              <div className="flex flex-col">
-                <h4 className="font-display text-[15px] font-black text-on-surface">{t('Owner Identity')}</h4>
-                <span className="text-[11px] text-on-surface-variant font-bold">{t('KYC verified documents')}</span>
-              </div>
-            </div>
-            <span className="bg-[#e8f5e9] text-[#2e7d32] px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
-              {t('Verified')}
+        {/* Store Name & Location */}
+        <div className="space-y-0.5">
+          <div className="flex items-center justify-center gap-1.5">
+            <h2 className="font-display font-black text-[21px] text-slate-900 leading-tight">
+              {storeName}
+            </h2>
+            <span
+              className="w-4.5 h-4.5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-2xs"
+              title="Verified Zeebac Merchant"
+            >
+              <span className="material-symbols-outlined text-[12px] font-black">check</span>
             </span>
           </div>
 
-          <hr className="border-t border-outline-variant/10" />
+          <p className="text-[12.5px] text-slate-500 font-medium flex items-center justify-center gap-1">
+            <span className="material-symbols-outlined text-[15px] text-slate-400">location_on</span>
+            <span>{locationDisplay}</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-primary font-bold">{category}</span>
+          </p>
+        </div>
+      </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-1">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-on-surface-variant/70 tracking-widest uppercase">{t('Aadhaar / PAN')}</span>
-              {vendorData?.documents?.aadhaarPan?.fileUrl ? (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="material-symbols-outlined text-[14px] text-green-600">check_circle</span>
-                  <p className="text-[12px] font-black text-on-surface">{t('Uploaded')}</p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="material-symbols-outlined text-[14px] text-orange-500">pending</span>
-                  <p className="text-[12px] font-black text-on-surface text-orange-600">{t('Not Uploaded')}</p>
-                </div>
-              )}
+      <div className="px-4 space-y-3.5">
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* WALLET BALANCE CARD (Matching reference screenshot) */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-sm flex items-center justify-between gap-3 transition-all hover:shadow-md">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-primary flex items-center justify-center shrink-0 border border-purple-100/80">
+              <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
             </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-on-surface-variant/70 tracking-widest uppercase">{t('GST Certificate')}</span>
-              {vendorData?.documents?.gstCertificate?.fileUrl ? (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="material-symbols-outlined text-[14px] text-green-600">check_circle</span>
-                  <p className="text-[12px] font-black text-on-surface">{t('Uploaded')}</p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="material-symbols-outlined text-[14px] text-orange-500">pending</span>
-                  <p className="text-[12px] font-black text-on-surface text-orange-600">{t('Not Uploaded')}</p>
-                </div>
-              )}
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                {t('Wallet Balance')}
+              </p>
+              <p className="font-mono font-black text-[22px] text-slate-900 leading-tight mt-0.5">
+                ₹{Number(stats.walletBalance || 0).toLocaleString('en-IN')}
+              </p>
             </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/vendor/wallet')}
+            className="py-2.5 px-5 rounded-2xl btn-primary-gradient text-white font-bold text-[12.5px] shadow-sm hover:shadow-md cursor-pointer active:scale-95 transition-all shrink-0"
+          >
+            {t('Claim')}
+          </button>
+        </div>
+
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* SUBSCRIPTION PLAN OPTION (User request: Profile page par hi) */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50/60 to-purple-50/40 rounded-3xl p-4 border border-purple-200/80 shadow-2xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-purple-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <span className="material-symbols-outlined text-[22px]">workspace_premium</span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {subscriptionInfo?.effectiveStatus === 'EXPIRED' ? 'Expired' : 'Active'}
+                </span>
+                <span className="text-[12.5px] font-black text-slate-900 truncate">
+                  {subscriptionInfo?.planType ? `${subscriptionInfo.planType} Plan` : 'Zeebac Pro Plan'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                {subscriptionInfo?.expiresAt
+                  ? `Renews on ${new Date(subscriptionInfo.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : 'Full access to cashback & store marketing'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/vendor/subscription')}
+            className="py-2 px-3.5 rounded-xl bg-white hover:bg-purple-100 border border-purple-200 text-primary font-bold text-[11.5px] shadow-2xs active:scale-95 transition-all shrink-0 cursor-pointer"
+          >
+            {t('Manage')}
+          </button>
+        </div>
+
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* QUICK CONTROLS: SHOP OPENING TIME & STORE STORIES */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Shop Opening Time Card */}
+          <div
+            onClick={() => setShowOpeningHoursModal(true)}
+            className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer active:scale-[0.98] flex items-center justify-between gap-2.5"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
+                <span className="material-symbols-outlined text-[20px]">schedule</span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isStoreOpenNow ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                    }`}
+                  />
+                  <span className="text-[12px] font-black text-slate-900 truncate">
+                    {isStoreOpenNow ? 'Open Now' : 'Closed'}
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-500 truncate mt-0.5">{openingHoursText}</p>
+              </div>
+            </div>
+
+            <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">edit</span>
+          </div>
+
+          {/* Store Stories Card */}
+          <div
+            onClick={() => setShowStoriesModal(true)}
+            className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs hover:border-primary/40 hover:shadow-xs transition-all cursor-pointer active:scale-[0.98] flex items-center justify-between gap-2.5"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-primary flex items-center justify-center shrink-0 border border-purple-200/60">
+                <span className="material-symbols-outlined text-[20px]">auto_stories</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-black text-slate-900 truncate">Store Stories</p>
+                <p className="text-[10.5px] text-slate-500 truncate mt-0.5">Post 24h deals & offers</p>
+              </div>
+            </div>
+
+            <span className="text-[10.5px] font-bold text-primary bg-purple-50 px-2 py-0.5 rounded-lg shrink-0">
+              + Post
+            </span>
           </div>
         </div>
 
-        <hr className="border-t-2 border-blue-100/60 my-1.5" />
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* MAIN MENU LIST (Matching clean reference screenshot style) */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-3xl p-2 border border-slate-100 shadow-sm divide-y divide-slate-100 text-left">
+          {/* 1. My Business Details */}
+          <button
+            onClick={() => setShowBusinessDetailsModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 group-hover:bg-purple-100 text-primary flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">storefront</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">My Business Details</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Store name, address, category & contact</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
 
-        {/* App Language Selector (Hindi & English) */}
-        <div 
-          onClick={() => setShowLangModal(true)}
-          className="bg-white border border-outline-variant/10 rounded-2xl p-4 flex items-center justify-between shadow-sm cursor-pointer hover:bg-surface-container-low active:scale-[0.99] transition-all"
+          {/* 2. Shop Opening Hours */}
+          <button
+            onClick={() => setShowOpeningHoursModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 group-hover:bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">schedule</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Shop Opening Time</p>
+                <p className="text-[10.5px] text-slate-400 truncate">{openingHoursText}</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 3. Store Stories */}
+          <button
+            onClick={() => setShowStoriesModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-pink-50 group-hover:bg-pink-100 text-pink-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">auto_stories</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Store Stories & 24h Deals</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Attract customers with instant promo stories</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 4. Subscription Plan */}
+          <button
+            onClick={() => navigate('/vendor/subscription')}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">workspace_premium</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Subscription & Billing</p>
+                <p className="text-[10.5px] text-slate-400 truncate">View active plan, features & renew</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 5. Bank Account & Payouts */}
+          <button
+            onClick={() => setShowBankModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">account_balance</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Bank Account & Payouts</p>
+                <p className="text-[10.5px] text-slate-400 truncate">UPI ID, bank settlement & IFSC</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 6. Notification Settings */}
+          <button
+            onClick={() => setShowNotificationsModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 group-hover:bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">notifications</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Notification Settings</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Order ring sound, speech alerts & push</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 7. App Security & Biometrics */}
+          <button
+            onClick={() => setShowSecurityModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-violet-50 group-hover:bg-violet-100 text-violet-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">security</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Security & Biometrics</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Fingerprint login & 4-digit security PIN</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 8. Help & Support */}
+          <button
+            onClick={() => setShowSupportModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-cyan-50 group-hover:bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">help</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Help & Support</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Contact merchant support & FAQs</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 9. Terms & Conditions */}
+          <button
+            onClick={() => navigate('/terms')}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">description</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">Terms & Conditions</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Zeebac partner policy & terms</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 10. About Zeebac */}
+          <button
+            onClick={() => setShowAboutModal(true)}
+            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[19px]">info</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-800">About Zeebac</p>
+                <p className="text-[10.5px] text-slate-400 truncate">Version 2.4.0 • Indian Retail Platform</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          {/* 11. Logout */}
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-full p-3.5 hover:bg-rose-50/70 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group text-left"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[19px]">logout</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-rose-600">Logout</p>
+                <p className="text-[10.5px] text-rose-400 truncate">Sign out of your store account</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-rose-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+        </div>
+
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* BOTTOM HELPLINE CARD (Matching reference screenshot) */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <a
+          href="tel:18001234567"
+          className="bg-purple-50/80 hover:bg-purple-100/90 border border-purple-200/90 rounded-3xl p-4 flex items-center justify-between transition-colors cursor-pointer shadow-2xs group"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-              <span className="material-symbols-outlined text-[22px]">translate</span>
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+              <span className="material-symbols-outlined text-[22px]">headset_mic</span>
             </div>
-            <div className="text-left">
-              <h4 className="font-display text-[14px] font-black text-on-surface">{t('App Language')}</h4>
-              <p className="text-[11px] text-on-surface-variant font-medium">{t('Currently available in English & Hindi')}</p>
+            <div>
+              <p className="text-[12px] font-bold text-slate-600">Need Help?</p>
+              <p className="font-display font-black text-[15px] text-primary">Call 1800-123-4567</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[12px] font-bold">
-            <span className="leading-none text-[12px] font-bold flex items-center tracking-tight">
-              <span className={language === 'en' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>Eng</span>
-              <span className="text-slate-300 mx-0.5 font-normal">/</span>
-              <span className={language === 'hi' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>हि</span>
-            </span>
-            <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+          <span className="text-[11px] font-extrabold text-primary bg-white px-3 py-1.5 rounded-xl border border-purple-200 shadow-2xs">
+            24/7 Helpline
+          </span>
+        </a>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 1: MY BUSINESS DETAILS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showBusinessDetailsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[22px]">storefront</span>
+                <h3 className="font-display font-black text-[16px] text-slate-900">
+                  Business Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowBusinessDetailsModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBusinessDetails} className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Store / Business Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={businessForm.storeName}
+                  onChange={(e) => setBusinessForm({ ...businessForm, storeName: e.target.value })}
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] outline-none focus:bg-white focus:border-primary"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={businessForm.category}
+                    onChange={(e) => setBusinessForm({ ...businessForm, category: e.target.value })}
+                    className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] outline-none focus:bg-white focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Mobile Number</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={phone}
+                    className="w-full h-11 px-3.5 bg-slate-100 border border-slate-200 rounded-xl text-[13px] text-slate-500 cursor-not-allowed font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Contact Email</label>
+                <input
+                  type="email"
+                  value={businessForm.email}
+                  onChange={(e) => setBusinessForm({ ...businessForm, email: e.target.value })}
+                  placeholder="store@example.com"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] outline-none focus:bg-white focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Shop Address</label>
+                <textarea
+                  rows={2}
+                  value={businessForm.fullAddress}
+                  onChange={(e) => setBusinessForm({ ...businessForm, fullAddress: e.target.value })}
+                  placeholder="Street / Shop Number / Area"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] outline-none focus:bg-white focus:border-primary resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">City</label>
+                  <input
+                    type="text"
+                    value={businessForm.city}
+                    onChange={(e) => setBusinessForm({ ...businessForm, city: e.target.value })}
+                    className="w-full h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] outline-none focus:bg-white focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">State</label>
+                  <input
+                    type="text"
+                    value={businessForm.state}
+                    onChange={(e) => setBusinessForm({ ...businessForm, state: e.target.value })}
+                    className="w-full h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] outline-none focus:bg-white focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    value={businessForm.pincode}
+                    onChange={(e) => setBusinessForm({ ...businessForm, pincode: e.target.value })}
+                    className="w-full h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] outline-none focus:bg-white focus:border-primary font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBusinessDetailsModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[12px] hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shadow-sm cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
 
-        {/* Highlighted Help & Support Card */}
-        <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-primary/5 border-2 border-emerald-500/30 rounded-3xl p-4 shadow-sm space-y-3 text-left relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-[#25D366] text-white flex items-center justify-center shadow-md shadow-emerald-500/30 flex-shrink-0">
-                <span className="material-symbols-outlined text-[24px]">support_agent</span>
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 2: SHOP OPENING HOURS (User request: shop opening time) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showOpeningHoursModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-600 text-[22px]">schedule</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Shop Opening Hours
+                </h3>
               </div>
-              <div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h4 className="font-display text-[15px] font-black text-on-surface">{t('Help & Support')}</h4>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse">{t('24x7 Active')}</span>
-                </div>
-                <p className="text-[11.5px] text-on-surface-variant font-medium mt-0.5">{t('Direct WhatsApp, Helpline & FAQs')}</p>
-              </div>
+              <button
+                onClick={() => setShowOpeningHoursModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <a
-              href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20merchant%20partner%20and%20need%20assistance."
-              target="_blank"
-              rel="noreferrer"
-              className="py-2.5 px-3 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
-            >
-              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
-                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
-              </svg>
-              <span>{t('WhatsApp Chat')}</span>
-            </a>
+            <p className="text-[11.5px] text-slate-500 leading-snug">
+              Set the exact times when your store is open to receive customer orders & counter visits.
+            </p>
+
+            <form onSubmit={handleSaveOpeningHours} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Opening Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={timingForm.openingTime}
+                    onChange={(e) => setTimingForm({ ...timingForm, openingTime: e.target.value })}
+                    className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] outline-none focus:bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Closing Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={timingForm.closingTime}
+                    onChange={(e) => setTimingForm({ ...timingForm, closingTime: e.target.value })}
+                    className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] outline-none focus:bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Open Days</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+                    const isSelected = timingForm.workingDays.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => handleToggleDay(day)}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-500 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOpeningHoursModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[12px] hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[12px] shadow-sm cursor-pointer"
+                >
+                  Save Hours
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 3: BANK DETAILS & PAYOUTS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showBankModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-600 text-[22px]">account_balance</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Bank Settlement Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowBankModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBankDetails} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Merchant UPI ID (Instant Payouts)</label>
+                <input
+                  type="text"
+                  value={bankForm.upiId}
+                  onChange={(e) => setBankForm({ ...bankForm, upiId: e.target.value })}
+                  placeholder="e.g. yourstore@upi"
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Account Holder Name</label>
+                <input
+                  type="text"
+                  value={bankForm.accountHolderName}
+                  onChange={(e) => setBankForm({ ...bankForm, accountHolderName: e.target.value })}
+                  placeholder="Name as per Bank Passbook"
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Bank Name</label>
+                <input
+                  type="text"
+                  value={bankForm.bankName}
+                  onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
+                  placeholder="e.g. HDFC Bank, SBI, ICICI"
+                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] outline-none focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">Account Number</label>
+                  <input
+                    type="password"
+                    value={bankForm.accountNumber}
+                    onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value })}
+                    placeholder="Acc Number"
+                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] outline-none focus:bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">IFSC Code</label>
+                  <input
+                    type="text"
+                    value={bankForm.ifscCode}
+                    onChange={(e) => setBankForm({ ...bankForm, ifscCode: e.target.value.toUpperCase() })}
+                    placeholder="HDFC0001234"
+                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] outline-none focus:bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBankModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[12px] hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] shadow-sm cursor-pointer"
+                >
+                  Save Bank
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 4: NOTIFICATION SETTINGS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showNotificationsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-blue-600 text-[22px]">notifications_active</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Notification Settings
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowNotificationsModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer">
+                <div>
+                  <p className="text-[12.5px] font-bold text-slate-800">Loud Incoming Order Ring</p>
+                  <p className="text-[10.5px] text-slate-500">Play ringing chime when new order arrives</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={soundSettings.chimesEnabled}
+                  onChange={() => handleToggleSound('chimesEnabled')}
+                  className="w-4.5 h-4.5 accent-primary cursor-pointer"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer">
+                <div>
+                  <p className="text-[12.5px] font-bold text-slate-800">Voice Speech Announcements</p>
+                  <p className="text-[10.5px] text-slate-500">Speak order amounts and customer names</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={soundSettings.voiceEnabled}
+                  onChange={() => handleToggleSound('voiceEnabled')}
+                  className="w-4.5 h-4.5 accent-primary cursor-pointer"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer">
+                <div>
+                  <p className="text-[12.5px] font-bold text-slate-800">Cashback Claim Sound</p>
+                  <p className="text-[10.5px] text-slate-500">Alert on instant in-store customer claim</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={soundSettings.claimsEnabled}
+                  onChange={() => handleToggleSound('claimsEnabled')}
+                  className="w-4.5 h-4.5 accent-primary cursor-pointer"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={handleTestSound}
+                className="w-full py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-[12px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-[17px]">volume_up</span>
+                <span>Test Alert Sound & Voice</span>
+              </button>
+            </div>
+
             <button
-              onClick={() => navigate('/vendor/support')}
-              className="py-2.5 px-3 bg-white hover:bg-surface-container-low border border-outline-variant/30 text-primary rounded-xl text-[12px] font-extrabold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+              onClick={() => setShowNotificationsModal(false)}
+              className="w-full py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12.5px] cursor-pointer"
             >
-              <span>{t('Help & FAQs')}</span>
-              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              Done
             </button>
           </div>
         </div>
-
-        {/* Footer Actions Grid */}
-        <div className="grid grid-cols-2 gap-2 text-center pt-1">
-          <button 
-            onClick={handleShareStore} 
-            className="flex flex-col items-center justify-center py-2.5 bg-white rounded-xl border border-outline-variant/10 shadow-sm hover:bg-surface-container-low active:scale-95 transition-all cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px] text-primary">share</span>
-            <span className="text-[9px] font-bold text-on-surface-variant mt-1">{t('Share Store')}</span>
-          </button>
-          <button 
-            onClick={() => navigate('/vendor/support')} 
-            className="flex flex-col items-center justify-center py-2.5 bg-emerald-50/60 rounded-xl border border-emerald-300/60 shadow-sm hover:bg-emerald-100/60 active:scale-95 transition-all cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px] text-emerald-600">support_agent</span>
-            <span className="text-[9px] font-black text-emerald-800 mt-1">{t('Help & Support')}</span>
-          </button>
-        </div>
-
-        {/* Switch to Customer App Button */}
-        <button 
-          type="button"
-          onClick={() => navigate('/home')} 
-          className="w-full py-3.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-xs mt-3"
-        >
-          <span className="material-symbols-outlined text-[20px] text-purple-600">account_circle</span>
-          {t('Switch to Customer App')}
-        </button>
-
-        {/* Logout Account Button */}
-        <button 
-          onClick={() => {
-            logout('vendor');
-            window.location.replace('/vendor-app/login');
-          }} 
-          className="w-full py-4 bg-[#fff5f5] hover:bg-[#ffebeb] text-red-600 border border-red-100 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer shadow-sm mt-2"
-        >
-          <span className="material-symbols-outlined text-[18px] text-red-600" style={{ fontVariationSettings: "'wght' 700" }}>logout</span>
-          {t('Logout Account')}
-        </button>
-
-      </div>
-
-      {/* Premium Document Preview Modal */}
-      {previewDoc && createPortal(
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-all duration-300">
-          <div className="bg-white rounded-3xl w-full max-w-[320px] overflow-hidden shadow-2xl relative border border-gray-150 flex flex-col max-h-[85vh] animate-reveal">
-            
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-low">
-              <span className="font-display font-black text-[13px] text-on-surface">
-                {previewDoc === 'gst' && t('GST Registration Certificate')}
-                {previewDoc === 'pan' && t('Owner PAN Card')}
-                {previewDoc === 'cheque' && t('Bank Cheque Preview')}
-              </span>
-              <button 
-                onClick={() => setPreviewDoc(null)}
-                className="w-8 h-8 rounded-full hover:bg-gray-200/60 active:scale-95 flex items-center justify-center text-gray-500 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-4 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-gray-50">
-              
-              {/* GST Certificate Preview */}
-              {previewDoc === 'gst' && (
-                <div className="w-full flex items-center justify-center p-2 h-[400px]">
-                  {vendorData?.documents?.gstCertificate?.fileUrl ? (
-                    <img 
-                      src={getMediaUrl(vendorData.documents.gstCertificate.fileUrl)} 
-                      alt="GST Certificate" 
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-full bg-white border-[4px] border-double border-amber-850/25 p-3 rounded-xl shadow-md text-[9px] space-y-2.5 font-serif relative overflow-hidden select-none">
-                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
-                        <span className="material-symbols-outlined text-[120px]">gavel</span>
-                      </div>
-                      
-                      <div className="text-center border-b pb-1.5 space-y-0.5">
-                        <h5 className="font-bold text-[10px] uppercase tracking-wide">Government of India</h5>
-                        <p className="text-[8px] font-bold text-gray-600">Form GST REG-06</p>
-                        <p className="text-[7.5px] text-gray-500 italic">Registration Certificate</p>
-                      </div>
-
-                      <div className="space-y-1 font-sans text-left text-gray-800">
-                        <div className="grid grid-cols-3 gap-0.5">
-                          <span className="font-bold text-gray-500">GSTIN</span>
-                          <span className="col-span-2 font-mono font-black text-gray-950">27AAAAA1111A1Z1</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-0.5">
-                          <span className="font-bold text-gray-500">Legal Name</span>
-                          <span className="col-span-2 font-bold text-gray-900 uppercase text-[8px] truncate">{storeName} PRIVATE LIMITED</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-0.5">
-                          <span className="font-bold text-gray-500">Trade Name</span>
-                          <span className="col-span-2 font-semibold text-gray-900 truncate">{storeName}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-0.5">
-                          <span className="font-bold text-gray-500">Address</span>
-                          <span className="col-span-2 text-gray-950 text-[8px] line-clamp-2">{address}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-0.5">
-                          <span className="font-bold text-gray-500">Date of Issue</span>
-                          <span className="col-span-2 text-gray-900">12/04/2024</span>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t flex justify-between items-center font-sans">
-                        <div className="text-left">
-                          <p className="text-[6.5px] text-gray-500">Designation</p>
-                          <p className="font-bold text-[7.5px] text-gray-800">Superintendent</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[6.5px] text-gray-500">Jurisdiction</p>
-                          <p className="font-bold text-[7.5px] text-gray-800">Ward 42, Zone 5</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* PAN Card Preview */}
-              {previewDoc === 'pan' && (
-                <div className="w-full flex items-center justify-center p-2 h-[400px]">
-                  {vendorData?.documents?.aadhaarPan?.fileUrl ? (
-                    <img 
-                      src={getMediaUrl(vendorData.documents.aadhaarPan.fileUrl)} 
-                      alt="PAN Card" 
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-full bg-gradient-to-br from-[#103a5c] to-[#1e5d90] p-3.5 rounded-2xl shadow-lg text-white space-y-3.5 relative overflow-hidden font-sans border-2 border-white/20 select-none">
-                      <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-full blur-xl pointer-events-none" />
-                      
-                      <div className="flex justify-between items-start border-b border-white/10 pb-1.5">
-                        <div className="text-left space-y-0.5">
-                          <h5 className="text-[8px] font-black uppercase tracking-wider text-sky-200">Income Tax Department</h5>
-                          <p className="text-[7px] font-medium text-white/80">GOVT. OF INDIA</p>
-                        </div>
-                        <span className="material-symbols-outlined text-[20px] text-sky-200">shield</span>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <div className="w-14 h-18 bg-white/95 rounded-lg border border-white/20 flex flex-col items-center justify-center text-[#103a5c] relative overflow-hidden flex-shrink-0">
-                          <span className="material-symbols-outlined text-[28px] text-gray-400">person</span>
-                          <div className="absolute bottom-0 w-full bg-black/40 py-0.5 text-[5px] text-center text-white font-mono">PHOTO</div>
-                        </div>
-
-                        <div className="flex-1 space-y-1.5 text-left">
-                          <div>
-                            <span className="text-[6.5px] text-sky-200 uppercase block font-medium">Permanent Account Number</span>
-                            <span className="text-[11px] font-mono font-black tracking-widest text-amber-300">ABVPZ9444F</span>
-                          </div>
-
-                          <div className="space-y-0.5 text-[8px]">
-                            <div>
-                              <span className="text-[5.5px] text-sky-200 uppercase block">Name</span>
-                              <span className="font-bold uppercase truncate max-w-[120px] block">{currentUser.storeName || 'Vinita Businesses'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[5.5px] text-sky-200 uppercase block">Father's Name</span>
-                              <span className="font-bold uppercase truncate max-w-[120px] block">S. Jinodiya</span>
-                            </div>
-                            <div>
-                              <span className="text-[5.5px] text-sky-200 uppercase block">Date of Birth</span>
-                              <span className="font-bold font-mono">20/08/1995</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-1 border-t border-white/10 flex justify-between items-center text-[6px] text-white/60">
-                        <span>Signature of Cardholder</span>
-                        <span className="font-serif italic font-bold text-white text-[9px] tracking-wider opacity-85">Vinita</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Cancelled Cheque Preview */}
-              {previewDoc === 'cheque' && (
-                <div className="w-full flex items-center justify-center p-2 h-[400px]">
-                  {vendorData?.documents?.cancelledCheque?.fileUrl ? (
-                    <img 
-                      src={getMediaUrl(vendorData.documents.cancelledCheque.fileUrl)} 
-                      alt="Cancelled Cheque" 
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-full bg-[#f4faff] border border-blue-200 p-4 rounded-xl shadow-md space-y-3 font-sans relative overflow-hidden select-none">
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
-                        <div className="border-y-2 border-red-500/25 text-red-500/25 font-black text-[24px] tracking-[10px] uppercase rotate-[-15deg] px-6 py-1 border-double">
-                          Cancelled
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-start text-[7px] text-blue-900/70">
-                        <div className="space-y-0.5 text-left">
-                          <h5 className="font-black text-[8.5px] text-blue-900">ZEEBAC CO-OPERATIVE BANK</h5>
-                          <p>Branch: Main Square Road, Indore</p>
-                          <p>IFSC: ZBBC0000213</p>
-                        </div>
-                        <div className="text-right font-mono font-bold text-[8px] border border-blue-300 px-1 py-0.5 bg-white">
-                          Date: 2 0 0 6 2 0 2 6
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 text-[8px] text-blue-955 font-medium">
-                        <div className="flex items-center gap-1 border-b border-blue-200 pb-0.5">
-                          <span>Pay:</span>
-                          <span className="font-mono flex-1 text-left tracking-widest text-blue-900/60">-----------------------------------------------</span>
-                        </div>
-
-                        <div className="flex items-center gap-1 border-b border-blue-200 pb-0.5">
-                          <span>Rupees:</span>
-                          <span className="font-mono flex-1 text-left tracking-widest text-blue-900/60">-----------------------------------------------</span>
-                          <div className="border border-blue-300 bg-white px-1.5 py-0.2 font-bold text-[8.5px]">
-                            ₹ **0.00
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <div className="text-left space-y-0.5">
-                          <span className="text-[6px] text-blue-900/50 block">Account No.</span>
-                          <span className="font-mono font-bold text-[9.5px] text-blue-950 bg-white border border-blue-100 px-1.5 py-0.2 rounded">
-                            5010049281938
-                          </span>
-                        </div>
-                        <div className="text-right flex flex-col justify-end items-end space-y-0.5">
-                          <span className="text-[6px] text-blue-900/50 block">Authorized Signature</span>
-                          <span className="w-16 h-3 border-b border-blue-300 border-dashed" />
-                        </div>
-                      </div>
-
-                      <div className="pt-1.5 border-t border-blue-100 text-center font-mono text-[7px] text-blue-900/60 tracking-[3px]">
-                        ⑈ 452240002 ⑈ 501004928 ⑈ 22
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end bg-gray-50/50">
-              <button 
-                onClick={() => setPreviewDoc(null)}
-                className="px-4 py-1.5 bg-primary text-white rounded-full font-black text-[11px] hover:bg-primary-container hover:scale-102 active:scale-98 transition-all cursor-pointer shadow-sm"
-              >
-                Done
-              </button>
-            </div>
-
-          </div>
-        </div>,
-        document.body
       )}
 
-      {/* Support Options Modal */}
-      {supportModalOpen && createPortal(
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-all duration-300">
-          <div className="bg-white rounded-3xl w-full max-w-[320px] overflow-hidden shadow-2xl relative border border-gray-150 flex flex-col max-h-[80vh] animate-reveal">
-            
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-low">
-              <span className="font-display font-black text-[14px] text-on-surface flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary text-[18px]">support_agent</span>
-                {t('Customer Support')}
-              </span>
-              <button 
-                onClick={() => setSupportModalOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-gray-200/60 active:scale-95 flex items-center justify-center text-gray-500 cursor-pointer"
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 5: SECURITY & BIOMETRICS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showSecurityModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-violet-600 text-[22px]">fingerprint</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Security & App Lock
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowSecurityModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-5 space-y-3 bg-gray-50">
-              <p className="text-[11px] text-on-surface-variant leading-tight mb-2">{t('Need help? Choose a support channel to connect with our team instantly.')}</p>
+            <label className="flex items-center justify-between p-3.5 rounded-2xl bg-violet-50/70 border border-violet-200/80 cursor-pointer">
+              <div className="pr-2">
+                <p className="text-[12.5px] font-bold text-slate-900">Biometric / Fingerprint</p>
+                <p className="text-[10.5px] text-slate-500">Fast authentication for payouts & refunds</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={biometrics}
+                onChange={handleToggleBiometrics}
+                className="w-5 h-5 accent-primary cursor-pointer"
+              />
+            </label>
 
-              <button 
-                onClick={() => {
-                  setSupportModalOpen(false);
-                  navigate('/vendor/chat');
-                }}
-                className="w-full p-3.5 bg-white border border-outline-variant/15 hover:bg-surface-container-low active:scale-[0.98] transition-all rounded-2xl flex items-center gap-3 cursor-pointer text-left shadow-sm"
+            <form onSubmit={handleSavePin} className="space-y-3 pt-1 border-t border-slate-100">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Set 4-Digit Security PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••"
+                  className="w-full h-11 px-3 text-center tracking-[0.5em] bg-slate-50 border border-slate-200 rounded-xl text-[18px] font-mono outline-none focus:bg-white focus:border-primary"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={pinInput.length !== 4 || isSavingPin}
+                className="w-full py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shadow-sm disabled:opacity-50 cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                {isSavingPin ? 'Saving PIN...' : 'Save 4-Digit PIN'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 6: SUPPORT OPTIONS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showSupportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-3.5 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-cyan-600 text-[22px]">support_agent</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Zeebac Partner Support
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowSupportModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <a
+                href="tel:18001234567"
+                className="p-3 rounded-2xl bg-purple-50 hover:bg-purple-100 border border-purple-200 flex items-center gap-3 transition-colors cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[20px]">call</span>
+                </div>
+                <div>
+                  <p className="text-[13px] font-bold text-slate-900">Toll-Free Partner Helpline</p>
+                  <p className="text-[11px] text-primary font-bold">1800-123-4567 (Toll-Free)</p>
+                </div>
+              </a>
+
+              <a
+                href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support"
+                target="_blank"
+                rel="noreferrer"
+                className="p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 flex items-center gap-3 transition-colors cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-[20px]">chat</span>
                 </div>
                 <div>
-                  <p className="text-[12.5px] font-black text-on-surface">{t('In-App Chat Support')}</p>
-                  <p className="text-[10px] text-on-surface-variant/70">{t('Chat with support agents now')}</p>
+                  <p className="text-[13px] font-bold text-slate-900">WhatsApp Support</p>
+                  <p className="text-[11px] text-emerald-700 font-bold">+91 9111966732</p>
+                </div>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSupportModal(false);
+                  navigate('/vendor/support');
+                }}
+                className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center gap-3 transition-colors cursor-pointer text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[20px]">confirmation_number</span>
+                </div>
+                <div>
+                  <p className="text-[13px] font-bold text-slate-900">Support Ticket & Disputes</p>
+                  <p className="text-[11px] text-slate-500">Track open queries and payouts</p>
                 </div>
               </button>
-
-              <a 
-                href="https://wa.me/919111966732?text=Hello%20Zeebac%20Support,%20I%20am%20a%20merchant%20partner%20and%20need%20assistance."
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => setSupportModalOpen(false)}
-                className="w-full p-3.5 bg-white border border-outline-variant/15 hover:bg-surface-container-low active:scale-[0.98] transition-all rounded-2xl flex items-center gap-3 cursor-pointer text-left shadow-sm block"
-              >
-                <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-[#25D366] flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 fill-[#25D366]" viewBox="0 0 24 24">
-                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-[12.5px] font-black text-on-surface">{t('WhatsApp Support')}</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold">+91 91119 66732 · Direct Chat</p>
-                </div>
-              </a>
-
-              <a 
-                href="tel:+919111966732"
-                onClick={() => setSupportModalOpen(false)}
-                className="w-full p-3.5 bg-white border border-outline-variant/15 hover:bg-surface-container-low active:scale-[0.98] transition-all rounded-2xl flex items-center gap-3 cursor-pointer text-left shadow-sm block"
-              >
-                <div className="w-9 h-9 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">phone_iphone</span>
-                </div>
-                <div>
-                  <p className="text-[12.5px] font-black text-on-surface">{t('Call Helpline')}</p>
-                  <p className="text-[10px] text-on-surface-variant/70">{t('Toll-free 1800-ZEEBAC')}</p>
-                </div>
-              </a>
-
-              <a 
-                href="mailto:support@zeebac.com"
-                onClick={() => setSupportModalOpen(false)}
-                className="w-full p-3.5 bg-white border border-outline-variant/15 hover:bg-surface-container-low active:scale-[0.98] transition-all rounded-2xl flex items-center gap-3 cursor-pointer text-left shadow-sm block"
-              >
-                <div className="w-9 h-9 rounded-full bg-orange-500/10 text-orange-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">mail</span>
-                </div>
-                <div>
-                  <p className="text-[12.5px] font-black text-on-surface">{t('Email Support')}</p>
-                  <p className="text-[10px] text-on-surface-variant/70">{t('Write us at support@zeebac.com')}</p>
-                </div>
-              </a>
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
 
-      {/* Floating Toast Notification */}
-      {toastMessage && createPortal(
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[300] bg-on-surface-variant/90 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-lg text-[12px] font-bold animate-reveal whitespace-nowrap">
-          {toastMessage}
-        </div>,
-        document.body
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 7: ABOUT ZEEBAC */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showAboutModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-3.5 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary via-purple-700 to-indigo-800 text-white flex items-center justify-center mx-auto shadow-md">
+              <span className="material-symbols-outlined text-[28px]">store</span>
+            </div>
+
+            <div>
+              <h3 className="font-display font-black text-[18px] text-slate-900">
+                Zeebac Partner
+              </h3>
+              <p className="text-[11px] text-slate-400 font-bold tracking-wider uppercase mt-0.5">
+                Version 2.4.0 • Build 2026
+              </p>
+            </div>
+
+            <p className="text-[12px] text-slate-600 leading-relaxed">
+              India's smart retail and customer cashback ecosystem. Empowering local stores, grocers, and brands with digital orders, radius riders, and guaranteed customer loyalty.
+            </p>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setShowAboutModal(false)}
+                className="w-full py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12.5px] cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Vendor Loan Modal */}
-      <VendorLoanModal
-        isOpen={showLoanModal}
-        onClose={() => setShowLoanModal(false)}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL 8: LOGOUT CONFIRMATION */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl space-y-3 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[24px]">logout</span>
+            </div>
+
+            <h3 className="font-display font-black text-[16px] text-slate-900">
+              Sign Out of Store?
+            </h3>
+            <p className="text-[12px] text-slate-500 leading-snug">
+              Are you sure you want to log out? You can sign back in anytime with your mobile number.
+            </p>
+
+            <div className="pt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-[12px] hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[12px] shadow-sm cursor-pointer"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* COMPANION MODALS (Stories, Language, Loans, BNPL) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <StoreStoriesModal
+        isOpen={showStoriesModal}
+        onClose={() => setShowStoriesModal(false)}
+        onStoryUpdated={() => {
+          toast.success('Story updated!');
+        }}
       />
 
-      {/* Vendor Pay Later Modal */}
-      <VendorPayLaterModal
-        isOpen={showPayLaterModal}
-        onClose={() => setShowPayLaterModal(false)}
-      />
-
-      {/* Language Selector Modal */}
       <LanguageSelectorModal
         isOpen={showLangModal}
         onClose={() => setShowLangModal(false)}
       />
 
-    </div>
-  );
-}
+      <VendorLoanModal
+        isOpen={showLoanModal}
+        onClose={() => setShowLoanModal(false)}
+      />
 
-// Pulled out as its own component (not an inline IIFE) because it needs to
-// call the useQrCode hook, and hooks can't run inside a function invoked
-// mid-render. Signed + short-lived token, rendered locally instead of via
-// the third-party image API this used to call.
-function VendorStoreQrCard({ zeebacId }) {
-  const { t } = useLanguageStore();
-  const currentUser = useAuthStore((state) => state.currentUser) || {};
-  const fetchQrToken = useCallback(async () => {
-    try {
-      const res = await VendorAPI.getQrToken();
-      if (res && res.data) return res;
-      throw new Error('No QR token received');
-    } catch (err) {
-      console.warn('Vendor QR token API failed, using store fallback:', err);
-      const payeeVpa = currentUser?.bankDetails?.upiId || `${currentUser?.phone || 'vendor'}@upi`;
-      const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(currentUser?.storeName || 'ZeeBac Store')}&tr=${zeebacId}&tn=Zeebac%20Cashback&cu=INR`;
-      return {
-        data: {
-          token: `zeebac://vendor/${zeebacId}`,
-          upiUri,
-          expiresIn: 3600,
-        },
-      };
-    }
-  }, [currentUser?.bankDetails?.upiId, currentUser?.phone, currentUser?.storeName, zeebacId]);
-  const { qrImageUrl, isLoading } = useQrCode(fetchQrToken);
-
-  return (
-    <div className="flex items-center gap-4 py-3 px-1">
-      <div className="flex-1 space-y-3">
-        <div className="space-y-1">
-          <h3 className="font-display text-[15px] font-black text-on-surface flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[18px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
-            {t('Counter QR')}
-          </h3>
-          <p className="text-[10px] text-primary font-bold leading-tight">{t('PhonePe • Paytm • GPay • ZeeBac')}</p>
-          <p className="text-[11px] text-on-surface-variant leading-tight">{t('Customers earn instant wallet cashback')}</p>
-        </div>
-
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_QR_${zeebacId}.png`)}
-            disabled={!qrImageUrl}
-            className="flex-1 py-1.5 px-1 bg-primary text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 shadow-sm active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-[13px]">download</span>
-            {t('Download')}
-          </button>
-          <button
-            onClick={() => qrImageUrl && shareContent(qrImageUrl, 'Scan & Pay via ZeeBac', 'Scan this QR at my store to pay and earn instant cashback!')}
-            disabled={!qrImageUrl}
-            className="flex-1 py-1.5 px-1 bg-white text-primary border border-primary rounded-lg font-bold text-[10px] flex items-center justify-center gap-0.5 active:scale-95 transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-[13px]">share</span>
-            {t('Share')}
-          </button>
-        </div>
-      </div>
-
-      {/* QR Image */}
-      <div className="bg-[#fcfaff] border border-outline-variant/15 rounded-2xl p-1.5 w-[92px] h-[92px] flex items-center justify-center shadow-inner shrink-0">
-        {qrImageUrl ? (
-          <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
-        ) : (
-          <div className={`w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full ${isLoading ? 'animate-spin' : ''}`} />
-        )}
-      </div>
+      <VendorPayLaterModal
+        isOpen={showPayLaterModal}
+        onClose={() => setShowPayLaterModal(false)}
+      />
     </div>
   );
 }

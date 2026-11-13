@@ -334,6 +334,7 @@ export const updateProfile = async (req, res) => {
       address,
       email,
       operatingHours,
+      businessHours,
       profilePic,
       cashbackRate,
       businessType,
@@ -402,6 +403,8 @@ export const updateProfile = async (req, res) => {
     if (description !== undefined) vendor.description = description;
     if (email !== undefined) vendor.email = email;
     if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
+    if (storeName !== undefined && typeof storeName === 'string' && storeName.trim()) vendor.storeName = storeName.trim();
+    if (businessHours !== undefined) vendor.businessHours = businessHours;
     if (profilePic !== undefined) vendor.profilePic = profilePic;
     
     if (socialLinks) {
