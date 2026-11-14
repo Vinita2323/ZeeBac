@@ -33,6 +33,21 @@ import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmoun
 import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } from '../utils/qr.util.js';
 import { getIO } from '../socket/socket.js';
 
+const safeSocketEmit = (room, event, data) => {
+  try {
+    const io = getIO();
+    if (io) {
+      if (data !== undefined) {
+        io.to(room).emit(event, data);
+      } else {
+        io.emit(room, event);
+      }
+    }
+  } catch (err) {
+    logger.warn(`[Socket] Failed to emit ${event} to ${room}: ${err.message}`);
+  }
+};
+
 const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancelledCheque', 'panCard', 'additionalDoc', 'udyamCertificate', 'trademarkCertificate', 'fssaiCertificate'];
 
 // Applies whatever Step 2/3 fields & files are present in the request onto the

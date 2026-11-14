@@ -31,4 +31,4 @@ export default defineConfig([
       'react/prop-types': 'off',
     },
   },
-])
+]);
