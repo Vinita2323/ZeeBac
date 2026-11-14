@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, PosAPI, OrderAPI, API_BASE_URL } from '../../../services/api';
-import useQrCode from '../../../hooks/useQrCode';
-import { downloadImage, shareContent } from '../../../utils/exportUtils';
+import VendorQRModal from '../components/VendorQRModal';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
@@ -39,32 +38,11 @@ export default function DashboardPage() {
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
 
-  const fetchQrToken = useCallback(async () => {
-    try {
-      const res = await VendorAPI.getQrToken();
-      if (res && res.data) return res;
-      throw new Error('No QR token received');
-    } catch (err) {
-      console.warn('Vendor QR token API failed, using store fallback:', err);
-      const payeeVpa = currentUser?.bankDetails?.upiId || `${currentUser?.phone || 'vendor'}@upi`;
-      const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(currentUser?.storeName || 'ZeeBac Store')}&tr=${zeebacId}&tn=Zeebac%20Cashback&cu=INR`;
-      return {
-        data: {
-          token: `zeebac://vendor/${zeebacId}`,
-          upiUri,
-          expiresIn: 3600,
-        },
-      };
-    }
-  }, [currentUser?.bankDetails?.upiId, currentUser?.phone, currentUser?.storeName, zeebacId]);
-
-  const { qrImageUrl, isLoading: qrLoading, refresh: refreshQr } = useQrCode(fetchQrToken, true);
-
   useEffect(() => {
-    if (showQRModal && !qrImageUrl && !qrLoading) {
-      refreshQr();
-    }
-  }, [showQRModal, qrImageUrl, qrLoading, refreshQr]);
+    const handleOpenQR = () => setShowQRModal(true);
+    window.addEventListener('open-store-qr', handleOpenQR);
+    return () => window.removeEventListener('open-store-qr', handleOpenQR);
+  }, []);
 
   // Check for openPayLater query param
   useEffect(() => {
@@ -384,41 +362,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 sm:space-y-5 pt-0 pb-12 text-left">
-      {/* ── 1. TOP PURPLE HEADER (Matching Reference Screen 1) ── */}
-      <div className="bg-gradient-to-r from-purple-800 via-purple-900 to-indigo-950 text-white rounded-b-3xl px-4 pt-3.5 pb-8 -mx-3 sm:-mx-4 md:mx-0 shadow-md">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[26px] text-amber-400">bolt</span>
-            <span className="font-display font-black text-[22px] tracking-tight">Zeebac</span>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-purple-200">
-              Merchant
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowQRModal(true)}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-              title="Store Standee QR"
-            >
-              <span className="material-symbols-outlined text-[19px]">qr_code_2</span>
-            </button>
-            <button
-              onClick={() => navigate('/vendor/notifications')}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer relative"
-              title="Notifications"
-            >
-              <span className="material-symbols-outlined text-[20px]">notifications</span>
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-purple-900"></span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 2. STORE IDENTITY CARD (Floating Over Purple Header) ── */}
+      {/* ── STORE IDENTITY CARD ── */}
       <div
         onClick={() => navigate('/vendor/profile')}
-        className="-mt-7 max-w-4xl mx-auto bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 group"
+        className="max-w-4xl mx-auto bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 group mt-1"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0">
@@ -1469,83 +1416,10 @@ export default function DashboardPage() {
       )}
 
       {/* QR Modal */}
-      {showQRModal && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
-          <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto">
-            <button
-              onClick={() => setShowQRModal(false)}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[20px]">close</span>
-            </button>
-
-            <div className="flex flex-col items-center pt-1">
-              <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-800 mb-3">
-                <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_2</span>
-              </div>
-              <h3 className="font-display font-bold text-[18px] text-slate-900 text-center leading-tight">{t('Counter QR Standee')}</h3>
-              <p className="text-[12px] text-slate-500 text-center mt-1 mb-2.5 px-2">
-                {t('Scan & Pay via PhonePe, Paytm, GPay or ZeeBac')}
-              </p>
-
-              <div className="flex items-center gap-1.5 justify-center mb-4 flex-wrap">
-                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">UPI</span>
-                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">PhonePe</span>
-                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">Paytm</span>
-                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">GPay</span>
-                <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-900 font-semibold">ZeeBac</span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 w-56 h-56 flex flex-col items-center justify-center shadow-inner mb-3 relative overflow-hidden">
-                {qrImageUrl ? (
-                  <img src={qrImageUrl} alt="Store QR" className="w-full h-full object-contain" />
-                ) : qrLoading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-7 h-7 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
-                    <span className="text-[11px] font-medium text-slate-500">{t('Generating QR...')}</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-center p-2">
-                    <span className="material-symbols-outlined text-rose-500 text-[24px]">error</span>
-                    <span className="text-[11px] text-rose-600 font-medium">{t('Failed to load QR')}</span>
-                    <button
-                      onClick={refreshQr}
-                      className="px-3 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
-                    >
-                      {t('Retry')}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-slate-100 py-1 px-3 rounded-full flex items-center gap-2 mb-4">
-                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{t('Store ID:')}</span>
-                <span className="text-[11.5px] font-mono font-bold text-slate-900">{zeebacId}</span>
-              </div>
-
-              <div className="flex gap-2 w-full">
-                <button
-                  onClick={() => qrImageUrl && downloadImage(qrImageUrl, `Zeebac_Counter_QR_${zeebacId}.png`)}
-                  disabled={!qrImageUrl}
-                  className="flex-1 py-2.5 px-3 bg-gradient-to-r from-[#16082f] to-[#6000da] hover:opacity-95 text-white rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-[15px]">download</span>
-                  <span>{t('Download')}</span>
-                </button>
-                <button
-                  onClick={() => qrImageUrl && shareContent(qrImageUrl, `${currentUser?.storeName || 'ZeeBac Store'} QR`, `Pay at ${currentUser?.storeName || 'my store'} (${zeebacId}) to earn instant cashback!`)}
-                  disabled={!qrImageUrl}
-                  className="flex-1 py-2.5 px-3 bg-white hover:bg-primary/5 text-primary border border-primary/30 rounded-xl font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-[15px]">share</span>
-                  <span>{t('Share')}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <VendorQRModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
+      />
 
       {/* POS Bill Simulator Modal */}
       {showPosModal && createPortal(
