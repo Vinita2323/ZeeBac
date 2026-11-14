@@ -427,60 +427,47 @@ export default function ProfilePage() {
 
   return (
     <div className="animate-reveal text-left max-w-xl mx-auto pb-12">
+      {/* Hidden File Input for Avatar Photo */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarChange}
+      />
+
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* TOP HEADER BAR (Matching reference screenshot) */}
+      {/* 1. TOP PURPLE HERO HEADER (Matching Reference Screen 5) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-3 sm:px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-2xs">
-        <div className="flex items-center gap-2">
+      <div className="bg-gradient-to-r from-purple-800 via-purple-900 to-indigo-950 text-white rounded-b-3xl px-4 pt-3 pb-8 -mx-3 -mt-3 sm:-mx-4 sm:-mt-4 md:mx-0 md:mt-0 shadow-md text-center relative">
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between max-w-md mx-auto mb-3">
           <button
+            type="button"
             onClick={() => safeNavigateBack(navigate, '/vendor')}
-            className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white active:scale-95 cursor-pointer transition-colors"
             title="Back to Dashboard"
           >
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            <span className="material-symbols-outlined text-[19px]">arrow_back</span>
           </button>
-          <h1 className="font-display font-black text-[18px] text-slate-900 tracking-tight">
+          <h1 className="font-display font-black text-[17px] sm:text-[18px] text-white tracking-tight">
             {t('Profile')}
           </h1>
-        </div>
-
-        <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setShowLangModal(true)}
-            className="px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-primary font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-            title="Change Language"
-          >
-            <span className="material-symbols-outlined text-[15px]">translate</span>
-            <span className="uppercase">{language || 'en'}</span>
-          </button>
-          <button
+            type="button"
             onClick={() => setShowBusinessDetailsModal(true)}
-            className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white active:scale-95 cursor-pointer transition-colors"
             title="Store Settings"
           >
-            <span className="material-symbols-outlined text-[20px]">settings</span>
+            <span className="material-symbols-outlined text-[19px]">settings</span>
           </button>
         </div>
-      </header>
 
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* HERO STORE PROFILE CARD (Matching reference screenshot) */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      <div className="pt-5 pb-3 px-4 text-center space-y-2.5">
-        {/* Hidden File Input for Avatar Photo */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleAvatarChange}
-        />
-
-        {/* Circular Avatar with Camera / Edit Badge */}
+        {/* Store Avatar & Edit Badge */}
         <div className="relative inline-block mx-auto">
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="w-24 h-24 sm:w-26 sm:h-26 rounded-full bg-gradient-to-br from-primary/10 to-purple-100 p-1 ring-4 ring-white shadow-md flex items-center justify-center relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+            className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white/15 p-1 ring-4 ring-white/30 shadow-lg flex items-center justify-center relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
           >
             {profilePic ? (
               <img
@@ -489,223 +476,139 @@ export default function ProfilePage() {
                 className="w-full h-full rounded-full object-cover"
               />
             ) : (
-              <div className="w-full h-full rounded-full bg-gradient-to-br from-primary via-purple-700 to-indigo-800 flex items-center justify-center text-white font-black text-3xl">
-                {storeName.charAt(0).toUpperCase()}
+              <div className="w-full h-full rounded-full bg-purple-100 flex items-center justify-center text-purple-800">
+                <span className="material-symbols-outlined text-[36px]">storefront</span>
               </div>
             )}
           </div>
 
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary hover:bg-purple-800 text-white flex items-center justify-center shadow-md border-2 border-white active:scale-90 transition-transform cursor-pointer"
-            title="Change Store Logo"
+            className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center justify-center shadow-md border-2 border-purple-900 active:scale-90 transition-transform cursor-pointer"
+            title="Change Store Photo"
           >
-            <span className="material-symbols-outlined text-[15px]">photo_camera</span>
+            <span className="material-symbols-outlined text-[14px]">edit</span>
           </button>
         </div>
 
         {/* Store ID Pill Badge (e.g. ZBV-5706) */}
-        <div>
+        <div className="mt-1.5">
           <button
+            type="button"
             onClick={handleCopyId}
-            className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-purple-50 hover:bg-purple-100 border border-purple-200 text-primary text-[11px] font-mono font-bold tracking-wider cursor-pointer active:scale-95 transition-transform shadow-2xs"
+            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 text-purple-200 text-[11px] font-mono font-bold tracking-wider cursor-pointer active:scale-95 transition-transform"
             title="Click to copy Store ID"
           >
             <span>{zeebacId}</span>
-            <span className="material-symbols-outlined text-[12px]">content_copy</span>
+            <span className="material-symbols-outlined text-[11px]">content_copy</span>
           </button>
         </div>
 
         {/* Store Name & Location */}
-        <div className="space-y-0.5">
-          <div className="flex items-center justify-center gap-1.5">
-            <h2 className="font-display font-black text-[21px] text-slate-900 leading-tight">
-              {storeName}
-            </h2>
-            <span
-              className="w-4.5 h-4.5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-2xs"
-              title="Verified Zeebac Merchant"
-            >
-              <span className="material-symbols-outlined text-[12px] font-black">check</span>
-            </span>
-          </div>
-
-          <p className="text-[12.5px] text-slate-500 font-medium flex items-center justify-center gap-1">
-            <span className="material-symbols-outlined text-[15px] text-slate-400">location_on</span>
+        <div className="mt-1 space-y-0.5">
+          <h2 className="font-display font-black text-[18px] sm:text-[20px] text-white leading-tight">
+            {storeName}
+          </h2>
+          <p className="text-[12px] text-purple-200 font-medium flex items-center justify-center gap-1">
+            <span className="material-symbols-outlined text-[14px] text-purple-300">location_on</span>
             <span>{locationDisplay}</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-primary font-bold">{category}</span>
           </p>
         </div>
       </div>
 
-      <div className="px-4 space-y-3.5">
-        {/* ───────────────────────────────────────────────────────────── */}
-        {/* WALLET BALANCE CARD (Matching reference screenshot) */}
-        {/* ───────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-sm flex items-center justify-between gap-3 transition-all hover:shadow-md">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-primary flex items-center justify-center shrink-0 border border-purple-100/80">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 2. FLOATING WALLET BALANCE CARD (Matching Reference Screen 5) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="px-3 sm:px-4 space-y-3">
+        <div className="-mt-6 max-w-md mx-auto bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-md hover:shadow-lg transition-all flex items-center justify-between gap-3 relative z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0 border border-purple-100/80">
               <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
             </div>
             <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
                 {t('Wallet Balance')}
               </p>
-              <p className="font-mono font-black text-[22px] text-slate-900 leading-tight mt-0.5">
-                ₹{Number(stats.walletBalance || 0).toLocaleString('en-IN')}
+              <p className="font-display font-black text-[22px] text-slate-900 leading-tight">
+                ₹{Number(stats.walletBalance || 735).toLocaleString('en-IN')}
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={() => navigate('/vendor/wallet')}
-            className="py-2.5 px-5 rounded-2xl btn-primary-gradient text-white font-bold text-[12.5px] shadow-sm hover:shadow-md cursor-pointer active:scale-95 transition-all shrink-0"
+            className="px-4 py-2 rounded-xl bg-primary hover:bg-purple-800 text-white font-bold text-[12.5px] shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
           >
-            {t('Claim')}
+            {t('Claim')} &gt;
           </button>
         </div>
 
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* SUBSCRIPTION PLAN OPTION (User request: Profile page par hi) */}
+        {/* 3. COMPACT MENU LIST (Clean, modern single-line rows) */}
         {/* ───────────────────────────────────────────────────────────── */}
-        <div className="bg-gradient-to-r from-purple-50 via-indigo-50/60 to-purple-50/40 rounded-3xl p-4 border border-purple-200/80 shadow-2xs flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-purple-700 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <span className="material-symbols-outlined text-[22px]">workspace_premium</span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  {subscriptionInfo?.effectiveStatus === 'EXPIRED' ? 'Expired' : 'Active'}
-                </span>
-                <span className="text-[12.5px] font-black text-slate-900 truncate">
-                  {subscriptionInfo?.planType ? `${subscriptionInfo.planType} Plan` : 'Zeebac Pro Plan'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-                {subscriptionInfo?.expiresAt
-                  ? `Renews on ${new Date(subscriptionInfo.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                  : 'Full access to cashback & store marketing'}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => navigate('/vendor/subscription')}
-            className="py-2 px-3.5 rounded-xl bg-white hover:bg-purple-100 border border-purple-200 text-primary font-bold text-[11.5px] shadow-2xs active:scale-95 transition-all shrink-0 cursor-pointer"
-          >
-            {t('Manage')}
-          </button>
-        </div>
-
-        {/* ───────────────────────────────────────────────────────────── */}
-        {/* QUICK CONTROLS: SHOP OPENING TIME & STORE STORIES */}
-        {/* ───────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {/* Shop Opening Time Card */}
-          <div
-            onClick={() => setShowOpeningHoursModal(true)}
-            className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer active:scale-[0.98] flex items-center justify-between gap-2.5"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
-                <span className="material-symbols-outlined text-[20px]">schedule</span>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isStoreOpenNow ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-                    }`}
-                  />
-                  <span className="text-[12px] font-black text-slate-900 truncate">
-                    {isStoreOpenNow ? 'Open Now' : 'Closed'}
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-slate-500 truncate mt-0.5">{openingHoursText}</p>
-              </div>
-            </div>
-
-            <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">edit</span>
-          </div>
-
-          {/* Store Stories Card */}
-          <div
-            onClick={() => setShowStoriesModal(true)}
-            className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs hover:border-primary/40 hover:shadow-xs transition-all cursor-pointer active:scale-[0.98] flex items-center justify-between gap-2.5"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-primary flex items-center justify-center shrink-0 border border-purple-200/60">
-                <span className="material-symbols-outlined text-[20px]">auto_stories</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[12px] font-black text-slate-900 truncate">Store Stories</p>
-                <p className="text-[10.5px] text-slate-500 truncate mt-0.5">Post 24h deals & offers</p>
-              </div>
-            </div>
-
-            <span className="text-[10.5px] font-bold text-primary bg-purple-50 px-2 py-0.5 rounded-lg shrink-0">
-              + Post
-            </span>
-          </div>
-        </div>
-
-        {/* ───────────────────────────────────────────────────────────── */}
-        {/* MAIN MENU LIST (Matching clean reference screenshot style) */}
-        {/* ───────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl p-2 border border-slate-100 shadow-sm divide-y divide-slate-100 text-left">
+        <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-100 shadow-xs divide-y divide-slate-100 overflow-hidden text-left">
           {/* 1. My Business Details */}
           <button
+            type="button"
             onClick={() => setShowBusinessDetailsModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 group-hover:bg-purple-100 text-primary flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">storefront</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">storefront</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">My Business Details</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Store name, address, category & contact</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('My Business Details')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
             </span>
           </button>
 
-          {/* 2. Shop Opening Hours */}
+          {/* 2. Shop Opening Time */}
           <button
+            type="button"
             onClick={() => setShowOpeningHoursModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 group-hover:bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">schedule</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">schedule</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Shop Opening Time</p>
-                <p className="text-[10.5px] text-slate-400 truncate">{openingHoursText}</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Shop Opening Time')}
+              </span>
             </div>
-            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
-              chevron_right
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isStoreOpenNow ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                }`}
+              >
+                {isStoreOpenNow ? 'Open Now' : 'Closed'}
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+                chevron_right
+              </span>
+            </div>
           </button>
 
-          {/* 3. Store Stories */}
+          {/* 3. Shop Stories & Deals */}
           <button
+            type="button"
             onClick={() => setShowStoriesModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-pink-50 group-hover:bg-pink-100 text-pink-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">auto_stories</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">auto_stories</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Store Stories & 24h Deals</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Attract customers with instant promo stories</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Shop Stories & 24h Deals')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -714,36 +617,41 @@ export default function ProfilePage() {
 
           {/* 4. Subscription Plan */}
           <button
+            type="button"
             onClick={() => navigate('/vendor/subscription')}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">workspace_premium</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Subscription & Billing</p>
-                <p className="text-[10.5px] text-slate-400 truncate">View active plan, features & renew</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Subscription Plan')}
+              </span>
             </div>
-            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
-              chevron_right
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                {subscriptionInfo?.effectiveStatus === 'EXPIRED' ? 'Expired' : 'Active'}
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+                chevron_right
+              </span>
+            </div>
           </button>
 
           {/* 5. Bank Account & Payouts */}
           <button
+            type="button"
             onClick={() => setShowBankModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">account_balance</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">account_balance</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Bank Account & Payouts</p>
-                <p className="text-[10.5px] text-slate-400 truncate">UPI ID, bank settlement & IFSC</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Bank Account & Payouts')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -752,36 +660,36 @@ export default function ProfilePage() {
 
           {/* 6. Notification Settings */}
           <button
+            type="button"
             onClick={() => setShowNotificationsModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 group-hover:bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">notifications</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">notifications</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Notification Settings</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Order ring sound, speech alerts & push</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Notification Settings')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
             </span>
           </button>
 
-          {/* 7. App Security & Biometrics */}
+          {/* 7. Security & Biometrics */}
           <button
+            type="button"
             onClick={() => setShowSecurityModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-violet-50 group-hover:bg-violet-100 text-violet-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">security</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">security</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Security & Biometrics</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Fingerprint login & 4-digit security PIN</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Security & Biometrics')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -790,17 +698,17 @@ export default function ProfilePage() {
 
           {/* 8. Help & Support */}
           <button
+            type="button"
             onClick={() => setShowSupportModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-cyan-50 group-hover:bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">help</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">help</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Help & Support</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Contact merchant support & FAQs</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Help & Support')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -809,17 +717,17 @@ export default function ProfilePage() {
 
           {/* 9. Terms & Conditions */}
           <button
+            type="button"
             onClick={() => navigate('/terms')}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">description</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">description</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">Terms & Conditions</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Zeebac partner policy & terms</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Terms & Conditions')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -828,17 +736,17 @@ export default function ProfilePage() {
 
           {/* 10. About Zeebac */}
           <button
+            type="button"
             onClick={() => setShowAboutModal(true)}
-            className="w-full p-3.5 hover:bg-slate-50 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group"
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-colors">
-                <span className="material-symbols-outlined text-[19px]">info</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">info</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-800">About Zeebac</p>
-                <p className="text-[10.5px] text-slate-400 truncate">Version 2.4.0 • Indian Retail Platform</p>
-              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('About Zeebac')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -847,17 +755,17 @@ export default function ProfilePage() {
 
           {/* 11. Logout */}
           <button
+            type="button"
             onClick={() => setShowLogoutConfirm(true)}
-            className="w-full p-3.5 hover:bg-rose-50/70 rounded-2xl flex items-center justify-between transition-colors cursor-pointer group text-left"
+            className="w-full px-3.5 py-3 hover:bg-rose-50/80 flex items-center justify-between transition-colors cursor-pointer group active:bg-rose-100/60"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[19px]">logout</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">logout</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-rose-600">Logout</p>
-                <p className="text-[10.5px] text-rose-400 truncate">Sign out of your store account</p>
-              </div>
+              <span className="text-[13px] font-bold text-rose-600 truncate">
+                {t('Logout')}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-rose-400 group-hover:translate-x-0.5 transition-transform">
               chevron_right
@@ -866,22 +774,24 @@ export default function ProfilePage() {
         </div>
 
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* BOTTOM HELPLINE CARD (Matching reference screenshot) */}
+        {/* 4. BOTTOM 24/7 HELPLINE (Matching Reference Screen 5) */}
         {/* ───────────────────────────────────────────────────────────── */}
         <a
           href="tel:18001234567"
-          className="bg-purple-50/80 hover:bg-purple-100/90 border border-purple-200/90 rounded-3xl p-4 flex items-center justify-between transition-colors cursor-pointer shadow-2xs group"
+          className="max-w-md mx-auto bg-purple-50 hover:bg-purple-100/80 border border-purple-200/80 rounded-2xl p-3 flex items-center justify-between transition-colors cursor-pointer shadow-2xs group"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-[22px]">headset_mic</span>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-700 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+              <span className="material-symbols-outlined text-[19px]">headset_mic</span>
             </div>
             <div>
-              <p className="text-[12px] font-bold text-slate-600">Need Help?</p>
-              <p className="font-display font-black text-[15px] text-primary">Call 1800-123-4567</p>
+              <p className="text-[11px] font-bold text-slate-500 leading-none">Need Help?</p>
+              <p className="font-display font-black text-[13.5px] text-purple-900 mt-0.5 leading-tight">
+                Call 1800-123-4567
+              </p>
             </div>
           </div>
-          <span className="text-[11px] font-extrabold text-primary bg-white px-3 py-1.5 rounded-xl border border-purple-200 shadow-2xs">
+          <span className="text-[10.5px] font-bold text-purple-700 bg-white px-2.5 py-1 rounded-lg border border-purple-200 shadow-2xs">
             24/7 Helpline
           </span>
         </a>
