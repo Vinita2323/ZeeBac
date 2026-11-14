@@ -21,6 +21,9 @@ export default function B2BBillingPage() {
   const [isLookingUpRetailProduct, setIsLookingUpRetailProduct] = useState(false);
   const [retailItems, setRetailItems] = useState([]);
   const [retailPaymentMethod, setRetailPaymentMethod] = useState('Cash'); // 'Cash' | 'UPI' | 'Card'
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [receivedCash, setReceivedCash] = useState('');
+  const [retailUpiQr, setRetailUpiQr] = useState('');
   const [isLoggingRetailBill, setIsLoggingRetailBill] = useState(false);
   const [completedRetailBill, setCompletedRetailBill] = useState(null);
 
@@ -301,6 +304,28 @@ export default function B2BBillingPage() {
     retailItems.reduce((acc, i) => acc + (i.total * (i.cashbackPercentage || 5)) / 100, 0) * 100
   ) / 100;
 
+  // Proceed to Payment Modal Trigger
+  const handleProceedToPayment = () => {
+    if (retailItems.length === 0) {
+      toast.error('Please add at least one item to proceed');
+      return;
+    }
+    setReceivedCash(String(retailSubtotal));
+    setShowPaymentModal(true);
+  };
+
+  // Generate UPI QR Code dynamically when modal opens with UPI selected
+  useEffect(() => {
+    if (showPaymentModal && retailPaymentMethod === 'UPI' && retailSubtotal > 0) {
+      const upiId = currentVendor?.upiId || currentVendor?.bankDetails?.upiId || 'zeebac@upi';
+      const storeName = currentVendor?.storeName || currentVendor?.ownerName || 'Zeebac Store';
+      const uri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(storeName)}&am=${retailSubtotal}&cu=INR&tn=Zeebac%20POS%20Bill`;
+      QRCode.toDataURL(uri, { width: 220, margin: 1 })
+        .then((url) => setRetailUpiQr(url))
+        .catch((e) => console.warn('Could not generate UPI QR', e));
+    }
+  }, [showPaymentModal, retailPaymentMethod, retailSubtotal, currentVendor]);
+
   // 3. Complete Sale & Credit Cashback to Customer Wallet
   const handleCompleteRetailSale = async () => {
     if (retailItems.length === 0) {
@@ -349,6 +374,9 @@ export default function B2BBillingPage() {
         toast.success(
           `🎉 Bill Generated! ₹${finalTxn.cashbackAmount || retailTotalCashback} cashback points credited to customer wallet!`
         );
+
+        // Close payment modal
+        setShowPaymentModal(false);
 
         // Reset form
         setRetailItems([]);
@@ -906,35 +934,8 @@ export default function B2BBillingPage() {
               </div>
             </div>
 
-            {/* Right Col: Bill Summary, Cashback & Payment */}
+            {/* Right Col: Bill Summary & Proceed to Payment */}
             <div className="space-y-4">
-              {/* Payment Method Selector */}
-              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-3">
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  Customer Payment Method
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'Cash', label: 'Cash', icon: 'payments' },
-                    { id: 'UPI', label: 'UPI / QR', icon: 'qr_code_2' },
-                    { id: 'Card', label: 'Card Swipe', icon: 'credit_card' },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setRetailPaymentMethod(m.id)}
-                      className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                        retailPaymentMethod === m.id
-                          ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">{m.icon}</span>
-                      <span className="text-[11.5px] font-bold">{m.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Bill Calculation & Cashback Points Card */}
               <div className="bg-white rounded-3xl p-5 border border-purple-100 shadow-sm space-y-4">
                 <h3 className="font-display font-black text-[15px] text-slate-900 pb-2 border-b border-slate-100">
@@ -987,21 +988,26 @@ export default function B2BBillingPage() {
                   </p>
                 </div>
 
-                {/* Submit Action */}
-                <button
-                  onClick={handleCompleteRetailSale}
-                  disabled={isLoggingRetailBill || retailItems.length === 0}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white font-bold text-[14px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isLoggingRetailBill ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-[20px]">bolt</span>
-                      <span>Generate Bill & Credit Cashback</span>
-                    </>
-                  )}
-                </button>
+                {/* Proceed Action Button */}
+                {retailItems.length === 0 ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full py-4 rounded-2xl bg-slate-100 text-slate-400 font-bold text-[14px] flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
+                    <span>Add Products to Proceed</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleProceedToPayment}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold text-[14px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Proceed to Payment (₹{retailSubtotal})</span>
+                    <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1833,6 +1839,303 @@ export default function B2BBillingPage() {
           }
         }}
       />
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: SELECT PAYMENT METHOD & CONFIRM BILL ──────────── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-reveal select-none">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-[460px] w-full shadow-2xl space-y-4 relative max-h-[90vh] flex flex-col border border-slate-100 overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[22px] text-purple-700">payments</span>
+                  <h3 className="font-display font-black text-[18px] text-slate-900">
+                    Select Payment Method
+                  </h3>
+                </div>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  Amount to Collect:{' '}
+                  <span className="font-mono font-black text-purple-700 text-[14px]">
+                    ₹{retailSubtotal.toLocaleString('en-IN')}
+                  </span>{' '}
+                  • {retailItems.length} Products ({retailTotalUnits} Units)
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Customer Information Section */}
+            <div className="text-left bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  Customer (Cashback Wallet)
+                </span>
+                {verifiedCustomer ? (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Verified Customer
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    Enter to Credit Cashback
+                  </span>
+                )}
+              </div>
+
+              {verifiedCustomer ? (
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <p className="font-bold text-[13.5px] text-slate-900">{verifiedCustomer.name}</p>
+                    <p className="text-[11px] text-slate-500 font-mono">
+                      Zeebac ID: <span className="font-bold text-purple-700">{verifiedCustomer.zeebacId}</span> • {verifiedCustomer.phone}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerifiedCustomer(null);
+                      setCustomerQuery('');
+                    }}
+                    className="text-[11px] text-slate-400 hover:text-red-500 underline font-medium cursor-pointer"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={customerQuery}
+                      onChange={(e) => {
+                        setCustomerQuery(e.target.value);
+                        setCustomerError('');
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleLookupCustomer()}
+                      placeholder="Customer Mobile or Zeebac ID..."
+                      className="flex-1 h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] font-mono font-medium text-slate-900 focus:outline-none focus:border-purple-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleLookupCustomer()}
+                      disabled={isSearchingCustomer || !customerQuery.trim()}
+                      className="h-10 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isSearchingCustomer ? '...' : 'Verify'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCameraScanMode('customer');
+                        setShowCameraScanner(true);
+                      }}
+                      className="h-10 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl flex items-center justify-center cursor-pointer active:scale-95"
+                      title="Scan Customer QR"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                    </button>
+                  </div>
+                  {customerError && (
+                    <p className="text-[11px] text-amber-700 font-medium">{customerError}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Payment Method Selector Grid */}
+            <div className="text-left space-y-2">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                Choose Payment Option
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'Cash', label: 'Cash', icon: 'payments', desc: 'Cash Received' },
+                  { id: 'UPI', label: 'UPI / QR', icon: 'qr_code_2', desc: 'Scan & Pay' },
+                  { id: 'Card', label: 'Card Swipe', icon: 'credit_card', desc: 'POS Swipe' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setRetailPaymentMethod(m.id)}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      retailPaymentMethod === m.id
+                        ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs ring-2 ring-purple-600/20'
+                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[24px]">{m.icon}</span>
+                    <span className="text-[12px] font-bold">{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment Method Details & Calculator */}
+            {retailPaymentMethod === 'Cash' && (
+              <div className="text-left bg-emerald-50/60 border border-emerald-200 rounded-2xl p-3.5 space-y-3 animate-reveal">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11.5px] font-bold text-emerald-900">
+                    💵 Cash Tender Calculator
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-emerald-700">
+                    Bill: ₹{retailSubtotal}
+                  </span>
+                </div>
+
+                {/* Quick denomination pills */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-500 mr-1">Tender:</span>
+                  {[
+                    retailSubtotal,
+                    ...[100, 200, 500, 1000, 2000].filter((val) => val > retailSubtotal).slice(0, 3),
+                  ].map((val, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setReceivedCash(String(val))}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold cursor-pointer transition-all ${
+                        Number(receivedCash) === val
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-100/50'
+                      }`}
+                    >
+                      ₹{val}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">
+                      Received Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={receivedCash}
+                      onChange={(e) => setReceivedCash(e.target.value)}
+                      placeholder="Amount received..."
+                      className="w-full h-10 px-3 bg-white border border-emerald-300 rounded-xl font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600 text-[14px]"
+                    />
+                  </div>
+
+                  <div className="flex-1 text-right">
+                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">
+                      Change to Return
+                    </label>
+                    <div className="h-10 px-3 bg-white border border-slate-200 rounded-xl flex items-center justify-end font-mono font-black text-[15px]">
+                      {Number(receivedCash) >= retailSubtotal ? (
+                        <span className="text-emerald-700">
+                          ₹{Math.max(0, Math.round((Number(receivedCash) - retailSubtotal) * 100) / 100)}
+                        </span>
+                      ) : (
+                        <span className="text-amber-600 text-[12px]">
+                          Due: ₹{Math.round((retailSubtotal - (Number(receivedCash) || 0)) * 100) / 100}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {retailPaymentMethod === 'UPI' && (
+              <div className="text-center bg-purple-50/60 border border-purple-200 rounded-2xl p-4 space-y-2.5 animate-reveal">
+                <div className="flex items-center justify-between text-left">
+                  <div>
+                    <p className="font-bold text-[12.5px] text-purple-950">Scan &amp; Pay via UPI</p>
+                    <p className="text-[11px] text-purple-700 font-mono">
+                      Payable: <strong className="text-[13px]">₹{retailSubtotal}</strong>
+                    </p>
+                  </div>
+                  <span className="text-[10.5px] font-bold text-purple-700 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full">
+                    GPay / PhonePe / Paytm
+                  </span>
+                </div>
+
+                {retailUpiQr ? (
+                  <div className="w-44 h-44 mx-auto p-2 bg-white border-2 border-purple-200 rounded-2xl shadow-sm flex items-center justify-center">
+                    <img src={retailUpiQr} alt="UPI Payment QR" className="w-full h-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-44 h-44 mx-auto bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400">
+                    <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-600 rounded-full animate-spin" />
+                  </div>
+                )}
+
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Ask customer to scan with any UPI App and complete payment of ₹{retailSubtotal}.
+                </p>
+              </div>
+            )}
+
+            {retailPaymentMethod === 'Card' && (
+              <div className="text-left bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 space-y-2 animate-reveal">
+                <div className="flex items-center gap-2 text-indigo-900 font-bold text-[13px]">
+                  <span className="material-symbols-outlined text-[20px]">credit_card</span>
+                  <span>Card Swipe / POS Terminal</span>
+                </div>
+                <p className="text-[12px] text-slate-600 leading-relaxed">
+                  Swipe, insert, or tap the customer’s Debit / Credit Card on your merchant card machine for{' '}
+                  <strong className="text-indigo-950 font-mono">₹{retailSubtotal}</strong>. Once payment approval receipt is printed on your card machine, click confirm below.
+                </p>
+              </div>
+            )}
+
+            {/* Instant Cashback Point Preview Banner */}
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white rounded-2xl p-3 flex items-center justify-between text-left shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-300 text-[20px]">stars</span>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-purple-200 font-bold">Customer Cashback</p>
+                  <p className="text-[12px] font-bold text-white">
+                    +₹{retailTotalCashback} will be credited to customer wallet
+                  </p>
+                </div>
+              </div>
+              <span className="font-mono font-black text-amber-300 text-[16px]">
+                +₹{retailTotalCashback}
+              </span>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="w-1/3 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] active:scale-95 transition-all cursor-pointer"
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCompleteRetailSale}
+                disabled={isLoggingRetailBill}
+                className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold text-[13.5px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoggingRetailBill ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    <span>Confirm &amp; Generate Bill</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: THERMAL POS RECEIPT (PRINTABLE & SHAREABLE) ───── */}
