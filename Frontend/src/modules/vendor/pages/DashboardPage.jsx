@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, PosAPI, OrderAPI, API_BASE_URL } from '../../../services/api';
 import VendorQRModal from '../components/VendorQRModal';
+import StoreHeroIllustration from '../components/StoreHeroIllustration';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
@@ -396,29 +397,25 @@ export default function DashboardPage() {
       </div>
 
       {/* ── 3. HERO PROMO BANNER (Matching Reference Screen 1) ── */}
-      <div className="max-w-4xl mx-auto bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 text-white rounded-3xl p-4 sm:p-5 relative overflow-hidden shadow-md flex items-center justify-between gap-4">
-        <div className="relative z-10 max-w-[65%] space-y-1.5">
-          <h3 className="font-display font-black text-[16px] sm:text-[18px] leading-tight">
+      <div className="max-w-4xl mx-auto bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 text-white rounded-2xl sm:rounded-3xl px-3.5 py-3 sm:px-5 sm:py-3.5 relative overflow-hidden shadow-md flex items-center justify-between gap-3">
+        <div className="relative z-10 max-w-[62%] sm:max-w-[65%] space-y-1">
+          <h3 className="font-display font-black text-[15px] sm:text-[17px] leading-tight">
             Grow Your Business with Zeebac
           </h3>
-          <p className="text-[11.5px] sm:text-[12px] text-purple-100/90 leading-snug">
+          <p className="text-[11px] sm:text-[11.5px] text-purple-100/90 leading-tight line-clamp-2">
             Get more customers, more sales & cashback on every counter transaction.
           </p>
           <button
             onClick={() => navigate('/vendor/products')}
-            className="mt-2 inline-flex items-center gap-1 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-display font-black text-xs rounded-xl shadow-sm active:scale-95 transition-all cursor-pointer"
+            className="mt-1.5 inline-flex items-center gap-1 px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-display font-black text-[11.5px] rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
           >
             <span>Start Selling</span>
-            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
           </button>
         </div>
 
         {/* 3D Store Graphic Art on Right */}
-        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 flex items-center justify-center text-white shrink-0 shadow-inner">
-          <span className="material-symbols-outlined text-[48px] text-amber-300">
-            store
-          </span>
-        </div>
+        <StoreHeroIllustration className="w-28 h-24 sm:w-36 sm:h-28 shrink-0" />
       </div>
 
       {/* ── 4. TODAY'S OVERVIEW SECTION (Matching Reference Screen 1) ── */}

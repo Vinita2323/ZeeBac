@@ -135,3 +135,4 @@ export default function VendorQRModal({ isOpen, onClose }) {
     document.body
   );
 }
+
