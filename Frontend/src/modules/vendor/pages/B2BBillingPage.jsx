@@ -1016,9 +1016,19 @@ export default function B2BBillingPage() {
             <div className="lg:col-span-2 space-y-4">
               {/* Barcode Scanner Bar */}
               <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-2">
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  Scan Barcode or Search Master Catalogue (EAN / Product ID)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    Scan Barcode or Search Master Catalogue (EAN / Product ID)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCatalogModal(true)}
+                    className="text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                    <span>Pick From Catalog</span>
+                  </button>
+                </div>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
@@ -1508,80 +1518,210 @@ export default function B2BBillingPage() {
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: QUICK CATALOG PRODUCT PICKER ─────────────────── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      {showCatalogModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-5 max-w-[500px] w-full shadow-2xl space-y-4 relative max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-purple-700">menu_book</span>
-                <h3 className="font-display font-black text-[16px] text-slate-900">
-                  Select Product From Store Catalog
-                </h3>
+      {showCatalogModal && (() => {
+        const currentBillItems = activeTab === 'retail' ? retailItems : wholesaleItems;
+        const totalAddedQty = currentBillItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
+        const totalAddedAmount = Math.round(
+          currentBillItems.reduce((acc, i) => acc + (activeTab === 'retail' ? (i.total || 0) : (i.totalAmount || 0)), 0) * 100
+        ) / 100;
+        const uniqueProductsCount = currentBillItems.length;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+            <div className="bg-white rounded-3xl p-5 max-w-[500px] w-full shadow-2xl space-y-3.5 relative max-h-[88vh] flex flex-col border border-slate-100">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-purple-700">menu_book</span>
+                  <div>
+                    <h3 className="font-display font-black text-[16px] text-slate-900 leading-tight">
+                      Select Product From Store Catalog
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {activeTab === 'retail' ? 'Retail POS Counter Bill' : 'B2B Wholesale Trade Bill'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCatalogModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200 transition-all active:scale-95 shrink-0"
+                  aria-label="Close"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
               </div>
-              <button
-                onClick={() => setShowCatalogModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
 
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
-                search
-              </span>
-              <input
-                type="text"
-                value={catalogSearch}
-                onChange={(e) => setCatalogSearch(e.target.value)}
-                placeholder="Search products in your catalog..."
-                className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-900 focus:outline-none focus:border-purple-600"
-              />
-            </div>
+              {/* Search bar */}
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+                  search
+                </span>
+                <input
+                  type="text"
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  placeholder="Search products in your catalog..."
+                  className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-900 focus:outline-none focus:border-purple-600 transition-colors"
+                />
+              </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1">
-              {vendorCatalog
-                .filter((p) => p.name.toLowerCase().includes(catalogSearch.toLowerCase()))
-                .map((product) => (
-                  <div key={product._id} className="py-2.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0">
-                        {product.image ? (
-                          <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
+              {/* Product List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1 min-h-[180px]">
+                {vendorCatalog
+                  .filter((p) => p.name.toLowerCase().includes(catalogSearch.toLowerCase()))
+                  .map((product) => {
+                    const existingInBill = currentBillItems.find((i) => i.productId === product._id);
+                    const inBillQty = existingInBill?.quantity || 0;
+
+                    return (
+                      <div
+                        key={product._id}
+                        className={`py-2.5 px-1.5 rounded-xl flex items-center justify-between gap-3 transition-colors ${
+                          inBillQty > 0 ? 'bg-purple-50/40' : 'hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center p-1 shrink-0 shadow-2xs">
+                            {product.image ? (
+                              <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="material-symbols-outlined text-purple-600 text-[18px]">inventory_2</span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-[13px] text-slate-900 truncate">{product.name}</p>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              ₹{activeTab === 'retail' ? (product.price || product.mrp) : (product.wholesalePrice || product.price)} • Stock: {product.stock ?? 'N/A'} • {product.cashbackPercentage || 5}% CB
+                            </p>
+                          </div>
+                        </div>
+
+                        {inBillQty > 0 ? (
+                          <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-xl p-1 shrink-0 shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (activeTab === 'retail') {
+                                  updateRetailQty(product._id, -1);
+                                } else {
+                                  updateWholesaleQty(product._id, -1);
+                                }
+                              }}
+                              className="w-7 h-7 rounded-lg bg-white text-purple-700 flex items-center justify-center font-bold text-sm shadow-xs hover:bg-purple-100 active:scale-90 cursor-pointer transition-all"
+                              title="Decrease quantity"
+                            >
+                              -
+                            </button>
+                            <span className="w-6 text-center font-mono font-black text-xs text-purple-900">
+                              {inBillQty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (activeTab === 'retail') {
+                                  addRetailItem(product);
+                                } else {
+                                  addWholesaleItem(product);
+                                }
+                              }}
+                              className="w-7 h-7 rounded-lg bg-purple-700 text-white flex items-center justify-center font-bold text-sm shadow-xs hover:bg-purple-800 active:scale-90 cursor-pointer transition-all"
+                              title="Increase quantity"
+                            >
+                              +
+                            </button>
+                          </div>
                         ) : (
-                          <span className="material-symbols-outlined text-purple-600 text-[18px]">inventory_2</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (activeTab === 'retail') {
+                                addRetailItem(product);
+                              } else {
+                                addWholesaleItem(product);
+                              }
+                              toast.success(`Added ${product.name}`);
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 cursor-pointer active:scale-95 transition-all flex items-center gap-1 shrink-0 shadow-2xs"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">add</span>
+                            <span>Add</span>
+                          </button>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-[13px] text-slate-900 truncate">{product.name}</p>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          ₹{product.price || product.mrp} • Stock: {product.stock ?? 'N/A'} • {product.cashbackPercentage || 5}% CB
-                        </p>
+                    );
+                  })}
+              </div>
+
+              {/* Bottom Sticky Summary & Done Button */}
+              <div className="pt-3 border-t border-slate-100 space-y-2 shrink-0">
+                {currentBillItems.length > 0 ? (
+                  <>
+                    {/* Added Products Summary Strip */}
+                    <div className="bg-purple-50/90 border border-purple-200 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-purple-700 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm shadow-purple-600/30">
+                          {totalAddedQty}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-extrabold text-[12.5px] text-slate-900 truncate">
+                            {uniqueProductsCount} {uniqueProductsCount === 1 ? 'Product' : 'Products'} Added ({totalAddedQty} Total Qty)
+                          </p>
+                          <p className="text-[11px] font-mono font-bold text-purple-700">
+                            Total Bill Value: ₹{totalAddedAmount.toLocaleString('en-IN')}
+                          </p>
+                        </div>
                       </div>
+                      <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        In Bill
+                      </span>
                     </div>
 
+                    {/* Chips Preview of Added Items */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-h-12 no-scrollbar">
+                      {currentBillItems.map((item) => (
+                        <span
+                          key={item.productId || item.name}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-800 whitespace-nowrap shrink-0 shadow-2xs"
+                        >
+                          <span className="truncate max-w-[120px]">{item.name}</span>
+                          <span className="text-purple-700 font-mono font-black bg-purple-50 px-1 py-0.2 rounded border border-purple-100">
+                            ×{item.quantity}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Done Adding Button */}
                     <button
-                      onClick={() => {
-                        addRetailItem(product);
-                        toast.success(`Added ${product.name}`);
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 cursor-pointer active:scale-95 transition-all"
+                      type="button"
+                      onClick={() => setShowCatalogModal(false)}
+                      className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-md shadow-purple-700/25 active:scale-98 transition-all cursor-pointer"
                     >
-                      + Add
+                      <span>Done Adding ({uniqueProductsCount} Products • {totalAddedQty} Qty • ₹{totalAddedAmount.toLocaleString('en-IN')})</span>
+                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11.5px] text-center text-slate-400 font-medium">
+                      No products added yet. Tap &apos;+ Add&apos; to include in bill.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowCatalogModal(false)}
+                      className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer active:scale-98 transition-all"
+                    >
+                      Done Adding
                     </button>
                   </div>
-                ))}
+                )}
+              </div>
             </div>
-
-            <button
-              onClick={() => setShowCatalogModal(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
-            >
-              Done Adding
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: ADD CUSTOM ITEM (NON-CATALOG PRODUCT) ────────── */}
