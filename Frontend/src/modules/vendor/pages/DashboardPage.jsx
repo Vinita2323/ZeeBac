@@ -12,6 +12,7 @@ import SalesAnalyticsModal from '../components/SalesAnalyticsModal';
 import { getSocket } from '../../../services/socket';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { formatOrderTime, playStoreNewOrderAlarm, playRiderDeclinedTone } from '../../../utils/voiceUtils';
+import { isManufacturerOrWholesaler } from '../../../utils/vendorSectorUtils';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -38,6 +39,8 @@ export default function DashboardPage() {
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const zeebacId = currentUser.zeebacId || 'ZBV-0000';
+  const businessType = currentUser?.businessType || dashboardData?.data?.businessType;
+  const isB2B = isManufacturerOrWholesaler(businessType);
 
   useEffect(() => {
     const handleOpenQR = () => setShowQRModal(true);
@@ -67,8 +70,15 @@ export default function DashboardPage() {
 
         if (statsRes.status === 'fulfilled') {
           setDashboardData(statsRes.value);
+          const patch = {};
           if (statsRes.value.success && statsRes.value.data?.cashbackRate && !currentUser.cashbackRate) {
-            useAuthStore.getState().updateProfile({ cashbackRate: statsRes.value.data.cashbackRate });
+            patch.cashbackRate = statsRes.value.data.cashbackRate;
+          }
+          if (statsRes.value.success && statsRes.value.data?.businessType && !currentUser.businessType) {
+            patch.businessType = statsRes.value.data.businessType;
+          }
+          if (Object.keys(patch).length > 0) {
+            useAuthStore.getState().updateProfile(patch);
           }
         }
 
@@ -277,10 +287,10 @@ export default function DashboardPage() {
   const stats = [
     {
       id: 'active-orders',
-      label: t('Customer Orders'),
+      label: isB2B ? t('Purchase Orders') : t('Customer Orders'),
       value: `${dashboardOrders.length}`,
       icon: 'receipt_long',
-      trend: `${dashboardOrders.filter(o => o.orderStatus === 'PLACED').length} New`,
+      trend: `${dashboardOrders.filter(o => o.orderStatus === 'PLACED').length} ${isB2B ? 'B2B New' : 'New'}`,
       isLive: dashboardOrders.filter(o => o.orderStatus === 'PLACED').length > 0,
       link: '/vendor/requests'
     },
@@ -305,10 +315,10 @@ export default function DashboardPage() {
     },
     {
       id: 'customers',
-      label: t('Customers'),
+      label: isB2B ? t('Retailers') : t('Customers'),
       value: dashboardData ? (dashboardData.data?.totalCustomers || 0).toLocaleString('en-IN') : '0',
       icon: 'groups',
-      trend: t('Unique'),
+      trend: isB2B ? t('Clients') : t('Unique'),
       link: '/vendor/customers'
     },
   ];
@@ -412,10 +422,12 @@ export default function DashboardPage() {
       <div className="max-w-4xl mx-auto bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 text-white rounded-2xl sm:rounded-3xl px-3.5 py-3 sm:px-5 sm:py-3.5 relative overflow-hidden shadow-md flex items-center justify-between gap-3">
         <div className="relative z-10 max-w-[62%] sm:max-w-[65%] space-y-1">
           <h3 className="font-display font-black text-[15px] sm:text-[17px] leading-tight">
-            Grow Your Business with Zeebac
+            {isB2B ? 'Grow Your B2B Enterprise with Zeebac' : 'Grow Your Business with Zeebac'}
           </h3>
           <p className="text-[11px] sm:text-[11.5px] text-purple-100/90 leading-tight line-clamp-2">
-            Get more customers, more sales & cashback on every counter transaction.
+            {isB2B
+              ? 'Connect with retailers, accept merchant purchase orders & automate GST returns.'
+              : 'Get more customers, more sales & cashback on every counter transaction.'}
           </p>
           <button
             onClick={() => navigate('/vendor/products')}
@@ -458,7 +470,7 @@ export default function DashboardPage() {
             <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
               {dashboardOrders.length || 12}
             </h4>
-            <p className="text-[11px] font-bold text-slate-500 mt-0.5">New Orders</p>
+            <p className="text-[11px] font-bold text-slate-500 mt-0.5">{isB2B ? 'Purchase Orders' : 'New Orders'}</p>
           </div>
 
           {/* 2. Sales */}
@@ -486,7 +498,7 @@ export default function DashboardPage() {
             <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
               ₹{displayCashback.toLocaleString('en-IN')}
             </h4>
-            <p className="text-[11px] font-bold text-slate-500 mt-0.5">Cashback</p>
+            <p className="text-[11px] font-bold text-slate-500 mt-0.5">{isB2B ? 'B2B Trade' : 'Cashback'}</p>
           </div>
         </div>
 
@@ -501,9 +513,9 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[24px]">barcode_scanner</span>
             </div>
             <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
-              Billing
+              {isB2B ? 'B2B Invoices' : 'Billing'}
             </p>
-            <p className="text-[10px] text-slate-400 font-medium">POS Counter</p>
+            <p className="text-[10px] text-slate-400 font-medium">{isB2B ? 'Tax Invoices' : 'POS Counter'}</p>
           </button>
 
           {/* Tile 2: BNPL */}
@@ -543,9 +555,9 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[24px]">local_shipping</span>
             </div>
             <p className="font-display font-black text-[12.5px] text-slate-900 leading-tight group-hover:text-purple-700 transition-colors">
-              Manage Orders & delivery
+              {isB2B ? 'Purchase Orders' : 'Manage Orders & delivery'}
             </p>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Live Delivery</p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{isB2B ? 'Retailer Orders' : 'Live Delivery'}</p>
           </button>
 
           {/* Tile 5: GST & Tax */}
@@ -845,25 +857,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions Toolbar - Aesthetic, Theme-Branded & Responsive */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 mx-auto w-full">
-        {/* 1. Customer Orders */}
-        <button
-          onClick={() => navigate('/vendor/requests')}
-          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/25 hover:border-primary shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center"
-        >
-          {dashboardOrders.filter(o => o.orderStatus === 'PLACED').length > 0 && (
-            <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-white bg-amber-500 border border-amber-400 px-1.5 py-0.5 rounded-md uppercase animate-pulse">
-              {dashboardOrders.filter(o => o.orderStatus === 'PLACED').length} NEW
-            </span>
-          )}
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
-            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
-          </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Customer Orders')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{dashboardOrders.length} {t('Orders')}</p>
-        </button>
-
-        {/* 2. Merchant Payment */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mx-auto w-full">
+        {/* 1. Merchant Payment */}
         <button
           onClick={() => navigate('/vendor/merchant-payment')}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/25 hover:border-primary shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -878,16 +873,19 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Pay Supplier')}</p>
         </button>
 
-        {/* 2. Scan Customer */}
+        {/* 2. GST & Tax */}
         <button
-          onClick={() => navigate('/vendor/scan-customer')}
-          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
+          onClick={() => navigate('/vendor/gst')}
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-emerald-300 hover:border-emerald-600 shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center ring-1 ring-emerald-100"
         >
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
-            <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md uppercase">
+            {t('GST')}
+          </span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-800 text-white group-hover:scale-105 transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">bar_chart</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Scan Customer')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Log Cash CB')}</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('GST & Tax')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Auto File & ITC')}</p>
         </button>
 
         {/* 3. Store QR */}
@@ -902,22 +900,7 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Standee')}</p>
         </button>
 
-        {/* 4. Billing POS */}
-        <button
-          onClick={() => navigate('/vendor/billing')}
-          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-purple-300 hover:border-purple-600 shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center ring-1 ring-purple-100"
-        >
-          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md uppercase">
-            {t('POS')}
-          </span>
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-800 text-white group-hover:scale-105 transition-all flex items-center justify-center mb-2 shadow-xs">
-            <span className="material-symbols-outlined text-[20px]">point_of_sale</span>
-          </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Billing POS')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Retail & B2B')}</p>
-        </button>
-
-        {/* 5. Pay Later */}
+        {/* 4. Pay Later */}
         <button
           onClick={() => setShowPayLaterModal(true)}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
@@ -1062,14 +1045,14 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <h3 className="font-display text-[16px] font-bold text-on-surface">
-              {t('Live Customer Orders')} ({dashboardOrders.length})
+              {isB2B ? t('Live Merchant Purchase Orders') : t('Live Customer Orders')} ({dashboardOrders.length})
             </h3>
           </div>
           <button
             onClick={() => navigate('/vendor/requests')}
             className="text-[12px] text-primary font-bold cursor-pointer hover:underline flex items-center gap-1"
           >
-            <span>{t('View All Orders')}</span>
+            <span>{isB2B ? t('View All Purchase Orders') : t('View All Orders')}</span>
             <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
           </button>
         </div>
@@ -1083,9 +1066,13 @@ export default function DashboardPage() {
             <div className="w-12 h-12 bg-purple-50 text-primary rounded-full flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-[24px]">shopping_bag</span>
             </div>
-            <p className="text-[12.5px] font-bold text-slate-800">{t('No live customer orders right now')}</p>
+            <p className="text-[12.5px] font-bold text-slate-800">
+              {isB2B ? t('No live merchant purchase orders right now') : t('No live customer orders right now')}
+            </p>
             <p className="text-[11.5px] text-slate-500 max-w-xs mx-auto">
-              Customer jab aapke store se delivery ya pickup order place karenge, wo yahan live dikhenge.
+              {isB2B
+                ? 'Retailers jab aapke factory/wholesale stock se purchase order place karenge, wo yahan live dikhenge.'
+                : 'Customer jab aapke store se delivery ya pickup order place karenge, wo yahan live dikhenge.'}
             </p>
           </div>
         ) : (

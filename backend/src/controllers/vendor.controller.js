@@ -655,6 +655,8 @@ export const getDashboardStats = async (req, res) => {
       success: true,
       data: {
         totalRevenue: allTime.totalRevenue || 0,
+        businessType: vendor.businessType || 'Retailer',
+        storeName: vendor.storeName || '',
         totalCustomers: totalCustomersCount,
         totalTransactions: allTime.totalTransactions || 0,
         avgRating: vendor.stats?.avgRating || 0,
