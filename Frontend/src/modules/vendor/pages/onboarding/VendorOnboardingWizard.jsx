@@ -164,9 +164,14 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
     VendorAPI.getProfile().then((res) => {
       if (res.success) {
         setAccount(res.data);
-        setData(vendorToFormData(res.data));
+        const parsed = vendorToFormData(res.data);
+        setData(parsed);
         setPreviousSnapshotVendor(res.data);
-        setEntryPhase('form');
+        if (!parsed.businessType) {
+          setEntryPhase('type_select');
+        } else {
+          setEntryPhase('form');
+        }
       }
     }).finally(() => setIsLoadingResume(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -184,10 +189,7 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
     } else {
       update('retailerSubtype', null);
       update('shopType', 'Independent Store');
-      const min = minRates['Independent Store'] ?? 2;
-      if (data.cashbackRate === undefined || data.cashbackRate === null || Number(data.cashbackRate) < min) {
-        update('cashbackRate', min);
-      }
+      update('cashbackRate', 0);
     }
   };
 
@@ -240,13 +242,15 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
       next.fssaiNumber = t('Enter a valid 14-digit FSSAI License Number');
     }
 
-    const minAllowed = minRates[data.shopType] ?? (data.shopType === 'Chain & Brand' ? 5 : 2);
-    if (data.cashbackRate === undefined || data.cashbackRate === null || data.cashbackRate === '') {
-      next.cashbackRate = t('Select or enter a customer cashback percentage');
-    } else if (Number(data.cashbackRate) < minAllowed) {
-      next.cashbackRate = `${t('Minimum required cashback is')} ${minAllowed}%`;
-    } else if (Number(data.cashbackRate) > 100) {
-      next.cashbackRate = t('Cashback rate cannot exceed 100%');
+    if (!isB2B) {
+      const minAllowed = minRates[data.shopType] ?? (data.shopType === 'Chain & Brand' ? 5 : 2);
+      if (data.cashbackRate === undefined || data.cashbackRate === null || data.cashbackRate === '') {
+        next.cashbackRate = t('Select or enter a customer cashback percentage');
+      } else if (Number(data.cashbackRate) < minAllowed) {
+        next.cashbackRate = `${t('Minimum required cashback is')} ${minAllowed}%`;
+      } else if (Number(data.cashbackRate) > 100) {
+        next.cashbackRate = t('Cashback rate cannot exceed 100%');
+      }
     }
 
     if (!data.address.fullAddress.trim()) next['address.fullAddress'] = t('Enter your business address');

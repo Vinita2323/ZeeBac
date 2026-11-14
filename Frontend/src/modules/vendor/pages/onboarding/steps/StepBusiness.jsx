@@ -79,7 +79,8 @@ function CategorySelect({ value, onChange, error, label = 'Business Category' })
 export default function StepBusiness({ data, update, errors, minRates = {} }) {
   const { t } = useLanguageStore();
 
-  const isRetailer = data.businessType === 'Retailer' || (!data.businessType && !!data.shopType);
+  const isB2B = isManufacturerOrWholesaler(data.businessType);
+  const isRetailer = !isB2B && (data.businessType === 'Retailer' || (!data.businessType && !!data.shopType));
   const isManufacturer = data.businessType === 'Manufacturer';
   const isWholesaler = data.businessType === 'Wholesaler';
   const isChain = data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand';
@@ -314,7 +315,8 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
         onChange={(e) => update('description', e.target.value)}
       />
 
-      {/* Customer Cashback Percentage Selection */}
+      {/* Customer Cashback Percentage Selection - Hidden for Manufacturer and Wholesalers */}
+      {!isB2B && (
       <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/80 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -405,6 +407,7 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
           )}
         </div>
       </div>
+      )}
 
       {/* GST Number field */}
       <FloatingInput

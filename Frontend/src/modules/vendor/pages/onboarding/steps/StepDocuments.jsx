@@ -48,45 +48,65 @@ export default function StepDocuments({ data, update, errors }) {
         <div className="w-14 h-14 rounded-2xl bg-[#7c3aed]/10 flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-[#7c3aed] text-[28px]">photo_library</span>
         </div>
-        <h1 className="text-[22px] sm:text-[24px] font-black tracking-tight text-gray-900 leading-tight mb-1">Store info & documents</h1>
-        <p className="text-[13px] sm:text-[13.5px] text-gray-500">Add your store visuals and the documents we need to verify your business.</p>
+        <h1 className="text-[22px] sm:text-[24px] font-black tracking-tight text-gray-900 leading-tight mb-1">
+          {isB2B ? 'Enterprise logo & documents' : 'Store info & documents'}
+        </h1>
+        <p className="text-[13px] sm:text-[13.5px] text-gray-500">
+          {isB2B
+            ? 'Add your company logo and the official documents to verify your enterprise.'
+            : 'Add your store visuals and the documents we need to verify your business.'}
+        </p>
       </div>
 
       {/* Store visuals */}
-      <div className="flex flex-col sm:flex-row items-start gap-4">
-        <div className="w-full sm:w-auto flex justify-center sm:block">
-          <ImagePicker label="Store Logo" round value={data.storeLogo} onChange={(f) => update('storeLogo', f)} />
+      {isB2B ? (
+        <div className="flex items-center gap-4 p-3.5 bg-purple-50/50 rounded-2xl border border-purple-100">
+          <div className="shrink-0">
+            <ImagePicker label="Company Logo (Optional)" round value={data.storeLogo} onChange={(f) => update('storeLogo', f)} />
+          </div>
+          <div className="text-[12.5px] text-gray-600">
+            <p className="font-bold text-gray-900 mb-0.5">{data.businessType} Enterprise Logo</p>
+            <p className="text-[11.5px] text-gray-500">Displayed on B2B invoices, merchant catalogues, and retail purchase orders.</p>
+          </div>
         </div>
-        <div className="flex-1 w-full">
-          <ImagePicker label="Store Cover Image" value={data.storeCoverImage} onChange={(f) => update('storeCoverImage', f)} />
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row items-start gap-4">
+            <div className="w-full sm:w-auto flex justify-center sm:block">
+              <ImagePicker label="Store Logo" round value={data.storeLogo} onChange={(f) => update('storeLogo', f)} />
+            </div>
+            <div className="flex-1 w-full">
+              <ImagePicker label="Store Cover Image" value={data.storeCoverImage} onChange={(f) => update('storeCoverImage', f)} />
+            </div>
+          </div>
 
-      {/* Gallery */}
-      <div className="space-y-1.5">
-        <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">Store Gallery (Optional, up to 6)</label>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {(data.storeImages || []).map((img, idx) => {
-            const url = img instanceof File ? URL.createObjectURL(img) : getMediaUrl(img);
-            return (
-              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden group">
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button type="button" onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  <span className="material-symbols-outlined text-[13px]">close</span>
-                </button>
-              </div>
-            );
-          })}
-          {(data.storeImages?.length || 0) < 6 && (
-            <label className="aspect-square rounded-lg bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#7c3aed]/40 flex items-center justify-center cursor-pointer transition-colors">
-              <input type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryAdd} />
-              <span className="material-symbols-outlined text-gray-400">add</span>
-            </label>
-          )}
-        </div>
-      </div>
+          {/* Gallery */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">Store Gallery (Optional, up to 6)</label>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {(data.storeImages || []).map((img, idx) => {
+                const url = img instanceof File ? URL.createObjectURL(img) : getMediaUrl(img);
+                return (
+                  <div key={idx} className="relative aspect-square rounded-lg overflow-hidden group">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                      <span className="material-symbols-outlined text-[13px]">close</span>
+                    </button>
+                  </div>
+                );
+              })}
+              {(data.storeImages?.length || 0) < 6 && (
+                <label className="aspect-square rounded-lg bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#7c3aed]/40 flex items-center justify-center cursor-pointer transition-colors">
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryAdd} />
+                  <span className="material-symbols-outlined text-gray-400">add</span>
+                </label>
+              )}
+            </div>
+          </div>
 
-      <WorkingHoursPicker value={data.businessHours} onChange={(v) => update('businessHours', v)} />
+          <WorkingHoursPicker value={data.businessHours} onChange={(v) => update('businessHours', v)} />
+        </>
+      )}
 
       {/* Documents */}
       <div className="pt-2 border-t border-gray-100 space-y-3">

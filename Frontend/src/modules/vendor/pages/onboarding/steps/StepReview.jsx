@@ -63,7 +63,7 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
             value={(data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store'}
           />
         )}
-        <Row label="Customer Cashback" value={data.cashbackRate ? `${data.cashbackRate}% to users` : null} />
+        {!isB2B && <Row label="Customer Cashback" value={data.cashbackRate ? `${data.cashbackRate}% to users` : null} />}
         <Row label="Category" value={data.category} />
         {data.subCategory && <Row label="Sub-category" value={data.subCategory} />}
         {data.gstNumber && <Row label="GST Number" value={data.gstNumber} />}
@@ -80,12 +80,16 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
         <Row label="Map Pin" value={data.lat && data.lng ? `${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}` : null} />
       </SectionCard>
 
-      <SectionCard title="Store" icon="photo_library" onEdit={() => onEdit(3)}>
-        <Row label="Logo" value={data.storeLogo ? '✓ Uploaded' : null} />
-        <Row label="Cover Image" value={data.storeCoverImage ? '✓ Uploaded' : null} />
-        <Row label="Gallery" value={data.storeImages?.length ? `${data.storeImages.length} photo(s)` : null} />
-        <Row label="Hours" value={data.businessHours?.openingTime ? `${data.businessHours.openingTime} – ${data.businessHours.closingTime}` : null} />
-        <Row label="Working Days" value={data.businessHours?.workingDays?.join(', ')} />
+      <SectionCard title={isB2B ? "Enterprise Profile" : "Store"} icon="photo_library" onEdit={() => onEdit(3)}>
+        <Row label={isB2B ? "Company Logo" : "Logo"} value={data.storeLogo ? '✓ Uploaded' : (isB2B ? 'Optional' : null)} />
+        {!isB2B && (
+          <>
+            <Row label="Cover Image" value={data.storeCoverImage ? '✓ Uploaded' : null} />
+            <Row label="Gallery" value={data.storeImages?.length ? `${data.storeImages.length} photo(s)` : null} />
+            <Row label="Hours" value={data.businessHours?.openingTime ? `${data.businessHours.openingTime} – ${data.businessHours.closingTime}` : null} />
+            <Row label="Working Days" value={data.businessHours?.workingDays?.join(', ')} />
+          </>
+        )}
       </SectionCard>
 
       <SectionCard title="Documents" icon="folder" onEdit={() => onEdit(3)}>

@@ -25,7 +25,7 @@ import { verifyOtpOnly } from './auth.controller.js';
 import { getVendorSubscriptionState, resolvePlanPrice, calculateNewSubscriptionDates } from '../utils/subscription.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
-import { buildSnapshot, diffSnapshots, validateApplicationComplete } from '../utils/vendorApplication.util.js';
+import { buildSnapshot, diffSnapshots, validateApplicationComplete, isManufacturerOrWholesaler } from '../utils/vendorApplication.util.js';
 import { calculateCashback, validateVendorCashbackRate } from '../utils/cashback.util.js';
 import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
@@ -91,6 +91,10 @@ export const applyApplicationFields = (vendor, body = {}, files = {}) => {
   if (fssaiNumber !== undefined) vendor.fssaiNumber = fssaiNumber;
   if (body.cashbackRate !== undefined && body.cashbackRate !== null && body.cashbackRate !== '') {
     vendor.cashbackRate = Number(body.cashbackRate);
+  } else if (isManufacturerOrWholesaler(vendor.businessType)) {
+    if (vendor.cashbackRate === undefined || vendor.cashbackRate === null) {
+      vendor.cashbackRate = 0;
+    }
   }
 
   if (address !== undefined) {
@@ -198,13 +202,16 @@ export const submitApplication = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Application is incomplete.', missingFields: missing });
     }
 
-    const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
-    const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
-      });
+    const isB2B = isManufacturerOrWholesaler(vendor.businessType);
+    if (!isB2B) {
+      const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+      const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
+        });
+      }
     }
 
     const snapshot = buildSnapshot(vendor);
@@ -255,13 +262,16 @@ export const resubmitApplication = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Application is incomplete.', missingFields: missing });
     }
 
-    const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
-    const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
-      });
+    const isB2B = isManufacturerOrWholesaler(vendor.businessType);
+    if (!isB2B) {
+      const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+      const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
+        });
+      }
     }
 
     const newSnapshot = buildSnapshot(vendor);
@@ -399,13 +409,16 @@ export const updateProfile = async (req, res) => {
     }
 
     if (cashbackRate !== undefined && cashbackRate !== null) {
-      const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
-      const validation = validateVendorCashbackRate(cashbackRate, vendor.shopType, activeRule?.minCashback);
-      if (!validation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store category'}.`,
-        });
+      const isB2B = isManufacturerOrWholesaler(vendor.businessType);
+      if (!isB2B) {
+        const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+        const validation = validateVendorCashbackRate(cashbackRate, vendor.shopType, activeRule?.minCashback);
+        if (!validation.valid) {
+          return res.status(400).json({
+            success: false,
+            message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store category'}.`,
+          });
+        }
       }
       vendor.cashbackRate = Number(cashbackRate);
     }

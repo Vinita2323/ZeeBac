@@ -207,5 +207,56 @@ describe('Manufacturer and Wholesaler Document Requirements Test Suite', () => {
       expect(submitted.documents.aadhaarPan?.fileUrl).toBeFalsy();
       expect(submitted.documents.shopLicense?.fileUrl).toBeFalsy();
     });
+
+    it('successfully submits Manufacturer/Wholesaler application without customer cashbackRate (B2B only)', async () => {
+      await CashbackRule.create({ shopType: 'Independent Store', minCashback: 5, isActive: true });
+
+      const vendor = await Vendor.create({
+        zeebacId: 'ZBV-99002',
+        ownerName: 'Sunil Mittal',
+        phone: '9899001133',
+        businessType: 'Wholesaler',
+        applicationStatus: 'DRAFT',
+      });
+
+      const req = {
+        user: { id: vendor._id.toString() },
+        body: {
+          storeName: 'Mittal Wholesale Traders',
+          businessType: 'Wholesaler',
+          category: 'Textiles & Garments',
+          // Note: NO cashbackRate passed!
+          gstNumber: '07ABCDE1234F1Z5',
+          address: JSON.stringify({
+            fullAddress: 'Shop 15, Wholesale Textile Market',
+            city: 'Delhi',
+            state: 'Delhi',
+            pincode: '110006',
+          }),
+          lat: 28.6562,
+          lng: 77.2300,
+        },
+        files: {
+          udyamCertificate: [{ originalname: 'udyam.pdf', mimetype: 'application/pdf', filename: 'https://cdn.zeebac.com/udyam.pdf' }],
+          gstCertificate: [{ originalname: 'gst.pdf', mimetype: 'application/pdf', filename: 'https://cdn.zeebac.com/gst.pdf' }],
+        },
+      };
+
+      const res = makeRes();
+      await submitApplication(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            applicationStatus: 'PENDING_REVIEW',
+            storeName: 'Mittal Wholesale Traders',
+            businessType: 'Wholesaler',
+            cashbackRate: 0,
+          }),
+        })
+      );
+    });
   });
 });

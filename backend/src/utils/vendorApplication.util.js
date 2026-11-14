@@ -78,10 +78,16 @@ export const isFoodSector = (category, subCategory = '') => {
   return foodKeywords.some(kw => text.includes(kw));
 };
 
+export const isManufacturerOrWholesaler = (businessType) => {
+  if (!businessType) return false;
+  const t = String(businessType).trim().toLowerCase();
+  return t === 'manufacturer' || t === 'wholesaler' || t === 'distributor';
+};
+
 export function validateApplicationComplete(vendorDoc) {
   const missing = [];
 
-  const isB2B = ['Manufacturer', 'Wholesaler'].includes(vendorDoc.businessType);
+  const isB2B = isManufacturerOrWholesaler(vendorDoc.businessType);
 
   if (!vendorDoc.storeName?.trim()) {
     missing.push(isB2B ? 'Company / Enterprise Name' : 'Business/Shop Name');
@@ -95,7 +101,7 @@ export function validateApplicationComplete(vendorDoc) {
     }
   }
   if (!vendorDoc.category) missing.push('Business Category');
-  if (vendorDoc.cashbackRate === undefined || vendorDoc.cashbackRate === null || Number.isNaN(Number(vendorDoc.cashbackRate))) {
+  if (!isB2B && (vendorDoc.cashbackRate === undefined || vendorDoc.cashbackRate === null || Number.isNaN(Number(vendorDoc.cashbackRate)))) {
     missing.push('Customer Cashback Percentage (%)');
   }
   if (!vendorDoc.address?.fullAddress?.trim()) missing.push('Business Address');

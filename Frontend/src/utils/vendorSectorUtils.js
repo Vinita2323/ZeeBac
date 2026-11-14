@@ -10,6 +10,8 @@ export const isFoodSector = (category = '', subCategory = '') => {
 };
 
 export const isManufacturerOrWholesaler = (businessType) => {
-  return businessType === 'Manufacturer' || businessType === 'Wholesaler';
+  if (!businessType) return false;
+  const t = String(businessType).trim().toLowerCase();
+  return t === 'manufacturer' || t === 'wholesaler' || t === 'distributor';
 };
 
