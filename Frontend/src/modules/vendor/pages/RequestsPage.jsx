@@ -20,6 +20,18 @@ export default function RequestsPage() {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'claims'
   const [orders, setOrders] = useState([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
+  const [expandedOrderIds, setExpandedOrderIds] = useState(new Set());
+
+  const toggleOrderExpand = (id) => {
+    setExpandedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const [pendingRequests, setPendingRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -328,132 +340,191 @@ export default function RequestsPage() {
     }
   };
 
+  const filteredOrders = orders.filter((o) => {
+    const matchesSearch =
+      !orderSearchQuery.trim() ||
+      o.orderId?.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+      o.customerName?.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+      o.customerPhone?.includes(orderSearchQuery.trim());
+
+    if (!matchesSearch) return false;
+
+    if (selectedStatusFilter === 'All') return true;
+    if (selectedStatusFilter === 'Pending') return o.orderStatus === 'PLACED';
+    if (selectedStatusFilter === 'Processing') {
+      return ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(o.orderStatus);
+    }
+    if (selectedStatusFilter === 'Delivered') return o.orderStatus === 'DELIVERED';
+    if (selectedStatusFilter === 'Cancelled') return o.orderStatus === 'CANCELLED';
+    return true;
+  });
+
   return (
-    <div className="animate-reveal text-left">
-      {/* Mobile Top Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
-        <button
-          onClick={() => safeNavigateBack(navigate, '/vendor')}
-          className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[20px] text-primary">arrow_back</span>
-        </button>
-        <h1 className="ml-2 font-display text-[18px] font-black text-on-surface leading-none tracking-tight">
-          {t('Orders & Requests')}
-        </h1>
-      </header>
-
-      {/* Desktop Header */}
-      <div className="hidden md:flex justify-between items-end mb-4">
-        <div>
-          <h1 className="font-display text-[24px] font-black text-on-surface leading-none tracking-tight">
-            {t('Orders & Requests')}
+    <div className="animate-reveal text-left max-w-2xl mx-auto pb-12">
+      {/* ── TOP HEADER (Screen 4 Design) ── */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-100 shadow-xs mb-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <h1 className="font-display font-black text-[22px] text-slate-900 tracking-tight">
+            Orders
           </h1>
-          <p className="text-on-surface-variant text-[12px] font-bold mt-1">
-            {t('Manage store shopping orders, rider dispatch, and cashback claims')}
-          </p>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+            {orders.length} Total Orders
+          </span>
         </div>
-      </div>
 
-      {/* Primary Section Tabs */}
-      <div className="flex bg-slate-100 p-1 rounded-2xl mb-4 gap-1">
-        <button
-          onClick={() => setActiveTab('orders')}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-[12.5px] transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            activeTab === 'orders' ? 'bg-white text-primary shadow-xs' : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[17px]">local_shipping</span>
-          <span>Online Store Orders ({orders.length})</span>
-        </button>
+        {/* Search Orders */}
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[19px]">
+            search
+          </span>
+          <input
+            type="text"
+            value={orderSearchQuery}
+            onChange={(e) => setOrderSearchQuery(e.target.value)}
+            placeholder="Search orders..."
+            className="w-full h-11 pl-10 pr-4 bg-slate-100/80 border border-slate-200/80 rounded-2xl text-[13.5px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-purple-600 focus:bg-white transition-all"
+          />
+          {orderSearchQuery && (
+            <button
+              onClick={() => setOrderSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <span className="material-symbols-outlined text-[16px]">cancel</span>
+            </button>
+          )}
+        </div>
 
-        <button
-          onClick={() => setActiveTab('claims')}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-[12.5px] transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            activeTab === 'claims' ? 'bg-white text-primary shadow-xs' : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[17px]">receipt_long</span>
-          <span>In-Store Claims ({pendingRequests.length})</span>
-        </button>
-      </div>
+        {/* Filter Pills (Screen 4 Design) */}
+        <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pt-1 pb-0.5">
+          {['All', 'Pending', 'Processing', 'Delivered', 'In-Store Claims'].map((f) => {
+            const isSelected = selectedStatusFilter === f;
+            return (
+              <button
+                key={f}
+                onClick={() => {
+                  setSelectedStatusFilter(f);
+                  if (f === 'In-Store Claims') setActiveTab('claims');
+                  else setActiveTab('orders');
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-purple-700 text-white shadow-sm'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                }`}
+              >
+                {f}
+              </button>
+            );
+          })}
+        </div>
+      </header>
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* TAB 1: ONLINE STORE ORDERS & RIDER DELIVERY MANAGEMENT */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'orders' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 pb-[100px] md:pb-6">
+        <div className="space-y-3 pb-[100px] md:pb-6">
           {isOrdersLoading ? (
-            <p className="col-span-1 lg:col-span-2 text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
-          ) : orders.length === 0 ? (
-            <div className="col-span-1 lg:col-span-2 text-center py-12 bg-white rounded-3xl border border-slate-100 p-6 shadow-2xs">
+            <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 p-6 shadow-2xs">
               <div className="w-16 h-16 bg-purple-50 text-primary rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="material-symbols-outlined text-[30px]">shopping_bag</span>
               </div>
-              <h3 className="font-bold text-slate-800 text-[15px] mb-1">No Orders Yet</h3>
+              <h3 className="font-bold text-slate-800 text-[15px] mb-1">No Orders Found</h3>
               <p className="text-slate-500 text-[12.5px] max-w-xs mx-auto">
-                Customer jab aapke online store se product khareedenge, yahan live orders dikhenge.
+                {orderSearchQuery || selectedStatusFilter !== 'All'
+                  ? 'No orders match your filter criteria.'
+                  : 'Customer jab aapke online store se product khareedenge, yahan live orders dikhenge.'}
               </p>
             </div>
           ) : (
-            orders.map((order) => {
+            filteredOrders.map((order) => {
               const isDelivered = order.orderStatus === 'DELIVERED';
               const isRiderAssigned = ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.orderStatus);
+              const isExpanded = expandedOrderIds.has(order._id || order.orderId);
+
+              const statusBadgeText =
+                order.orderStatus === 'PLACED'
+                  ? 'Pending'
+                  : order.orderStatus === 'DELIVERED'
+                  ? 'Delivered'
+                  : order.orderStatus === 'CANCELLED'
+                  ? 'Cancelled'
+                  : 'Processing';
 
               return (
                 <div
                   key={order._id || order.orderId}
-                  className={`rounded-3xl border p-4 sm:p-5 transition-all space-y-3 ${
+                  className={`rounded-2xl border transition-all ${
                     isDelivered
-                      ? 'bg-emerald-50/40 border-emerald-200'
+                      ? 'bg-white border-slate-100'
                       : order.orderStatus === 'OUT_FOR_DELIVERY' || order.orderStatus === 'RIDER_ASSIGNED'
-                      ? 'bg-purple-50/30 border-purple-200 shadow-sm'
+                      ? 'bg-purple-50/20 border-purple-200 shadow-2xs'
                       : 'bg-white border-slate-100 shadow-2xs'
                   }`}
                 >
-                  {/* Order Card Header */}
-                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-display font-black text-[14px] text-slate-900">
-                          #{order.orderId}
-                        </span>
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                            isDelivered
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : order.orderStatus === 'OUT_FOR_DELIVERY'
-                              ? 'bg-purple-100 text-purple-800'
-                              : order.orderStatus === 'RIDER_ASSIGNED'
-                              ? 'bg-indigo-100 text-indigo-800'
-                              : order.orderStatus === 'CANCELLED'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {order.orderStatus.replace('_', ' ')}
-                        </span>
+                  {/* Clean Order Header Row (Matching Screen 4) */}
+                  <div
+                    onClick={() => toggleOrderExpand(order._id || order.orderId)}
+                    className="p-3.5 sm:p-4 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/50 rounded-2xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
                       </div>
-                      <p className="text-[11.5px] text-slate-500 mt-0.5">
-                        Customer: <strong className="text-slate-800">{order.customerName}</strong> ({order.customerPhone})
-                      </p>
-                      {order.createdAt && (
-                        <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[13px]">schedule</span>
-                          <span>{formatOrderTime(order.createdAt)}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-display font-black text-[14px] text-slate-900 truncate">
+                            #{order.orderId}
+                          </span>
+                        </div>
+                        {order.createdAt && (
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            {formatOrderTime(order.createdAt)}
+                          </p>
+                        )}
+                        <p className="font-mono font-black text-[14px] text-slate-900 mt-0.5">
+                          ₹{order.finalPayableAmount || order.totalAmount}
                         </p>
-                      )}
+                      </div>
                     </div>
 
-                    <div className="text-right">
-                      <p className="font-black text-[16px] text-slate-900 font-mono">
-                        ₹{order.finalPayableAmount || order.totalAmount}
-                      </p>
-                      <span className="text-[10px] font-extrabold text-primary bg-purple-50 px-1.5 py-0.2 rounded-md">
-                        +{order.totalCashbackPoints} Pts Cashback
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                          statusBadgeText === 'Pending'
+                            ? 'bg-amber-100 text-amber-800'
+                            : statusBadgeText === 'Delivered'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : statusBadgeText === 'Cancelled'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-purple-100 text-purple-800'
+                        }`}
+                      >
+                        {statusBadgeText}
+                      </span>
+                      <span
+                        className={`material-symbols-outlined text-slate-400 text-[19px] transition-transform duration-200 ${
+                          isExpanded ? 'rotate-90 text-purple-700' : ''
+                        }`}
+                      >
+                        chevron_right
                       </span>
                     </div>
                   </div>
+
+                  {/* Expanded Detailed View with Actions */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 space-y-3 text-left animate-reveal">
+                      <div className="pt-2 flex items-center justify-between text-[12px] text-slate-600">
+                        <p>
+                          Customer: <strong className="text-slate-900">{order.customerName}</strong> ({order.customerPhone})
+                        </p>
+                        <span className="text-[10.5px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
+                          +{order.totalCashbackPoints} Pts Cashback
+                        </span>
+                      </div>
 
                   {/* Order Items Breakdown with Individual Product Cashback Rates */}
                   <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-1.5 text-[12px]">
@@ -668,9 +739,25 @@ export default function RequestsPage() {
                     )}
                   </div>
                 </div>
-              );
-            })
-          )}
+              )}
+            </div>
+          );
+        })
+      )}
+
+          {/* Promo Banner at Bottom of Orders (Matching Screen 4) */}
+          <div className="mt-4 p-4 rounded-2xl bg-purple-50/80 border border-purple-100 flex items-center justify-between gap-3 cursor-pointer hover:bg-purple-100/60 transition-all">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-purple-700 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <span className="material-symbols-outlined text-[20px]">featured_seasonal_and_gifts</span>
+              </div>
+              <div>
+                <h4 className="font-bold text-[13.5px] text-slate-900">Earn more with Zeebac</h4>
+                <p className="text-[11.5px] text-slate-500">Get up to 5% cashback on every order</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-slate-400 text-[20px]">chevron_right</span>
+          </div>
         </div>
       )}
 

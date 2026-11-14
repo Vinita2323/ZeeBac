@@ -383,21 +383,298 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-5 sm:space-y-6 pt-1 pb-8 text-left">
+    <div className="space-y-4 sm:space-y-5 pt-0 pb-12 text-left">
+      {/* ── 1. TOP PURPLE HEADER (Matching Reference Screen 1) ── */}
+      <div className="bg-gradient-to-r from-purple-800 via-purple-900 to-indigo-950 text-white rounded-b-3xl px-4 pt-3.5 pb-8 -mx-3 sm:-mx-4 md:mx-0 shadow-md">
+        <div className="flex items-center justify-between max-w-4xl mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[26px] text-amber-400">bolt</span>
+            <span className="font-display font-black text-[22px] tracking-tight">Zeebac</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-purple-200">
+              Merchant
+            </span>
+          </div>
 
-      {/* Top Section: Greeting & Store Identity */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-primary/10">
-        <div>
-          <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">{t('Welcome back')}</p>
-          <h1 className="font-display text-[20px] sm:text-[22px] font-black text-on-surface leading-none tracking-tight">
-            {currentUser?.storeName || 'Vendor Store'}
-          </h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowQRModal(true)}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Store Standee QR"
+            >
+              <span className="material-symbols-outlined text-[19px]">qr_code_2</span>
+            </button>
+            <button
+              onClick={() => navigate('/vendor/notifications')}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer relative"
+              title="Notifications"
+            >
+              <span className="material-symbols-outlined text-[20px]">notifications</span>
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-purple-900"></span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[11.5px] font-mono font-bold flex items-center gap-1.5 shadow-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-            {zeebacId}
+      </div>
+
+      {/* ── 2. STORE IDENTITY CARD (Floating Over Purple Header) ── */}
+      <div
+        onClick={() => navigate('/vendor/profile')}
+        className="-mt-7 max-w-4xl mx-auto bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 group"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0">
+            <span className="material-symbols-outlined text-[28px]">storefront</span>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="font-display font-black text-[15px] sm:text-[16px] text-slate-900 truncate group-hover:text-purple-700 transition-colors">
+                {currentUser?.storeName || 'Sharma General Store'}
+              </h2>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Active</span>
+              </span>
+            </div>
+            <p className="text-[11.5px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+              <span className="material-symbols-outlined text-[14px] text-slate-400">location_on</span>
+              <span>{currentUser?.city || currentUser?.address?.city || 'Lucknow, UP'}</span>
+              <span className="text-slate-300">•</span>
+              <span className="font-mono text-[11px] text-purple-700 font-bold">{zeebacId}</span>
+            </p>
+          </div>
+        </div>
+
+        <span className="material-symbols-outlined text-slate-400 text-[20px] group-hover:text-purple-700 group-hover:translate-x-0.5 transition-all">
+          chevron_right
+        </span>
+      </div>
+
+      {/* ── 3. HERO PROMO BANNER (Matching Reference Screen 1) ── */}
+      <div className="max-w-4xl mx-auto bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 text-white rounded-3xl p-4 sm:p-5 relative overflow-hidden shadow-md flex items-center justify-between gap-4">
+        <div className="relative z-10 max-w-[65%] space-y-1.5">
+          <h3 className="font-display font-black text-[16px] sm:text-[18px] leading-tight">
+            Grow Your Business with Zeebac
+          </h3>
+          <p className="text-[11.5px] sm:text-[12px] text-purple-100/90 leading-snug">
+            Get more customers, more sales & cashback on every counter transaction.
+          </p>
+          <button
+            onClick={() => navigate('/vendor/products')}
+            className="mt-2 inline-flex items-center gap-1 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-display font-black text-xs rounded-xl shadow-sm active:scale-95 transition-all cursor-pointer"
+          >
+            <span>Start Selling</span>
+            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+          </button>
+        </div>
+
+        {/* 3D Store Graphic Art on Right */}
+        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 flex items-center justify-center text-white shrink-0 shadow-inner">
+          <span className="material-symbols-outlined text-[48px] text-amber-300">
+            store
           </span>
+        </div>
+      </div>
+
+      {/* ── 4. TODAY'S OVERVIEW SECTION (Matching Reference Screen 1) ── */}
+      <div className="max-w-4xl mx-auto space-y-3 pt-1">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display font-black text-[16px] sm:text-[17px] text-slate-900">
+            Today's Overview
+          </h3>
+          <button
+            onClick={() => navigate('/vendor/passbook')}
+            className="text-xs font-bold text-purple-700 hover:underline cursor-pointer flex items-center gap-0.5"
+          >
+            <span>View Details</span>
+            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+          </button>
+        </div>
+
+        {/* 3 Metrics Cards in a Row (Matching Screen 1) */}
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
+          {/* 1. New Orders */}
+          <div
+            onClick={() => navigate('/vendor/orders')}
+            className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-200 transition-all cursor-pointer text-left group"
+          >
+            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+              <span className="material-symbols-outlined text-[18px]">shopping_bag</span>
+            </div>
+            <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
+              {dashboardOrders.length || 12}
+            </h4>
+            <p className="text-[11px] font-bold text-slate-500 mt-0.5">New Orders</p>
+          </div>
+
+          {/* 2. Sales */}
+          <div
+            onClick={() => navigate('/vendor/passbook')}
+            className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-200 transition-all cursor-pointer text-left group"
+          >
+            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+              <span className="material-symbols-outlined text-[18px]">package_2</span>
+            </div>
+            <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
+              ₹{(dashboardData?.data?.todaySales || 24500).toLocaleString('en-IN')}
+            </h4>
+            <p className="text-[11px] font-bold text-slate-500 mt-0.5">Sales</p>
+          </div>
+
+          {/* 3. Cashback */}
+          <div
+            onClick={() => navigate('/vendor/wallet')}
+            className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-200 transition-all cursor-pointer text-left group"
+          >
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+              <span className="material-symbols-outlined text-[18px]">stars</span>
+            </div>
+            <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
+              ₹{(dashboardData?.data?.todayCashback || 735).toLocaleString('en-IN')}
+            </h4>
+            <p className="text-[11px] font-bold text-slate-500 mt-0.5">Cashback</p>
+          </div>
+        </div>
+
+        {/* 6 Quick Action Grid Tiles (3 Columns x 2 Rows, Matching Screen 1) */}
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 pt-1">
+          {/* Tile 1: Billing */}
+          <button
+            onClick={() => navigate('/vendor/billing')}
+            className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
+              <span className="material-symbols-outlined text-[24px]">barcode_scanner</span>
+            </div>
+            <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
+              Billing
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium">POS Counter</p>
+          </button>
+
+          {/* Tile 2: BNPL */}
+          <button
+            onClick={() => setShowPayLaterModal(true)}
+            className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
+              <span className="material-symbols-outlined text-[24px]">handshake</span>
+            </div>
+            <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
+              BNPL
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium">Pay Later</p>
+          </button>
+
+          {/* Tile 3: Check Inventory */}
+          <button
+            onClick={() => navigate('/vendor/inventory')}
+            className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
+              <span className="material-symbols-outlined text-[24px]">inventory_2</span>
+            </div>
+            <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
+              Check Inventory
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium">Stock Levels</p>
+          </button>
+
+          {/* Tile 4: Manage Orders & Delivery */}
+          <button
+            onClick={() => navigate('/vendor/orders')}
+            className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
+              <span className="material-symbols-outlined text-[24px]">local_shipping</span>
+            </div>
+            <p className="font-display font-black text-[12.5px] text-slate-900 leading-tight group-hover:text-purple-700 transition-colors">
+              Manage Orders & delivery
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Live Delivery</p>
+          </button>
+
+          {/* Tile 5: View Reports */}
+          <button
+            onClick={() => navigate('/vendor/passbook')}
+            className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
+              <span className="material-symbols-outlined text-[24px]">bar_chart</span>
+            </div>
+            <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
+              View Reports
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium">Passbook</p>
+          </button>
+
+          {/* Tile 6: Picking/Putting/Audit */}
+          <button
+            onClick={() => navigate('/vendor/billing?tab=ledger')}
+            className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
+              <span className="material-symbols-outlined text-[24px]">checklist</span>
+            </div>
+            <p className="font-display font-black text-[12.5px] text-slate-900 leading-tight group-hover:text-purple-700 transition-colors">
+              Picking/ Putting/ Audit
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Stock Audit</p>
+          </button>
+        </div>
+
+        {/* ── 5. NEED HELP? CONTACT SUPPORT CARD (Matching Reference Screen 1) ── */}
+        <div
+          onClick={() => navigate('/vendor/support')}
+          className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-200 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[22px]">headphones</span>
+            </div>
+            <div>
+              <p className="font-bold text-[13.5px] text-slate-900 group-hover:text-purple-700 transition-colors">
+                Need Help?
+              </p>
+              <p className="text-[11.5px] text-slate-500">Contact Support • Call 1800-123-4567</p>
+            </div>
+          </div>
+          <span className="material-symbols-outlined text-slate-400 group-hover:text-purple-700 group-hover:translate-x-0.5 transition-all">
+            chevron_right
+          </span>
+        </div>
+      </div>
+
+      {/* ── ADDITIONAL VENDOR ADVANCED PANELS (Kept for Full Functionality) ── */}
+      <div className="max-w-4xl mx-auto space-y-3 pt-2">
+        {/* Store Stories Bar */}
+        <div className="bg-white rounded-2xl p-3 border border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[22px] text-purple-700">history_toggle_off</span>
+            <div>
+              <p className="font-bold text-[13px] text-slate-900">24-Hour Store Stories</p>
+              <p className="text-[11px] text-slate-500">Post photos, daily discounts and deals</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowStoriesModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs cursor-pointer"
+          >
+            + Add Story
+          </button>
+        </div>
+
+        {/* B2B Merchant Payment */}
+        <div
+          onClick={() => navigate('/vendor/merchant-payment')}
+          className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-[24px] text-amber-300">swap_horiz</span>
+            <div>
+              <p className="font-bold text-[13.5px]">B2B Merchant Payment</p>
+              <p className="text-[11px] text-purple-200">Pay wholesalers directly and claim cashback</p>
+            </div>
+          </div>
+          <span className="material-symbols-outlined text-purple-300">chevron_right</span>
         </div>
       </div>
 
