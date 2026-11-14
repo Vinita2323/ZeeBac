@@ -148,3 +148,4 @@ export default function StoreHeroIllustration({ className = 'w-28 h-24 sm:w-36 s
     </svg>
   );
 }
+

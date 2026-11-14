@@ -361,6 +361,18 @@ export default function DashboardPage() {
     }
   };
 
+  const displaySales = typeof todaySales?.total === 'number' && todaySales.total > 0
+    ? todaySales.total
+    : (typeof dashboardData?.data?.todaySales === 'number' && dashboardData.data.todaySales > 0)
+      ? dashboardData.data.todaySales
+      : 24500;
+
+  const displayCashback = typeof dashboardData?.data?.todayCashback === 'number' && dashboardData.data.todayCashback > 0
+    ? dashboardData.data.todayCashback
+    : (typeof dashboardData?.data?.totalCashbackGiven === 'number' && dashboardData.data.totalCashbackGiven > 0)
+      ? dashboardData.data.totalCashbackGiven
+      : 735;
+
   return (
     <div className="space-y-4 sm:space-y-5 pt-0 pb-12 text-left">
       {/* ── STORE IDENTITY CARD ── */}
@@ -458,7 +470,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[18px]">package_2</span>
             </div>
             <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
-              ₹{(dashboardData?.data?.todaySales || 24500).toLocaleString('en-IN')}
+              ₹{displaySales.toLocaleString('en-IN')}
             </h4>
             <p className="text-[11px] font-bold text-slate-500 mt-0.5">Sales</p>
           </div>
@@ -472,7 +484,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[18px]">stars</span>
             </div>
             <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
-              ₹{(dashboardData?.data?.todayCashback || 735).toLocaleString('en-IN')}
+              ₹{displayCashback.toLocaleString('en-IN')}
             </h4>
             <p className="text-[11px] font-bold text-slate-500 mt-0.5">Cashback</p>
           </div>
