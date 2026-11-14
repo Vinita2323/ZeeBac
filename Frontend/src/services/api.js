@@ -774,6 +774,19 @@ export const VendorAPI = {
     const res = await apiClient.post('/vendor/bank-account/verify', bankData);
     return res.data;
   },
+  // GST and Tax Filing
+  getGstReport: async (params = {}) => {
+    const res = await apiClient.get('/vendor/gst-report', { params });
+    return res.data;
+  },
+  fileGst: async (data) => {
+    const res = await apiClient.post('/vendor/gst-file', data);
+    return res.data;
+  },
+  getGstHistory: async () => {
+    const res = await apiClient.get('/vendor/gst-history');
+    return res.data;
+  },
 };
 
 // ─── Customer API ───

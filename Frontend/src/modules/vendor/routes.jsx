@@ -24,6 +24,7 @@ import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
 import VendorLoanPage from './pages/VendorLoanPage';
 import MerchantPaymentPage from './pages/MerchantPaymentPage';
 import B2BBillingPage from './pages/B2BBillingPage';
+import GSTTaxPage from './pages/GSTTaxPage';
 
 export default function VendorRoutes() {
   const vendorUser = useAuthStore((s) => s.vendorUser) || (() => {
@@ -83,6 +84,9 @@ export default function VendorRoutes() {
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="billing" element={<B2BBillingPage />} />
             <Route path="pos" element={<B2BBillingPage />} />
+            <Route path="gst" element={<GSTTaxPage />} />
+            <Route path="gst-tax" element={<GSTTaxPage />} />
+            <Route path="tax" element={<GSTTaxPage />} />
             <Route path="b2b-billing" element={<B2BBillingPage />} />
             <Route path="b2b" element={<B2BBillingPage />} />
             <Route path="support" element={<SupportPage />} />

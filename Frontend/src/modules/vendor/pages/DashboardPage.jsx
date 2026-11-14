@@ -548,18 +548,18 @@ export default function DashboardPage() {
             <p className="text-[10px] text-slate-400 font-medium mt-0.5">Live Delivery</p>
           </button>
 
-          {/* Tile 5: View Reports */}
+          {/* Tile 5: GST & Tax */}
           <button
-            onClick={() => navigate('/vendor/passbook')}
+            onClick={() => navigate('/vendor/gst')}
             className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
           >
             <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
               <span className="material-symbols-outlined text-[24px]">bar_chart</span>
             </div>
             <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
-              View Reports
+              Gst & Tax
             </p>
-            <p className="text-[10px] text-slate-400 font-medium">Passbook</p>
+            <p className="text-[10px] text-slate-400 font-medium">Auto File & ITC</p>
           </button>
 
           {/* Tile 6: Picking/Putting/Audit */}

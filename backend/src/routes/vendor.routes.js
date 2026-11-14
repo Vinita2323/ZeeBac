@@ -41,6 +41,9 @@ import {
   processMerchantPayment,
   createMerchantPaymentOrder,
   verifyMerchantPayment,
+  getVendorGSTReport,
+  fileVendorGST,
+  getVendorGSTFilingHistory,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -128,6 +131,11 @@ router.get('/merchant-payment/search', requireApprovedVendor, searchLimiter, sea
 router.post('/merchant-payment/pay', requireApprovedVendor, processMerchantPayment);
 router.post('/merchant-payment/razorpay/order', requireApprovedVendor, createMerchantPaymentOrder);
 router.post('/merchant-payment/razorpay/verify', requireApprovedVendor, verifyMerchantPayment);
+
+// GST & Tax Filing Routes
+router.get('/gst-report', requireApprovedVendor, getVendorGSTReport);
+router.post('/gst-file', requireApprovedVendor, fileVendorGST);
+router.get('/gst-history', requireApprovedVendor, getVendorGSTFilingHistory);
 
 // Bank Account with OTP Verification
 router.get('/bank-account', requireApprovedVendor, getVendorBankAccount);

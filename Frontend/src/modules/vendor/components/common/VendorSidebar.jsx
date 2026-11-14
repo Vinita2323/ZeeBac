@@ -20,6 +20,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Products', icon: 'grid_view', path: '/vendor/products' },
     { label: 'Inventory', icon: 'inventory_2', path: '/vendor/inventory' },
     { label: 'Billing POS', icon: 'point_of_sale', path: '/vendor/billing', badge: 'POS Bill', isHighlight: true },
+    { label: 'GST & Tax', icon: 'bar_chart', path: '/vendor/gst', badge: 'Auto File' },
     { label: 'Orders & Requests', icon: 'receipt_long', path: '/vendor/orders', badge: 'Live' },
     { label: 'Merchant Payment', icon: 'swap_horiz', path: '/vendor/merchant-payment', badge: 'B2B' },
     { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },

@@ -5,7 +5,14 @@ import logger from '../utils/logger.js';
 // Node's c-ares resolver sometimes gets ECONNREFUSED or ETIMEOUT on SRV lookups
 // when querying local or certain public DNS servers (like 1.1.1.1 on some networks/ISPs).
 // Point Node at reliable public resolvers, prioritizing Google DNS (8.8.8.8, 8.8.4.4).
-dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+// Fallback DNS servers only if requested via ENV; default to OS resolver
+if (process.env.CUSTOM_DNS) {
+  try {
+    dns.setServers(process.env.CUSTOM_DNS.split(','));
+  } catch (e) {
+    // Ignore DNS setServers failure
+  }
+}
 
 export const connectDB = async () => {
   try {
