@@ -19,7 +19,8 @@ const storage = multer.diskStorage({
 // Document fields may be a scanned PDF as well as a photo; every other field stays image-only.
 const PDF_ALLOWED_FIELDS = new Set([
   'aadhaarPan', 'gstCertificate', 'shopLicense', 
-  'cancelledCheque', 'panCard', 'additionalDoc'
+  'cancelledCheque', 'panCard', 'additionalDoc',
+  'udyamCertificate', 'trademarkCertificate', 'fssaiCertificate'
 ]);
 
 const fileFilter = (req, file, cb) => {
@@ -71,6 +72,9 @@ const FOLDER_MAP = {
   cancelledCheque: 'documents',
   panCard: 'documents',
   additionalDoc: 'documents',
+  udyamCertificate: 'documents',
+  trademarkCertificate: 'documents',
+  fssaiCertificate: 'documents',
   storyMedia: 'stories',
 };
 

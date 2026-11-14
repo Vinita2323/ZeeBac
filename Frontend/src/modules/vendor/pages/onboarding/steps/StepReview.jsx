@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../../../../../services/api';
+import { isFoodSector, isManufacturerOrWholesaler } from '../../../../../utils/vendorSectorUtils';
 
 function SectionCard({ title, icon, onEdit, children }) {
   return (
@@ -34,6 +35,8 @@ const docLabel = (v) => {
 
 export default function StepReview({ data, account, onEdit, onSubmit, isSubmitting, confirmChecked, setConfirmChecked }) {
   const docs = data.documents;
+  const isB2B = isManufacturerOrWholesaler(data.businessType);
+  const isFood = isFoodSector(data.category, data.subCategory);
 
   return (
     <div className="w-full box-border bg-white/85 backdrop-blur-xl border border-white/90 rounded-3xl p-4 sm:p-7 shadow-xl flex flex-col gap-4">
@@ -52,7 +55,7 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
       </SectionCard>
 
       <SectionCard title="Business" icon="storefront" onEdit={() => onEdit(2)}>
-        <Row label="Business Name" value={data.storeName} />
+        <Row label={isB2B ? 'Company / Enterprise Name' : 'Business Name'} value={data.storeName} />
         <Row label="Trade Type" value={data.businessType} />
         {data.businessType === 'Retailer' && (
           <Row
@@ -64,6 +67,7 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
         <Row label="Category" value={data.category} />
         {data.subCategory && <Row label="Sub-category" value={data.subCategory} />}
         {data.gstNumber && <Row label="GST Number" value={data.gstNumber} />}
+        {data.fssaiNumber && <Row label="FSSAI Number" value={data.fssaiNumber} />}
         <Row label="Contact Number" value={data.businessContactNumber} />
         <Row label="Business Email" value={data.businessEmail} />
       </SectionCard>
@@ -85,11 +89,21 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
       </SectionCard>
 
       <SectionCard title="Documents" icon="folder" onEdit={() => onEdit(3)}>
-        <Row label="Owner ID / KYC" value={docLabel(docs.aadhaarPan) ? `✓ ${docLabel(docs.aadhaarPan)}` : null} />
-        <Row label="Shop Registration" value={docLabel(docs.shopLicense) ? `✓ ${docLabel(docs.shopLicense)}` : null} />
-        <Row label="GST Certificate" value={docLabel(docs.gstCertificate) ? `✓ ${docLabel(docs.gstCertificate)}` : (data.shopType === 'Chain & Brand' ? null : 'Not provided')} />
-        <Row label="PAN Card" value={docLabel(docs.panCard) ? `✓ ${docLabel(docs.panCard)}` : 'Not provided'} />
-        <Row label="Cancelled Cheque" value={docLabel(docs.cancelledCheque) ? `✓ ${docLabel(docs.cancelledCheque)}` : 'Not provided'} />
+        {isB2B ? (
+          <>
+            <Row label="Trademark / Udyam Certificate" value={(docLabel(docs.udyamCertificate) || docLabel(docs.trademarkCertificate)) ? `✓ ${docLabel(docs.udyamCertificate) || docLabel(docs.trademarkCertificate)}` : null} />
+            <Row label="GST Certificate" value={docLabel(docs.gstCertificate) ? `✓ ${docLabel(docs.gstCertificate)}` : null} />
+            <Row label="FSSAI License" value={docLabel(docs.fssaiCertificate) ? `✓ ${docLabel(docs.fssaiCertificate)}` : (isFood ? 'Required for Food Sector' : 'Not provided')} />
+          </>
+        ) : (
+          <>
+            <Row label="Owner ID / KYC" value={docLabel(docs.aadhaarPan) ? `✓ ${docLabel(docs.aadhaarPan)}` : null} />
+            <Row label="Shop Registration" value={docLabel(docs.shopLicense) ? `✓ ${docLabel(docs.shopLicense)}` : null} />
+            <Row label="GST Certificate" value={docLabel(docs.gstCertificate) ? `✓ ${docLabel(docs.gstCertificate)}` : (data.shopType === 'Chain & Brand' ? null : 'Not provided')} />
+            <Row label="PAN Card" value={docLabel(docs.panCard) ? `✓ ${docLabel(docs.panCard)}` : 'Not provided'} />
+            <Row label="Cancelled Cheque" value={docLabel(docs.cancelledCheque) ? `✓ ${docLabel(docs.cancelledCheque)}` : 'Not provided'} />
+          </>
+        )}
       </SectionCard>
 
       <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#7c3aed]/5 cursor-pointer">

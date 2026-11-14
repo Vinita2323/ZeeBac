@@ -138,6 +138,10 @@ const vendorSchema = new mongoose.Schema(
       type: String,
     },
     registrationNumber: String,
+    fssaiNumber: {
+      type: String,
+      trim: true,
+    },
     address: {
       fullAddress: { type: String },
       landmark: String,
@@ -170,6 +174,9 @@ const vendorSchema = new mongoose.Schema(
       cancelledCheque: documentFieldSchema,
       panCard: documentFieldSchema,
       additionalDoc: documentFieldSchema,
+      udyamCertificate: documentFieldSchema,
+      trademarkCertificate: documentFieldSchema,
+      fssaiCertificate: documentFieldSchema,
     },
     socialLinks: {
       website: String,

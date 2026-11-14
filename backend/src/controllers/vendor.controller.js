@@ -33,7 +33,7 @@ import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmoun
 import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } from '../utils/qr.util.js';
 import { getIO } from '../socket/socket.js';
 
-const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancelledCheque', 'panCard', 'additionalDoc'];
+const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancelledCheque', 'panCard', 'additionalDoc', 'udyamCertificate', 'trademarkCertificate', 'fssaiCertificate'];
 
 // Applies whatever Step 2/3 fields & files are present in the request onto the
 // vendor doc (in-memory only — caller must .save()). Shared by draft/submit/resubmit
@@ -41,7 +41,7 @@ const DOCUMENT_FIELDS = ['aadhaarPan', 'gstCertificate', 'shopLicense', 'cancell
 export const applyApplicationFields = (vendor, body = {}, files = {}) => {
   const {
     storeName, shopType, businessType, retailerSubtype, category, subCategory, description,
-    businessContactNumber, businessEmail, gstNumber, registrationNumber,
+    businessContactNumber, businessEmail, gstNumber, registrationNumber, fssaiNumber,
     address, lat, lng, businessHours,
   } = body;
 
@@ -88,6 +88,7 @@ export const applyApplicationFields = (vendor, body = {}, files = {}) => {
   if (businessEmail !== undefined) vendor.businessEmail = businessEmail;
   if (gstNumber !== undefined) vendor.gstNumber = gstNumber;
   if (registrationNumber !== undefined) vendor.registrationNumber = registrationNumber;
+  if (fssaiNumber !== undefined) vendor.fssaiNumber = fssaiNumber;
   if (body.cashbackRate !== undefined && body.cashbackRate !== null && body.cashbackRate !== '') {
     vendor.cashbackRate = Number(body.cashbackRate);
   }
@@ -155,6 +156,9 @@ export const UPLOAD_FIELDS = [
   { name: 'panCard', maxCount: 1 },
   { name: 'cancelledCheque', maxCount: 1 },
   { name: 'additionalDoc', maxCount: 1 },
+  { name: 'udyamCertificate', maxCount: 1 },
+  { name: 'trademarkCertificate', maxCount: 1 },
+  { name: 'fssaiCertificate', maxCount: 1 },
 ];
 
 // ─── Vendor Onboarding: Save Draft (Steps 2-3) ───
@@ -331,6 +335,9 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { 
+      storeName,
+      gstNumber,
+      fssaiNumber,
       description, 
       socialLinks, 
       bankDetails,
@@ -407,8 +414,27 @@ export const updateProfile = async (req, res) => {
     if (email !== undefined) vendor.email = email;
     if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
     if (storeName !== undefined && typeof storeName === 'string' && storeName.trim()) vendor.storeName = storeName.trim();
+    if (req.body.gstNumber !== undefined) vendor.gstNumber = req.body.gstNumber;
+    if (req.body.fssaiNumber !== undefined) vendor.fssaiNumber = req.body.fssaiNumber;
     if (businessHours !== undefined) vendor.businessHours = businessHours;
     if (profilePic !== undefined) vendor.profilePic = profilePic;
+    if (req.files) {
+      const getUrl = (f) => (f ? (f.url || (f.filename?.startsWith('http') ? f.filename : null)) : null);
+      if (req.files.storeLogo) vendor.storeLogo = vendor.profilePic = getUrl(req.files.storeLogo[0]);
+      if (req.files.profilePic) vendor.profilePic = getUrl(req.files.profilePic[0]);
+      if (req.files.storeCoverImage) vendor.storeCoverImage = getUrl(req.files.storeCoverImage[0]);
+      for (const field of DOCUMENT_FIELDS) {
+        if (req.files[field] && req.files[field][0]) {
+          if (!vendor.documents) vendor.documents = {};
+          vendor.documents[field] = {
+            fileName: req.files[field][0].originalname,
+            fileUrl: getUrl(req.files[field][0]),
+            fileType: req.files[field][0].mimetype,
+            uploadedAt: new Date(),
+          };
+        }
+      }
+    }
     
     if (socialLinks) {
       vendor.socialLinks = { ...vendor.socialLinks, ...socialLinks };

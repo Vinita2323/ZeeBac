@@ -10,6 +10,7 @@ import StepBusiness from './steps/StepBusiness';
 import StepDocuments from './steps/StepDocuments';
 import StepReview from './steps/StepReview';
 import ReviewChangesScreen from './ReviewChangesScreen';
+import { isFoodSector, isManufacturerOrWholesaler } from '../../../../utils/vendorSectorUtils';
 
 const STEP_LABELS = ['Account', 'Business', 'Documents', 'Review'];
 
@@ -23,6 +24,7 @@ const emptyFormData = {
   description: '',
   cashbackRate: 5,
   gstNumber: '',
+  fssaiNumber: '',
   businessContactNumber: '',
   businessEmail: '',
   address: { fullAddress: '', landmark: '', city: '', state: '', pincode: '' },
@@ -39,6 +41,9 @@ const emptyFormData = {
     panCard: null,
     cancelledCheque: null,
     additionalDoc: null,
+    udyamCertificate: null,
+    trademarkCertificate: null,
+    fssaiCertificate: null,
   },
 };
 
@@ -52,6 +57,7 @@ const vendorToFormData = (vendor) => ({
   description: vendor.description || '',
   cashbackRate: vendor.cashbackRate ?? (vendor.shopType === 'Chain & Brand' ? 5 : 2),
   gstNumber: vendor.gstNumber || '',
+  fssaiNumber: vendor.fssaiNumber || '',
   businessContactNumber: vendor.businessContactNumber || '',
   businessEmail: vendor.businessEmail || '',
   address: {
@@ -78,6 +84,9 @@ const vendorToFormData = (vendor) => ({
     panCard: vendor.documents?.panCard?.fileUrl ? vendor.documents.panCard : null,
     cancelledCheque: vendor.documents?.cancelledCheque?.fileUrl ? vendor.documents.cancelledCheque : null,
     additionalDoc: vendor.documents?.additionalDoc?.fileUrl ? vendor.documents.additionalDoc : null,
+    udyamCertificate: vendor.documents?.udyamCertificate?.fileUrl ? vendor.documents.udyamCertificate : (vendor.documents?.trademarkCertificate?.fileUrl ? vendor.documents.trademarkCertificate : null),
+    trademarkCertificate: vendor.documents?.trademarkCertificate?.fileUrl ? vendor.documents.trademarkCertificate : null,
+    fssaiCertificate: vendor.documents?.fssaiCertificate?.fileUrl ? vendor.documents.fssaiCertificate : null,
   },
 });
 
@@ -93,6 +102,7 @@ const buildPayload = (data) => {
     'description',
     'cashbackRate',
     'gstNumber',
+    'fssaiNumber',
     'businessContactNumber',
     'businessEmail',
   ];
@@ -210,12 +220,24 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
 
   const validateBusiness = () => {
     const next = {};
-    if (!data.storeName.trim()) next.storeName = t('Enter your business name');
+    const isB2B = isManufacturerOrWholesaler(data.businessType);
+    const isChain = data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand';
+
+    if (!data.storeName.trim()) next.storeName = isB2B ? t('Enter Company / Enterprise Name') : t('Enter your business name');
     if (!data.businessType) next.businessType = t('Select your merchant trade type (Manufacturer, Wholesaler, or Retailer)');
     if (data.businessType === 'Retailer' && !data.shopType) next.shopType = t('Select a retailer scale');
     if (!data.category) next.category = t('Select a business category');
-    if ((data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand') && !data.gstNumber?.trim()) {
+
+    if (isB2B) {
+      if (!data.gstNumber?.trim()) {
+        next.gstNumber = t('GST number is required for Manufacturer and Wholesaler');
+      }
+    } else if (isChain && !data.gstNumber?.trim()) {
       next.gstNumber = t('GST number is required for Chain & Brand');
+    }
+
+    if (isB2B && isFoodSector(data.category, data.subCategory) && data.fssaiNumber?.trim() && !/^\d{14}$/.test(data.fssaiNumber.trim())) {
+      next.fssaiNumber = t('Enter a valid 14-digit FSSAI License Number');
     }
 
     const minAllowed = minRates[data.shopType] ?? (data.shopType === 'Chain & Brand' ? 5 : 2);
@@ -238,11 +260,27 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
 
   const validateDocuments = () => {
     const next = {};
-    if (!data.documents.aadhaarPan) next['documents.aadhaarPan'] = t('Owner ID / KYC document is required');
-    if (!data.documents.shopLicense) next['documents.shopLicense'] = t('Business registration document is required');
-    if ((data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand') && !data.documents.gstCertificate) {
-      next['documents.gstCertificate'] = t('GST certificate is required for Chain & Brand');
+    const isB2B = isManufacturerOrWholesaler(data.businessType);
+
+    if (isB2B) {
+      const hasUdyam = !!(data.documents.udyamCertificate || data.documents.trademarkCertificate);
+      if (!hasUdyam) {
+        next['documents.udyamCertificate'] = t('Trademark certificate / Udyam certificate is required');
+      }
+      if (!data.documents.gstCertificate) {
+        next['documents.gstCertificate'] = t('GST certificate is required');
+      }
+      if (isFoodSector(data.category, data.subCategory) && !data.documents.fssaiCertificate) {
+        next['documents.fssaiCertificate'] = t('FSSAI license certificate is required for food sector');
+      }
+    } else {
+      if (!data.documents.aadhaarPan) next['documents.aadhaarPan'] = t('Owner ID / KYC document is required');
+      if (!data.documents.shopLicense) next['documents.shopLicense'] = t('Business registration document is required');
+      if ((data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand') && !data.documents.gstCertificate) {
+        next['documents.gstCertificate'] = t('GST certificate is required for Chain & Brand');
+      }
     }
+
     setErrors(next);
     return Object.keys(next).length === 0;
   };

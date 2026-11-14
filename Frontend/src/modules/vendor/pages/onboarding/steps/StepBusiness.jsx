@@ -3,6 +3,7 @@ import { AuthAPI } from '../../../../../services/api';
 import useLanguageStore from '../../../../../store/useLanguageStore';
 import FloatingInput from '../components/FloatingInput';
 import MapPicker from '../components/MapPicker';
+import { isFoodSector, isManufacturerOrWholesaler } from '../../../../../utils/vendorSectorUtils';
 
 function CategorySelect({ value, onChange, error, label = 'Business Category' }) {
   const { t } = useLanguageStore();
@@ -123,7 +124,7 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
         icon: 'precision_manufacturing',
         title: 'Manufacturer Details',
         desc: 'Provide your manufacturing factory or production enterprise details.',
-        nameLabel: 'Manufacturing Firm / Factory Name',
+        nameLabel: 'Company / Enterprise Name',
         categoryLabel: 'Manufacturing Goods Category',
       };
     }
@@ -132,7 +133,7 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
         icon: 'inventory_2',
         title: 'Wholesaler Details',
         desc: 'Provide your wholesale distribution business details.',
-        nameLabel: 'Wholesale Business / Firm Name',
+        nameLabel: 'Company / Enterprise Name',
         categoryLabel: 'Wholesale Trade Category',
       };
     }
@@ -407,13 +408,24 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
 
       {/* GST Number field */}
       <FloatingInput
-        label={`GST Number${isChain ? '' : ' (Optional)'}`}
+        label={`GST Number${isChain || isManufacturer || isWholesaler ? '' : ' (Optional)'}`}
         icon="receipt_long"
-        required={isChain}
+        required={isChain || isManufacturer || isWholesaler}
         value={data.gstNumber}
         onChange={(e) => update('gstNumber', e.target.value.toUpperCase())}
         error={errors.gstNumber}
       />
+
+      {(isFoodSector(data.category, data.subCategory) || isManufacturer || isWholesaler) && (
+        <FloatingInput
+          label={`FSSAI License Number${isFoodSector(data.category, data.subCategory) ? ' (Food Sector - Required)' : ' (Food Sector - Optional)'}`}
+          icon="verified"
+          required={isFoodSector(data.category, data.subCategory) && (isManufacturer || isWholesaler)}
+          value={data.fssaiNumber || ''}
+          onChange={(e) => update('fssaiNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))}
+          error={errors.fssaiNumber}
+        />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FloatingInput

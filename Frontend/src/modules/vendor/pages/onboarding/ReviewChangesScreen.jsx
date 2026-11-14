@@ -8,6 +8,7 @@ const FIELD_LABELS = {
   cashbackRate: 'Customer Cashback (%)',
   description: 'Description',
   gstNumber: 'GST Number',
+  fssaiNumber: 'FSSAI License Number',
   businessContactNumber: 'Business Contact Number',
   businessEmail: 'Business Email',
   'address.fullAddress': 'Address',
@@ -28,13 +29,16 @@ const FIELD_LABELS = {
   'documents.panCard': 'PAN Card',
   'documents.cancelledCheque': 'Cancelled Cheque',
   'documents.additionalDoc': 'Additional Document',
+  'documents.udyamCertificate': 'Trademark / Udyam Certificate',
+  'documents.trademarkCertificate': 'Trademark Certificate',
+  'documents.fssaiCertificate': 'FSSAI License Certificate',
 };
 
 const SECTIONS = [
-  { title: 'Business', fields: ['storeName', 'shopType', 'cashbackRate', 'category', 'subCategory', 'description', 'gstNumber', 'businessContactNumber', 'businessEmail'] },
+  { title: 'Business', fields: ['storeName', 'shopType', 'cashbackRate', 'category', 'subCategory', 'description', 'gstNumber', 'fssaiNumber', 'businessContactNumber', 'businessEmail'] },
   { title: 'Location', fields: ['address.fullAddress', 'address.landmark', 'address.city', 'address.state', 'address.pincode', 'location'] },
   { title: 'Store', fields: ['storeLogo', 'storeCoverImage', 'storeImages', 'businessHours.openingTime', 'businessHours.closingTime', 'businessHours.workingDays'] },
-  { title: 'Documents', fields: ['documents.aadhaarPan', 'documents.gstCertificate', 'documents.shopLicense', 'documents.panCard', 'documents.cancelledCheque'] },
+  { title: 'Documents', fields: ['documents.aadhaarPan', 'documents.gstCertificate', 'documents.shopLicense', 'documents.udyamCertificate', 'documents.fssaiCertificate', 'documents.panCard', 'documents.cancelledCheque'] },
 ];
 
 const fileDisplay = (v) => {

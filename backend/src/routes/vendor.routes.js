@@ -62,7 +62,7 @@ router.use(requireRole('vendor'));
 
 // Profile Routes — open regardless of approval status
 router.get('/me', getProfile);
-router.put('/me', updateProfile);
+router.put('/me', upload.fields(APPLICATION_UPLOAD_FIELDS), updateProfile);
 
 // Biometric & PIN Security
 router.post('/security/setup-pin', pinLimiter, setupSecurityPin);

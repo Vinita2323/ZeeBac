@@ -167,6 +167,7 @@ export default function VendorApplicationDetailPage() {
   }
 
   const latestResubmit = [...(vendor.applicationHistory || [])].reverse().find(h => h.action === 'RESUBMITTED');
+  const isB2B = vendor.businessType === 'Manufacturer' || vendor.businessType === 'Wholesaler';
 
   return (
     <div className="space-y-6 animate-reveal text-left pb-10">
@@ -243,7 +244,7 @@ export default function VendorApplicationDetailPage() {
 
         <Section title="Business Details" icon="storefront">
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <Row label="Shop Name" value={vendor.storeName} />
+            <Row label={isB2B ? 'Company / Enterprise Name' : 'Shop Name'} value={vendor.storeName} />
             <Row label="Merchant Business Type" value={vendor.businessType || 'Retailer'} />
             {(vendor.businessType === 'Retailer' || !vendor.businessType) && (
               <Row
@@ -255,6 +256,7 @@ export default function VendorApplicationDetailPage() {
             <Row label="Category" value={vendor.category} />
             <Row label="Sub-category" value={vendor.subCategory} />
             <Row label="GST Number" value={vendor.gstNumber} />
+            {vendor.fssaiNumber && <Row label="FSSAI License Number" value={vendor.fssaiNumber} />}
             <Row label="Account Status" value={vendor.status} />
             <div className="col-span-2 p-3 sm:p-3.5 bg-purple-50/80 border border-purple-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
@@ -423,12 +425,22 @@ export default function VendorApplicationDetailPage() {
 
       <Section title="Documents" icon="folder">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DocPreview label="Owner ID / KYC (Aadhaar/PAN)" doc={vendor.documents?.aadhaarPan} />
-          <DocPreview label="Shop Registration Document" doc={vendor.documents?.shopLicense} />
-          <DocPreview label="GST Certificate" doc={vendor.documents?.gstCertificate} />
-          <DocPreview label="PAN Card" doc={vendor.documents?.panCard} />
-          <DocPreview label="Cancelled Cheque" doc={vendor.documents?.cancelledCheque} />
-          <DocPreview label="Additional Document" doc={vendor.documents?.additionalDoc} />
+          {isB2B ? (
+            <>
+              <DocPreview label="Trademark / Udyam Certificate" doc={vendor.documents?.udyamCertificate || vendor.documents?.trademarkCertificate} />
+              <DocPreview label="GST Certificate" doc={vendor.documents?.gstCertificate} />
+              <DocPreview label="FSSAI License / Certificate" doc={vendor.documents?.fssaiCertificate} />
+            </>
+          ) : (
+            <>
+              <DocPreview label="Owner ID / KYC (Aadhaar/PAN)" doc={vendor.documents?.aadhaarPan} />
+              <DocPreview label="Shop Registration Document" doc={vendor.documents?.shopLicense} />
+              <DocPreview label="GST Certificate" doc={vendor.documents?.gstCertificate} />
+              <DocPreview label="PAN Card" doc={vendor.documents?.panCard} />
+              <DocPreview label="Cancelled Cheque" doc={vendor.documents?.cancelledCheque} />
+              <DocPreview label="Additional Document" doc={vendor.documents?.additionalDoc} />
+            </>
+          )}
         </div>
       </Section>
 

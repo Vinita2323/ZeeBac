@@ -5,6 +5,7 @@ import useLanguageStore from '../../../store/useLanguageStore';
 import { VendorAPI, getMediaUrl } from '../../../services/api';
 import { toast } from 'react-hot-toast';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
+import { isFoodSector, isManufacturerOrWholesaler } from '../../../utils/vendorSectorUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
@@ -37,6 +38,7 @@ export default function ProfilePage() {
   const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [showOpeningHoursModal, setShowOpeningHoursModal] = useState(false);
   const [showBusinessDetailsModal, setShowBusinessDetailsModal] = useState(false);
+  const [showDocsModal, setShowDocsModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -75,6 +77,8 @@ export default function ProfilePage() {
     state: '',
     pincode: '',
     description: '',
+    gstNumber: '',
+    fssaiNumber: '',
   });
 
   const [timingForm, setTimingForm] = useState({
@@ -97,6 +101,8 @@ export default function ProfilePage() {
   const phone = vendorData?.phone || currentUser.phone || '+91 9876543210';
   const email = vendorData?.email || currentUser.email || '';
   const zeebacId = vendorData?.zeebacId || currentUser.zeebacId || 'ZBV-5706';
+  const isB2B = isManufacturerOrWholesaler(vendorData?.businessType || currentUser.businessType);
+  const isFood = isFoodSector(businessForm.category || vendorData?.category || currentUser.category);
 
   const locationDisplay = useMemo(() => {
     const city = vendorData?.address?.city || currentUser.address?.city;
@@ -161,6 +167,8 @@ export default function ProfilePage() {
             state: v.address?.state || '',
             pincode: v.address?.pincode || '',
             description: v.description || '',
+            gstNumber: v.gstNumber || '',
+            fssaiNumber: v.fssaiNumber || '',
           });
 
           if (v.businessHours) {
@@ -558,7 +566,7 @@ export default function ProfilePage() {
                 <span className="material-symbols-outlined text-[18px]">storefront</span>
               </div>
               <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
-                {t('My Business Details')}
+                {isB2B ? t('My Company Details') : t('My Business Details')}
               </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
@@ -818,7 +826,7 @@ export default function ProfilePage() {
 
             <form onSubmit={handleSaveBusinessDetails} className="space-y-3.5">
               <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Store / Business Name *</label>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">{isB2B ? 'Company / Enterprise Name *' : 'Store / Business Name *'}</label>
                 <input
                   type="text"
                   required
@@ -1397,6 +1405,173 @@ export default function ProfilePage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* COMPANION MODALS (Stories, Language, Loans, BNPL) */}
       {/* ───────────────────────────────────────────────────────────── */}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODAL: VERIFICATION DOCUMENTS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showDocsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[22px]">verified_user</span>
+                <h3 className="font-display font-black text-[16px] text-slate-900">
+                  {isB2B ? 'Enterprise Verification Documents' : 'KYC & Verification Documents'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowDocsModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {isB2B ? (
+                <>
+                  <p className="text-[12px] text-slate-500">
+                    Required verification documents for {vendorData?.businessType || 'Enterprise'}:
+                  </p>
+                  
+                  {/* Trademark / Udyam Certificate */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">Trademark Certificate / Udyam Certificate</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {vendorData?.documents?.udyamCertificate?.fileName || vendorData?.documents?.trademarkCertificate?.fileName || (vendorData?.documents?.udyamCertificate?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
+                      </p>
+                    </div>
+                    {(vendorData?.documents?.udyamCertificate?.fileUrl || vendorData?.documents?.trademarkCertificate?.fileUrl) ? (
+                      <a
+                        href={getMediaUrl(vendorData?.documents?.udyamCertificate?.fileUrl || vendorData?.documents?.trademarkCertificate?.fileUrl)}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
+                    )}
+                  </div>
+
+                  {/* GST Certificate */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">GST Certificate</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {vendorData?.documents?.gstCertificate?.fileName || (vendorData?.documents?.gstCertificate?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
+                      </p>
+                    </div>
+                    {vendorData?.documents?.gstCertificate?.fileUrl ? (
+                      <a
+                        href={getMediaUrl(vendorData?.documents?.gstCertificate?.fileUrl)}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
+                    )}
+                  </div>
+
+                  {/* FSSAI License */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">FSSAI License Certificate</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {vendorData?.documents?.fssaiCertificate?.fileName || (vendorData?.documents?.fssaiCertificate?.fileUrl ? 'Document uploaded' : (isFood ? 'Required for food sector' : 'Optional - food sector only'))}
+                      </p>
+                    </div>
+                    {vendorData?.documents?.fssaiCertificate?.fileUrl ? (
+                      <a
+                        href={getMediaUrl(vendorData?.documents?.fssaiCertificate?.fileUrl)}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500">
+                        {isFood ? 'Required' : 'Optional'}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Retailer documents */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">Owner ID / KYC (Aadhaar / PAN)</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {vendorData?.documents?.aadhaarPan?.fileName || (vendorData?.documents?.aadhaarPan?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
+                      </p>
+                    </div>
+                    {vendorData?.documents?.aadhaarPan?.fileUrl && (
+                      <a
+                        href={getMediaUrl(vendorData?.documents?.aadhaarPan?.fileUrl)}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
+                      >
+                        View
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">Shop Registration Document</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {vendorData?.documents?.shopLicense?.fileName || (vendorData?.documents?.shopLicense?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
+                      </p>
+                    </div>
+                    {vendorData?.documents?.shopLicense?.fileUrl && (
+                      <a
+                        href={getMediaUrl(vendorData?.documents?.shopLicense?.fileUrl)}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
+                      >
+                        View
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">GST Certificate</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {vendorData?.documents?.gstCertificate?.fileName || (vendorData?.documents?.gstCertificate?.fileUrl ? 'Document uploaded' : 'Optional')}
+                      </p>
+                    </div>
+                    {vendorData?.documents?.gstCertificate?.fileUrl && (
+                      <a
+                        href={getMediaUrl(vendorData?.documents?.gstCertificate?.fileUrl)}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
+                      >
+                        View
+                      </a>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDocsModal(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <StoreStoriesModal
         isOpen={showStoriesModal}
         onClose={() => setShowStoriesModal(false)}

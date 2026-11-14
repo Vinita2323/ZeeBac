@@ -31,6 +31,10 @@ export const TRACKED_FIELD_PATHS = [
   'documents.cancelledCheque.fileUrl',
   'documents.panCard.fileUrl',
   'documents.additionalDoc.fileUrl',
+  'fssaiNumber',
+  'documents.udyamCertificate.fileUrl',
+  'documents.trademarkCertificate.fileUrl',
+  'documents.fssaiCertificate.fileUrl',
 ];
 
 const getPath = (obj, path) => path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
@@ -63,14 +67,29 @@ export function diffSnapshots(oldSnapshot, newSnapshot) {
   return changes;
 }
 
+export const isFoodSector = (category, subCategory = '') => {
+  if (!category && !subCategory) return false;
+  const foodKeywords = [
+    'food', 'grocery', 'fmcg', 'dairy', 'restaurant', 'cafe', 'bakery',
+    'sweet', 'snack', 'beverage', 'drink', 'spice', 'meat', 'fish',
+    'agriculture', 'grain', 'edible', 'confectionery', 'tea', 'coffee'
+  ];
+  const text = `${category || ''} ${subCategory || ''}`.toLowerCase();
+  return foodKeywords.some(kw => text.includes(kw));
+};
+
 export function validateApplicationComplete(vendorDoc) {
   const missing = [];
 
-  if (!vendorDoc.storeName?.trim()) missing.push('Business/Shop Name');
+  const isB2B = ['Manufacturer', 'Wholesaler'].includes(vendorDoc.businessType);
+
+  if (!vendorDoc.storeName?.trim()) {
+    missing.push(isB2B ? 'Company / Enterprise Name' : 'Business/Shop Name');
+  }
   if (!vendorDoc.businessType) {
     missing.push('Merchant Business Type (Manufacturer / Wholesaler / Retailer)');
   }
-  if (vendorDoc.businessType === 'Retailer' || (!vendorDoc.businessType && !vendorDoc.shopType)) {
+  if (!isB2B && (vendorDoc.businessType === 'Retailer' || (!vendorDoc.businessType && !vendorDoc.shopType))) {
     if (!vendorDoc.shopType && !vendorDoc.retailerSubtype) {
       missing.push('Business Type (Independent Store / Chain & Brand)');
     }
@@ -86,10 +105,37 @@ export function validateApplicationComplete(vendorDoc) {
   if (!vendorDoc.location?.coordinates || vendorDoc.location.coordinates.length !== 2) {
     missing.push('Business Location (map pin)');
   }
-  if (!vendorDoc.documents?.aadhaarPan?.fileUrl) missing.push('Owner ID / KYC document');
-  if (!vendorDoc.documents?.shopLicense?.fileUrl) missing.push('Business/Shop Registration document');
-  if (vendorDoc.shopType === 'Chain & Brand' && !vendorDoc.documents?.gstCertificate?.fileUrl) {
-    missing.push('GST Certificate (required for Chain & Brand)');
+
+  if (isB2B) {
+    // Manufacturer and Wholesaler requirements:
+    // 1. Trademark Certificate / Udyam Certificate
+    const hasUdyam = !!(vendorDoc.documents?.udyamCertificate?.fileUrl || vendorDoc.documents?.trademarkCertificate?.fileUrl);
+    if (!hasUdyam) {
+      missing.push('Trademark certificate / Udyam certificate');
+    }
+    // 2. GST Number & GST Certificate
+    if (!vendorDoc.gstNumber?.trim()) {
+      missing.push('GST Number (required for Manufacturer and Wholesaler)');
+    }
+    if (!vendorDoc.documents?.gstCertificate?.fileUrl) {
+      missing.push('GST Certificate');
+    }
+    // 3. FSSAI License (for food sector)
+    if (isFoodSector(vendorDoc.category, vendorDoc.subCategory)) {
+      if (!vendorDoc.documents?.fssaiCertificate?.fileUrl) {
+        missing.push('FSSAI License / Certificate (required for Food Sector)');
+      }
+    }
+  } else {
+    // Retailer requirements:
+    if (!vendorDoc.documents?.aadhaarPan?.fileUrl) missing.push('Owner ID / KYC document');
+    if (!vendorDoc.documents?.shopLicense?.fileUrl) missing.push('Business/Shop Registration document');
+    if (vendorDoc.shopType === 'Chain & Brand') {
+      if (!vendorDoc.gstNumber?.trim()) missing.push('GST Number (required for Chain & Brand)');
+      if (!vendorDoc.documents?.gstCertificate?.fileUrl) {
+        missing.push('GST Certificate (required for Chain & Brand)');
+      }
+    }
   }
 
   return missing;
