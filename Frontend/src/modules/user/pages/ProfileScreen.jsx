@@ -8,7 +8,6 @@ import useQrCode from '../../../hooks/useQrCode';
 import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
-import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
 import { useBackableSubview } from '../../../utils/navigationUtils';
 
 export default function ProfileScreen() {
@@ -17,7 +16,7 @@ export default function ProfileScreen() {
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
-  const { language, t } = useLanguageStore();
+  const { t } = useLanguageStore();
   const [subView, setSubView] = useState(
     location.state?.openLinkedAccounts ? 'linked-accounts' : null
   ); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
@@ -27,7 +26,6 @@ export default function ProfileScreen() {
   useBackableSubview(subView, setSubView);
 
   const [showLoanModal, setShowLoanModal] = useState(false);
-  const [showLangModal, setShowLangModal] = useState(false);
   
   // Profile state
   const [profile, setProfile] = useState({
@@ -554,31 +552,9 @@ export default function ProfileScreen() {
         <div className="space-y-sm">
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">{t('Preferences')}</h3>
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm p-sm space-y-md">
-            
-            {/* Preference: App Language (English & Hindi) */}
-            <div 
-              onClick={() => setShowLangModal(true)}
-              className="flex items-center justify-between py-1 cursor-pointer hover:opacity-80 transition-opacity"
-            >
-              <div className="flex items-center gap-sm">
-                <span className="material-symbols-outlined text-[#7c3aed]">translate</span>
-                <div>
-                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('App Language')}</p>
-                  <p className="font-caption text-[10px] text-on-surface-variant">{t('Hindi & English', 'Hindi & English')}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 text-[12px] font-bold">
-                <span className="leading-none text-[12px] font-bold flex items-center tracking-tight">
-                  <span className={language === 'en' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>Eng</span>
-                  <span className="text-slate-300 mx-0.5 font-normal">/</span>
-                  <span className={language === 'hi' ? 'text-primary font-black' : 'text-slate-400 font-medium'}>हि</span>
-                </span>
-                <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
-              </div>
-            </div>
 
             {/* Toggle 1: Notifications */}
-            <div className="flex items-center justify-between py-1 border-t border-outline-variant/10 pt-md">
+            <div className="flex items-center justify-between py-1">
               <div className="flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[#7c3aed]">notifications_active</span>
                 <div>
@@ -690,12 +666,6 @@ export default function ProfileScreen() {
       <LoanComingSoonModal
         isOpen={showLoanModal}
         onClose={() => setShowLoanModal(false)}
-      />
-
-      {/* Language Selector Modal */}
-      <LanguageSelectorModal
-        isOpen={showLangModal}
-        onClose={() => setShowLangModal(false)}
       />
 
 

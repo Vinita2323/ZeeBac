@@ -8,7 +8,6 @@ import { safeNavigateBack } from '../../../utils/navigationUtils';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
-import LanguageSelectorModal from '../../../components/common/LanguageSelectorModal';
 import {
   getBiometricSupportStatus,
   describeBiometricUnsupportedReason,
@@ -18,7 +17,7 @@ import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { language, t } = useLanguageStore();
+  const { t } = useLanguageStore();
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const logout = useAuthStore((state) => state.logout);
@@ -41,7 +40,6 @@ export default function ProfilePage() {
   const [showBankModal, setShowBankModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
-  const [showLangModal, setShowLangModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -1405,11 +1403,6 @@ export default function ProfilePage() {
         onStoryUpdated={() => {
           toast.success('Story updated!');
         }}
-      />
-
-      <LanguageSelectorModal
-        isOpen={showLangModal}
-        onClose={() => setShowLangModal(false)}
       />
 
       <VendorLoanModal

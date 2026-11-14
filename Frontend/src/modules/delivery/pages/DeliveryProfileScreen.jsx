@@ -271,14 +271,6 @@ export default function DeliveryProfileScreen() {
               </span>
             </button>
 
-            {/* Language */}
-            <div className="py-2.5 flex items-center justify-between text-slate-800">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-[20px] text-slate-600">translate</span>
-                <span className="font-bold">App Language</span>
-              </div>
-              <span className="text-slate-500 font-medium">English (India)</span>
-            </div>
 
             {/* Terms / Agreement */}
             <button
