@@ -22,7 +22,7 @@ const emptyFormData = {
   category: '',
   subCategory: '',
   description: '',
-  cashbackRate: 5,
+  cashbackRate: 2,
   gstNumber: '',
   fssaiNumber: '',
   businessContactNumber: '',
@@ -240,17 +240,6 @@ export default function VendorOnboardingWizard({ mode = 'register' }) {
 
     if (isB2B && isFoodSector(data.category, data.subCategory) && data.fssaiNumber?.trim() && !/^\d{14}$/.test(data.fssaiNumber.trim())) {
       next.fssaiNumber = t('Enter a valid 14-digit FSSAI License Number');
-    }
-
-    if (!isB2B) {
-      const minAllowed = minRates[data.shopType] ?? (data.shopType === 'Chain & Brand' ? 5 : 2);
-      if (data.cashbackRate === undefined || data.cashbackRate === null || data.cashbackRate === '') {
-        next.cashbackRate = t('Select or enter a customer cashback percentage');
-      } else if (Number(data.cashbackRate) < minAllowed) {
-        next.cashbackRate = `${t('Minimum required cashback is')} ${minAllowed}%`;
-      } else if (Number(data.cashbackRate) > 100) {
-        next.cashbackRate = t('Cashback rate cannot exceed 100%');
-      }
     }
 
     if (!data.address.fullAddress.trim()) next['address.fullAddress'] = t('Enter your business address');

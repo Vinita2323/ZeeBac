@@ -52,10 +52,12 @@ export default function ApplicationStatusScreen() {
         </div>
 
         <div className="bg-white/70 rounded-2xl p-4 space-y-2 text-left text-[13px]">
-          <div className="flex justify-between">
-            <span className="text-gray-500">{t('Approved Cashback')}</span>
-            <span className="font-bold text-purple-700">{vendor?.cashbackRate ? `${vendor.cashbackRate}% to users` : '—'}</span>
-          </div>
+          {!['Manufacturer', 'Wholesaler'].includes(vendor?.businessType) && !!vendor?.cashbackRate && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">{t('Approved Cashback')}</span>
+              <span className="font-bold text-purple-700">{`${vendor.cashbackRate}% to users`}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-500">{t('Submitted On')}</span>
             <span className="font-bold text-gray-900">{vendor?.submittedAt ? new Date(vendor.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>

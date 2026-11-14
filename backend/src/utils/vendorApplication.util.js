@@ -101,9 +101,6 @@ export function validateApplicationComplete(vendorDoc) {
     }
   }
   if (!vendorDoc.category) missing.push('Business Category');
-  if (!isB2B && (vendorDoc.cashbackRate === undefined || vendorDoc.cashbackRate === null || Number.isNaN(Number(vendorDoc.cashbackRate)))) {
-    missing.push('Customer Cashback Percentage (%)');
-  }
   if (!vendorDoc.address?.fullAddress?.trim()) missing.push('Business Address');
   if (!vendorDoc.address?.city?.trim()) missing.push('City');
   if (!vendorDoc.address?.state?.trim()) missing.push('State');

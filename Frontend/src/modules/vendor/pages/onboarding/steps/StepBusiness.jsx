@@ -275,7 +275,7 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
                 {t('Chain Brand')}
               </p>
               <span className="text-[10.5px] font-bold text-blue-600 mt-0.5">
-                {t('Min')} {minRates['Chain & Brand'] ?? 5}% {t('Cashback')} · {t('GST Required')}
+                {t('Chain Retail Outlets')} · {t('GST Required')}
               </span>
             </button>
           </div>
@@ -314,100 +314,6 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
         value={data.description}
         onChange={(e) => update('description', e.target.value)}
       />
-
-      {/* Customer Cashback Percentage Selection - Hidden for Manufacturer and Wholesalers */}
-      {!isB2B && (
-      <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/80 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-purple-600/10 text-purple-700 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[20px]">percent</span>
-            </div>
-            <div>
-              <h3 className="text-[13.5px] font-black text-gray-900 flex items-center gap-1">
-                {t('Customer Cashback Offer')}<span className="text-red-500">*</span>
-              </h3>
-              <p className="text-[11.5px] text-gray-500">
-                {t('Cashback percentage rewarded to users on verified purchases')}
-              </p>
-            </div>
-          </div>
-
-          <span className="px-2.5 py-1 bg-white rounded-full text-[11px] font-black tracking-wide border border-purple-200 text-purple-700 shadow-sm shrink-0">
-            {t('Min')}: {currentMin}%
-          </span>
-        </div>
-
-        {/* Quick select presets */}
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-            {t('Quick Select Percentage')}
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {[currentMin, 5, 7, 10]
-              .filter((val, idx, arr) => val >= currentMin && arr.indexOf(val) === idx)
-              .map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => update('cashbackRate', pct)}
-                  className={`px-3 py-1.5 rounded-xl text-[12.5px] font-black transition-all cursor-pointer ${
-                    Number(data.cashbackRate) === pct
-                      ? 'bg-purple-700 text-white shadow-sm scale-105'
-                      : 'bg-white text-gray-700 border border-purple-200/60 hover:border-purple-400'
-                  }`}
-                >
-                  {pct}% {pct === currentMin ? `(${t('Min')})` : ''}
-                </button>
-              ))}
-          </div>
-        </div>
-
-        {/* Custom Input */}
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-            {t('Or Enter Custom Rate (%)')}
-          </label>
-          <div className="relative flex items-center">
-            <input
-              type="number"
-              min={currentMin}
-              max="100"
-              step="0.5"
-              value={data.cashbackRate ?? ''}
-              onChange={(e) => {
-                const val = e.target.value === '' ? '' : Number(e.target.value);
-                update('cashbackRate', val);
-              }}
-              placeholder={`${t('Min')} ${currentMin}%`}
-              className={`w-full h-11 px-3 pr-10 bg-white border-2 rounded-xl text-[14px] font-bold outline-none transition-colors ${
-                errors.cashbackRate ? 'border-red-300' : 'border-gray-200 focus:border-purple-600'
-              }`}
-            />
-            <span className="absolute right-3 font-bold text-gray-400 select-none">%</span>
-          </div>
-          {errors.cashbackRate && (
-            <p className="text-[11.5px] font-bold text-red-500 flex items-center gap-1 mt-1 ml-1">
-              <span className="material-symbols-outlined text-[13px]">error</span>{errors.cashbackRate}
-            </p>
-          )}
-        </div>
-
-        {/* Helper Note */}
-        <div className="pt-2 border-t border-purple-200/50 flex flex-wrap items-center justify-between gap-1.5 text-[11.5px]">
-          <span className="text-gray-600 flex items-center gap-1">
-            <span className="material-symbols-outlined text-[15px] text-purple-600">info</span>
-            {t('You can change this later in your store profile')}
-          </span>
-          {Number(data.cashbackRate) >= currentMin && (
-            <span className="text-green-700 font-bold flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-[14px]">check_circle</span>
-              {t('Valid offer')}
-            </span>
-          )}
-        </div>
-      </div>
-      )}
 
       {/* GST Number field */}
       <FloatingInput

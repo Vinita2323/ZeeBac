@@ -63,7 +63,6 @@ export default function StepReview({ data, account, onEdit, onSubmit, isSubmitti
             value={(data.retailerSubtype === 'chain_brand' || data.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store'}
           />
         )}
-        {!isB2B && <Row label="Customer Cashback" value={data.cashbackRate ? `${data.cashbackRate}% to users` : null} />}
         <Row label="Category" value={data.category} />
         {data.subCategory && <Row label="Sub-category" value={data.subCategory} />}
         {data.gstNumber && <Row label="GST Number" value={data.gstNumber} />}

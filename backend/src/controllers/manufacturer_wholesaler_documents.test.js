@@ -140,6 +140,26 @@ describe('Manufacturer and Wholesaler Document Requirements Test Suite', () => {
       const missing = validateApplicationComplete(retailerDoc);
       expect(missing).toContain('Owner ID / KYC document');
       expect(missing).toContain('Business/Shop Registration document');
+      expect(missing).not.toContain('Customer Cashback Percentage (%)');
+    });
+
+    it('does not flag missing cashbackRate during profile creation for Retailer', () => {
+      const retailerDoc = {
+        storeName: 'Verma Provisions',
+        businessType: 'Retailer',
+        shopType: 'Independent Store',
+        category: 'Grocery',
+        // Note: NO cashbackRate!
+        address: { fullAddress: 'Main Road', city: 'Kanpur', state: 'Uttar Pradesh', pincode: '208001' },
+        location: { coordinates: [80.3319, 26.4499] },
+        documents: {
+          aadhaarPan: { fileUrl: 'https://cdn.zeebac.com/docs/aadhaar.pdf' },
+          shopLicense: { fileUrl: 'https://cdn.zeebac.com/docs/shop.pdf' },
+        },
+      };
+
+      const missing = validateApplicationComplete(retailerDoc);
+      expect(missing).toEqual([]);
     });
   });
 

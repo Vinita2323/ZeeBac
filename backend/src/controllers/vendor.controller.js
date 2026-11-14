@@ -95,6 +95,8 @@ export const applyApplicationFields = (vendor, body = {}, files = {}) => {
     if (vendor.cashbackRate === undefined || vendor.cashbackRate === null) {
       vendor.cashbackRate = 0;
     }
+  } else if (vendor.cashbackRate === undefined || vendor.cashbackRate === null) {
+    vendor.cashbackRate = vendor.shopType === 'Chain & Brand' ? 5 : 2;
   }
 
   if (address !== undefined) {
@@ -205,12 +207,13 @@ export const submitApplication = async (req, res) => {
     const isB2B = isManufacturerOrWholesaler(vendor.businessType);
     if (!isB2B) {
       const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+      const minRequired = activeRule?.minCashback ?? (vendor.shopType === 'Chain & Brand' ? 5 : 2);
+      if (vendor.cashbackRate === undefined || vendor.cashbackRate === null || Number(vendor.cashbackRate) < minRequired) {
+        vendor.cashbackRate = minRequired;
+      }
       const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
       if (!validation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
-        });
+        vendor.cashbackRate = validation.minRate;
       }
     }
 
@@ -265,12 +268,13 @@ export const resubmitApplication = async (req, res) => {
     const isB2B = isManufacturerOrWholesaler(vendor.businessType);
     if (!isB2B) {
       const activeRule = await CashbackRule.findOne({ shopType: vendor.shopType, isActive: true });
+      const minRequired = activeRule?.minCashback ?? (vendor.shopType === 'Chain & Brand' ? 5 : 2);
+      if (vendor.cashbackRate === undefined || vendor.cashbackRate === null || Number(vendor.cashbackRate) < minRequired) {
+        vendor.cashbackRate = minRequired;
+      }
       const validation = validateVendorCashbackRate(vendor.cashbackRate, vendor.shopType, activeRule?.minCashback);
       if (!validation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: `Cashback rate cannot be lower than the minimum required rate of ${validation.minRate}% for ${vendor.shopType || 'your store'}.`,
-        });
+        vendor.cashbackRate = validation.minRate;
       }
     }
 
