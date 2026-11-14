@@ -5,7 +5,7 @@ import { VendorAPI, getMediaUrl } from '../../../services/api';
 import useLanguageStore from '../../../store/useLanguageStore';
 import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import ProductBarcodeScannerModal from '../../../components/common/ProductBarcodeScannerModal';
 
 const CATEGORIES = ['All', 'FMCG', 'Snacks', 'Dairy', 'Home Care', 'Instant Food', 'Beverages', 'Others'];
 
@@ -27,7 +27,6 @@ export default function ProductsPage() {
 
   // Barcode Scanner Modal
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const barcodeScannerRef = useRef(null);
 
   const initialFormState = {
     productId: '',
@@ -184,32 +183,6 @@ export default function ProductsPage() {
     }
   };
 
-  // Barcode Scanner Listener
-  useEffect(() => {
-    if (showBarcodeScanner) {
-      const scanner = new Html5QrcodeScanner('products-barcode-reader', {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-      });
-
-      scanner.render(
-        (decodedText) => {
-          updateProductForm('barcode', decodedText);
-          toast.success(`Barcode scanned: ${decodedText}`);
-          setShowBarcodeScanner(false);
-          scanner.clear();
-        },
-        () => {}
-      );
-      barcodeScannerRef.current = scanner;
-
-      return () => {
-        try {
-          scanner.clear();
-        } catch (_) {}
-      };
-    }
-  }, [showBarcodeScanner]);
 
   return (
     <div className="min-h-screen bg-[#f8f9fc] pb-24 text-left">
@@ -731,23 +704,16 @@ export default function ProductsPage() {
         )}
 
       {/* ── MODAL: CAMERA BARCODE SCANNER ── */}
-      {showBarcodeScanner && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-6 max-w-[340px] w-full shadow-2xl text-center space-y-3 relative">
-            <button
-              onClick={() => setShowBarcodeScanner(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-            <h3 className="font-display font-black text-[16px] text-slate-900">
-              Scan Product Barcode
-            </h3>
-            <p className="text-[12px] text-slate-500">Hold barcode inside the square box</p>
-            <div id="products-barcode-reader" className="w-full rounded-2xl overflow-hidden" />
-          </div>
-        </div>
-      )}
+      <ProductBarcodeScannerModal
+        isOpen={showBarcodeScanner}
+        onClose={() => setShowBarcodeScanner(false)}
+        title="Scan Product Barcode"
+        subtitle="Hold product barcode inside the viewfinder to fill automatically"
+        onScan={(decodedText) => {
+          updateProductForm('barcode', decodedText);
+          toast.success(`Barcode scanned: ${decodedText}`);
+        }}
+      />
     </div>
   );
 }

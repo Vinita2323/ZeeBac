@@ -7,7 +7,7 @@ import { safeNavigateBack } from '../../../utils/navigationUtils';
 import useLanguageStore from '../../../store/useLanguageStore';
 import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import ProductBarcodeScannerModal from '../../../components/common/ProductBarcodeScannerModal';
 
 export default function StorefrontPage() {
   const navigate = useNavigate();
@@ -33,7 +33,6 @@ export default function StorefrontPage() {
 
   // Barcode Scanner Modal for Add Product
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const barcodeScannerRef = useRef(null);
 
   const initialFormState = {
     productId: '',
@@ -156,32 +155,6 @@ export default function StorefrontPage() {
     }
   };
 
-  // Camera Barcode Scanner for Add Product Form
-  useEffect(() => {
-    if (showBarcodeScanner) {
-      const scanner = new Html5QrcodeScanner('add-product-barcode-reader', {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-      });
-
-      scanner.render(
-        (decodedText) => {
-          updateProductForm('barcode', decodedText);
-          setShowBarcodeScanner(false);
-          toast.success(`Barcode detected: ${decodedText}`);
-          scanner.clear();
-        },
-        () => {}
-      );
-      barcodeScannerRef.current = scanner;
-
-      return () => {
-        try {
-          scanner.clear();
-        } catch (_) {}
-      };
-    }
-  }, [showBarcodeScanner]);
 
   const handleDeleteProduct = async (id) => {
     if (!window.confirm(t('Are you sure you want to delete this product?'))) return;
@@ -1729,34 +1702,16 @@ export default function StorefrontPage() {
         )}
 
       {/* Camera Barcode Scanner Modal */}
-      {showBarcodeScanner &&
-        createPortal(
-          <div className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative animate-scale-up">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-purple-700">barcode_scanner</span>
-                  <h3 className="font-black text-gray-900 text-lg">Scan Barcode / QR</h3>
-                </div>
-                <button
-                  onClick={() => setShowBarcodeScanner(false)}
-                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl bg-black border-2 border-purple-600/50">
-                <div id="add-product-barcode-reader" className="w-full" />
-              </div>
-
-              <p className="text-xs text-center text-gray-500">
-                Align the product barcode within the camera viewfinder to automatically capture it.
-              </p>
-            </div>
-          </div>,
-          document.body
-        )}
+      <ProductBarcodeScannerModal
+        isOpen={showBarcodeScanner}
+        onClose={() => setShowBarcodeScanner(false)}
+        title="Scan Barcode / QR"
+        subtitle="Align the product barcode within the viewfinder to automatically capture it"
+        onScan={(decodedText) => {
+          updateProductForm('barcode', decodedText);
+          toast.success(`Barcode detected: ${decodedText}`);
+        }}
+      />
 
       {/* Create Promotion Offer Modal */}
       {showOfferModal &&

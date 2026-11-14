@@ -3,7 +3,7 @@ import { B2BAPI, VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
 import QRCode from 'qrcode';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import ProductBarcodeScannerModal from '../../../components/common/ProductBarcodeScannerModal';
 
 export default function B2BBillingPage() {
   const currentVendor = useAuthStore((s) => s.currentUser) || {};
@@ -63,7 +63,6 @@ export default function B2BBillingPage() {
   // ══════════════════════════════════════════════════════════════
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [cameraScanMode, setCameraScanMode] = useState('product'); // 'product' | 'customer'
-  const scannerRef = useRef(null);
 
   // ══════════════════════════════════════════════════════════════
   // ─── TABS 3 & 4: INVOICES & LEDGER DATA ──────────────────────
@@ -547,42 +546,6 @@ export default function B2BBillingPage() {
     }
   };
 
-  // ══════════════════════════════════════════════════════════════
-  // ─── CAMERA BARCODE SCANNER EFFECT ───────────────────────────
-  // ══════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (showCameraScanner) {
-      const scanner = new Html5QrcodeScanner('billing-qr-reader', {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-      });
-
-      scanner.render(
-        (decodedText) => {
-          if (cameraScanMode === 'customer') {
-            setCustomerQuery(decodedText);
-            handleLookupCustomer(decodedText);
-          } else {
-            if (activeTab === 'retail') {
-              handleRetailProductLookup(decodedText);
-            } else {
-              handleWholesaleProductLookup(decodedText);
-            }
-          }
-          setShowCameraScanner(false);
-          scanner.clear();
-        },
-        () => {}
-      );
-      scannerRef.current = scanner;
-
-      return () => {
-        try {
-          scanner.clear();
-        } catch (_) {}
-      };
-    }
-  }, [showCameraScanner, cameraScanMode, activeTab]);
 
   return (
     <div className="mesh-gradient min-h-screen text-on-surface font-body-lg pb-24 text-left">
@@ -1708,28 +1671,28 @@ export default function B2BBillingPage() {
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: CAMERA BARCODE SCANNER ────────────────────────── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {showCameraScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-6 max-w-[360px] w-full shadow-2xl text-center space-y-3 relative">
-            <button
-              onClick={() => setShowCameraScanner(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-            <h3 className="font-display font-black text-[16px] text-slate-900">
-              {cameraScanMode === 'customer' ? 'Scan Customer App QR' : 'Scan Product Barcode'}
-            </h3>
-            <p className="text-[12px] text-slate-500">
-              {cameraScanMode === 'customer'
-                ? 'Align the customer’s Zeebac App QR inside the box'
-                : 'Hold product barcode inside the square box to add'}
-            </p>
-            <div id="billing-qr-reader" className="w-full rounded-2xl overflow-hidden" />
-          </div>
-        </div>
-      )}
+      <ProductBarcodeScannerModal
+        isOpen={showCameraScanner}
+        onClose={() => setShowCameraScanner(false)}
+        title={cameraScanMode === 'customer' ? 'Scan Customer App QR' : 'Scan Product Barcode'}
+        subtitle={
+          cameraScanMode === 'customer'
+            ? 'Align the customer’s Zeebac App QR inside the viewfinder'
+            : 'Hold product barcode inside the viewfinder to add'
+        }
+        onScan={(decodedText) => {
+          if (cameraScanMode === 'customer') {
+            setCustomerQuery(decodedText);
+            handleLookupCustomer(decodedText);
+          } else {
+            if (activeTab === 'retail') {
+              handleRetailProductLookup(decodedText);
+            } else {
+              handleWholesaleProductLookup(decodedText);
+            }
+          }
+        }}
+      />
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: THERMAL POS RECEIPT (PRINTABLE & SHAREABLE) ───── */}
