@@ -4,34 +4,45 @@ export default function DeliveryBottomNav() {
   const location = useLocation();
 
   const navItems = [
-    { label: 'Deliveries', icon: 'two_wheeler', path: '/delivery/dashboard' },
-    { label: 'History', icon: 'history', path: '/delivery/history' },
-    { label: 'Earnings', icon: 'payments', path: '/delivery/earnings' },
-    { label: 'Profile', icon: 'person', path: '/delivery/profile' },
+    { label: 'Feed', icon: 'article', path: '/delivery/dashboard' },
+    { label: 'Pocket', icon: 'account_balance_wallet', path: '/delivery/earnings' },
+    { label: 'Gigs', icon: 'event_available', path: '/delivery/gigs' },
+    { label: 'Updates', icon: 'notifications', path: '/delivery/updates' },
   ];
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 flex justify-center px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
-      <div className="glass-nav pointer-events-auto w-full max-w-[440px] rounded-3xl flex justify-around items-center h-16 px-2 bg-white/95 backdrop-blur-md border border-slate-100 shadow-xl">
+    <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <div className="max-w-[480px] mx-auto flex items-center justify-around h-14 px-2 pb-[env(safe-area-inset-bottom)]">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive =
+            location.pathname === item.path ||
+            (item.path === '/delivery/dashboard' && location.pathname === '/delivery');
           return (
             <Link
               key={item.label}
               to={item.path}
-              className={`relative flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 cursor-pointer py-1 px-3 rounded-2xl flex-1 ${
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition-all active:scale-95 cursor-pointer ${
                 isActive
-                  ? 'btn-primary-gradient text-white shadow-md shadow-primary/25 font-bold'
-                  : 'text-slate-500 hover:text-primary hover:bg-purple-50'
+                  ? 'text-slate-950 font-black'
+                  : 'text-slate-400 font-semibold hover:text-slate-700'
               }`}
             >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
-              >
-                {item.icon}
-              </span>
-              <span className="text-[10px] font-bold tracking-tight">{item.label}</span>
+              <div className="relative">
+                <span
+                  className="material-symbols-outlined text-[24px]"
+                  style={{
+                    fontVariationSettings: isActive ? "'FILL' 1, 'wght' 700" : "'FILL' 0, 'wght' 400",
+                  }}
+                >
+                  {item.icon}
+                </span>
+                {item.label === 'Gigs' && (
+                  <span className="absolute -top-1 -right-2 px-1 py-0.2 bg-emerald-600 text-white text-[8px] font-black rounded-full leading-none">
+                    +₹300
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] leading-tight tracking-tight mt-0.5">{item.label}</span>
             </Link>
           );
         })}

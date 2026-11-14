@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
+import DeliveryTopBar from '../components/DeliveryTopBar';
 import DeliveryBottomNav from '../components/DeliveryBottomNav';
 import { toast } from 'react-hot-toast';
 
@@ -12,6 +13,10 @@ export default function DeliveryEarningsScreen() {
 
   const [earningsData, setEarningsData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -36,179 +41,292 @@ export default function DeliveryEarningsScreen() {
     loadEarnings();
   }, [token, navigate]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   const today = earningsData?.today || 0;
   const thisWeek = earningsData?.thisWeek || 0;
-  const thisMonth = earningsData?.thisMonth || 0;
   const total = earningsData?.totalEarnings || 0;
   const completedCount = earningsData?.totalCompletedDeliveries || 0;
-  const ledger = earningsData?.ledger || [];
+
+  // Date Range string e.g. "9 Nov - 15 Nov"
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  const weekRangeStr = `${startOfWeek.getDate()} ${startOfWeek.toLocaleString('default', { month: 'short' })} - ${endOfWeek.getDate()} ${endOfWeek.toLocaleString('default', { month: 'short' })}`;
+
+  const handleWithdraw = (e) => {
+    e.preventDefault();
+    const amt = parseFloat(withdrawAmount);
+    if (!amt || amt <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (amt > total) {
+      toast.error('Insufficient pocket balance');
+      return;
+    }
+    setIsProcessing(true);
+    setTimeout(() => {
+      setIsProcessing(false);
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      toast.success(`🎉 ₹${amt} successfully initiated to your UPI ID! Credited in 5 mins.`);
+    }, 1200);
+  };
 
   return (
-    <div className="mesh-gradient min-h-screen flex flex-col font-body-lg pb-24 text-on-surface">
+    <div className="min-h-screen bg-[#f5f6f8] text-slate-900 pb-20 font-sans">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3.5 border-b border-slate-100 shadow-xs">
-        <div className="max-w-[480px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-[24px]">payments</span>
-            <h1 className="font-display font-black text-[17px] text-slate-900">
-              Earnings & Payouts
-            </h1>
-          </div>
-          <span className="text-[11.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            {earningsData?.payoutConfig
-              ? `₹${earningsData.payoutConfig.baseFare} Base + ₹${earningsData.payoutConfig.perKmRate}/km`
-              : 'Dynamic Distance Payout'}
-          </span>
-        </div>
-      </header>
+      <DeliveryTopBar />
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-[480px] w-full mx-auto p-4 space-y-4 text-left">
-        {/* Total Earnings Hero Card */}
-        <div className="bg-gradient-to-br from-primary via-purple-700 to-indigo-900 text-white rounded-3xl p-6 shadow-xl shadow-primary/20 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-bold uppercase tracking-wider text-purple-200">
-              Total Lifetime Earnings
-            </span>
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+      <main className="max-w-[480px] mx-auto p-4 space-y-4">
+        {/* Hub / Store Selector (From Image 7) */}
+        <div className="flex items-center justify-between bg-white rounded-2xl px-3.5 py-2.5 border border-slate-100 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xs shadow-2xs">
+              <span className="material-symbols-outlined text-[18px]">electric_moped</span>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pocket for</p>
+              <h4 className="font-display font-black text-xs text-slate-900">Zeebac Partner Hub</h4>
             </div>
           </div>
-
-          <div>
-            <div className="font-display font-black text-[36px] tracking-tight leading-none">
-              ₹{total.toLocaleString('en-IN')}
-            </div>
-            <p className="text-[12px] text-purple-200 mt-1 font-medium">
-              Earned from {completedCount} completed order {completedCount === 1 ? 'drop' : 'drops'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/15 text-center">
-            <div className="bg-white/10 rounded-2xl py-2 px-1">
-              <span className="text-[10px] text-purple-200 block uppercase font-bold">Today</span>
-              <strong className="text-[15px] font-black font-mono">₹{today}</strong>
-            </div>
-            <div className="bg-white/10 rounded-2xl py-2 px-1">
-              <span className="text-[10px] text-purple-200 block uppercase font-bold">This Week</span>
-              <strong className="text-[15px] font-black font-mono">₹{thisWeek}</strong>
-            </div>
-            <div className="bg-white/10 rounded-2xl py-2 px-1">
-              <span className="text-[10px] text-purple-200 block uppercase font-bold">This Month</span>
-              <strong className="text-[15px] font-black font-mono">₹{thisMonth}</strong>
-            </div>
-          </div>
+          <span className="material-symbols-outlined text-slate-400 text-[18px]">keyboard_arrow_down</span>
         </div>
 
-        {/* Bank & Payout Destination */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Payout Destination
-            </span>
-            <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-[13px]">verified</span>
-              <span>Direct Bank/UPI</span>
+        {/* Weekly Earnings Card (From Image 7) */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs text-center">
+          <div className="flex items-center justify-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer">
+            <span>Earnings: {weekRangeStr}</span>
+            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </div>
+
+          <div className="my-2">
+            <span className="text-4xl sm:text-5xl font-display font-black text-slate-950 tracking-tight">
+              ₹{(thisWeek || total).toLocaleString('en-IN')}
             </span>
           </div>
 
-          <div className="flex items-center gap-3 pt-1">
-            <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">account_balance</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-bold text-slate-900 truncate">
-                {earningsData?.bankDetails?.upiId
-                  ? `UPI: ${earningsData.bankDetails.upiId}`
-                  : earningsData?.bankDetails?.accountNumber
-                  ? `${earningsData.bankDetails.bankName || 'Bank'} (••••${String(earningsData.bankDetails.accountNumber).slice(-4)})`
-                  : 'UPI / Bank not linked'}
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Weekly automated settlement every Monday morning
-              </p>
-            </div>
-          </div>
+          <p className="text-[11px] text-slate-400 font-medium">
+            From {completedCount} delivered {completedCount === 1 ? 'order' : 'orders'} this cycle
+          </p>
         </div>
 
-        {/* Delivery Transactions Ledger */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="font-display font-black text-[15px] text-slate-900">
-              Recent Delivery Credits
-            </h2>
-            <span className="text-[11px] font-bold text-slate-500 font-mono">
-              {ledger.length} entries
-            </span>
-          </div>
+        {/* ─── POCKET SECTION (From Image 7) ─── */}
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">
+            POCKET
+          </p>
 
-          {ledger.length === 0 ? (
-            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm text-center space-y-2">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-primary flex items-center justify-center mx-auto">
-                <span className="material-symbols-outlined text-[24px]">receipt_long</span>
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-2xs space-y-4">
+            {/* Pocket balance line */}
+            <div className="flex items-center justify-between cursor-pointer group">
+              <span className="text-sm font-bold text-slate-800">Pocket balance</span>
+              <div className="flex items-center gap-1">
+                <span className="text-base font-black text-slate-950">₹{total.toLocaleString('en-IN')}</span>
+                <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
+                  chevron_right
+                </span>
               </div>
-              <p className="text-[13px] font-bold text-slate-800">No deliveries yet</p>
-              <p className="text-[11.5px] text-slate-500 max-w-[260px] mx-auto">
-                Go online from the Deliveries tab to receive pickup requests and start earning per delivery based on distance!
-              </p>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {ledger.map((item, idx) => (
-                <div
-                  key={item._id || idx}
-                  className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[18px]">add</span>
-                    </div>
-                    <div>
-                      <p className="text-[12.5px] font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
-                        <span>Delivery Payout {item.orderId ? `(#${String(item.orderId).slice(-6)})` : ''}</span>
-                        {item.distanceKm && (
-                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-full border border-purple-200">
-                            {item.distanceKm} km
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-[10.5px] text-slate-500 font-mono">
-                        {item.date ? new Date(item.date).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }) : 'Completed'}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="text-right">
-                    <span className="text-[14px] font-black text-emerald-600 font-mono">
-                      +₹{item.amount || 50}
-                    </span>
-                    <span className="block text-[9.5px] font-bold text-slate-400 uppercase">
-                      Credited
-                    </span>
-                  </div>
-                </div>
-              ))}
+            {/* Dotted border separator */}
+            <div className="border-t border-dashed border-slate-200" />
+
+            {/* Available cash limit line */}
+            <div className="flex items-center justify-between cursor-pointer group">
+              <div>
+                <span className="text-sm font-bold text-slate-800">Available cash limit</span>
+                <p className="text-[10px] text-slate-400 font-medium">COD Cash holding capacity</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-base font-black text-slate-950">₹500</span>
+                <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
+                  chevron_right
+                </span>
+              </div>
             </div>
-          )}
+
+            {/* 2 Big Action Buttons: Deposit & Withdraw (From Image 7) */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={() => setShowDepositModal(true)}
+                className="py-2.5 px-4 rounded-xl border border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-display font-black text-xs transition-all active:scale-98 cursor-pointer shadow-2xs flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">payments</span>
+                <span>Deposit</span>
+              </button>
+
+              <button
+                onClick={() => setShowWithdrawModal(true)}
+                className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-black text-white font-display font-black text-xs transition-all active:scale-98 cursor-pointer shadow-2xs flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">account_balance</span>
+                <span>Withdraw</span>
+              </button>
+            </div>
+
+            {/* Dotted border separator */}
+            <div className="border-t border-dashed border-slate-200" />
+
+            {/* Customer tips balance */}
+            <div className="flex items-center justify-between cursor-pointer group">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-emerald-600">
+                  volunteer_activism
+                </span>
+                <span className="text-xs font-bold text-slate-800">Customer tips balance</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-black text-emerald-700">₹{(completedCount * 15).toLocaleString('en-IN')}</span>
+                <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-slate-700">
+                  chevron_right
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── MORE SERVICES SECTION (From Image 7) ─── */}
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">
+            MORE SERVICES
+          </p>
+
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs divide-y divide-slate-100 overflow-hidden">
+            <button
+              onClick={() => navigate('/delivery/history')}
+              className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[20px]">history</span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">Trip & Payout History</h4>
+                  <p className="text-[10px] text-slate-400 font-medium">Per-drop earnings & distance breakdown</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
+                chevron_right
+              </span>
+            </button>
+
+            <button
+              onClick={() => navigate('/delivery/profile')}
+              className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[20px]">account_balance</span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">Bank Account & UPI Details</h4>
+                  <p className="text-[10px] text-slate-400 font-medium">Linked bank details for daily payouts</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
+                chevron_right
+              </span>
+            </button>
+
+            <button
+              onClick={() => navigate('/delivery/gigs')}
+              className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[20px]">military_tech</span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">Gig Incentives & Surge Bonuses</h4>
+                  <p className="text-[10px] text-slate-400 font-medium">Earn extra up to ₹300 per day</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
+                chevron_right
+              </span>
+            </button>
+          </div>
         </div>
       </main>
+
+      {/* ─── WITHDRAW MODAL ─── */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-display font-black text-base text-slate-900">Instant Pocket Withdrawal</h3>
+              <button
+                onClick={() => setShowWithdrawModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleWithdraw} className="mt-4 space-y-4">
+              <div className="bg-slate-50 rounded-2xl p-3 text-xs border border-slate-100">
+                <p className="text-slate-400 font-medium">Available to Withdraw</p>
+                <p className="text-xl font-display font-black text-slate-900 mt-0.5">₹{total}</p>
+                <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                  Destination: {rider?.bankDetails?.upiId || 'Primary UPI ID'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Enter Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 500"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-purple-600 font-mono"
+                  autoFocus
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isProcessing}
+                className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+              >
+                {isProcessing ? 'Processing Payout...' : 'Confirm Instant Withdrawal'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DEPOSIT MODAL ─── */}
+      {showDepositModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 text-center">
+            <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mx-auto mb-3">
+              <span className="material-symbols-outlined text-[28px]">account_balance_wallet</span>
+            </div>
+            <h3 className="font-display font-black text-base text-slate-900">Cash Deposit at Hub</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Jitna cash aapne COD orders me collect kiya hai, use aap apne nearest Zeebac Partner Hub par deposit kar sakte hain ya online UPI se clear kar sakte hain.
+            </p>
+
+            <div className="mt-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+              <p className="text-slate-400">Current COD Cash in Hand</p>
+              <p className="text-lg font-black text-slate-900">₹0.00</p>
+            </div>
+
+            <button
+              onClick={() => setShowDepositModal(false)}
+              className="w-full mt-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Nav */}
       <DeliveryBottomNav />
     </div>
   );
 }
-

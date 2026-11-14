@@ -23,6 +23,8 @@ import DeliveryProfileScreen from './modules/delivery/pages/DeliveryProfileScree
 import DeliveryOnboardingWizard from './modules/delivery/pages/DeliveryOnboardingWizard';
 import DeliveryStatusScreen from './modules/delivery/pages/DeliveryStatusScreen';
 import DeliveryEarningsScreen from './modules/delivery/pages/DeliveryEarningsScreen';
+import DeliveryGigsScreen from './modules/delivery/pages/DeliveryGigsScreen';
+import DeliveryUpdatesScreen from './modules/delivery/pages/DeliveryUpdatesScreen';
 
 // Global State & UI
 import useAuthStore from './store/useAuthStore';
@@ -565,6 +567,9 @@ function App() {
           <Route path="/delivery/status" element={<DeliveryStatusScreen />} />
           <Route path="/delivery/dashboard" element={<DeliveryDashboardScreen />} />
           <Route path="/delivery/earnings" element={<DeliveryEarningsScreen />} />
+          <Route path="/delivery/pocket" element={<DeliveryEarningsScreen />} />
+          <Route path="/delivery/gigs" element={<DeliveryGigsScreen />} />
+          <Route path="/delivery/updates" element={<DeliveryUpdatesScreen />} />
           <Route path="/delivery/history" element={<DeliveryHistoryScreen />} />
           <Route path="/delivery/profile" element={<DeliveryProfileScreen />} />
           <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />

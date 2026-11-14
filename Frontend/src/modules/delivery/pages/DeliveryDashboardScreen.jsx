@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
+import DeliveryTopBar from '../components/DeliveryTopBar';
 import DeliveryBottomNav from '../components/DeliveryBottomNav';
 import { toast } from 'react-hot-toast';
 import { getSocket } from '../../../services/socket';
@@ -52,10 +53,14 @@ export default function DeliveryDashboardScreen() {
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
-  // Ringing Order Alert banner
+  // Ringing Order Alert banner & Fullscreen Order Prompt (Image 1)
   const [ringingOrderAlert, setRingingOrderAlert] = useState(null);
+  const [selectedOfferModal, setSelectedOfferModal] = useState(false);
   const knownOrderIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
+
+  // Rider location coordinates
+  const [riderCoords, setRiderCoords] = useState({ lat: 26.8467, lng: 80.9462 }); // Default Lucknow
 
   // Geolocation watcher ref
   const watchIdRef = useRef(null);
@@ -94,11 +99,7 @@ export default function DeliveryDashboardScreen() {
             const storeName = latest.vendor?.storeName || latest.vendorName || 'Partner Store';
             const payout = latest.deliveryPayout || 50;
             playDeliveryOrderAlarm({ storeName, payout });
-            setRingingOrderAlert({
-              orderId: latest.orderId || latest._id,
-              storeName,
-              payout,
-            });
+            setRingingOrderAlert(latest);
             toast.success(`🔔 New Order Received! +₹${payout} from ${storeName}`, { duration: 6000 });
           }
         }
@@ -118,7 +119,7 @@ export default function DeliveryDashboardScreen() {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 5000); // Poll every 5 seconds for new assignments
+    const interval = setInterval(fetchDashboardData, 5000);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
@@ -133,11 +134,7 @@ export default function DeliveryDashboardScreen() {
         const storeName = data.storeName || data.order?.vendor?.storeName || 'Partner Store';
         const payout = data.payout || data.order?.deliveryPayout || 50;
         playDeliveryOrderAlarm({ storeName, payout });
-        setRingingOrderAlert({
-          orderId: data.orderId || data.order?._id,
-          storeName,
-          payout,
-        });
+        setRingingOrderAlert(data.order || data);
         toast.success(`🔔 New Delivery Order: +₹${payout} from ${storeName}`, { duration: 6000 });
       }
       fetchDashboardData();
@@ -149,26 +146,13 @@ export default function DeliveryDashboardScreen() {
     };
   }, [isOnline, activeOrder, fetchDashboardData]);
 
-  // Test ring function for rider to test sound and audio permissions
-  const handleTestRing = () => {
-    playDeliveryOrderAlarm({
-      storeName: 'Shree Shyama',
-      payout: 60,
-    });
-    setRingingOrderAlert({
-      orderId: 'TEST-1001',
-      storeName: 'Shree Shyama',
-      payout: 60,
-    });
-    toast.success('🔊 Playing test delivery chime & English announcement!');
-  };
-
   // GPS Location Tracking when online
   useEffect(() => {
     if (isOnline && 'geolocation' in navigator) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           const { latitude, longitude, heading, speed } = pos.coords;
+          setRiderCoords({ lat: latitude, lng: longitude });
           DeliveryAPI.updateLocation({
             lat: latitude,
             lng: longitude,
@@ -208,7 +192,7 @@ export default function DeliveryDashboardScreen() {
       const res = await DeliveryAPI.toggleAvailability({ isOnline: nextStatus });
       if (res.success) {
         setOnlineStatus(nextStatus);
-        toast.success(nextStatus ? 'You are now ONLINE & ready to receive orders!' : 'You are now OFFLINE');
+        toast.success(nextStatus ? '🟢 You are now ONLINE & ready to receive orders!' : '⚪ You are now OFFLINE');
         fetchDashboardData();
       }
     } catch (err) {
@@ -224,9 +208,10 @@ export default function DeliveryDashboardScreen() {
     try {
       const res = await DeliveryAPI.acceptOrder(orderId);
       if (res.success) {
-        toast.success('Order accepted! Proceed to pickup store.');
+        toast.success('🎉 Order accepted! Proceed to pickup store.');
         setActiveOrder(res.data.order);
         setAvailableOrders((prev) => prev.filter((o) => o._id !== orderId));
+        setRingingOrderAlert(null);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not accept order');
@@ -245,6 +230,7 @@ export default function DeliveryDashboardScreen() {
         toast.success('Order declined');
         setAvailableOrders((prev) => prev.filter((o) => o._id !== rejectOrderId));
         setRejectOrderId(null);
+        setRingingOrderAlert(null);
       }
     } catch (err) {
       toast.error('Failed to reject order');
@@ -266,7 +252,7 @@ export default function DeliveryDashboardScreen() {
     setPickupProofPreview(objectUrl);
   };
 
-  // Update Stepper Status (supports JSON and multipart FormData)
+  // Update Stepper Status
   const handleUpdateStatus = async (newStatus, extra = {}) => {
     if (!activeOrder) return;
     setActionLoadingId(activeOrder._id);
@@ -321,7 +307,7 @@ export default function DeliveryDashboardScreen() {
       });
 
       if (res.success) {
-        toast.success(`🎉 Delivery Completed! +₹${res.data.earnedAmount || 50} added to your wallet.`);
+        toast.success(`🎉 Delivery Completed! +₹${res.data.earnedAmount || 50} added to your pocket.`);
         setShowOtpModal(false);
         setDeliveryOtpInput('');
         setActiveOrder(null);
@@ -337,579 +323,457 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
-  // Google Maps navigation helper
   const openMaps = (address, label = '') => {
     const query = encodeURIComponent(`${label ? label + ', ' : ''}${address}`);
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
   };
 
   return (
-    <div className="mesh-gradient min-h-screen flex flex-col font-body-lg pb-24 text-on-surface">
-      {/* Top Rider Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3.5 border-b border-slate-100 shadow-xs">
-        <div className="max-w-[480px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black">
-              <span className="material-symbols-outlined text-[24px]">sports_motorsports</span>
+    <div className="min-h-screen bg-[#f5f6f8] text-slate-900 pb-20 font-sans relative">
+      {/* ─── Top Header (From Images 5, 6, 7, 9) ─── */}
+      <DeliveryTopBar
+        onToggleOnline={handleToggleOnline}
+        isTogglingOnline={isTogglingOnline}
+        activeOrder={activeOrder}
+      />
+
+      <main className="max-w-[480px] mx-auto text-left relative">
+        {/* ─── TOP MAP VIEW AREA (From Images 1, 11) ─── */}
+        <div className="relative h-56 sm:h-64 w-full bg-slate-200 overflow-hidden border-b border-slate-100">
+          {/* Simulated Clean Road Map Canvas */}
+          <div className="absolute inset-0 bg-[#e5e9ec] flex items-center justify-center">
+            {/* Map Roads Vector Simulation */}
+            <svg className="w-full h-full opacity-60" viewBox="0 0 500 300" preserveAspectRatio="none">
+              <path d="M-20,120 Q180,60 300,140 T520,100" fill="none" stroke="#ffffff" strokeWidth="24" />
+              <path d="M-20,120 Q180,60 300,140 T520,100" fill="none" stroke="#fbd38d" strokeWidth="12" />
+              <path d="M120,-20 L220,320" fill="none" stroke="#ffffff" strokeWidth="18" />
+              <path d="M380,-20 L300,320" fill="none" stroke="#ffffff" strokeWidth="14" />
+              <path d="M0,240 Q250,220 500,260" fill="none" stroke="#ffffff" strokeWidth="16" />
+            </svg>
+
+            {/* Landmark Badges on Map (From Image 11) */}
+            <div className="absolute top-6 left-6 bg-white/90 backdrop-blur-xs px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 shadow-2xs border border-slate-200 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px] text-blue-600">apartment</span>
+              <span>Awadh Vihar Yojna</span>
             </div>
-            <div className="text-left">
-              <h1 className="font-display font-black text-[15px] text-slate-900 leading-tight">
-                {rider?.name || 'Rider Partner'}
-              </h1>
-              <p className="text-[11px] font-mono text-slate-500 font-bold">
-                {rider?.vehicleType || 'Bike'} • {rider?.riderId}
+
+            <div className="absolute top-16 right-6 bg-white/90 backdrop-blur-xs px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 shadow-2xs border border-slate-200 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px] text-purple-600">store</span>
+              <span>Lulu Mall Lucknow</span>
+            </div>
+
+            {/* Rider Location Pin with Pulsing Ripple */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+              <div className="relative">
+                {isOnline && (
+                  <span className="absolute -inset-4 rounded-full bg-blue-500/30 animate-ping" />
+                )}
+                <div className="w-8 h-8 rounded-full bg-blue-600 border-2 border-white text-white flex items-center justify-center shadow-md">
+                  <span className="material-symbols-outlined text-[18px]">sports_motorsports</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Live GPS Status Pill */}
+            <div className="absolute bottom-3 left-4 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-700 shadow-2xs flex items-center gap-1.5 border border-slate-200">
+              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+              <span>{isOnline ? 'GPS Active • In Lucknow Zone' : 'GPS Idle • Offline'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── SLIDING BOTTOM SHEET CONTAINER (From Images 9, 10, 11) ─── */}
+        <div className="relative -mt-6 bg-[#f5f6f8] rounded-t-3xl pt-2 px-4 pb-6 space-y-3.5 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+          {/* Centered Drag Handle (From Images 9, 10, 11) */}
+          <div className="w-10 h-1.5 rounded-full bg-slate-300 mx-auto my-1" />
+
+          {/* ─── REFER & EARN BANNER (From Images 9, 10, 11) ─── */}
+          <div
+            onClick={() =>
+              toast.success('Referral link copied! Earn up to ₹10,500 for onboarding friend riders.')
+            }
+            className="bg-gradient-to-r from-[#173f7a] to-[#0f2a52] text-white rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer group active:scale-[0.99] transition-all"
+          >
+            <div>
+              <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider">
+                REFER & EARN
+              </span>
+              <h3 className="font-display font-black text-base sm:text-lg text-white mt-1 leading-tight">
+                Earn upto ₹10,500 Bonus
+              </h3>
+              <p className="text-xs text-blue-200 font-bold mt-0.5 flex items-center gap-1 group-hover:text-amber-300 transition-colors">
+                <span>Refer now</span>
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               </p>
             </div>
+            <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+              <span className="material-symbols-outlined text-[32px] text-amber-300">payments</span>
+            </div>
           </div>
 
-          {/* Online/Offline Toggle Button */}
-          <button
-            onClick={handleToggleOnline}
-            disabled={isTogglingOnline}
-            className={`px-3.5 py-1.5 rounded-full font-bold text-[12px] flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
-              isOnline
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'bg-slate-100 text-slate-600 border border-slate-200'
-            }`}
-          >
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}
-            />
-            <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Body */}
-      <main className="flex-1 max-w-[480px] w-full mx-auto p-4 space-y-4 text-left">
-        {/* Ringing New Order Banner */}
-        {ringingOrderAlert && (
-          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white p-4 rounded-3xl shadow-xl flex items-center justify-between border-2 border-white/40 animate-pulse">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[24px] text-white">notifications_active</span>
+          {/* ─── CARD 1: GIG DETAILS (From Images 9, 10) ─── */}
+          <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
+            {/* Black Header with 'g' icon */}
+            <div className="bg-black text-white px-4 py-2.5 flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-white text-black flex items-center justify-center font-black text-xs">
+                g
               </div>
-              <div className="min-w-0">
-                <h3 className="font-display font-black text-[14px] leading-tight flex items-center gap-1.5">
-                  <span>New Delivery Order Received!</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-white/30 text-[10.5px] font-mono">
-                    +₹{ringingOrderAlert.payout}
-                  </span>
-                </h3>
-                <p className="text-[11.5px] text-white/90 truncate">
-                  {ringingOrderAlert.storeName}
+              <span className="font-display font-black text-sm tracking-tight">Gig details</span>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div>
+                <h4 className="font-display font-black text-base text-slate-900">
+                  Free Gig for you, 1pm - 3pm 🎉
+                </h4>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Special Gig - you can go online even now
                 </p>
+                <button
+                  onClick={() => navigate('/delivery/gigs')}
+                  className="text-xs font-bold text-slate-900 hover:text-purple-700 flex items-center gap-0.5 mt-1 cursor-pointer"
+                >
+                  <span>Know more</span>
+                  <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                </button>
               </div>
-            </div>
-            <button
-              onClick={() => setRingingOrderAlert(null)}
-              className="px-3 py-1.5 rounded-xl bg-white text-slate-900 font-bold text-[11.5px] hover:bg-slate-100 cursor-pointer shadow-sm shrink-0 ml-2"
-            >
-              Mute
-            </button>
-          </div>
-        )}
 
-        {/* Offline Warning Banner */}
-        {!isOnline && (
-          <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[22px]">power_settings_new</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-[13px] text-amber-900">You are currently Offline</h3>
-              <p className="text-[11.5px] text-amber-700">Toggle to Online to receive nearby delivery assignments.</p>
-            </div>
-            <button
-              onClick={handleToggleOnline}
-              disabled={isTogglingOnline}
-              className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-bold text-[11.5px] shadow-sm hover:bg-amber-700 cursor-pointer shrink-0"
-            >
-              Go Online
-            </button>
-          </div>
-        )}
-
-        {/* 1. ACTIVE ORDER CARD (ZOMATO-STYLE LIFECYCLE STEPPER) */}
-        {activeOrder && (
-          <div className="bg-white rounded-3xl border-2 border-primary/30 p-5 shadow-xl space-y-4">
-            {/* Header Badge */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                <span className="font-bold text-[12px] text-primary uppercase tracking-wider">
-                  Active Delivery In Progress
+              {/* Big Black Button (Image 9) */}
+              <button
+                onClick={handleToggleOnline}
+                disabled={isTogglingOnline}
+                className={`w-full py-3 rounded-2xl font-display font-black text-sm shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
+                  isOnline
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : 'bg-black hover:bg-slate-900 text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {isOnline ? 'check_circle' : 'bolt'}
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {activeOrder.createdAt && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[12px]">schedule</span>
-                    <span>{formatOrderTime(activeOrder.createdAt)}</span>
+                <span>{isOnline ? 'You are Online • Ready for Orders' : 'Book and go online now'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ─── CARD 2: TODAY'S PROGRESS (From Images 9, 10) ─── */}
+          <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
+            {/* Black Header with Calendar Icon */}
+            <div className="bg-black text-white px-4 py-2.5 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+              <span className="font-display font-black text-sm tracking-tight">Today's progress</span>
+            </div>
+
+            <div className="p-4 grid grid-cols-2 gap-4 divide-x divide-slate-100">
+              {/* Left Column */}
+              <div className="space-y-4">
+                <div
+                  onClick={() => navigate('/delivery/earnings')}
+                  className="cursor-pointer group"
+                >
+                  <span className="text-2xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
+                    ₹0
                   </span>
-                )}
-                <span className="font-mono text-[11.5px] font-bold text-slate-500">
+                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                    <span>Earnings</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-xl font-display font-black text-slate-950 block">
+                    {isOnline ? '01:24 hrs' : '00:00 hrs'}
+                  </span>
+                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                    <span>Sessions</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="pl-4 space-y-4">
+                <div
+                  onClick={() => navigate('/delivery/history')}
+                  className="cursor-pointer group"
+                >
+                  <span className="text-2xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
+                    0.0 km
+                  </span>
+                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                    <span>Trips</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => navigate('/delivery/gigs')}
+                  className="cursor-pointer group"
+                >
+                  <span className="text-xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
+                    0 Gigs
+                  </span>
+                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                    <span>History</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── CARD 3: ALL OFFERS (From Image 8) ─── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="font-display font-black text-sm text-slate-900">All offers</h3>
+              <button
+                onClick={() => setSelectedOfferModal(true)}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>See All</span>
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
+              {/* Black Offer Header */}
+              <div className="bg-black text-white px-4 py-3 flex items-center justify-between">
+                <div>
+                  <h4 className="font-display font-black text-xs sm:text-sm tracking-tight text-white">
+                    JOINING_OFFER_FULLDAY
+                  </h4>
+                  <p className="text-[10px] text-slate-300 font-medium mt-0.5 flex items-center gap-1">
+                    <span>Today • 4am - 4am</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-emerald-400 font-bold">Live</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-base sm:text-lg font-black text-white block">₹300</span>
+                  <span className="text-[10px] text-slate-300 uppercase font-bold">Extra</span>
+                </div>
+              </div>
+
+              {/* Incentive Slabs Grid (Image 8 Exact Match) */}
+              <div className="p-4 space-y-3">
+                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500">Incentive</span>
+                  <div className="flex items-center gap-6 font-mono text-slate-900">
+                    <span>₹40</span>
+                    <span>₹70</span>
+                    <span>₹115</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs px-2 text-slate-600 font-medium">
+                  <span>Gigs</span>
+                  <div className="flex items-center gap-8">
+                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>2</span>
+                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>2</span>
+                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>3</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100" />
+
+                <div className="flex items-center justify-between text-xs px-2 text-slate-600 font-medium">
+                  <span>Orders</span>
+                  <div className="flex items-center gap-7">
+                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>10</span>
+                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>15</span>
+                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>20</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedOfferModal(true)}
+                  className="w-full mt-2 py-2.5 rounded-xl border border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-display font-black text-xs transition-all cursor-pointer shadow-2xs"
+                >
+                  View details
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── ACTIVE ORDER LIFECYCLE CARD (If delivering) ─── */}
+          {activeOrder && (
+            <div className="bg-white rounded-3xl border-2 border-emerald-500 p-4 sm:p-5 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="font-black text-xs text-emerald-800 uppercase tracking-wider">
+                    Active Delivery In Progress
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-bold text-slate-500">
                   #{String(activeOrder.orderId || activeOrder._id).slice(-6)}
                 </span>
               </div>
-            </div>
 
-            {/* Zomato-style Stepper indicator */}
-            <div className="py-1">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1.5">
-                <span className={activeOrder.orderStatus === 'RIDER_ASSIGNED' ? 'text-primary font-black' : activeOrder.orderStatus !== 'PENDING' ? 'text-emerald-600' : ''}>
-                  1. Assigned
-                </span>
-                <span className={activeOrder.orderStatus === 'ARRIVED_AT_PICKUP' ? 'text-primary font-black' : ['PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(activeOrder.orderStatus) ? 'text-emerald-600' : ''}>
-                  2. At Store
-                </span>
-                <span className={['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(activeOrder.orderStatus) ? 'text-primary font-black' : ['ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(activeOrder.orderStatus) ? 'text-emerald-600' : ''}>
-                  3. In Transit
-                </span>
-                <span className={activeOrder.orderStatus === 'ARRIVED_AT_CUSTOMER' ? 'text-primary font-black' : activeOrder.orderStatus === 'DELIVERED' ? 'text-emerald-600' : ''}>
-                  4. Drop-off
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
-                <div
-                  className="bg-primary h-full transition-all duration-300"
-                  style={{
-                    width:
-                      activeOrder.orderStatus === 'ARRIVED_AT_CUSTOMER'
-                        ? '100%'
-                        : ['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(activeOrder.orderStatus)
-                        ? '75%'
-                        : activeOrder.orderStatus === 'ARRIVED_AT_PICKUP'
-                        ? '50%'
-                        : '25%',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Store Pickup Section */}
-            <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-100 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10.5px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">storefront</span>
-                    <span>Pickup Store</span>
-                  </span>
-                  {activeOrder.pickupDistanceKm && (
-                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-purple-100 text-purple-800">
-                      {activeOrder.pickupDistanceKm} km away
-                    </span>
-                  )}
+              {/* Store & Customer Info */}
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase text-purple-700">Pickup Store</span>
+                    <button
+                      onClick={() => openMaps(formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress), activeOrder.vendor?.storeName || activeOrder.vendorName)}
+                      className="font-bold text-purple-700 hover:underline flex items-center gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">navigation</span>
+                      <span>Navigate</span>
+                    </button>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    {activeOrder.vendor?.storeName || activeOrder.vendorName || 'Partner Store'}
+                  </h4>
+                  <p className="text-slate-600 text-[11px] mt-0.5">
+                    {formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress)}
+                  </p>
                 </div>
-                <button
-                  onClick={() => openMaps(formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress), activeOrder.vendor?.storeName || activeOrder.vendorName)}
-                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5"
-                >
-                  <span className="material-symbols-outlined text-[14px]">navigation</span>
-                  <span>Navigate Store</span>
-                </button>
-              </div>
 
-              <div>
-                <h4 className="font-bold text-[14px] text-slate-900">
-                  {activeOrder.vendor?.storeName || activeOrder.vendorName || 'Partner Store'}
-                </h4>
-                <p className="text-[11.5px] text-slate-600 line-clamp-2">
-                  {formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress)}
-                </p>
-                {activeOrder.vendor?.phone && (
-                  <a
-                    href={`tel:${activeOrder.vendor.phone}`}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary mt-1"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">call</span>
-                    <span>Call Store (+91 {activeOrder.vendor.phone})</span>
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Customer Drop-off Section */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">person_pin_circle</span>
-                  <span>Customer Drop-off</span>
-                </span>
-                <button
-                  onClick={() => openMaps(formatAddress(activeOrder.deliveryAddress))}
-                  className="text-[11px] font-bold text-slate-700 hover:text-primary flex items-center gap-0.5"
-                >
-                  <span className="material-symbols-outlined text-[14px]">navigation</span>
-                  <span>Navigate Drop</span>
-                </button>
-              </div>
-
-              <div>
-                <h4 className="font-bold text-[13.5px] text-slate-900">
-                  {activeOrder.deliveryAddress?.receiverName || activeOrder.user?.name || 'Customer'}
-                </h4>
-                <p className="text-[11.5px] text-slate-600 line-clamp-2">
-                  {formatAddress(activeOrder.deliveryAddress)}
-                </p>
-                {(activeOrder.deliveryAddress?.phone || activeOrder.user?.phone) && (
-                  <a
-                    href={`tel:${activeOrder.deliveryAddress?.phone || activeOrder.user?.phone}`}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 mt-1"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">call</span>
-                    <span>Call Customer</span>
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Items Summary */}
-            <div className="flex items-center justify-between px-1 text-[12px]">
-              <span className="text-slate-500 font-medium">
-                {activeOrder.items?.length || 1} items • ₹{activeOrder.finalAmount || activeOrder.totalAmount}
-              </span>
-              <span className="font-bold text-emerald-600 font-mono flex items-center gap-1">
-                <span>Payout: +₹{activeOrder.deliveryPayout || 50}</span>
-                {activeOrder.deliveryDistanceKm && (
-                  <span className="text-[10.5px] font-medium text-emerald-700/70">
-                    ({activeOrder.deliveryDistanceKm} km)
-                  </span>
-                )}
-              </span>
-            </div>
-
-            {/* Stepper Action Buttons */}
-            <div className="pt-2">
-              {/* State 1: RIDER_ASSIGNED -> Arrived at store */}
-              {activeOrder.orderStatus === 'RIDER_ASSIGNED' && (
-                <button
-                  onClick={() => handleUpdateStatus('ARRIVED_AT_PICKUP')}
-                  disabled={actionLoadingId === activeOrder._id}
-                  className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg shadow-primary/25 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">location_on</span>
-                  <span>Arrived at Pickup Store</span>
-                </button>
-              )}
-
-              {/* State 2: ARRIVED_AT_PICKUP -> Mandatory Bill / Order Photo Proof */}
-              {activeOrder.orderStatus === 'ARRIVED_AT_PICKUP' && (
-                <div className="space-y-3.5 bg-gradient-to-b from-amber-500/[0.08] via-amber-500/[0.03] to-transparent border border-amber-300 rounded-2xl p-3.5 text-left">
-                  <div className="flex items-center justify-between border-b border-amber-200/70 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-amber-600 text-[20px]">verified</span>
-                      <h4 className="font-display font-black text-[13.5px] text-slate-900">
-                        Store Pickup Verification Required
-                      </h4>
-                    </div>
-                    <span className="text-[10px] font-extrabold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
-                      Mandatory
-                    </span>
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Customer Drop</span>
+                    <button
+                      onClick={() => openMaps(formatAddress(activeOrder.deliveryAddress))}
+                      className="font-bold text-slate-700 hover:underline flex items-center gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">navigation</span>
+                      <span>Navigate</span>
+                    </button>
                   </div>
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    {activeOrder.deliveryAddress?.receiverName || activeOrder.user?.name || 'Customer'}
+                  </h4>
+                  <p className="text-slate-600 text-[11px] mt-0.5">
+                    {formatAddress(activeOrder.deliveryAddress)}
+                  </p>
+                </div>
+              </div>
 
-                  {/* Verification Checklist */}
-                  <div className="space-y-1 text-[11.5px] text-slate-700 bg-white/70 p-2.5 rounded-xl border border-amber-200/60">
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-emerald-600 text-[15px]">check_circle</span>
-                      <span>Order ID: <strong>#{activeOrder.orderId}</strong> bill se match karein</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-emerald-600 text-[15px]">check_circle</span>
-                      <span><strong>{activeOrder.items?.length || 0} products</strong> packed & sealed hain</span>
-                    </div>
-                  </div>
+              {/* Stepper Buttons */}
+              <div>
+                {activeOrder.orderStatus === 'RIDER_ASSIGNED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('ARRIVED_AT_PICKUP')}
+                    disabled={actionLoadingId === activeOrder._id}
+                    className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  >
+                    Arrived at Pickup Store
+                  </button>
+                )}
 
-                  {/* Photo Capture / Preview Box */}
-                  {!pickupProofPreview ? (
-                    <div className="bg-white rounded-xl border-2 border-dashed border-amber-300 p-4 text-center space-y-2.5">
-                      <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
-                        <span className="material-symbols-outlined text-[26px]">photo_camera</span>
-                      </div>
-                      <div>
-                        <p className="text-[13px] font-bold text-slate-800">
-                          Click Store Invoice Bill or Packed Bag
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Order pick up karne ke liye invoice bill ya packed parcel ki photo zaroori hai
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-center gap-2 pt-1">
+                {activeOrder.orderStatus === 'ARRIVED_AT_PICKUP' && (
+                  <div className="space-y-3 bg-amber-50 p-3.5 rounded-2xl border border-amber-200">
+                    <p className="font-black text-xs text-amber-900">
+                      Store Invoice Bill / Parcel Photo Required
+                    </p>
+                    {!pickupProofPreview ? (
+                      <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={() => cameraInputRef.current?.click()}
-                          className="flex-1 py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                          className="flex-1 py-2 px-3 rounded-xl bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[17px]">photo_camera</span>
+                          <span className="material-symbols-outlined text-[16px]">photo_camera</span>
                           <span>Take Photo</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => galleryInputRef.current?.click()}
-                          className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer border border-slate-200"
+                          className="flex-1 py-2 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[17px]">upload_file</span>
+                          <span className="material-symbols-outlined text-[16px]">upload_file</span>
                           <span>Gallery</span>
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="bg-white rounded-xl border border-emerald-300 p-3 space-y-2.5 shadow-xs">
-                      <div className="relative rounded-xl overflow-hidden border border-slate-200 max-h-52 bg-slate-900 flex items-center justify-center">
-                        <img
-                          src={pickupProofPreview}
-                          alt="Pickup Invoice Proof"
-                          className="max-h-52 w-auto object-contain"
-                        />
-                        <div className="absolute top-2 left-2 bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 backdrop-blur-xs">
-                          <span className="material-symbols-outlined text-[12px]">done</span>
-                          <span>Proof Attached</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-600 pt-0.5">
-                        <span className="truncate max-w-[200px] font-medium text-slate-700">
-                          {pickupProofFile?.name || 'Invoice Proof Photo'}
-                        </span>
+                    ) : (
+                      <div className="relative rounded-xl overflow-hidden max-h-40 bg-black flex items-center justify-center">
+                        <img src={pickupProofPreview} alt="Proof" className="max-h-40 object-contain" />
                         <button
                           type="button"
                           onClick={() => {
                             setPickupProofFile(null);
                             setPickupProofPreview(null);
                           }}
-                          className="text-rose-600 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                          className="absolute top-2 right-2 px-2 py-0.5 bg-black/70 text-white text-[10px] rounded-md font-bold"
                         >
-                          <span className="material-symbols-outlined text-[13px]">replay</span>
-                          <span>Retake Photo</span>
+                          Retake
                         </button>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Hidden file inputs */}
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={handlePickupPhotoSelect}
-                  />
-                  <input
-                    ref={galleryInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePickupPhotoSelect}
-                  />
+                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePickupPhotoSelect} />
+                    <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handlePickupPhotoSelect} />
 
-                  {/* Confirm Pickup Button */}
-                  <button
-                    onClick={handleConfirmPickupWithProof}
-                    disabled={!pickupProofFile || actionLoadingId === activeOrder._id}
-                    className={`w-full py-3.5 rounded-2xl font-bold text-[14px] shadow-lg flex items-center justify-center gap-2 transition-all ${
-                      pickupProofFile && actionLoadingId !== activeOrder._id
-                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/25 active:scale-95 cursor-pointer'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[19px]">
-                      {actionLoadingId === activeOrder._id ? 'sync' : 'inventory_2'}
-                    </span>
-                    <span>
-                      {actionLoadingId === activeOrder._id
-                        ? 'Verifying & Confirming Pickup...'
-                        : pickupProofFile
-                        ? 'Verify & Confirm Order Picked Up'
-                        : 'Upload Bill Photo to Confirm Pickup'}
-                    </span>
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={handleConfirmPickupWithProof}
+                      disabled={!pickupProofFile || actionLoadingId === activeOrder._id}
+                      className={`w-full py-2.5 rounded-xl font-bold text-xs ${
+                        pickupProofFile ? 'bg-amber-600 text-white cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      Confirm Order Picked Up
+                    </button>
+                  </div>
+                )}
 
-              {/* State 3: PICKED_UP / OUT_FOR_DELIVERY -> Arrived at customer */}
-              {['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(activeOrder.orderStatus) && (
-                <div className="space-y-2">
-                  {activeOrder.riderDetails?.pickupProofImage && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-emerald-900">
-                      <div className="flex items-center gap-1.5 font-bold">
-                        <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
-                        <span>Pickup Proof Uploaded & Verified</span>
-                      </div>
-                      <a
-                        href={activeOrder.riderDetails.pickupProofImage}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10.5px] text-emerald-700 font-extrabold underline flex items-center gap-0.5"
-                      >
-                        <span>View</span>
-                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-                      </a>
-                    </div>
-                  )}
-
+                {['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(activeOrder.orderStatus) && (
                   <button
                     onClick={() => handleUpdateStatus('ARRIVED_AT_CUSTOMER')}
                     disabled={actionLoadingId === activeOrder._id}
-                    className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] shadow-lg shadow-primary/25 cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[18px]">near_me</span>
-                    <span>Arrived at Customer Location</span>
+                    Arrived at Customer Location
                   </button>
-                </div>
-              )}
+                )}
 
-              {/* State 4: ARRIVED_AT_CUSTOMER -> Enter OTP & Complete */}
-              {activeOrder.orderStatus === 'ARRIVED_AT_CUSTOMER' && (
-                <button
-                  onClick={() => setShowOtpModal(true)}
-                  className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[14.5px] shadow-lg shadow-emerald-600/30 cursor-pointer flex items-center justify-center gap-2 animate-pulse"
-                >
-                  <span className="material-symbols-outlined text-[20px]">pin</span>
-                  <span>Enter OTP & Complete Delivery</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 2. AVAILABLE DELIVERY REQUESTS FEED */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="font-display font-black text-[16px] text-slate-900 flex items-center gap-1.5">
-              <span>Delivery Requests</span>
-              {availableOrders.length > 0 && (
-                <span className="w-5 h-5 rounded-full bg-primary text-white text-[11px] font-mono flex items-center justify-center font-bold">
-                  {availableOrders.length}
-                </span>
-              )}
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleTestRing}
-                title="Test order ringtone sound & audio"
-                className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full cursor-pointer flex items-center gap-1 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[13px]">volume_up</span>
-                <span>Test Ring</span>
-              </button>
-              <button
-                onClick={fetchDashboardData}
-                className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-0.5"
-              >
-                <span className="material-symbols-outlined text-[14px]">refresh</span>
-                <span>Refresh</span>
-              </button>
-            </div>
-          </div>
-
-          {availableOrders.length === 0 ? (
-            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm text-center space-y-3">
-              <div className="w-14 h-14 rounded-2xl bg-purple-50 text-primary flex items-center justify-center mx-auto">
-                <span className="material-symbols-outlined text-[28px]">search_hands</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-[14px] text-slate-800">
-                  {activeOrder ? 'Focus on your active delivery' : isOnline ? 'Waiting for nearby orders...' : 'You are currently offline'}
-                </h3>
-                <p className="text-[12px] text-slate-500 max-w-[280px] mx-auto">
-                  {activeOrder
-                    ? 'Complete your current delivery to receive new assignment requests.'
-                    : isOnline
-                    ? 'New customer orders in your area will appear here automatically with pickup distances.'
-                    : 'Turn your status ONLINE above to start receiving order assignment alerts.'}
-                </p>
+                {activeOrder.orderStatus === 'ARRIVED_AT_CUSTOMER' && (
+                  <button
+                    onClick={() => setShowOtpModal(true)}
+                    className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-lg cursor-pointer animate-pulse"
+                  >
+                    Enter Customer OTP & Complete
+                  </button>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="space-y-3">
+          )}
+
+          {/* ─── AVAILABLE DELIVERY REQUESTS (If any) ─── */}
+          {availableOrders.length > 0 && !activeOrder && (
+            <div className="space-y-2.5 pt-2">
+              <h3 className="font-display font-black text-sm text-slate-900 px-1">
+                Nearby Orders Available ({availableOrders.length})
+              </h3>
               {availableOrders.map((ord) => (
                 <div
                   key={ord._id}
-                  className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-md space-y-3"
+                  onClick={() => setRingingOrderAlert(ord)}
+                  className="bg-white rounded-3xl p-4 border border-slate-100 shadow-2xs hover:border-emerald-300 transition-all cursor-pointer flex items-center justify-between"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-[11px] font-bold text-slate-400">
-                        Order #{String(ord.orderId || ord._id).slice(-6)}
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                        +₹{ord.deliveryPayout || 60}
                       </span>
-                      {ord.createdAt && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-0.5">
-                          <span className="material-symbols-outlined text-[12px]">schedule</span>
-                          <span>{formatOrderTime(ord.createdAt)}</span>
-                        </span>
-                      )}
-                      {ord.pickupDistanceKm && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-primary border border-purple-200 flex items-center gap-0.5">
-                          <span className="material-symbols-outlined text-[12px]">near_me</span>
-                          <span>{ord.pickupDistanceKm} km away</span>
-                        </span>
-                      )}
-                      {ord.isWithin5km && ord.pickupDistanceKm && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          Within 5km
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-mono font-bold text-[12px] border border-emerald-200 block">
-                        +₹{ord.deliveryPayout || 50} Payout
+                      <span className="text-xs font-black text-slate-900">
+                        {ord.vendor?.storeName || ord.vendorName || 'Store Order'}
                       </span>
-                      {ord.deliveryDistanceKm && (
-                        <span className="text-[9.5px] text-slate-400 font-medium block mt-0.5">
-                          {ord.deliveryDistanceKm} km drop
-                        </span>
-                      )}
                     </div>
-                  </div>
-
-                  {/* Store pickup */}
-                  <div className="text-left space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700">
-                      Pickup From
-                    </span>
-                    <h4 className="font-bold text-[14px] text-slate-900 leading-tight">
-                      {ord.vendor?.storeName || ord.vendorName || 'Partner Store'}
-                    </h4>
-                    <p className="text-[11.5px] text-slate-500 line-clamp-1">
-                      {formatAddress(ord.vendor?.address || ord.vendorAddress)}
+                    <p className="text-[11px] text-slate-400 font-medium mt-1">
+                      {ord.pickupDistanceKm ? `${ord.pickupDistanceKm} km pickup` : 'Ready for pickup'} • Drop in Lucknow
                     </p>
                   </div>
-
-                  {/* Drop area */}
-                  <div className="text-left space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Deliver To
-                    </span>
-                    <p className="text-[12px] text-slate-800 font-medium line-clamp-1">
-                      {formatAddress(ord.deliveryAddress)}
-                    </p>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      onClick={() => setRejectOrderId(ord._id)}
-                      className="py-2.5 px-3 rounded-2xl bg-slate-100 text-slate-600 font-bold text-[12.5px] hover:bg-slate-200 transition-colors cursor-pointer"
-                    >
-                      Decline
-                    </button>
-                    <button
-                      onClick={() => handleAcceptOrder(ord._id)}
-                      disabled={actionLoadingId === ord._id}
-                      className="py-2.5 px-3 rounded-2xl btn-primary-gradient text-white font-bold text-[12.5px] shadow-md shadow-primary/25 cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      {actionLoadingId === ord._id ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined text-[16px]">check</span>
-                          <span>Accept & Deliver</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAcceptOrder(ord._id);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-all cursor-pointer shadow-2xs"
+                  >
+                    Accept
+                  </button>
                 </div>
               ))}
             </div>
@@ -917,31 +781,110 @@ export default function DeliveryDashboardScreen() {
         </div>
       </main>
 
-      {/* 4-DIGIT DELIVERY OTP MODAL */}
-      {showOtpModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-[380px] w-full p-6 border border-slate-100 shadow-2xl space-y-5 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-              <span className="material-symbols-outlined text-[36px]">verified</span>
+      {/* ─── FULLSCREEN INCOMING ORDER PROMPT (From Image 1) ─── */}
+      {ringingOrderAlert && !activeOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom duration-200">
+            {/* Top Deny Button (From Image 1) */}
+            <div className="flex items-center justify-between pb-2">
+              <span className="px-3 py-1 rounded-full border-2 border-emerald-500 bg-emerald-50 text-emerald-800 text-xs font-black">
+                New order
+              </span>
+              <button
+                onClick={() => setRingingOrderAlert(null)}
+                className="px-3 py-1 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-black flex items-center gap-1 cursor-pointer"
+              >
+                <span>✕</span>
+                <span>Deny</span>
+              </button>
             </div>
 
-            <div className="space-y-1">
-              <h3 className="font-display font-black text-[19px] text-slate-900">
-                Customer Delivery OTP
-              </h3>
-              <p className="text-[12px] text-slate-500 max-w-[280px] mx-auto">
-                Ask the customer for the 4-digit secret delivery code displayed on their screen.
+            {/* Estimated Earnings & Distance (From Image 1) */}
+            <div className="my-3 text-center sm:text-left">
+              <p className="text-xs text-slate-500 font-bold">Estimated earnings</p>
+              <h2 className="text-3xl sm:text-4xl font-display font-black text-slate-950 tracking-tight mt-0.5">
+                ₹{ringingOrderAlert.deliveryPayout || ringingOrderAlert.payout || '79.14'}
+              </h2>
+              <p className="text-xs text-slate-600 font-bold mt-1">
+                Pickup: {ringingOrderAlert.pickupDistanceKm || '2.55'} kms | Drop: {ringingOrderAlert.deliveryDistanceKm || '9.34'} kms
               </p>
             </div>
 
-            <form onSubmit={handleCompleteDelivery} className="space-y-4">
+            {/* Store Pickup Section (From Image 1) */}
+            <div className="space-y-3 my-4">
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="px-2 py-0.5 rounded bg-slate-700 text-white text-[10px] font-black uppercase">
+                    Pick up
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-bold">
+                    ⏱ 5 mins away
+                  </span>
+                </div>
+                <h4 className="font-display font-black text-sm text-slate-950">
+                  {ringingOrderAlert.vendor?.storeName || ringingOrderAlert.storeName || 'Time And Tales'}
+                </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {formatAddress(ringingOrderAlert.vendor?.address || ringingOrderAlert.vendorAddress) ||
+                    '114, Idgah Hills, Near St. Joseph School, Kohefiza, Bhopal'}
+                </p>
+              </div>
+
+              {/* Customer Drop Section */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                <span className="px-2 py-0.5 rounded bg-emerald-700 text-white text-[10px] font-black uppercase">
+                  Customer Drop
+                </span>
+                <h4 className="font-display font-black text-sm text-slate-950 mt-1">
+                  {ringingOrderAlert.deliveryAddress?.receiverName || ringingOrderAlert.user?.name || 'Customer'}
+                </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {formatAddress(ringingOrderAlert.deliveryAddress) || 'Customer Home Delivery, Gomti Nagar, Lucknow'}
+                </p>
+              </div>
+            </div>
+
+            {/* Accept Order Button Slider (From Image 1) */}
+            <button
+              onClick={() => handleAcceptOrder(ringingOrderAlert._id || ringingOrderAlert.orderId)}
+              disabled={actionLoadingId === (ringingOrderAlert._id || ringingOrderAlert.orderId)}
+              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-base shadow-lg shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+            >
+              <div className="w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </div>
+              <span>
+                {actionLoadingId === (ringingOrderAlert._id || ringingOrderAlert.orderId)
+                  ? 'Accepting Order...'
+                  : 'Accept order'}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── OTP VERIFICATION MODAL ─── */}
+      {showOtpModal && activeOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+              <span className="material-symbols-outlined text-[32px]">pin</span>
+            </div>
+            <h3 className="font-display font-black text-lg text-slate-900">
+              Customer Delivery OTP
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Ask the customer for the 4-digit secret delivery code to confirm drop-off.
+            </p>
+
+            <form onSubmit={handleCompleteDelivery} className="mt-4 space-y-4">
               <input
                 type="text"
-                maxLength={4}
+                maxLength={6}
                 value={deliveryOtpInput}
-                onChange={(e) => setDeliveryOtpInput(e.target.value.replace(/\D/g, ''))}
-                placeholder="••••"
-                className="w-full py-3.5 text-center text-[26px] tracking-[1em] font-black rounded-2xl bg-slate-50 border-2 border-emerald-500/40 focus:border-emerald-500 outline-none font-mono"
+                onChange={(e) => setDeliveryOtpInput(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="• • • •"
+                className="w-48 mx-auto text-center font-mono text-2xl tracking-[0.5em] py-2.5 rounded-2xl border-2 border-emerald-500 outline-none font-black"
                 autoFocus
               />
 
@@ -949,20 +892,16 @@ export default function DeliveryDashboardScreen() {
                 <button
                   type="button"
                   onClick={() => setShowOtpModal(false)}
-                  className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold text-[13px] hover:bg-slate-200"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isVerifyingOtp || deliveryOtpInput.length < 4}
-                  className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[13px] shadow-md shadow-emerald-600/25 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  disabled={isVerifyingOtp || !deliveryOtpInput.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md"
                 >
-                  {isVerifyingOtp ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span>Verify & Drop</span>
-                  )}
+                  {isVerifyingOtp ? 'Verifying...' : 'Verify & Drop'}
                 </button>
               </div>
             </form>
@@ -970,54 +909,32 @@ export default function DeliveryDashboardScreen() {
         </div>
       )}
 
-      {/* DECLINE ORDER MODAL */}
-      {rejectOrderId && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-[360px] w-full p-5 border border-slate-100 shadow-2xl space-y-4 text-left">
-            <h3 className="font-display font-black text-[16px] text-slate-900">
-              Decline Order Assignment
-            </h3>
-            <p className="text-[12px] text-slate-500">
-              Please choose a reason for declining this request:
-            </p>
-
-            <div className="space-y-2">
-              {[
-                'Too far from pickup',
-                'Heavy traffic / Bad route',
-                'Vehicle issue / Low battery',
-                'Store closed or inaccessible',
-              ].map((r) => (
-                <label key={r} className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 cursor-pointer text-[12px]">
-                  <input
-                    type="radio"
-                    name="rejectReason"
-                    value={r}
-                    checked={rejectReason === r}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    className="text-primary"
-                  />
-                  <span className="font-medium text-slate-800">{r}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="flex gap-2 pt-2">
+      {/* ─── ALL OFFERS MODAL (From Image 8) ─── */}
+      {selectedOfferModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-display font-black text-base text-slate-900">Joining Offer Details</h3>
               <button
-                type="button"
-                onClick={() => setRejectOrderId(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs"
+                onClick={() => setSelectedOfferModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRejectOrder}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md shadow-red-600/20 cursor-pointer"
-              >
-                Confirm Decline
+                <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
+            <div className="mt-4 space-y-2 text-xs text-slate-600">
+              <p>• Slabs unlock automatically upon completing minimum gig hours and drop counts.</p>
+              <p>• Tier 1: 10 orders = ₹40 Extra</p>
+              <p>• Tier 2: 15 orders = ₹70 Extra</p>
+              <p>• Tier 3: 20 orders = ₹115 Extra</p>
+              <p className="font-bold text-emerald-700 pt-2">Bonuses are directly deposited into your Pocket nightly!</p>
+            </div>
+            <button
+              onClick={() => setSelectedOfferModal(false)}
+              className="w-full mt-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}
