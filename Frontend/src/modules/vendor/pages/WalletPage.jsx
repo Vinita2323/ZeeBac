@@ -15,6 +15,7 @@ export default function WalletPage() {
   const currentUser = useAuthStore((state) => state.currentUser) || {};
 
   const [wallet, setWallet] = useState(null);
+  const [totalCashbackGiven, setTotalCashbackGiven] = useState(0);
   const [bankDetails, setBankDetails] = useState(null);
   const [maskedPhone, setMaskedPhone] = useState('');
   const [activities, setActivities] = useState([]);
@@ -456,6 +457,19 @@ export default function WalletPage() {
                     Customer orders deliver hone par decided cashback points automatic yahan se deduct hote hain.
                   </p>
                 </div>
+
+                {/* Lifetime Distributed Cashback Indicator */}
+                {totalCashbackGiven > 0 && (
+                  <div className="relative z-10 mt-1 pt-2 border-t border-white/15 flex items-center justify-between text-[11px]">
+                    <span className="text-purple-200 flex items-center gap-1 font-medium">
+                      <span className="material-symbols-outlined text-[14px] text-amber-300">stars</span>
+                      <span>{t('Total Customer Cashback Distributed')}:</span>
+                    </span>
+                    <span className="font-bold font-mono text-white">
+                      ₹{totalCashbackGiven.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
 
                 {/* Card Footer */}
                 <div className="relative z-10 flex justify-between items-end opacity-80 pt-1">

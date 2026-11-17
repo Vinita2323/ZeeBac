@@ -256,6 +256,8 @@ export const getAdminSalesAnalytics = async (req, res) => {
       } else {
         endDateUtc = new Date(Date.UTC(sYear, sMonth - 1, sDay, 23, 59, 59, 999) - istOffset);
       }
+    } else if (period === 'all' || period === 'alltime') {
+      startDateUtc = new Date(0);
     } else if (period === 'weekly') {
       startDateUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
     } else if (period === 'monthly') {

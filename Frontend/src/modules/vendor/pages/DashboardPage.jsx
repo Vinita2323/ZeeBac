@@ -377,13 +377,13 @@ export default function DashboardPage() {
         ? dashboardData.data.todaySales.total
         : (typeof dashboardData?.data?.todaySales === 'number' ? dashboardData.data.todaySales : 0));
 
-  const displayCashback = typeof todaySales?.cashbackGiven === 'number'
+  const displayCashback = typeof todaySales?.cashbackGiven === 'number' && todaySales.cashbackGiven > 0
     ? todaySales.cashbackGiven
-    : (typeof dashboardData?.data?.todaySales?.cashbackGiven === 'number'
+    : (typeof dashboardData?.data?.todaySales?.cashbackGiven === 'number' && dashboardData.data.todaySales.cashbackGiven > 0
         ? dashboardData.data.todaySales.cashbackGiven
-        : (typeof dashboardData?.data?.todayCashback === 'number'
+        : (typeof dashboardData?.data?.todayCashback === 'number' && dashboardData.data.todayCashback > 0
             ? dashboardData.data.todayCashback
-            : (typeof dashboardData?.data?.totalCashbackGiven === 'number' ? dashboardData.data.totalCashbackGiven : 0)));
+            : (displaySales > 0 ? Math.round(displaySales * (cashbackRate / 100)) : 0)));
 
   return (
     <div className="space-y-4 sm:space-y-5 pt-0 pb-12 text-left">
@@ -451,7 +451,7 @@ export default function DashboardPage() {
             Today's Overview
           </h3>
           <button
-            onClick={() => navigate('/vendor/passbook')}
+            onClick={() => setShowSalesModal(true)}
             className="text-xs font-bold text-purple-700 hover:underline cursor-pointer flex items-center gap-0.5"
           >
             <span>View Details</span>
@@ -477,7 +477,7 @@ export default function DashboardPage() {
 
           {/* 2. Sales */}
           <div
-            onClick={() => navigate('/vendor/passbook')}
+            onClick={() => setShowSalesModal(true)}
             className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-200 transition-all cursor-pointer text-left group"
           >
             <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
@@ -491,7 +491,7 @@ export default function DashboardPage() {
 
           {/* 3. Cashback */}
           <div
-            onClick={() => navigate('/vendor/wallet')}
+            onClick={() => setShowSalesModal(true)}
             className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-200 transition-all cursor-pointer text-left group"
           >
             <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">

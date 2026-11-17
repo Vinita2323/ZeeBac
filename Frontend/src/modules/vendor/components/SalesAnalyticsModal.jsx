@@ -36,6 +36,7 @@ export default function SalesAnalyticsModal({
     { key: 'weekly', label: isAdmin ? 'Weekly' : (t('Weekly') || 'Weekly') },
     { key: 'monthly', label: isAdmin ? 'Monthly' : (t('Monthly') || 'Monthly') },
     { key: 'yearly', label: isAdmin ? 'Yearly' : (t('Yearly') || 'Yearly') },
+    { key: 'all', label: isAdmin ? 'All Time' : (t('All Time') || 'All Time') },
     { key: 'custom', label: isAdmin ? 'Date Range' : (t('Date Range') || 'Date Range') },
   ];
 

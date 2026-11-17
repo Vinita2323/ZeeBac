@@ -766,6 +766,8 @@ export const getVendorSalesAnalytics = async (req, res) => {
       } else {
         endDateUtc = new Date(Date.UTC(sYear, sMonth - 1, sDay, 23, 59, 59, 999) - istOffset);
       }
+    } else if (period === 'all' || period === 'alltime') {
+      startDateUtc = new Date(0);
     } else if (period === 'weekly') {
       startDateUtc = new Date(startOfTodayUtc.getTime() - 6 * 24 * 60 * 60 * 1000);
     } else if (period === 'monthly') {
@@ -1952,6 +1954,13 @@ export const getVendorWallet = async (req, res) => {
     const phone = vendor.businessContactNumber || vendor.phone || '';
     const maskedPhone = phone ? `${phone.slice(0, 2)}******${phone.slice(-2)}` : '';
 
+    // Calculate total customer cashback distributed by this store
+    const cashbackAgg = await Transaction.aggregate([
+      { $match: { vendorId: vendor._id, status: 'Approved' } },
+      { $group: { _id: null, totalCashbackGiven: { $sum: '$cashbackAmount' } } }
+    ]);
+    const totalCashbackGiven = cashbackAgg[0]?.totalCashbackGiven || 0;
+
     res.status(200).json({
       success: true,
       data: {
@@ -1959,6 +1968,7 @@ export const getVendorWallet = async (req, res) => {
         ledger,
         bankDetails: vendor.bankDetails || {},
         phone: maskedPhone,
+        totalCashbackGiven,
       },
     });
   } catch (error) {
