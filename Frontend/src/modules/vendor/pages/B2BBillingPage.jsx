@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { B2BAPI, VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
@@ -1532,8 +1533,8 @@ export default function B2BBillingPage() {
         ) / 100;
         const uniqueProductsCount = currentBillItems.length;
 
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+        return createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
             <div className="bg-white rounded-3xl p-5 max-w-[500px] w-full shadow-2xl space-y-3.5 relative max-h-[88vh] flex flex-col border border-slate-100">
               {/* Header */}
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -1725,15 +1726,17 @@ export default function B2BBillingPage() {
                 )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: ADD CUSTOM ITEM (NON-CATALOG PRODUCT) ────────── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      {showCustomItemModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+      {showCustomItemModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
           <div className="bg-white rounded-3xl p-5 max-w-[380px] w-full shadow-2xl space-y-4 relative">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -1812,7 +1815,8 @@ export default function B2BBillingPage() {
               Add to Bill
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ══════════════════════════════════════════════════════════════ */}
@@ -1841,443 +1845,468 @@ export default function B2BBillingPage() {
       />
 
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ─── MODAL: SELECT PAYMENT METHOD & CONFIRM BILL ──────────── */}
+            {/* ─── MODAL: SELECT PAYMENT METHOD & CONFIRM BILL ──────────── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-reveal select-none">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-[460px] w-full shadow-2xl space-y-4 relative max-h-[90vh] flex flex-col border border-slate-100 overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
-              <div className="text-left">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[22px] text-purple-700">payments</span>
-                  <h3 className="font-display font-black text-[18px] text-slate-900">
-                    Select Payment Method
-                  </h3>
-                </div>
-                <p className="text-[12px] text-slate-500 mt-0.5">
-                  Amount to Collect:{' '}
-                  <span className="font-mono font-black text-purple-700 text-[14px]">
-                    ₹{retailSubtotal.toLocaleString('en-IN')}
-                  </span>{' '}
-                  • {retailItems.length} Products ({retailTotalUnits} Units)
-                </p>
-              </div>
+      {showPaymentModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
+            {/* Backdrop click to close */}
+            <div className="absolute inset-0" onClick={() => setShowPaymentModal(false)} />
 
-              <button
-                type="button"
-                onClick={() => setShowPaymentModal(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            {/* Customer Information Section */}
-            <div className="text-left bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  Customer (Cashback Wallet)
-                </span>
-                {verifiedCustomer ? (
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Verified Customer
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                    Enter to Credit Cashback
-                  </span>
-                )}
-              </div>
-
-              {verifiedCustomer ? (
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <p className="font-bold text-[13.5px] text-slate-900">{verifiedCustomer.name}</p>
-                    <p className="text-[11px] text-slate-500 font-mono">
-                      Zeebac ID: <span className="font-bold text-purple-700">{verifiedCustomer.zeebacId}</span> • {verifiedCustomer.phone}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerifiedCustomer(null);
-                      setCustomerQuery('');
-                    }}
-                    className="text-[11px] text-slate-400 hover:text-red-500 underline font-medium cursor-pointer"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
+            {/* Modal Card with Separated Sticky Header & Footer for Guaranteed Scrolling */}
+            <div className="relative z-10 bg-white rounded-t-3xl sm:rounded-3xl max-w-[480px] w-full shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] border border-slate-100 overflow-hidden">
+              {/* 1. Modal Header (Fixed at top) */}
+              <div className="flex items-start justify-between p-4 sm:p-5 border-b border-slate-100 bg-white shrink-0">
+                <div className="text-left">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={customerQuery}
-                      onChange={(e) => {
-                        setCustomerQuery(e.target.value);
-                        setCustomerError('');
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleLookupCustomer()}
-                      placeholder="Customer Mobile or Zeebac ID..."
-                      className="flex-1 h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] font-mono font-medium text-slate-900 focus:outline-none focus:border-purple-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleLookupCustomer()}
-                      disabled={isSearchingCustomer || !customerQuery.trim()}
-                      className="h-10 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {isSearchingCustomer ? '...' : 'Verify'}
-                    </button>
+                    <span className="material-symbols-outlined text-[22px] text-purple-700">payments</span>
+                    <h3 className="font-display font-black text-[17px] text-slate-900">
+                      Select Payment Method
+                    </h3>
+                  </div>
+                  <p className="text-[12px] text-slate-500 mt-0.5">
+                    Amount to Collect:{' '}
+                    <span className="font-mono font-black text-purple-700 text-[14px]">
+                      ₹{retailSubtotal.toLocaleString('en-IN')}
+                    </span>{' '}
+                    • {retailItems.length} Products ({retailTotalUnits} Units)
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
+                  aria-label="Close"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              {/* 2. Modal Body (Scrollable with Smooth Touch Scrolling) */}
+              <div
+                className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4 text-left"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                {/* Customer Information (Compact Confirmation - Avoids duplicate input if already verified) */}
+                {verifiedCustomer ? (
+                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between text-left animate-reveal">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                        {verifiedCustomer.name ? verifiedCustomer.name.charAt(0).toUpperCase() : 'C'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-[13px] text-slate-900 truncate">
+                            {verifiedCustomer.name}
+                          </p>
+                          <span className="material-symbols-outlined text-[15px] text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+                            verified
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-mono truncate">
+                          ID: <strong className="text-purple-700">{verifiedCustomer.zeebacId}</strong> • {verifiedCustomer.phone}
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
-                        setCameraScanMode('customer');
-                        setShowCameraScanner(true);
+                        setVerifiedCustomer(null);
+                        setCustomerQuery('');
                       }}
-                      className="h-10 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl flex items-center justify-center cursor-pointer active:scale-95"
-                      title="Scan Customer QR"
+                      className="text-[11px] text-slate-400 hover:text-red-500 font-semibold cursor-pointer shrink-0 ml-2"
                     >
-                      <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                      Change
                     </button>
                   </div>
-                  {customerError && (
-                    <p className="text-[11px] text-amber-700 font-medium">{customerError}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Payment Method Selector Grid */}
-            <div className="text-left space-y-2">
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                Choose Payment Option
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'Cash', label: 'Cash', icon: 'payments', desc: 'Cash Received' },
-                  { id: 'UPI', label: 'UPI / QR', icon: 'qr_code_2', desc: 'Scan & Pay' },
-                  { id: 'Card', label: 'Card Swipe', icon: 'credit_card', desc: 'POS Swipe' },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setRetailPaymentMethod(m.id)}
-                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      retailPaymentMethod === m.id
-                        ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs ring-2 ring-purple-600/20'
-                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[24px]">{m.icon}</span>
-                    <span className="text-[12px] font-bold">{m.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Payment Method Details & Calculator */}
-            {retailPaymentMethod === 'Cash' && (
-              <div className="text-left bg-emerald-50/60 border border-emerald-200 rounded-2xl p-3.5 space-y-3 animate-reveal">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11.5px] font-bold text-emerald-900">
-                    💵 Cash Tender Calculator
-                  </span>
-                  <span className="text-[11px] font-mono font-bold text-emerald-700">
-                    Bill: ₹{retailSubtotal}
-                  </span>
-                </div>
-
-                {/* Quick denomination pills */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10.5px] font-bold text-slate-500 mr-1">Tender:</span>
-                  {[
-                    retailSubtotal,
-                    ...[100, 200, 500, 1000, 2000].filter((val) => val > retailSubtotal).slice(0, 3),
-                  ].map((val, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setReceivedCash(String(val))}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold cursor-pointer transition-all ${
-                        Number(receivedCash) === val
-                          ? 'bg-emerald-700 text-white shadow-xs'
-                          : 'bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-100/50'
-                      }`}
-                    >
-                      ₹{val}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">
-                      Received Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={receivedCash}
-                      onChange={(e) => setReceivedCash(e.target.value)}
-                      placeholder="Amount received..."
-                      className="w-full h-10 px-3 bg-white border border-emerald-300 rounded-xl font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600 text-[14px]"
-                    />
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        Customer Cashback Wallet
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        Optional for Cashback
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={customerQuery}
+                        onChange={(e) => {
+                          setCustomerQuery(e.target.value);
+                          setCustomerError('');
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLookupCustomer()}
+                        placeholder="Customer Mobile or Zeebac ID..."
+                        className="flex-1 h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] font-mono font-medium text-slate-900 focus:outline-none focus:border-purple-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleLookupCustomer()}
+                        disabled={isSearchingCustomer || !customerQuery.trim()}
+                        className="h-10 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isSearchingCustomer ? '...' : 'Verify'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCameraScanMode('customer');
+                          setShowCameraScanner(true);
+                        }}
+                        className="h-10 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl flex items-center justify-center cursor-pointer active:scale-95"
+                        title="Scan Customer QR"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                      </button>
+                    </div>
+                    {customerError && (
+                      <p className="text-[11px] text-amber-700 font-medium">{customerError}</p>
+                    )}
                   </div>
+                )}
 
-                  <div className="flex-1 text-right">
-                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">
-                      Change to Return
-                    </label>
-                    <div className="h-10 px-3 bg-white border border-slate-200 rounded-xl flex items-center justify-end font-mono font-black text-[15px]">
-                      {Number(receivedCash) >= retailSubtotal ? (
-                        <span className="text-emerald-700">
-                          ₹{Math.max(0, Math.round((Number(receivedCash) - retailSubtotal) * 100) / 100)}
-                        </span>
-                      ) : (
-                        <span className="text-amber-600 text-[12px]">
-                          Due: ₹{Math.round((retailSubtotal - (Number(receivedCash) || 0)) * 100) / 100}
-                        </span>
-                      )}
+                {/* Choose Payment Option */}
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    Choose Payment Option
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'Cash', label: 'Cash', icon: 'payments', desc: 'Cash Received' },
+                      { id: 'UPI', label: 'UPI / QR', icon: 'qr_code_2', desc: 'Scan & Pay' },
+                      { id: 'Card', label: 'Card Swipe', icon: 'credit_card', desc: 'POS Swipe' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setRetailPaymentMethod(m.id)}
+                        className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                          retailPaymentMethod === m.id
+                            ? 'border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs ring-2 ring-purple-600/20'
+                            : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[24px]">{m.icon}</span>
+                        <span className="text-[12px] font-bold">{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cash Tender Calculator */}
+                {retailPaymentMethod === 'Cash' && (
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-3.5 space-y-3 animate-reveal">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11.5px] font-bold text-emerald-900">
+                        💵 Cash Tender Calculator
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-emerald-700">
+                        Bill: ₹{retailSubtotal}
+                      </span>
+                    </div>
+
+                    {/* Quick denomination pills */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10.5px] font-bold text-slate-500 mr-1">Tender:</span>
+                      {[
+                        retailSubtotal,
+                        ...[100, 200, 500, 1000, 2000].filter((val) => val > retailSubtotal).slice(0, 3),
+                      ].map((val, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setReceivedCash(String(val))}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold cursor-pointer transition-all ${
+                            Number(receivedCash) === val
+                              ? 'bg-emerald-700 text-white shadow-xs'
+                              : 'bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-100/50'
+                          }`}
+                        >
+                          ₹{val}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10.5px] font-bold text-slate-600 block mb-1">
+                          Received Amount (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={receivedCash}
+                          onChange={(e) => setReceivedCash(e.target.value)}
+                          placeholder="Amount received..."
+                          className="w-full h-10 px-3 bg-white border border-emerald-300 rounded-xl font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600 text-[14px]"
+                        />
+                      </div>
+
+                      <div className="flex-1 text-right">
+                        <label className="text-[10.5px] font-bold text-slate-600 block mb-1">
+                          Change to Return
+                        </label>
+                        <div className="h-10 px-3 bg-white border border-slate-200 rounded-xl flex items-center justify-end font-mono font-black text-[15px]">
+                          {Number(receivedCash) >= retailSubtotal ? (
+                            <span className="text-emerald-700">
+                              ₹{Math.max(0, Math.round((Number(receivedCash) - retailSubtotal) * 100) / 100)}
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 text-[12px]">
+                              Due: ₹{Math.round((retailSubtotal - (Number(receivedCash) || 0)) * 100) / 100}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {retailPaymentMethod === 'UPI' && (
-              <div className="text-center bg-purple-50/60 border border-purple-200 rounded-2xl p-4 space-y-2.5 animate-reveal">
-                <div className="flex items-center justify-between text-left">
-                  <div>
-                    <p className="font-bold text-[12.5px] text-purple-950">Scan &amp; Pay via UPI</p>
-                    <p className="text-[11px] text-purple-700 font-mono">
-                      Payable: <strong className="text-[13px]">₹{retailSubtotal}</strong>
+                {/* UPI QR Payment Mode */}
+                {retailPaymentMethod === 'UPI' && (
+                  <div className="text-center bg-purple-50/60 border border-purple-200 rounded-2xl p-4 space-y-2.5 animate-reveal">
+                    <div className="flex items-center justify-between text-left">
+                      <div>
+                        <p className="font-bold text-[12.5px] text-purple-950">Scan &amp; Pay via UPI</p>
+                        <p className="text-[11px] text-purple-700 font-mono">
+                          Payable: <strong className="text-[13px]">₹{retailSubtotal}</strong>
+                        </p>
+                      </div>
+                      <span className="text-[10.5px] font-bold text-purple-700 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full">
+                        GPay / PhonePe / Paytm
+                      </span>
+                    </div>
+
+                    {retailUpiQr ? (
+                      <div className="w-44 h-44 mx-auto p-2 bg-white border-2 border-purple-200 rounded-2xl shadow-sm flex items-center justify-center">
+                        <img src={retailUpiQr} alt="UPI Payment QR" className="w-full h-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="w-44 h-44 mx-auto bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400">
+                        <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-600 rounded-full animate-spin" />
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Ask customer to scan with any UPI App and complete payment of ₹{retailSubtotal}.
                     </p>
                   </div>
-                  <span className="text-[10.5px] font-bold text-purple-700 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full">
-                    GPay / PhonePe / Paytm
+                )}
+
+                {/* Card Swipe Mode */}
+                {retailPaymentMethod === 'Card' && (
+                  <div className="text-left bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 space-y-2 animate-reveal">
+                    <div className="flex items-center gap-2 text-indigo-900 font-bold text-[13px]">
+                      <span className="material-symbols-outlined text-[20px]">credit_card</span>
+                      <span>Card Swipe / POS Terminal</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 leading-relaxed">
+                      Swipe, insert, or tap the customer’s Debit / Credit Card on your merchant card machine for{' '}
+                      <strong className="text-indigo-950 font-mono">₹{retailSubtotal}</strong>. Once payment approval receipt is printed on your card machine, click confirm below.
+                    </p>
+                  </div>
+                )}
+
+                {/* Instant Cashback Point Preview Banner */}
+                <div className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white rounded-2xl p-3 flex items-center justify-between text-left shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-300 text-[20px]">stars</span>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-purple-200 font-bold">Customer Cashback</p>
+                      <p className="text-[12px] font-bold text-white">
+                        +₹{retailTotalCashback} will be credited to customer wallet
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-black text-amber-300 text-[16px]">
+                    +₹{retailTotalCashback}
                   </span>
                 </div>
-
-                {retailUpiQr ? (
-                  <div className="w-44 h-44 mx-auto p-2 bg-white border-2 border-purple-200 rounded-2xl shadow-sm flex items-center justify-center">
-                    <img src={retailUpiQr} alt="UPI Payment QR" className="w-full h-full object-contain" />
-                  </div>
-                ) : (
-                  <div className="w-44 h-44 mx-auto bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400">
-                    <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-600 rounded-full animate-spin" />
-                  </div>
-                )}
-
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Ask customer to scan with any UPI App and complete payment of ₹{retailSubtotal}.
-                </p>
               </div>
-            )}
 
-            {retailPaymentMethod === 'Card' && (
-              <div className="text-left bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 space-y-2 animate-reveal">
-                <div className="flex items-center gap-2 text-indigo-900 font-bold text-[13px]">
-                  <span className="material-symbols-outlined text-[20px]">credit_card</span>
-                  <span>Card Swipe / POS Terminal</span>
-                </div>
-                <p className="text-[12px] text-slate-600 leading-relaxed">
-                  Swipe, insert, or tap the customer’s Debit / Credit Card on your merchant card machine for{' '}
-                  <strong className="text-indigo-950 font-mono">₹{retailSubtotal}</strong>. Once payment approval receipt is printed on your card machine, click confirm below.
-                </p>
-              </div>
-            )}
+              {/* 3. Modal Sticky Bottom Actions (ALWAYS VISIBLE & UNBLOCKED) */}
+              <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-white/98 backdrop-blur-md shrink-0 flex items-center gap-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="w-1/3 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] active:scale-95 transition-all cursor-pointer"
+                >
+                  Back
+                </button>
 
-            {/* Instant Cashback Point Preview Banner */}
-            <div className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white rounded-2xl p-3 flex items-center justify-between text-left shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-300 text-[20px]">stars</span>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-purple-200 font-bold">Customer Cashback</p>
-                  <p className="text-[12px] font-bold text-white">
-                    +₹{retailTotalCashback} will be credited to customer wallet
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleCompleteRetailSale}
+                  disabled={isLoggingRetailBill}
+                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold text-[13.5px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isLoggingRetailBill ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">verified</span>
+                      <span>Confirm &amp; Generate Bill</span>
+                    </>
+                  )}
+                </button>
               </div>
-              <span className="font-mono font-black text-amber-300 text-[16px]">
-                +₹{retailTotalCashback}
-              </span>
             </div>
-
-            {/* Bottom Actions */}
-            <div className="pt-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowPaymentModal(false)}
-                className="w-1/3 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] active:scale-95 transition-all cursor-pointer"
-              >
-                Back
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCompleteRetailSale}
-                disabled={isLoggingRetailBill}
-                className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold text-[13.5px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isLoggingRetailBill ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">verified</span>
-                    <span>Confirm &amp; Generate Bill</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: THERMAL POS RECEIPT (PRINTABLE & SHAREABLE) ───── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      {(completedRetailBill || receiptToView) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-[420px] w-full shadow-2xl text-left space-y-4 relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => {
-                setCompletedRetailBill(null);
-                setReceiptToView(null);
-              }}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-
-            {/* Receipt Body (Targeted by @media print) */}
-            <div
-              id="pos-printable-receipt"
-              className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200/80 font-mono text-[12px] space-y-3"
-            >
-              {/* Receipt Header */}
-              <div className="text-center space-y-1 pb-2 border-b border-dashed border-slate-300">
-                <h2 className="font-black text-[16px] text-slate-900 tracking-tight">
-                  {(completedRetailBill || receiptToView).vendorStoreName}
-                </h2>
-                <p className="text-[11px] text-slate-500">
-                  Zeebac Store ID: {(completedRetailBill || receiptToView).vendorZeebacId}
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  {(completedRetailBill || receiptToView).vendorAddress}
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  Ph: {(completedRetailBill || receiptToView).vendorPhone || 'N/A'}
-                </p>
-              </div>
-
-              {/* Bill Details */}
-              <div className="space-y-0.5 text-[11px] pb-2 border-b border-dashed border-slate-300">
-                <div className="flex justify-between">
-                  <span>Bill No:</span>
-                  <span className="font-bold">{(completedRetailBill || receiptToView).billNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Date:</span>
-                  <span>{(completedRetailBill || receiptToView).date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Customer:</span>
-                  <span className="font-bold">{(completedRetailBill || receiptToView).customerName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Zeebac ID:</span>
-                  <span className="font-bold text-purple-700">
-                    {(completedRetailBill || receiptToView).customerZeebacId || 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Payment Mode:</span>
-                  <span className="font-bold">{(completedRetailBill || receiptToView).paymentMethod}</span>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div className="space-y-1.5 pb-2 border-b border-dashed border-slate-300 text-[11px]">
-                <div className="flex justify-between font-bold text-slate-700 pb-1 border-b border-slate-200">
-                  <span className="flex-1">Item</span>
-                  <span className="w-10 text-center">Qty</span>
-                  <span className="w-14 text-right">Rate</span>
-                  <span className="w-14 text-right">Amt</span>
-                </div>
-                {((completedRetailBill || receiptToView).items || []).map((it, idx) => (
-                  <div key={idx} className="flex justify-between text-slate-800">
-                    <span className="flex-1 truncate">{it.name}</span>
-                    <span className="w-10 text-center">{it.quantity}</span>
-                    <span className="w-14 text-right">₹{it.price || it.rate || 0}</span>
-                    <span className="w-14 text-right font-bold">
-                      ₹{it.total || ((it.price || 0) * (it.quantity || 1))}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Total Summary */}
-              <div className="space-y-1 text-[12px]">
-                <div className="flex justify-between font-black text-[15px] pt-1 text-slate-900">
-                  <span>NET TOTAL:</span>
-                  <span>₹{(completedRetailBill || receiptToView).amount}</span>
-                </div>
-              </div>
-
-              {/* Boxed Cashback Credited Stamp */}
-              <div className="p-2.5 bg-purple-50 border-2 border-dashed border-purple-400 rounded-xl text-center space-y-0.5">
-                <p className="text-[10px] font-extrabold uppercase text-purple-900 tracking-wider">
-                  ★ ZEEBAC CASHBACK CREDITED ★
-                </p>
-                <p className="font-black text-[18px] text-purple-700">
-                  ₹{(completedRetailBill || receiptToView).cashbackCredited}
-                </p>
-                <p className="text-[9.5px] text-purple-800 font-bold">
-                  Points Credited Instantly to Customer Wallet!
-                </p>
-              </div>
-
-              <div className="text-center pt-1 text-[10px] text-slate-400 leading-tight">
-                <p>Thank you for shopping with us!</p>
-                <p>Powered by Zeebac Retail POS Network</p>
-              </div>
-            </div>
-
-            {/* Receipt Modal Action Buttons */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                onClick={() => window.print()}
-                className="py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[17px]">print</span>
-                <span>Print Thermal Receipt</span>
-              </button>
-
+      {(completedRetailBill || receiptToView) &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-[420px] w-full shadow-2xl text-left space-y-4 relative max-h-[90vh] overflow-y-auto">
               <button
                 onClick={() => {
-                  const bill = completedRetailBill || receiptToView;
-                  const text = `🧾 *Zeebac Bill Receipt*\nStore: ${bill.vendorStoreName}\nBill No: ${bill.billNumber}\nCustomer: ${bill.customerName} (${bill.customerZeebacId})\nTotal: ₹${bill.amount}\n🎁 *Cashback Credited:* ₹${bill.cashbackCredited} Points deposited in your Zeebac Wallet!\nThank you!`;
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  setCompletedRetailBill(null);
+                  setReceiptToView(null);
                 }}
-                className="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
               >
-                <span className="material-symbols-outlined text-[17px]">share</span>
-                <span>WhatsApp Receipt</span>
+                <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
-            </div>
-          </div>
-        </div>
-      )}
 
+              {/* Receipt Body (Targeted by @media print) */}
+              <div
+                id="pos-printable-receipt"
+                className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200/80 font-mono text-[12px] space-y-3"
+              >
+                {/* Store Header */}
+                <div className="text-center pb-2 border-b border-dashed border-slate-300 space-y-0.5">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-purple-700 text-[18px]">receipt_long</span>
+                    <h3 className="font-bold text-[14px] text-slate-900 uppercase">
+                      {(completedRetailBill || receiptToView).vendorStoreName}
+                    </h3>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Zeebac Store ID: {(completedRetailBill || receiptToView).vendorZeebacId}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {(completedRetailBill || receiptToView).vendorAddress}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Ph: {(completedRetailBill || receiptToView).vendorPhone || 'N/A'}
+                  </p>
+                </div>
+
+                {/* Bill Meta */}
+                <div className="text-[11px] space-y-0.5 border-b border-dashed border-slate-300 pb-2">
+                  <div className="flex justify-between">
+                    <span>Tax Invoice / Bill No:</span>
+                    <span className="font-bold">{(completedRetailBill || receiptToView).billNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Date &amp; Time:</span>
+                    <span>{(completedRetailBill || receiptToView).date}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Customer:</span>
+                    <span className="font-bold">{(completedRetailBill || receiptToView).customerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Customer ID:</span>
+                    <span>
+                      {(completedRetailBill || receiptToView).customerZeebacId || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Payment Mode:</span>
+                    <span className="font-bold">{(completedRetailBill || receiptToView).paymentMethod}</span>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="space-y-1 border-b border-dashed border-slate-300 pb-2">
+                  <div className="grid grid-cols-12 font-bold text-[10.5px] text-slate-500 pb-1">
+                    <span className="col-span-6">Item</span>
+                    <span className="col-span-2 text-center">Qty</span>
+                    <span className="col-span-2 text-right">Price</span>
+                    <span className="col-span-2 text-right">Total</span>
+                  </div>
+                  {((completedRetailBill || receiptToView).items || []).map((it, idx) => (
+                    <div key={idx} className="grid grid-cols-12 text-[11px] text-slate-800">
+                      <span className="col-span-6 truncate font-medium">{it.name}</span>
+                      <span className="col-span-2 text-center">{it.quantity}</span>
+                      <span className="col-span-2 text-right">₹{it.price}</span>
+                      <span className="col-span-2 text-right font-bold">
+                        ₹{it.total || it.price * it.quantity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total & Cashback summary */}
+                <div className="space-y-1 pt-1 text-[11px]">
+                  <div className="flex justify-between font-bold text-[13px] text-slate-900 pt-1 border-t border-slate-200">
+                    <span>Grand Total:</span>
+                    <span>₹{(completedRetailBill || receiptToView).amount}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500 text-[10.5px]">
+                    <span>GST (Statutory Included):</span>
+                    <span>₹0 (Inc.)</span>
+                  </div>
+                </div>
+
+                {/* Instant Zeebac Reward Box */}
+                <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 text-center space-y-0.5 text-[11px]">
+                  <p className="text-[10px] font-bold uppercase text-purple-700">
+                    🎁 Zeebac Instant Reward
+                  </p>
+                  <p className="font-black text-purple-900 text-[14px]">
+                    +₹{(completedRetailBill || receiptToView).cashbackCredited} Cashback
+                  </p>
+                  <p className="text-[9.5px] text-purple-700">
+                    Points Credited Instantly to Customer Wallet!
+                  </p>
+                </div>
+
+                <div className="text-center pt-1 text-[10px] text-slate-400 leading-tight">
+                  <p>Thank you for shopping with us!</p>
+                  <p>Powered by Zeebac Retail POS Network</p>
+                </div>
+              </div>
+
+              {/* Receipt Modal Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => window.print()}
+                  className="py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[17px]">print</span>
+                  <span>Print Thermal Receipt</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const bill = completedRetailBill || receiptToView;
+                    const text = `🧾 *Zeebac Bill Receipt*\nStore: ${bill.vendorStoreName}\nBill No: ${bill.billNumber}\nCustomer: ${bill.customerName} (${bill.customerZeebacId})\nTotal: ₹${bill.amount}\n🎁 *Cashback Credited:* ₹${bill.cashbackCredited} Points deposited in your Zeebac Wallet!\nThank you!`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[17px]">share</span>
+                  <span>WhatsApp Receipt</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+{/* ─── MODAL: WHOLESALE B2B PAYMENT & STOCK TRANSFER ────────── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ─── MODAL: WHOLESALE B2B PAYMENT & STOCK TRANSFER ────────── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {createdInvoice && !transferSuccessData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+      {createdInvoice && !transferSuccessData &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
           <div className="bg-white rounded-3xl p-6 max-w-[380px] w-full shadow-2xl text-center space-y-4 relative">
             <button
               onClick={() => setCreatedInvoice(null)}
@@ -2354,14 +2383,16 @@ export default function B2BBillingPage() {
               )}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ─── MODAL: WHOLESALE TRANSFER SUCCESS CELEBRATION ────────── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      {transferSuccessData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
+      {transferSuccessData &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
           <div className="bg-white rounded-3xl p-6 max-w-[400px] w-full shadow-2xl text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
               <span className="material-symbols-outlined text-[36px]">check_circle</span>
@@ -2401,7 +2432,8 @@ export default function B2BBillingPage() {
               Done & Return to Billing
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
