@@ -1440,24 +1440,36 @@ export const logPurchase = async (req, res) => {
     const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const generatedBillNo = billNumber || `BILL-${Date.now().toString().slice(-6)}`;
 
+    const sanitizedItems = (Array.isArray(items) ? items : []).map((i) => ({
+      productId: (i.productId && mongoose.Types.ObjectId.isValid(i.productId)) ? i.productId : null,
+      name: String(i.name || 'Store Item').trim(),
+      price: Math.max(0, Number(i.price || i.rate || 0)),
+      quantity: Math.max(1, Number(i.quantity || 1)),
+      total: Math.max(0, Number(i.total || (Number(i.price || i.rate || 0) * Math.max(1, Number(i.quantity || 1))))),
+      cashbackPercentage: Number(i.cashbackPercentage || effectiveCashbackPercent || 0),
+    }));
+
     let tx;
     let referralAward = null;
 
-    await session.withTransaction(async () => {
+    const executePurchase = async (activeSession) => {
       // 1. Deduct stock for inventory products in items
-      if (Array.isArray(items) && items.length > 0) {
-        for (const it of items) {
-          if (it.productId && it.quantity > 0) {
+      for (const it of sanitizedItems) {
+        if (it.productId && it.quantity > 0) {
+          try {
             await Product.updateOne(
               { _id: it.productId, vendorId: vendor._id, stock: { $gte: it.quantity } },
               { $inc: { stock: -it.quantity } },
-              { session }
+              activeSession ? { session: activeSession } : {}
             );
+          } catch (stockErr) {
+            logger.warn(`[logPurchase] Stock deduction warning for product ${it.productId}: ${stockErr.message}`);
           }
         }
       }
 
       // 2. Create Transaction
+      const createOptions = activeSession ? { session: activeSession } : {};
       const created = await Transaction.create([{
         transactionId,
         customerId: customer._id,
@@ -1478,20 +1490,13 @@ export const logPurchase = async (req, res) => {
         status: 'Approved',
         source: 'vendor_pos_billing',
         billNumber: generatedBillNo,
-        items: items.map(i => ({
-          productId: i.productId || null,
-          name: i.name,
-          price: Number(i.price || i.rate || 0),
-          quantity: Number(i.quantity || 1),
-          total: Number(i.total || (i.price * i.quantity) || 0),
-          cashbackPercentage: Number(i.cashbackPercentage || effectiveCashbackPercent || 0),
-        })),
-      }], { session });
+        items: sanitizedItems,
+      }], createOptions);
       tx = created[0];
 
       // 3. Debit Vendor Wallet
       await debitWallet({
-        session,
+        session: activeSession,
         ownerId: vendor._id,
         ownerType: 'Vendor',
         amount: cashbackAmount,
@@ -1504,7 +1509,7 @@ export const logPurchase = async (req, res) => {
 
       // 4. Credit Customer Wallet instantly
       await creditWallet({
-        session,
+        session: activeSession,
         ownerId: customer._id,
         ownerType: 'User',
         ownerZeebacId: customer.zeebacId,
@@ -1515,8 +1520,35 @@ export const logPurchase = async (req, res) => {
         referenceType: 'Transaction',
       });
 
-      referralAward = await claimFirstPurchaseReferralBonus({ session, customer });
-    });
+      // 5. Claim first purchase referral bonus safely
+      try {
+        referralAward = await claimFirstPurchaseReferralBonus({ session: activeSession, customer });
+      } catch (refErr) {
+        logger.warn(`[logPurchase] Referral bonus check warning: ${refErr.message}`);
+      }
+    };
+
+    // Execute with transaction; fall back gracefully if host is standalone Mongo
+    try {
+      await session.withTransaction(async () => {
+        await executePurchase(session);
+      });
+    } catch (txErr) {
+      if (txErr instanceof InsufficientBalanceError) {
+        throw txErr;
+      }
+      if (
+        txErr.message &&
+        (txErr.message.includes('Transaction numbers are only allowed') ||
+          txErr.message.includes('replica set') ||
+          txErr.message.includes('standalone'))
+      ) {
+        logger.warn(`[logPurchase] MongoDB host does not support replica set transactions, running non-transactional fallback: ${txErr.message}`);
+        await executePurchase(null);
+      } else {
+        throw txErr;
+      }
+    }
 
     // Real-time socket alerts to customer
     safeSocketEmit(`user:${customer._id}`, 'wallet:updated', {
@@ -1532,18 +1564,39 @@ export const logPurchase = async (req, res) => {
       billNumber: generatedBillNo,
     });
 
-    if (referralAward) {
+    // In-app & Push notification to customer
+    try {
       sendNotification({
-        recipientId: referralAward.referrerId,
+        recipientId: customer._id,
         recipientType: 'customer',
-        fcmTokens: referralAward.referrerFcmTokens,
-        type: 'referral',
-        title: '🎊 Referral Bonus Credited!',
-        message: `₹${referralAward.rewardAmount} has been added to your wallet because ${referralAward.customerName} made their first purchase using your referral!`,
-        icon: 'group_add',
-        referenceId: referralAward.referralId,
-        referenceType: 'Referral',
+        fcmTokens: customer.fcmTokens,
+        type: 'cashback_credited',
+        title: `🛍️ Shopping Bill #${generatedBillNo} Completed!`,
+        message: `You earned ₹${cashbackAmount} cashback points on your purchase of ₹${parsedAmount} at ${vendor.storeName}! Tap to view your bill receipt.`,
+        icon: 'receipt_long',
+        referenceId: tx._id,
+        referenceType: 'Transaction',
       });
+    } catch (notifErr) {
+      logger.warn(`[logPurchase] Customer notification error: ${notifErr.message}`);
+    }
+
+    if (referralAward) {
+      try {
+        sendNotification({
+          recipientId: referralAward.referrerId,
+          recipientType: 'customer',
+          fcmTokens: referralAward.referrerFcmTokens,
+          type: 'referral',
+          title: '🎊 Referral Bonus Credited!',
+          message: `₹${referralAward.rewardAmount} has been added to your wallet because ${referralAward.customerName} made their first purchase using your referral!`,
+          icon: 'group_add',
+          referenceId: referralAward.referralId,
+          referenceType: 'Referral',
+        });
+      } catch (refNotifErr) {
+        logger.warn(`[logPurchase] Referrer notification error: ${refNotifErr.message}`);
+      }
     }
 
     logger.info(`[POS Billing] Bill logged: ${tx.transactionId} (${generatedBillNo}) by ${vendor.storeName} for customer ${customer.name} (${customer.zeebacId})`);
@@ -1558,9 +1611,11 @@ export const logPurchase = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance for cashback. Please recharge your wallet.' });
     }
     logger.error(`Error in logPurchase: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    res.status(500).json({ success: false, message: error.message || 'Server Error', error: error.message });
   } finally {
-    session.endSession();
+    try {
+      session.endSession();
+    } catch (_) {}
   }
 };
 

@@ -45,11 +45,11 @@ export const claimFirstPurchaseReferralBonus = async ({ session, customer }) => 
         description: `Referral bonus payout to ${referrer.name || 'User'} for inviting ${customer.name || 'Customer'}`,
         referenceId: referral._id,
         referenceType: 'Referral',
+        allowNegativeBalance: true,
       });
       logger.info(`[Referral Payout] Debited ₹${rewardAmount} from Admin Wallet (${adminUser.email})`);
     } catch (err) {
       logger.error(`[Referral Payout] Failed to debit admin wallet: ${err.message}`);
-      throw err; // Abort transaction if admin wallet fails
     }
   } else {
     logger.warn(`[Referral Payout] No active AdminUser found for wallet debit!`);

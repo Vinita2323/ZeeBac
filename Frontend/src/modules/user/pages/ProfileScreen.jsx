@@ -496,6 +496,20 @@ export default function ProfileScreen() {
               <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
             </div>
 
+            <div 
+              onClick={() => navigate('/wallet/passbook')}
+              className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
+            >
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[#7c3aed]">receipt_long</span>
+                <div>
+                  <p className="font-title-md text-on-surface font-bold text-body-sm">{t('My Store Invoices & Bills', 'My Store Invoices & Bills')}</p>
+                  <p className="font-caption text-[11px] text-on-surface-variant">{t('View POS store bills, receipts & cashback history', 'View POS store bills, receipts & cashback history')}</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-outline text-[18px]">chevron_right</span>
+            </div>
+
             
 
             <div 

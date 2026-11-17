@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
@@ -19,6 +20,7 @@ export default function WalletPassbookScreen() {
   const [cashbackTransactions, setCashbackTransactions] = useState([]);
   const [totalEarned, setTotalEarned] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   // Search & Filter State
   const [showSearch, setShowSearch] = useState(false);
@@ -38,6 +40,16 @@ export default function WalletPassbookScreen() {
         const combined = [];
         const seenIds = new Set();
 
+        // Build a lookup map of store transactions by id, transactionId, and billNumber
+        const txMap = new Map();
+        if (txnRes.success && Array.isArray(txnRes.data)) {
+          txnRes.data.forEach((t) => {
+            if (t._id) txMap.set(String(t._id), t);
+            if (t.transactionId) txMap.set(String(t.transactionId), t);
+            if (t.billNumber) txMap.set(String(t.billNumber), t);
+          });
+        }
+
         // 1. Process Wallet Ledger (contains all money movements: cashback, withdrawals, perks, etc.)
         if (walletRes.success && walletRes.data) {
           const ledgerItems = walletRes.data.ledger || [];
@@ -50,6 +62,14 @@ export default function WalletPassbookScreen() {
             const desc = (entry.description || '').toLowerCase();
             const isCredit = entry.type === 'credit';
             const amountVal = Math.abs(Number(entry.amount) || 0);
+
+            // Find matching store transaction for receipt/invoice details
+            const matchedTx =
+              (entry.referenceId && txMap.get(String(entry.referenceId))) ||
+              (entry.metadata?.transactionId && txMap.get(String(entry.metadata.transactionId))) ||
+              (entry.metadata?.billNumber && txMap.get(String(entry.metadata.billNumber))) ||
+              (entry.transactionId && txMap.get(String(entry.transactionId))) ||
+              null;
 
             let category = 'other';
             let tag = isCredit ? 'Credit' : 'Debit';
@@ -64,7 +84,7 @@ export default function WalletPassbookScreen() {
               tag = 'Cashback Gained';
               tagIcon = 'redeem';
               icon = 'redeem';
-              name = entry.vendorName || entry.description || 'Cashback Gained';
+              name = matchedTx?.vendorName || entry.vendorName || entry.description || 'Cashback Gained';
             } else if (desc.includes('withdraw') || entry.metadata?.type === 'withdrawal') {
               category = 'withdrawal';
               tag = 'Withdrawal';
@@ -105,11 +125,20 @@ export default function WalletPassbookScreen() {
               tagIcon,
               icon,
               status: entry.status || 'Completed',
-              refId: entry.transactionId || entry._id
+              refId: entry.transactionId || entry._id,
+              txData: matchedTx || (entry.metadata ? {
+                billNumber: entry.metadata.billNumber,
+                vendorName: entry.vendorName || entry.metadata.storeName,
+                amount: entry.metadata.billAmount,
+                cashbackAmount: entry.metadata.cashbackAmount || amountVal,
+                createdAt: entry.createdAt,
+                status: entry.status || 'Completed',
+              } : null),
             };
 
             seenIds.add(item.id);
             if (entry.metadata?.transactionId) seenIds.add(entry.metadata.transactionId);
+            if (matchedTx?._id) seenIds.add(String(matchedTx._id));
             combined.push(item);
           });
         }
@@ -117,8 +146,8 @@ export default function WalletPassbookScreen() {
         // 2. Process Store Transactions (if any transaction is distinct from ledger)
         if (txnRes.success && Array.isArray(txnRes.data)) {
           txnRes.data.forEach((t) => {
-            if (seenIds.has(t._id)) return;
-            seenIds.add(t._id);
+            if (seenIds.has(String(t._id))) return;
+            seenIds.add(String(t._id));
 
             const hasCashback = Number(t.cashbackAmount) > 0;
             const amountVal = hasCashback ? Number(t.cashbackAmount) : Number(t.amount);
@@ -143,7 +172,8 @@ export default function WalletPassbookScreen() {
               tagIcon: hasCashback ? 'redeem' : 'storefront',
               icon: hasCashback ? 'redeem' : 'storefront',
               status: t.status || 'Completed',
-              refId: t.billNumber || t._id
+              refId: t.billNumber || t._id,
+              txData: t,
             });
           });
         }
@@ -406,11 +436,19 @@ export default function WalletPassbookScreen() {
                   const isCashback = tx.isCashback;
                   const isWithdrawal = tx.category === 'withdrawal';
                   const isPerk = tx.category === 'perk';
+                  const hasInvoice = Boolean(tx.txData || tx.isCashback || tx.category === 'payment' || tx.refId);
 
                   return (
                     <div
                       key={tx.id}
-                      className={`py-2.5 px-2 rounded-xl hover:bg-surface-container-low/40 transition-colors flex items-center gap-3 ${
+                      onClick={() => {
+                        if (hasInvoice) {
+                          setSelectedInvoice(tx.txData || tx);
+                        }
+                      }}
+                      className={`py-2.5 px-2 rounded-xl transition-colors flex items-center gap-3 ${
+                        hasInvoice ? 'cursor-pointer hover:bg-primary/5 active:scale-[0.99]' : 'hover:bg-surface-container-low/40'
+                      } ${
                         idx !== filteredItems.length - 1 ? 'border-b border-gray-100' : ''
                       }`}
                     >
@@ -433,7 +471,14 @@ export default function WalletPassbookScreen() {
 
                       {/* Center Details */}
                       <div className="flex-grow min-w-0 space-y-0.5">
-                        <h4 className="font-bold text-on-surface text-[13px] leading-tight truncate">{tx.name}</h4>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-bold text-on-surface text-[13px] leading-tight truncate">{tx.name}</h4>
+                          {hasInvoice && (
+                            <span className="material-symbols-outlined text-[13px] text-primary/60 shrink-0" title="Click to view digital bill invoice">
+                              receipt_long
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <p className="text-on-surface-variant text-[10px]">{tx.time}</p>
 
@@ -454,6 +499,13 @@ export default function WalletPassbookScreen() {
                             <span className="material-symbols-outlined text-[10px]">{tx.tagIcon}</span>
                             <span>{t(tx.tag, tx.tag)}</span>
                           </div>
+
+                          {/* Quick View Bill Badge */}
+                          {hasInvoice && (
+                            <span className="text-[9px] font-bold text-primary hover:underline flex items-center">
+                              {t('View Bill', 'View Bill')}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -504,6 +556,194 @@ export default function WalletPassbookScreen() {
           </div>
         )}
       </main>
+
+      {/* Digital Bill / Invoice Modal */}
+      {selectedInvoice && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3"
+          onClick={() => setSelectedInvoice(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-primary to-purple-800 text-white p-4 relative">
+              <button
+                type="button"
+                onClick={() => setSelectedInvoice(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-[20px] text-amber-300">receipt_long</span>
+                <span className="text-[11px] font-black tracking-wider uppercase opacity-90">{t('Digital Store Bill Invoice', 'Digital Store Bill')}</span>
+              </div>
+              <h3 className="text-base font-bold leading-tight truncate">
+                {selectedInvoice.vendorName || selectedInvoice.storeName || selectedInvoice.name || 'ZeeBac Partner Store'}
+              </h3>
+              {(selectedInvoice.vendorAddress || selectedInvoice.vendorPhone) && (
+                <p className="text-[11px] text-white/80 mt-0.5 truncate">
+                  {[selectedInvoice.vendorAddress, selectedInvoice.vendorPhone].filter(Boolean).join(' • ')}
+                </p>
+              )}
+              {selectedInvoice.vendorGst && (
+                <p className="text-[10px] text-white/70 font-mono mt-0.5">
+                  GSTIN: {selectedInvoice.vendorGst}
+                </p>
+              )}
+            </div>
+
+            {/* Bill Meta Bar */}
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between text-[11px]">
+              <div>
+                <span className="text-gray-500 font-medium">Bill No: </span>
+                <span className="font-mono font-bold text-gray-800">
+                  {selectedInvoice.billNumber || selectedInvoice.refId || 'N/A'}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-gray-500 font-medium">Date: </span>
+                <span className="font-bold text-gray-800">
+                  {selectedInvoice.createdAt
+                    ? new Date(selectedInvoice.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : (selectedInvoice.time || 'N/A')}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer & Payment Meta */}
+            <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between text-[11px] bg-white">
+              <div>
+                <span className="text-gray-500">Customer: </span>
+                <span className="font-bold text-gray-800">{selectedInvoice.customerName || currentUser?.name || 'Customer'}</span>
+              </div>
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold uppercase text-[9px]">
+                <span className="material-symbols-outlined text-[11px]">payments</span>
+                <span>{selectedInvoice.paymentMode || 'Cash'}</span>
+              </div>
+            </div>
+
+            {/* Scrollable Receipt Body */}
+            <div className="p-4 overflow-y-auto space-y-3 flex-1 text-left text-xs">
+              {/* Items List */}
+              {Array.isArray(selectedInvoice.items) && selectedInvoice.items.length > 0 ? (
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="bg-gray-100 px-3 py-1.5 font-bold text-[10.5px] text-gray-600 flex justify-between">
+                    <span className="w-1/2">Item Description</span>
+                    <span className="w-1/4 text-center">Qty x Rate</span>
+                    <span className="w-1/4 text-right">Total</span>
+                  </div>
+                  <div className="divide-y divide-gray-100 bg-white">
+                    {selectedInvoice.items.map((item, i) => (
+                      <div key={i} className="px-3 py-2 flex items-center justify-between text-[11px]">
+                        <div className="w-1/2 pr-1">
+                          <p className="font-bold text-gray-800 truncate">{item.name || 'Store Item'}</p>
+                          {item.cashbackPercentage > 0 && (
+                            <span className="inline-block text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">
+                              {item.cashbackPercentage}% Cashback
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-1/4 text-center text-gray-500 font-mono">
+                          {item.quantity} x ₹{Number(item.price || item.rate || 0).toFixed(0)}
+                        </div>
+                        <div className="w-1/4 text-right font-bold text-gray-800 font-mono">
+                          ₹{Number(item.total || ((item.price || item.rate || 0) * (item.quantity || 1))).toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
+                  <p className="text-[11px] text-gray-600 font-medium">
+                    Store Purchase / Instant Cashback Transaction
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
+                    Ref ID: {selectedInvoice.refId || selectedInvoice.id || selectedInvoice.transactionId || 'N/A'}
+                  </p>
+                </div>
+              )}
+
+              {/* Total Summary */}
+              <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-1.5">
+                <div className="flex justify-between text-gray-600 text-[11px]">
+                  <span>Total Bill Amount</span>
+                  <span className="font-bold font-mono">
+                    ₹{Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-gray-500 text-[10px]">
+                  <span>GST / Taxes</span>
+                  <span className="text-emerald-600 font-medium">Included</span>
+                </div>
+                <div className="pt-1.5 border-t border-gray-200 flex justify-between text-gray-900 font-bold text-sm">
+                  <span>Net Paid Amount</span>
+                  <span className="font-mono text-primary font-black">
+                    ₹{Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Instant Cashback Badge */}
+              {Number(selectedInvoice.cashbackAmount || (selectedInvoice.isCashback ? selectedInvoice.rawAmount : 0)) > 0 && (
+                <div className="bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/15 border border-emerald-300 rounded-xl p-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="material-symbols-outlined text-[18px]">redeem</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">
+                      Zeebac Instant Cashback Earned
+                    </p>
+                    <p className="font-black text-emerald-700 text-base font-mono">
+                      +₹{Number(selectedInvoice.cashbackAmount || (selectedInvoice.isCashback ? selectedInvoice.rawAmount : 0)).toFixed(2)} Points
+                    </p>
+                    <p className="text-[9.5px] text-emerald-800/80">
+                      Credited directly into your Zeebac Wallet balance!
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-3 bg-gray-50 border-t border-gray-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">print</span>
+                <span>Print / Save</span>
+              </button>
+              {typeof navigator !== 'undefined' && navigator.share && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.share({
+                      title: `Zeebac Bill #${selectedInvoice.billNumber || selectedInvoice.refId}`,
+                      text: `Bill from ${selectedInvoice.vendorName || 'ZeeBac Partner Store'}: ₹${Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toFixed(2)}. Earned ₹${Number(selectedInvoice.cashbackAmount || 0).toFixed(2)} Cashback on Zeebac!`,
+                    }).catch(() => {});
+                  }}
+                  className="py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">share</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedInvoice(null)}
+                className="flex-1 py-2 px-3 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer shadow-sm shadow-primary/20"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <BottomNavBar />
     </div>
