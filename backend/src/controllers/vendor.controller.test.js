@@ -18,6 +18,7 @@ import {
   requestWithdrawal,
   getVendorWallet,
 } from './vendor.controller.js';
+import { lookupVendorById } from './user.controller.js';
 
 // The controllers call sendNotification (Firebase) as a side effect — mock it
 // out so tests don't depend on Firebase being configured.
@@ -370,6 +371,63 @@ describe('Vendor Bank Account Management with OTP Verification', () => {
     expect(tx).not.toBeNull();
     expect(tx.description).toContain('Withdrawal to Axis Bank');
     expect(tx.description).toContain('8901');
+  });
+
+  describe('updateProfile - Shop Opening Hours & Timing Synchronization', () => {
+    it('updates operatingHours and businessHours, and exposes them to User lookup', async () => {
+      const vendor = await Vendor.create({
+        zeebacId: 'ZBV-TIME1',
+        storeName: 'Timing Test Store',
+        ownerName: 'Timing Owner',
+        phone: '9876543299',
+        category: 'Electronics',
+        shopType: 'Independent Store',
+        cashbackRate: 5,
+        status: 'Verified',
+        operatingHours: 'Open Daily: 09:00 AM - 10:00 PM',
+        businessHours: {
+          openingTime: '09:00',
+          closingTime: '22:00',
+          workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        },
+      });
+
+      const updateReq = {
+        user: { id: vendor._id.toString() },
+        body: {
+          operatingHours: '10:00 AM - 08:00 PM (Mon, Tue, Wed, Thu, Fri, Sat)',
+          businessHours: {
+            openingTime: '10:00',
+            closingTime: '20:00',
+            workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+          },
+        },
+      };
+      const updateRes = makeRes();
+
+      await updateProfile(updateReq, updateRes);
+
+      expect(updateRes.status).toHaveBeenCalledWith(200);
+      const updated = updateRes.json.mock.calls[0][0].data;
+      expect(updated.operatingHours).toBe('10:00 AM - 08:00 PM (Mon, Tue, Wed, Thu, Fri, Sat)');
+      expect(updated.businessHours.openingTime).toBe('10:00');
+      expect(updated.businessHours.closingTime).toBe('20:00');
+      expect(updated.businessHours.workingDays).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+
+      // Now verify User lookup returns both businessHours and operatingHours
+      const userReq = {
+        params: { query: vendor.zeebacId },
+      };
+      const userRes = makeRes();
+      await lookupVendorById(userReq, userRes);
+
+      expect(userRes.status).toHaveBeenCalledWith(200);
+      const lookedUp = userRes.json.mock.calls[0][0].data;
+      expect(lookedUp.operatingHours).toBe('10:00 AM - 08:00 PM (Mon, Tue, Wed, Thu, Fri, Sat)');
+      expect(lookedUp.businessHours.openingTime).toBe('10:00');
+      expect(lookedUp.businessHours.closingTime).toBe('20:00');
+      expect(lookedUp.businessHours.workingDays).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+    });
   });
 });
 

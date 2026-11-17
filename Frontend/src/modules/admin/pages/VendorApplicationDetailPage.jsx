@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { AdminAPI, API_BASE_URL, getMediaUrl } from '../../../services/api';
+import { getStoreTimingStatus } from '../../../utils/storeTiming';
 import ApproveDialog from '../components/vendors/ApproveDialog';
 import RejectDialog from '../components/vendors/RejectDialog';
 
@@ -417,9 +418,31 @@ export default function VendorApplicationDetailPage() {
           </div>
         </Section>
 
-        <Section title="Business Hours" icon="schedule">
-          <Row label="Hours" value={vendor.businessHours?.openingTime ? `${vendor.businessHours.openingTime} – ${vendor.businessHours.closingTime}` : null} />
-          <div className="mt-2"><Row label="Working Days" value={vendor.businessHours?.workingDays?.join(', ')} /></div>
+        <Section title="Business Hours & Timings" icon="schedule">
+          {(() => {
+            const timing = getStoreTimingStatus(vendor);
+            return (
+              <div className="space-y-2">
+                <Row label="Timing (12h)" value={timing.timingDisplay} />
+                <Row label="Working Days" value={timing.workingDaysText} />
+                <div className="flex items-center justify-between text-body-sm pt-1 border-t border-slate-100">
+                  <span className="text-on-surface-variant font-medium">Current Status</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    timing.isOpen
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}>
+                    {timing.statusText}
+                  </span>
+                </div>
+                {vendor.operatingHours && (
+                  <p className="text-[11px] text-gray-400 font-mono pt-1">
+                    Raw: {vendor.operatingHours}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </Section>
       </div>
 

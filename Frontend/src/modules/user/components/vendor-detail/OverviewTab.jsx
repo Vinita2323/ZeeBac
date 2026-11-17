@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAPI, API_BASE_URL, ChatAPI } from '../../../../services/api';
 import MediaLightboxModal from '../MediaLightboxModal';
+import { getStoreTimingStatus } from '../../../../utils/storeTiming';
 
 export default function OverviewTab({ vendor }) {
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ export default function OverviewTab({ vendor }) {
         </div>
         <div className="flex items-center gap-sm text-body-sm text-on-surface-variant">
           <span className="material-symbols-outlined text-outline">schedule</span>
-          <span>{vendor.operatingHours || "Open Daily: 09:00 AM - 10:00 PM"}</span>
+          <span>{vendor.operatingHours || `${getStoreTimingStatus(vendor).timingDisplay} (${getStoreTimingStatus(vendor).workingDaysText})`}</span>
         </div>
       </div>
 

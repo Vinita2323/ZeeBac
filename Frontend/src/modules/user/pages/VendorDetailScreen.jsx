@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI, API_BASE_URL } from '../../../services/api';
 import { calculateDistance } from '../../../utils/distance';
+import { getStoreTimingStatus } from '../../../utils/storeTiming';
 import useCartStore from '../../../store/useCartStore';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { getStoreTypeConfig, getCategoryFallbackImage } from '../data/storeCategoryConfigs';
@@ -732,55 +733,8 @@ export default function VendorDetailScreen() {
 
   // Store Open / Closed Status based on operatingHours or businessHours
   const storeTimingInfo = useMemo(() => {
-    let openHour = 9;
-    let openMin = 0;
-    let closeHour = 22;
-    let closeMin = 0;
-
-    const opHoursStr = vendor?.operatingHours || "Open Daily: 09:00 AM - 10:00 PM";
-    
-    if (vendor?.businessHours?.openingTime && vendor?.businessHours?.closingTime) {
-      const [oH, oM] = vendor.businessHours.openingTime.split(':').map(Number);
-      const [cH, cM] = vendor.businessHours.closingTime.split(':').map(Number);
-      if (!isNaN(oH)) { openHour = oH; openMin = oM || 0; }
-      if (!isNaN(cH)) { closeHour = cH; closeMin = cM || 0; }
-    } else {
-      const match = String(opHoursStr).match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (match) {
-        let [, h1, m1, p1, h2, m2, p2] = match;
-        let oh = parseInt(h1, 10);
-        let ch = parseInt(h2, 10);
-        if (p1.toUpperCase() === 'PM' && oh < 12) oh += 12;
-        if (p1.toUpperCase() === 'AM' && oh === 12) oh = 0;
-        if (p2.toUpperCase() === 'PM' && ch < 12) ch += 12;
-        if (p2.toUpperCase() === 'AM' && ch === 12) ch = 0;
-        openHour = oh;
-        openMin = parseInt(m1, 10) || 0;
-        closeHour = ch;
-        closeMin = parseInt(m2, 10) || 0;
-      }
-    }
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const openMinutes = openHour * 60 + openMin;
-    const closeMinutes = closeHour * 60 + closeMin;
-
-    const isOpen = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
-
-    const formatTime = (h, m) => {
-      const p = h >= 12 ? 'PM' : 'AM';
-      const dh = h % 12 === 0 ? 12 : h % 12;
-      return `${dh}:${m < 10 ? '0' + m : m} ${p}`;
-    };
-
-    return {
-      isOpen,
-      openTimeStr: formatTime(openHour, openMin),
-      closeTimeStr: formatTime(closeHour, closeMin),
-      timingDisplay: `${formatTime(openHour, openMin)} - ${formatTime(closeHour, closeMin)}`,
-    };
-  }, [vendor?.operatingHours, vendor?.businessHours]);
+    return getStoreTimingStatus(vendor);
+  }, [vendor]);
 
   // Fetch Products from Backend or load rich realistic catalog
   useEffect(() => {

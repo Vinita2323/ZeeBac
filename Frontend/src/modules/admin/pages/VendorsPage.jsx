@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminAPI } from '../../../services/api';
+import { getStoreTimingStatus } from '../../../utils/storeTiming';
 import ApproveDialog from '../components/vendors/ApproveDialog';
 import RejectDialog from '../components/vendors/RejectDialog';
 
@@ -170,7 +171,7 @@ export default function VendorsPage() {
                   </td>
                   <td className="p-4 text-on-surface-variant">
                     <p className="font-bold text-on-surface leading-tight">{vendor.storeName || '—'}</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
                       <span className="inline-block text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
                         {vendor.businessType || 'Retailer'}
                       </span>
@@ -183,6 +184,16 @@ export default function VendorsPage() {
                           {(vendor.retailerSubtype === 'chain_brand' || vendor.shopType === 'Chain & Brand') ? 'Chain Brand' : 'Independent Store'}
                         </span>
                       )}
+                      {(() => {
+                        const timing = getStoreTimingStatus(vendor);
+                        return (
+                          <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            timing.isOpen ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-50 text-slate-500 border border-slate-200'
+                          }`}>
+                            {timing.isOpen ? '● Open' : '○ Closed'} ({timing.timingDisplay})
+                          </span>
+                        );
+                      })()}
                     </div>
                   </td>
                   <td className="p-4 text-on-surface-variant">{vendor.category || '—'}</td>

@@ -444,11 +444,40 @@ export const updateProfile = async (req, res) => {
 
     if (description !== undefined) vendor.description = description;
     if (email !== undefined) vendor.email = email;
-    if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
     if (storeName !== undefined && typeof storeName === 'string' && storeName.trim()) vendor.storeName = storeName.trim();
     if (req.body.gstNumber !== undefined) vendor.gstNumber = req.body.gstNumber;
     if (req.body.fssaiNumber !== undefined) vendor.fssaiNumber = req.body.fssaiNumber;
-    if (businessHours !== undefined) vendor.businessHours = businessHours;
+
+    if (businessHours !== undefined) {
+      let hoursObj = businessHours;
+      if (typeof businessHours === 'string') {
+        try {
+          hoursObj = JSON.parse(businessHours);
+        } catch {
+          hoursObj = {};
+        }
+      }
+      if (typeof hoursObj === 'object' && hoursObj !== null) {
+        vendor.businessHours = {
+          openingTime: hoursObj.openingTime || vendor.businessHours?.openingTime || '09:00',
+          closingTime: hoursObj.closingTime || vendor.businessHours?.closingTime || '22:00',
+          workingDays: Array.isArray(hoursObj.workingDays) && hoursObj.workingDays.length > 0
+            ? hoursObj.workingDays
+            : (vendor.businessHours?.workingDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']),
+        };
+        vendor.markModified('businessHours');
+      }
+    }
+
+    if (operatingHours !== undefined) {
+      vendor.operatingHours = operatingHours;
+      vendor.markModified('operatingHours');
+    } else if (businessHours !== undefined && vendor.businessHours?.openingTime && vendor.businessHours?.closingTime) {
+      const daysText = vendor.businessHours.workingDays?.length === 7 ? 'All Days' : (vendor.businessHours.workingDays?.join(', ') || 'All Days');
+      vendor.operatingHours = `${vendor.businessHours.openingTime} - ${vendor.businessHours.closingTime} (${daysText})`;
+      vendor.markModified('operatingHours');
+    }
+
     if (profilePic !== undefined) vendor.profilePic = profilePic;
     if (req.files) {
       const getUrl = (f) => (f ? (f.url || (f.filename?.startsWith('http') ? f.filename : null)) : null);

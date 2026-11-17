@@ -15,6 +15,12 @@ import {
   registerBiometricCredential,
 } from '../../../utils/biometric.util';
 import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+import {
+  getStoreTimingStatus,
+  formatOperatingHours,
+  formatTo24Hour,
+  ALL_DAYS,
+} from '../../../utils/storeTiming';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -81,10 +87,13 @@ export default function ProfilePage() {
     fssaiNumber: '',
   });
 
-  const [timingForm, setTimingForm] = useState({
-    openingTime: '09:00',
-    closingTime: '22:00',
-    workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  const [timingForm, setTimingForm] = useState(() => {
+    const initial = getStoreTimingStatus(currentUser);
+    return {
+      openingTime: formatTo24Hour(initial.openTimeStr),
+      closingTime: formatTo24Hour(initial.closeTimeStr),
+      workingDays: Array.isArray(initial.workingDays) && initial.workingDays.length > 0 ? initial.workingDays : [...ALL_DAYS],
+    };
   });
 
   const [bankForm, setBankForm] = useState({
@@ -112,32 +121,20 @@ export default function ProfilePage() {
     return 'India';
   }, [vendorData, currentUser]);
 
-  const openingHoursText = useMemo(() => {
-    if (vendorData?.operatingHours) return vendorData.operatingHours;
-    if (vendorData?.businessHours?.openingTime && vendorData?.businessHours?.closingTime) {
-      return `${vendorData.businessHours.openingTime} - ${vendorData.businessHours.closingTime}`;
-    }
-    return '09:00 AM - 10:00 PM';
-  }, [vendorData]);
+  // Active store timing calculation using shared rock-solid evaluator
+  const activeStoreTiming = useMemo(() => {
+    return getStoreTimingStatus({
+      businessHours: {
+        openingTime: timingForm.openingTime,
+        closingTime: timingForm.closingTime,
+        workingDays: timingForm.workingDays,
+      },
+      operatingHours: vendorData?.operatingHours || currentUser?.operatingHours,
+    });
+  }, [timingForm, vendorData?.operatingHours, currentUser?.operatingHours]);
 
-  // Check if store is open right now based on hours
-  const isStoreOpenNow = useMemo(() => {
-    try {
-      const openTime = timingForm.openingTime || '09:00';
-      const closeTime = timingForm.closingTime || '22:00';
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-      const [openH, openM] = openTime.split(':').map(Number);
-      const [closeH, closeM] = closeTime.split(':').map(Number);
-      const openMinutes = (openH || 9) * 60 + (openM || 0);
-      const closeMinutes = (closeH || 22) * 60 + (closeM || 0);
-
-      return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
-    } catch {
-      return true;
-    }
-  }, [timingForm]);
+  const openingHoursText = activeStoreTiming.timingDisplay;
+  const isStoreOpenNow = activeStoreTiming.isOpen;
 
   // Fetch full vendor profile & dashboard stats on mount
   useEffect(() => {
@@ -171,15 +168,14 @@ export default function ProfilePage() {
             fssaiNumber: v.fssaiNumber || '',
           });
 
-          if (v.businessHours) {
-            setTimingForm({
-              openingTime: v.businessHours.openingTime || '09:00',
-              closingTime: v.businessHours.closingTime || '22:00',
-              workingDays: v.businessHours.workingDays?.length
-                ? v.businessHours.workingDays
-                : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            });
-          }
+          const parsedTiming = getStoreTimingStatus(v);
+          setTimingForm({
+            openingTime: formatTo24Hour(parsedTiming.openTimeStr),
+            closingTime: formatTo24Hour(parsedTiming.closeTimeStr),
+            workingDays: Array.isArray(parsedTiming.workingDays) && parsedTiming.workingDays.length > 0
+              ? parsedTiming.workingDays
+              : [...ALL_DAYS],
+          });
 
           if (v.bankDetails) {
             setBankForm({
@@ -282,24 +278,30 @@ export default function ProfilePage() {
   const handleSaveOpeningHours = async (e) => {
     e.preventDefault();
     try {
-      const operatingHours = `${timingForm.openingTime} - ${timingForm.closingTime} (${timingForm.workingDays.length === 7 ? 'All Days' : timingForm.workingDays.join(', ')})`;
+      const operatingHours = formatOperatingHours(timingForm.openingTime, timingForm.closingTime, timingForm.workingDays);
+      const businessHours = {
+        openingTime: timingForm.openingTime,
+        closingTime: timingForm.closingTime,
+        workingDays: timingForm.workingDays,
+      };
 
       const res = await VendorAPI.updateProfile({
         operatingHours,
-        businessHours: {
-          openingTime: timingForm.openingTime,
-          closingTime: timingForm.closingTime,
-          workingDays: timingForm.workingDays,
-        },
+        businessHours,
       });
 
       if (res.success) {
         toast.success('Shop opening hours updated!');
+        const updatedVendor = {
+          operatingHours,
+          businessHours,
+        };
         setVendorData((prev) => ({
           ...prev,
-          operatingHours,
-          businessHours: timingForm,
+          ...updatedVendor,
         }));
+        // Update persistent session in useAuthStore so vendor changes immediately react across the app
+        updateProfileStore(updatedVendor);
         setShowOpeningHoursModal(false);
       }
     } catch (err) {
@@ -597,17 +599,22 @@ export default function ProfilePage() {
               <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[18px]">schedule</span>
               </div>
-              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
-                {t('Shop Opening Time')}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                  {t('Shop Opening Time')}
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium truncate">
+                  {activeStoreTiming.timingDisplay} • {activeStoreTiming.workingDaysText}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  isStoreOpenNow ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  activeStoreTiming.isOpen ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}
               >
-                {isStoreOpenNow ? 'Open Now' : 'Closed'}
+                {activeStoreTiming.badgeText}
               </span>
               <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
                 chevron_right
@@ -1012,6 +1019,11 @@ export default function ProfilePage() {
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-amber-900 font-medium flex items-center justify-between">
+                <span>Preview:</span>
+                <span className="font-bold">{formatOperatingHours(timingForm.openingTime, timingForm.closingTime, timingForm.workingDays)}</span>
               </div>
 
               <div className="pt-2 flex gap-2">

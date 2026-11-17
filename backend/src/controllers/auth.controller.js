@@ -220,6 +220,8 @@ export const vendorLogin = async (req, res) => {
         zeebacId: vendor.zeebacId,
         role: vendor.role,
         status: vendor.status,
+        operatingHours: vendor.operatingHours,
+        businessHours: vendor.businessHours,
         applicationStatus: vendor.applicationStatus,
         rejectionReason: vendor.rejectionReason,
         rejectionCategory: vendor.rejectionCategory,

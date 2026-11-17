@@ -7,6 +7,7 @@ import useCartStore from '../../../store/useCartStore';
 import useLanguageStore from '../../../store/useLanguageStore';
 import BottomNavBar from '../components/common/BottomNavBar';
 import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+import { getStoreTimingStatus } from '../../../utils/storeTiming';
 import { getSocket } from '../../../services/socket';
 
 // Helper to format address object or string
@@ -153,55 +154,8 @@ export default function CartScreen() {
 
   // Store Open / Closed Status based on operatingHours or businessHours
   const storeTimingInfo = useMemo(() => {
-    let openHour = 9;
-    let openMin = 0;
-    let closeHour = 22;
-    let closeMin = 0;
-
-    const opHoursStr = effectiveVendor?.operatingHours || "Open Daily: 09:00 AM - 10:00 PM";
-    
-    if (effectiveVendor?.businessHours?.openingTime && effectiveVendor?.businessHours?.closingTime) {
-      const [oH, oM] = effectiveVendor.businessHours.openingTime.split(':').map(Number);
-      const [cH, cM] = effectiveVendor.businessHours.closingTime.split(':').map(Number);
-      if (!isNaN(oH)) { openHour = oH; openMin = oM || 0; }
-      if (!isNaN(cH)) { closeHour = cH; closeMin = cM || 0; }
-    } else {
-      const match = String(opHoursStr).match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (match) {
-        let [, h1, m1, p1, h2, m2, p2] = match;
-        let oh = parseInt(h1, 10);
-        let ch = parseInt(h2, 10);
-        if (p1.toUpperCase() === 'PM' && oh < 12) oh += 12;
-        if (p1.toUpperCase() === 'AM' && oh === 12) oh = 0;
-        if (p2.toUpperCase() === 'PM' && ch < 12) ch += 12;
-        if (p2.toUpperCase() === 'AM' && ch === 12) ch = 0;
-        openHour = oh;
-        openMin = parseInt(m1, 10) || 0;
-        closeHour = ch;
-        closeMin = parseInt(m2, 10) || 0;
-      }
-    }
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const openMinutes = openHour * 60 + openMin;
-    const closeMinutes = closeHour * 60 + closeMin;
-
-    const isOpen = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
-
-    const formatTime = (h, m) => {
-      const p = h >= 12 ? 'PM' : 'AM';
-      const dh = h % 12 === 0 ? 12 : h % 12;
-      return `${dh}:${m < 10 ? '0' + m : m} ${p}`;
-    };
-
-    return {
-      isOpen,
-      openTimeStr: formatTime(openHour, openMin),
-      closeTimeStr: formatTime(closeHour, closeMin),
-      timingDisplay: `${formatTime(openHour, openMin)} - ${formatTime(closeHour, closeMin)}`,
-    };
-  }, [effectiveVendor?.operatingHours, effectiveVendor?.businessHours]);
+    return getStoreTimingStatus(effectiveVendor);
+  }, [effectiveVendor]);
 
   // Delivery Scheduling state (Instant vs Scheduled delivery)
   const [deliveryType, setDeliveryType] = useState(() => (storeTimingInfo.isOpen ? 'INSTANT' : 'SCHEDULED'));

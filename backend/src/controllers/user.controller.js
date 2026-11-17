@@ -237,7 +237,7 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours stats socialLinks subscription shopType location deliverySettings');
+      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -966,7 +966,7 @@ export const searchVendors = async (req, res) => {
     }
 
     const vendors = await Vendor.find(query)
-      .select('storeName ownerName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType phone')
+      .select('storeName ownerName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType phone operatingHours businessHours')
       .limit(50);
 
     const visibleVendors = vendors
@@ -1087,7 +1087,7 @@ export const getVendorsByCategory = async (req, res) => {
     }
     
     const vendors = await Vendor.find(query)
-      .select('storeName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType')
+      .select('storeName category subCategory cashbackRate address stats storeLogo profilePic storeCoverImage storeImages zeebacId location subscription shopType operatingHours businessHours')
       .limit(50);
 
     const visibleVendors = vendors
@@ -1531,7 +1531,7 @@ export const getNearbyVendors = async (req, res) => {
           }
         }
       });
-      vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location');
+      vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location operatingHours businessHours');
     } catch (geoErr) {
       logger.warn(`getNearbyVendors geo query warning: ${geoErr.message}`);
     }
@@ -1540,7 +1540,7 @@ export const getNearbyVendors = async (req, res) => {
     if (!vendors || vendors.length === 0) {
       const fallbackQuery = getStoreVisibilityQuery({});
       vendors = await Vendor.find(fallbackQuery)
-        .select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location')
+        .select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location operatingHours businessHours')
         .limit(20);
     }
 
