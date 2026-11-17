@@ -105,7 +105,7 @@ export default function VendorSubscriptionPage() {
       setPaymentStepMessage('Opening Razorpay checkout...');
 
       const options = {
-        key: key || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: key || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_Tk8Eo3bZcaGXrc',
         amount: Math.round(amount * 100),
         currency: 'INR',
         name: 'ZeeBac',

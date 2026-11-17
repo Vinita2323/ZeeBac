@@ -32,6 +32,21 @@ apiClient.interceptors.request.use((config) => {
   // 1. Role-specific token resolution based on target endpoint
   if (url.startsWith('/vendor') || url.startsWith('vendor') || url.includes('/vendor/')) {
     token = useAuthStore.getState().vendorToken || localStorage.getItem('zeebac_vendor_token');
+    if (!token) {
+      try {
+        const cur = localStorage.getItem('zeebac_current_user');
+        if (cur) {
+          const parsed = JSON.parse(cur);
+          if (parsed.role === 'vendor' || parsed.storeName || parsed.ownerName || parsed.businessType || parsed.shopType) {
+            token = localStorage.getItem('zeebac_access_token');
+            if (token && !localStorage.getItem('zeebac_vendor_token')) {
+              localStorage.setItem('zeebac_vendor_token', token);
+              localStorage.setItem('zeebac_vendor_user', cur);
+            }
+          }
+        }
+      } catch {}
+    }
   } else if (url.startsWith('/admin') || url.startsWith('admin') || url.includes('/admin/')) {
     token = useAuthStore.getState().adminToken || localStorage.getItem('zeebac_admin_token');
   } else if (url.startsWith('/delivery') || url.startsWith('delivery') || url.includes('/delivery/')) {

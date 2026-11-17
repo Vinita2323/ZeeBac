@@ -69,7 +69,7 @@ export default function StepAccount({
         retailerSubtype,
         shopType,
       });
-      useAuthStore.getState().login(res.vendor, res.accessToken, res.refreshToken);
+      useAuthStore.getState().login(res.vendor, res.accessToken, res.refreshToken, 'vendor');
       onComplete(res.vendor);
     } catch (err) {
       setApiError(err.response?.data?.message || 'Failed to create account. Please try again.');

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 import Vendor from '../models/Vendor.js';
+import User from '../models/User.js';
 
 // Protect routes — verify accessToken
 export const protect = async (req, res, next) => {
@@ -51,12 +52,69 @@ export const optionalAuth = async (req, res, next) => {
 
 // Role guard
 export const requireRole = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      logger.warn(`[requireRole] Access denied for user ${req.user?.id}. Required: ${roles}, Got: ${req.user?.role}`);
-      return res.status(403).json({ success: false, message: 'Access denied: insufficient permissions' });
+  return async (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
     }
-    next();
+
+    // Direct match or Super Admin / Admin bypass
+    if (roles.includes(req.user.role) || req.user.role === 'super_admin' || req.user.role === 'admin') {
+      return next();
+    }
+
+    // Fallback: If 'vendor' role is required, verify if req.user is a Vendor in DB
+    if (roles.includes('vendor')) {
+      try {
+        let vendor = await Vendor.findById(req.user.id);
+        if (!vendor && req.user.phone) {
+          vendor = await Vendor.findOne({ phone: req.user.phone });
+        }
+        if (!vendor && req.user.id) {
+          const u = await User.findById(req.user.id).select('phone');
+          if (u?.phone) {
+            vendor = await Vendor.findOne({ phone: u.phone });
+          }
+        }
+        if (vendor) {
+          req.user.role = 'vendor';
+          req.user.id = vendor._id.toString();
+          req.user._id = vendor._id;
+          req.user.zeebacId = vendor.zeebacId;
+          req.vendor = vendor;
+          return next();
+        }
+      } catch (e) {
+        logger.error(`[requireRole vendor fallback] error: ${e.message}`);
+      }
+    }
+
+    // Fallback: If 'customer' role is required, verify if req.user is a Customer in DB
+    if (roles.includes('customer')) {
+      try {
+        let cust = await User.findById(req.user.id);
+        if (!cust && req.user.phone) {
+          cust = await User.findOne({ phone: req.user.phone });
+        }
+        if (!cust && req.user.id) {
+          const v = await Vendor.findById(req.user.id).select('phone');
+          if (v?.phone) {
+            cust = await User.findOne({ phone: v.phone });
+          }
+        }
+        if (cust) {
+          req.user.role = 'customer';
+          req.user.id = cust._id.toString();
+          req.user._id = cust._id;
+          req.user.zeebacId = cust.zeebacId;
+          return next();
+        }
+      } catch (e) {
+        logger.error(`[requireRole customer fallback] error: ${e.message}`);
+      }
+    }
+
+    logger.warn(`[requireRole] Access denied for user ${req.user?.id}. Required: ${roles}, Got: ${req.user?.role}`);
+    return res.status(403).json({ success: false, message: 'Access denied: insufficient permissions' });
   };
 };
 

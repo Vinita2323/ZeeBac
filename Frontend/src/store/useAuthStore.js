@@ -133,7 +133,7 @@ const useAuthStore = create((set, get) => ({
           const parsed = JSON.parse(legacyUserStr);
           const legacyRole = (parsed.role === 'admin' || parsed.role === 'super_admin')
             ? 'admin'
-            : (parsed.role === 'vendor' || parsed.storeName ? 'vendor' : 'customer');
+            : (parsed.role === 'vendor' || parsed.storeName || parsed.ownerName || parsed.businessType || parsed.shopType ? 'vendor' : 'customer');
           const targetKeys = ROLE_STORAGE[legacyRole];
           if (targetKeys && !localStorage.getItem(targetKeys.user)) {
             localStorage.setItem(targetKeys.user, legacyUserStr);
