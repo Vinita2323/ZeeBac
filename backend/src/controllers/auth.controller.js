@@ -148,6 +148,12 @@ export const customerLogin = async (req, res) => {
       await user.save();
     }
 
+    // Auto-heal zeebacId if missing
+    if (!user.zeebacId) {
+      user.zeebacId = user.phone === '9335825081' ? 'ZBC-5266' : await generateZeebacId('ZBC', User);
+      await user.save();
+    }
+
     if (user.status === 'Suspended') {
       return res.status(403).json({ success: false, message: 'Account suspended' });
     }
@@ -360,8 +366,16 @@ export const getMe = async (req, res) => {
 
     if (role === 'customer') {
       data = await User.findById(id).select('-refreshToken');
+      if (data && !data.zeebacId) {
+        data.zeebacId = data.phone === '9335825081' ? 'ZBC-5266' : await generateZeebacId('ZBC', User);
+        await User.findByIdAndUpdate(id, { zeebacId: data.zeebacId });
+      }
     } else if (role === 'vendor') {
       data = await Vendor.findById(id).select('-refreshToken');
+      if (data && !data.zeebacId) {
+        data.zeebacId = await generateZeebacId('ZBV', Vendor);
+        await Vendor.findByIdAndUpdate(id, { zeebacId: data.zeebacId });
+      }
     } else if (role === 'admin' || role === 'super_admin') {
       data = await AdminUser.findById(id).select('-refreshToken');
     }

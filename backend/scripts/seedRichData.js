@@ -883,6 +883,7 @@ async function seedData() {
     { phone: '9335825081' },
     {
       $set: {
+        zeebacId: 'ZBC-5266',
         name: 'Shiv',
         phone: '9335825081',
         email: 'shiv@zeebac.com',

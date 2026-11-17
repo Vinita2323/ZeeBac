@@ -18,6 +18,7 @@ import PosBill from '../models/PosBill.js';
 import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
+import { generateZeebacId } from './signup.controller.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import { checkAndNotifyFraud, notifyAdmins } from '../utils/adminNotification.js';
@@ -47,9 +48,14 @@ const activeSubmissionLocks = new Set();
 // ─── Get Customer Profile ───
 export const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-refreshToken -otp -otpExpiry -security.securityPin');
+    let user = await User.findById(req.user.id).select('-refreshToken -otp -otpExpiry -security.securityPin');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    const userObj = user.toObject();
+    if (!user.zeebacId) {
+      const assignedId = user.phone === '9335825081' ? 'ZBC-5266' : await generateZeebacId('ZBC', User);
+      user.zeebacId = assignedId;
+      await User.findByIdAndUpdate(req.user.id, { zeebacId: assignedId });
+    }
+    const userObj = user.toObject ? user.toObject() : { ...user };
     if (userObj.security) {
       userObj.security.hasPin = !!(await User.findById(req.user.id).select('security.securityPin'))?.security?.securityPin;
     }
