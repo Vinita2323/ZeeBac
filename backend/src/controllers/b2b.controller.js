@@ -61,7 +61,7 @@ export const searchB2BProducts = async (req, res) => {
     }
 
     const queryExec = Product.find(filter)
-      .select('name productId barcode mrp wholesalePrice price stock unit category image images description brand cashbackPercentage branding supplierDetails sourceProductId vendorId')
+      .select('name productId barcode mrp wholesalePrice price stock unit category image images description brand expiryDate batchNumber cashbackPercentage branding supplierDetails sourceProductId vendorId')
       .limit(50);
 
     if (isCatalogue) {
@@ -444,6 +444,7 @@ export const verifyAndTransferB2BStock = async (req, res) => {
           unit: sellerProduct.unit || item.unit || 'Pcs',
           gst: sellerProduct.gst || 0,
           expiryDate: sellerProduct.expiryDate,
+          batchNumber: sellerProduct.batchNumber || '',
           brand: sellerProduct.brand,
           description: sellerProduct.description,
           image: sellerProduct.image,
@@ -621,6 +622,121 @@ export const getSellerInvoices = async (req, res) => {
  * 6. Get Invoices Received by Buyer (Purchases)
  * @route GET /api/b2b/invoices/buyer
  */
+
+/**
+ * 6b. Get Products Previously Purchased by Merchant/Buyer for 1-Click Re-Purchase
+ * @route GET /api/b2b/repurchase-products
+ */
+export const getRepurchaseProducts = async (req, res) => {
+  try {
+    const buyerId = req.user.id;
+
+    // 1. Fetch B2B invoices where this vendor was the buyer
+    const invoices = await B2BInvoice.find({ buyerId }).sort({ createdAt: -1 }).lean();
+
+    // 2. Fetch inventory products that originated from an upstream supplier
+    const inventoryProducts = await Product.find({
+      vendorId: buyerId,
+      $or: [
+        { supplierId: { $ne: null } },
+        { sourceProductId: { $ne: null } },
+        { purchaseInvoiceId: { $ne: null } }
+      ]
+    }).lean();
+
+    // 3. Aggregate unique products previously purchased
+    const productMap = new Map();
+
+    // From historical B2B invoices
+    for (const inv of invoices) {
+      const seller = inv.sellerDetails || {};
+      for (const item of (inv.items || [])) {
+        const key = item.productIdString || (item.productId ? String(item.productId) : item.name.toLowerCase().trim());
+        if (!productMap.has(key)) {
+          productMap.set(key, {
+            key,
+            productId: item.productId,
+            productIdString: item.productIdString || '',
+            name: item.name,
+            barcode: item.barcode || '',
+            image: item.image || '',
+            category: item.category || 'General',
+            unit: item.unit || 'Pcs',
+            lastPurchasedRate: item.rate,
+            mrp: item.mrp || item.rate,
+            supplierId: inv.sellerId,
+            supplierDetails: {
+              storeName: seller.storeName || 'Verified Supplier',
+              zeebacId: seller.zeebacId || '',
+              phone: seller.phone || '',
+              businessType: seller.businessType || 'Wholesaler / Manufacturer',
+              city: seller.city || ''
+            },
+            lastPurchasedAt: inv.createdAt,
+            lastInvoiceNumber: inv.invoiceNumber,
+            currentStock: 0,
+            totalTimesPurchased: 1
+          });
+        } else {
+          const existing = productMap.get(key);
+          existing.totalTimesPurchased = (existing.totalTimesPurchased || 1) + 1;
+        }
+      }
+    }
+
+    // From current inventory products with supplier info
+    for (const p of inventoryProducts) {
+      const key = p.productId || (p.sourceProductId ? String(p.sourceProductId) : p.name.toLowerCase().trim());
+      if (productMap.has(key)) {
+        const existing = productMap.get(key);
+        existing.currentStock = p.stock || 0;
+        existing.inventoryProductId = p._id;
+        if (!existing.supplierDetails?.zeebacId && p.supplierDetails?.zeebacId) {
+          existing.supplierDetails = p.supplierDetails;
+        }
+      } else {
+        productMap.set(key, {
+          key,
+          productId: p.sourceProductId || p._id,
+          productIdString: p.productId || '',
+          name: p.name,
+          barcode: p.barcode || '',
+          image: p.image || '',
+          category: p.category || 'General',
+          unit: p.unit || 'Pcs',
+          lastPurchasedRate: p.wholesalePrice || p.price,
+          mrp: p.mrp || p.price,
+          supplierId: p.supplierId,
+          supplierDetails: p.supplierDetails || {
+            storeName: 'Verified Supplier',
+            zeebacId: '',
+            phone: '',
+            businessType: 'Wholesaler / Manufacturer'
+          },
+          lastPurchasedAt: p.createdAt,
+          lastInvoiceNumber: '',
+          currentStock: p.stock || 0,
+          inventoryProductId: p._id,
+          totalTimesPurchased: 1
+        });
+      }
+    }
+
+    const repurchaseList = Array.from(productMap.values()).sort(
+      (a, b) => new Date(b.lastPurchasedAt || 0) - new Date(a.lastPurchasedAt || 0)
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: repurchaseList.length,
+      data: repurchaseList
+    });
+  } catch (error) {
+    logger.error(`[getRepurchaseProducts] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error fetching repurchase products' });
+  }
+};
+
 export const getBuyerInvoices = async (req, res) => {
   try {
     const buyerId = req.user.id;
@@ -678,6 +794,144 @@ export const getB2BInvoiceById = async (req, res) => {
  * 8. Stock Movement History / Audit Ledger
  * @route GET /api/b2b/stock-ledger
  */
+
+/**
+ * 8b. Record Stock Putaway (Inward Receiving)
+ * @route POST /api/b2b/putaway
+ */
+export const recordStockPutaway = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const { productId, quantity, batchNumber, expiryDate, locationRack, notes, sourceSupplier } = req.body;
+
+    if (!productId) {
+      return res.status(400).json({ success: false, message: 'Product is required for putaway' });
+    }
+
+    const qtyNumber = Number(quantity);
+    if (!qtyNumber || qtyNumber <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid inward quantity is required' });
+    }
+
+    const product = await Product.findOne({ _id: productId, vendorId });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found in your inventory' });
+    }
+
+    const previousStock = Number(product.stock) || 0;
+    const newStock = previousStock + qtyNumber;
+
+    product.stock = newStock;
+    if (batchNumber && String(batchNumber).trim()) {
+      product.batchNumber = String(batchNumber).trim();
+    }
+    if (expiryDate) {
+      product.expiryDate = expiryDate;
+    }
+    await product.save();
+
+    const movementId = `SMV-PUTAWAY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const movement = await StockMovement.create({
+      movementId,
+      vendorId,
+      productId: product._id,
+      productIdString: product.productId || '',
+      barcode: product.barcode || '',
+      productName: product.name,
+      movementType: 'IN',
+      quantity: qtyNumber,
+      previousStock,
+      newStock,
+      beforeBuyerStock: previousStock,
+      afterBuyerStock: newStock,
+      sourceZeebacId: sourceSupplier || 'Putaway Inward',
+      destinationZeebacId: req.user.zeebacId || '',
+      reason: 'INITIAL_IMPORT',
+      referenceType: 'Manual',
+      notes: `Stock Putaway ${locationRack ? `[Rack: ${locationRack}] ` : ''}${batchNumber ? `[Batch: ${batchNumber}] ` : ''}${notes || ''}`.trim(),
+    });
+
+    logger.info(`[recordStockPutaway] Vendor ${vendorId} completed putaway for ${product.name}: +${qtyNumber} (Stock: ${previousStock} -> ${newStock})`);
+
+    return res.status(201).json({
+      success: true,
+      message: `Putaway recorded! +${qtyNumber} ${product.unit || 'Pcs'} added to stock.`,
+      data: {
+        product,
+        movement,
+      },
+    });
+  } catch (error) {
+    logger.error(`[recordStockPutaway] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error recording putaway' });
+  }
+};
+
+/**
+ * 8c. Record Stock Audit (Physical Reconciliation & Discrepancy Adjustment)
+ * @route POST /api/b2b/audit
+ */
+export const recordStockAudit = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const { productId, countedStock, auditReason, notes } = req.body;
+
+    if (!productId) {
+      return res.status(400).json({ success: false, message: 'Product is required for audit' });
+    }
+
+    if (countedStock === undefined || countedStock === null || countedStock === '') {
+      return res.status(400).json({ success: false, message: 'Physical counted stock is required' });
+    }
+
+    const physicalStock = Math.max(0, Number(countedStock));
+    const product = await Product.findOne({ _id: productId, vendorId });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found in your inventory' });
+    }
+
+    const previousStock = Number(product.stock) || 0;
+    const variance = physicalStock - previousStock;
+
+    product.stock = physicalStock;
+    await product.save();
+
+    const movementId = `SMV-AUDIT-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const movement = await StockMovement.create({
+      movementId,
+      vendorId,
+      productId: product._id,
+      productIdString: product.productId || '',
+      barcode: product.barcode || '',
+      productName: product.name,
+      movementType: variance >= 0 ? 'IN' : 'OUT',
+      quantity: Math.abs(variance),
+      previousStock,
+      newStock: physicalStock,
+      beforeBuyerStock: previousStock,
+      afterBuyerStock: physicalStock,
+      reason: 'MANUAL_ADJUSTMENT',
+      referenceType: 'Manual',
+      notes: `Audit Adjustment [${auditReason || 'Physical Reconciliation'}]: Variance ${variance >= 0 ? '+' : ''}${variance} ${product.unit || 'Pcs'}. ${notes || ''}`.trim(),
+    });
+
+    logger.info(`[recordStockAudit] Vendor ${vendorId} audited ${product.name}: ${previousStock} -> ${physicalStock} (Variance: ${variance})`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Stock audit saved! Stock updated to ${physicalStock} ${product.unit || 'Pcs'} (Variance: ${variance >= 0 ? '+' : ''}${variance})`,
+      data: {
+        product,
+        movement,
+        variance,
+      },
+    });
+  } catch (error) {
+    logger.error(`[recordStockAudit] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error recording stock audit' });
+  }
+};
+
 export const getStockLedger = async (req, res) => {
   try {
     const vendorId = req.user.id;

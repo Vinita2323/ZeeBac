@@ -1252,12 +1252,24 @@ export const B2BAPI = {
     const res = await apiClient.get('/b2b/invoices/buyer', { params });
     return res.data;
   },
+  getRepurchaseProducts: async () => {
+    const res = await apiClient.get('/b2b/repurchase-products');
+    return res.data;
+  },
   getInvoiceById: async (id) => {
     const res = await apiClient.get(`/b2b/invoices/${id}`);
     return res.data;
   },
   getStockLedger: async (params) => {
     const res = await apiClient.get('/b2b/stock-ledger', { params });
+    return res.data;
+  },
+  recordStockPutaway: async (data) => {
+    const res = await apiClient.post('/b2b/putaway', data);
+    return res.data;
+  },
+  recordStockAudit: async (data) => {
+    const res = await apiClient.post('/b2b/audit', data);
     return res.data;
   },
   getAdminInvoices: async (params) => {

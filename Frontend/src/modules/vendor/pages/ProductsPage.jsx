@@ -53,6 +53,8 @@ export default function ProductsPage() {
     category: fallbackDefaults[0] || 'General',
     brand: '',
     barcode: '',
+    batchNumber: '',
+    expiryDate: '',
     mrp: '',
     wholesalePrice: '',
     price: '',
@@ -165,6 +167,8 @@ export default function ProductsPage() {
       category: p.category || 'Snacks',
       brand: p.brand || '',
       barcode: p.barcode || '',
+      batchNumber: p.batchNumber || '',
+      expiryDate: p.expiryDate ? p.expiryDate.split('T')[0] : '',
       mrp: p.mrp || p.price || '',
       wholesalePrice: p.wholesalePrice || '',
       price: p.price || '',
@@ -272,6 +276,8 @@ export default function ProductsPage() {
         formData.append('cashbackPercentage', Number(productForm.cashbackPercentage || 5));
         formData.append('description', productForm.description || '');
         if (productForm.productId) formData.append('productId', productForm.productId);
+        if (productForm.batchNumber) formData.append('batchNumber', productForm.batchNumber.trim());
+        if (productForm.expiryDate) formData.append('expiryDate', productForm.expiryDate);
 
         formData.append('image', imageFile);
 
@@ -284,6 +290,8 @@ export default function ProductsPage() {
         // Plain JSON object when existing image or URL is used
         const payload = {
           ...productForm,
+          batchNumber: productForm.batchNumber ? productForm.batchNumber.trim() : undefined,
+          expiryDate: productForm.expiryDate || undefined,
           price: Number(productForm.price),
           mrp: productForm.mrp ? Number(productForm.mrp) : Number(productForm.price),
           stock: productForm.stock !== '' ? Number(productForm.stock) : 50,
@@ -476,8 +484,8 @@ export default function ProductsPage() {
                       </span>
                     </div>
 
-                    {/* Stock Status Badge */}
-                    <div className="flex items-center gap-2 mt-1">
+                    {/* Stock & Expiry Status Badges */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                           isOutOfStock
@@ -489,6 +497,16 @@ export default function ProductsPage() {
                       >
                         {isOutOfStock ? 'Out of Stock' : `${product.stock} ${product.unit || 'Pcs'} In Stock`}
                       </span>
+                      {product.batchNumber && (
+                        <span className="text-[10px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          Batch: {product.batchNumber}
+                        </span>
+                      )}
+                      {product.expiryDate && (
+                        <span className="text-[10px] font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                          Exp: {product.expiryDate.split('T')[0]}
+                        </span>
+                      )}
                       {product.barcode && (
                         <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
                           Code: {product.barcode}
@@ -862,6 +880,33 @@ export default function ProductsPage() {
                     </div>
                   </div>
 
+                  {/* Batch & Expiry Fields */}
+                  <div className="grid grid-cols-2 gap-3 p-3 bg-purple-50/50 rounded-2xl border border-purple-100/80">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Batch / Lot No.
+                      </label>
+                      <input
+                        type="text"
+                        value={productForm.batchNumber}
+                        onChange={(e) => updateProductForm('batchNumber', e.target.value)}
+                        placeholder="e.g. BATCH-001"
+                        className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-[13px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Expiry Date
+                      </label>
+                      <input
+                        type="date"
+                        value={productForm.expiryDate}
+                        onChange={(e) => updateProductForm('expiryDate', e.target.value)}
+                        className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
                       Customer Cashback Percentage (%)
@@ -1072,6 +1117,12 @@ export default function ProductsPage() {
                       <div>MRP: <strong className="text-slate-900 font-bold">₹{productForm.mrp || productForm.price || '0'}</strong></div>
                       <div>Stock: <strong className="text-slate-900 font-bold">{productForm.stock || 50} {productForm.unit || 'Pcs'}</strong></div>
                       <div>Cashback: <strong className="text-emerald-600 font-bold">{productForm.cashbackPercentage || 5}%</strong></div>
+                      {productForm.batchNumber && (
+                        <div>Batch: <strong className="text-slate-800 font-mono font-bold">{productForm.batchNumber}</strong></div>
+                      )}
+                      {productForm.expiryDate && (
+                        <div>Expiry: <strong className="text-purple-700 font-bold">{productForm.expiryDate}</strong></div>
+                      )}
                     </div>
                   </div>
 

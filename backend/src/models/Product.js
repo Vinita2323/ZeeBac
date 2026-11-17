@@ -76,6 +76,10 @@ const productSchema = new mongoose.Schema({
   expiryDate: {
     type: String,
   },
+  batchNumber: {
+    type: String,
+    trim: true,
+  },
   brand: {
     type: String,
     trim: true,

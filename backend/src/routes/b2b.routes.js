@@ -7,8 +7,11 @@ import {
   verifyAndTransferB2BStock,
   getSellerInvoices,
   getBuyerInvoices,
+  getRepurchaseProducts,
   getB2BInvoiceById,
   getStockLedger,
+  recordStockPutaway,
+  recordStockAudit,
   getManufacturerDashboardStats,
   getAdminB2BInvoices,
   getAdminStockLedger,
@@ -35,10 +38,13 @@ router.post('/invoices', createB2BInvoice);
 router.post('/invoices/:id/verify-and-transfer', verifyAndTransferB2BStock);
 router.get('/invoices/seller', getSellerInvoices);
 router.get('/invoices/buyer', getBuyerInvoices);
+router.get('/repurchase-products', getRepurchaseProducts);
 router.get('/invoices/:id', getB2BInvoiceById);
 
 // Stock audit ledger
 router.get('/stock-ledger', getStockLedger);
+router.post('/putaway', recordStockPutaway);
+router.post('/audit', recordStockAudit);
 
 // Admin Supply Chain Oversight
 router.get('/admin/invoices', requireRole('admin', 'super_admin'), getAdminB2BInvoices);

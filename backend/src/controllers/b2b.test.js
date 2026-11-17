@@ -15,6 +15,9 @@ import {
   getAdminB2BInvoices,
   getAdminStockLedger,
   getAdminSupplyChainCatalogue,
+  getRepurchaseProducts,
+  recordStockPutaway,
+  recordStockAudit,
 } from './b2b.controller.js';
 import { updateProduct } from './vendor.controller.js';
 
@@ -611,4 +614,91 @@ describe('End-to-End ZeeBac Supply Chain & B2B Billing Suite (Tests A to J)', ()
     expect(maggiMaster.totalStockInCirculation).toBe(500); // 420 at manufacturer + 80 at wholesaler
     expect(maggiMaster.downstreamHoldersCount).toBe(1);
   });
+  it('Putaway, Stock Audit and Re-Purchase: records inward putaway and physical reconciliation accurately', async () => {
+    const merchant = await Vendor.create({
+      storeName: 'Sharma General Store',
+      ownerName: 'Ramesh Sharma',
+      phone: '9812345678',
+      zeebacId: 'ZBV-99123',
+      businessType: 'Retailer',
+      role: 'vendor',
+    });
+
+    const prod = await Product.create({
+      vendorId: merchant._id,
+      name: 'Aashirvaad Atta 5kg',
+      price: 250,
+      stock: 20,
+      unit: 'Pcs',
+      batchNumber: 'LOT-OLD-01',
+      expiryDate: '2026-12-31',
+    });
+
+    // 1. Test Stock Putaway (+30 Pcs with new batch & expiry)
+    const putawayReq = {
+      user: { id: merchant._id.toString(), zeebacId: merchant.zeebacId },
+      body: {
+        productId: prod._id.toString(),
+        quantity: 30,
+        batchNumber: 'LOT-NEW-99',
+        expiryDate: '2027-06-30',
+        locationRack: 'Rack-B4',
+        notes: 'Fresh stock received from distributor',
+        sourceSupplier: 'ITC Distribution Hub',
+      },
+    };
+    const putawayRes = makeRes();
+    await recordStockPutaway(putawayReq, putawayRes);
+    expect(putawayRes.status).toHaveBeenCalledWith(201);
+
+    const updatedProd = await Product.findById(prod._id);
+    expect(updatedProd.stock).toBe(50); // 20 + 30
+    expect(updatedProd.batchNumber).toBe('LOT-NEW-99');
+    expect(updatedProd.expiryDate).toBe('2027-06-30');
+
+    // Verify StockMovement entry for putaway
+    const putawayLog = await StockMovement.findOne({ vendorId: merchant._id, reason: 'INITIAL_IMPORT' });
+    expect(putawayLog).toBeDefined();
+    expect(putawayLog.movementType).toBe('IN');
+    expect(putawayLog.quantity).toBe(30);
+    expect(putawayLog.previousStock).toBe(20);
+    expect(putawayLog.newStock).toBe(50);
+    expect(putawayLog.notes).toContain('Rack-B4');
+
+    // 2. Test Stock Audit (Physical count finds 48 Pcs instead of 50 Pcs -> variance -2)
+    const auditReq = {
+      user: { id: merchant._id.toString(), zeebacId: merchant.zeebacId },
+      body: {
+        productId: prod._id.toString(),
+        countedStock: 48,
+        auditReason: 'Damaged / Broken Goods',
+        notes: '2 packets leaked during shelf movement',
+      },
+    };
+    const auditRes = makeRes();
+    await recordStockAudit(auditReq, auditRes);
+    expect(auditRes.status).toHaveBeenCalledWith(200);
+
+    const auditedProd = await Product.findById(prod._id);
+    expect(auditedProd.stock).toBe(48); // Reconciled to physical count
+
+    const auditLog = await StockMovement.findOne({ vendorId: merchant._id, reason: 'MANUAL_ADJUSTMENT' });
+    expect(auditLog).toBeDefined();
+    expect(auditLog.movementType).toBe('OUT');
+    expect(auditLog.quantity).toBe(2);
+    expect(auditLog.previousStock).toBe(50);
+    expect(auditLog.newStock).toBe(48);
+    expect(auditLog.notes).toContain('Variance -2');
+
+    // 3. Test Re-Purchase endpoint
+    const repurchaseReq = {
+      user: { id: merchant._id.toString() },
+    };
+    const repurchaseRes = makeRes();
+    await getRepurchaseProducts(repurchaseReq, repurchaseRes);
+    expect(repurchaseRes.status).toHaveBeenCalledWith(200);
+    const repurchaseBody = repurchaseRes.json.mock.calls[0][0];
+    expect(repurchaseBody.success).toBe(true);
+  });
+
 });

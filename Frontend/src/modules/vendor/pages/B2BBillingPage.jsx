@@ -95,6 +95,29 @@ export default function B2BBillingPage() {
   const [ledger, setLedger] = useState([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
 
+  // ─── STOCK PUTAWAY & AUDIT STATE ───
+  const [showPutawayModal, setShowPutawayModal] = useState(false);
+  const [putawayForm, setPutawayForm] = useState({
+    productId: '',
+    quantity: '10',
+    batchNumber: '',
+    expiryDate: '',
+    locationRack: '',
+    notes: '',
+    sourceSupplier: '',
+  });
+  const [isSubmittingPutaway, setIsSubmittingPutaway] = useState(false);
+
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditForm, setAuditForm] = useState({
+    productId: '',
+    countedStock: '',
+    auditReason: 'Routine Physical Stock Audit',
+    notes: '',
+  });
+  const [isSubmittingAudit, setIsSubmittingAudit] = useState(false);
+  const [ledgerFilter, setLedgerFilter] = useState('all'); // 'all' | 'in' | 'out' | 'audit'
+
   // Print Receipt Viewer Modal (from Invoices list)
   const [receiptToView, setReceiptToView] = useState(null);
 
@@ -112,7 +135,7 @@ export default function B2BBillingPage() {
   };
 
   useEffect(() => {
-    if (activeTab === 'retail' && vendorCatalog.length === 0) {
+    if ((activeTab === 'retail' || activeTab === 'ledger') && vendorCatalog.length === 0) {
       fetchCatalog();
     }
   }, [activeTab]);
@@ -144,6 +167,117 @@ export default function B2BBillingPage() {
         .finally(() => setIsLoadingList(false));
     }
   }, [activeTab]);
+
+  // ─── STOCK PUTAWAY & AUDIT HANDLERS ───
+  const handleOpenPutaway = (p = null) => {
+    const target = p || vendorCatalog[0];
+    setPutawayForm({
+      productId: target ? target._id : '',
+      quantity: '10',
+      batchNumber: target?.batchNumber || '',
+      expiryDate: target?.expiryDate ? target.expiryDate.split('T')[0] : '',
+      locationRack: '',
+      notes: '',
+      sourceSupplier: target?.supplierDetails?.storeName || '',
+    });
+    setShowPutawayModal(true);
+  };
+
+  const handleSelectPutawayProduct = (prodId) => {
+    const prod = vendorCatalog.find((p) => p._id === prodId);
+    setPutawayForm((prev) => ({
+      ...prev,
+      productId: prodId,
+      batchNumber: prod?.batchNumber || prev.batchNumber,
+      expiryDate: prod?.expiryDate ? prod.expiryDate.split('T')[0] : prev.expiryDate,
+      sourceSupplier: prod?.supplierDetails?.storeName || prev.sourceSupplier,
+    }));
+  };
+
+  const handleSubmitPutaway = async (e) => {
+    if (e) e.preventDefault();
+    if (!putawayForm.productId) return toast.error('Please select a product for putaway');
+    if (!putawayForm.quantity || Number(putawayForm.quantity) <= 0) return toast.error('Enter valid putaway quantity');
+
+    setIsSubmittingPutaway(true);
+    try {
+      const res = await B2BAPI.recordStockPutaway({
+        productId: putawayForm.productId,
+        quantity: Number(putawayForm.quantity),
+        batchNumber: putawayForm.batchNumber.trim(),
+        expiryDate: putawayForm.expiryDate || undefined,
+        locationRack: putawayForm.locationRack.trim(),
+        notes: putawayForm.notes.trim(),
+        sourceSupplier: putawayForm.sourceSupplier.trim(),
+      });
+      if (res.success) {
+        toast.success(res.message || 'Putaway completed successfully!');
+        setShowPutawayModal(false);
+        // Refresh ledger & catalog
+        const ledgerRes = await B2BAPI.getStockLedger();
+        if (ledgerRes.success) setLedger(ledgerRes.data || []);
+        fetchCatalog();
+      } else {
+        toast.error(res.message || 'Putaway failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record putaway');
+    } finally {
+      setIsSubmittingPutaway(false);
+    }
+  };
+
+  const handleOpenAudit = (p = null) => {
+    const target = p || vendorCatalog[0];
+    setAuditForm({
+      productId: target ? target._id : '',
+      countedStock: target ? String(target.stock ?? 0) : '0',
+      auditReason: 'Routine Physical Stock Audit',
+      notes: '',
+    });
+    setShowAuditModal(true);
+  };
+
+  const handleSelectAuditProduct = (prodId) => {
+    const prod = vendorCatalog.find((p) => p._id === prodId);
+    setAuditForm((prev) => ({
+      ...prev,
+      productId: prodId,
+      countedStock: prod ? String(prod.stock ?? 0) : '0',
+    }));
+  };
+
+  const handleSubmitAudit = async (e) => {
+    if (e) e.preventDefault();
+    if (!auditForm.productId) return toast.error('Please select a product to audit');
+    if (auditForm.countedStock === '' || isNaN(Number(auditForm.countedStock))) {
+      return toast.error('Enter valid physical stock count');
+    }
+
+    setIsSubmittingAudit(true);
+    try {
+      const res = await B2BAPI.recordStockAudit({
+        productId: auditForm.productId,
+        countedStock: Number(auditForm.countedStock),
+        auditReason: auditForm.auditReason,
+        notes: auditForm.notes.trim(),
+      });
+      if (res.success) {
+        toast.success(res.message || 'Audit adjustment recorded!');
+        setShowAuditModal(false);
+        // Refresh ledger & catalog
+        const ledgerRes = await B2BAPI.getStockLedger();
+        if (ledgerRes.success) setLedger(ledgerRes.data || []);
+        fetchCatalog();
+      } else {
+        toast.error(res.message || 'Audit recording failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record audit adjustment');
+    } finally {
+      setIsSubmittingAudit(false);
+    }
+  };
 
   // ══════════════════════════════════════════════════════════════
   // ─── RETAIL POS BILLING HANDLERS (B2C) ────────────────────────
@@ -1474,72 +1608,208 @@ export default function B2BBillingPage() {
         )}
 
         {/* ══════════════════════════════════════════════════════════ */}
-        {/* ─── TAB 4: STOCK LEDGER ───────────────────────────────── */}
+        {/* ─── TAB 4: STOCK PUTAWAY & AUDIT LEDGER ──────────────── */}
         {/* ══════════════════════════════════════════════════════════ */}
-        {activeTab === 'ledger' && (
-          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm space-y-4">
-            <div className="pb-3 border-b border-slate-100">
-              <h3 className="font-display font-black text-[17px] text-slate-900">
-                Multi-Tier Stock Movement Ledger
-              </h3>
-              <p className="text-[12px] text-slate-500">
-                Complete audit trail of stock inwards (B2B purchases) and outward sales (POS counter & wholesale).
-              </p>
-            </div>
+        {activeTab === 'ledger' && (() => {
+          // Compute summary metrics
+          const inwardUnits = ledger
+            .filter((e) => e.movementType === 'IN' || e.movementType === 'INWARD')
+            .reduce((sum, e) => sum + (Number(e.quantity) || 0), 0);
+          const outwardUnits = ledger
+            .filter((e) => e.movementType === 'OUT' || e.movementType === 'OUTWARD')
+            .reduce((sum, e) => sum + (Number(e.quantity) || 0), 0);
+          const auditCount = ledger.filter((e) => e.reason === 'MANUAL_ADJUSTMENT').length;
 
-            {isLoadingList ? (
-              <div className="py-16 text-center">
-                <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                <p className="text-xs text-slate-500 font-bold">Loading stock ledger...</p>
-              </div>
-            ) : ledger.length === 0 ? (
-              <div className="py-12 text-center text-slate-400">
-                <span className="material-symbols-outlined text-[40px] mb-1">inventory_2</span>
-                <p className="text-sm font-bold">No stock movements recorded yet</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto pr-1">
-                {ledger.map((entry) => (
-                  <div key={entry._id} className="py-3 flex items-center justify-between gap-3 text-left">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                          entry.movementType === 'INWARD'
-                            ? 'bg-emerald-50 text-emerald-600'
-                            : 'bg-indigo-50 text-indigo-600'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">
-                          {entry.movementType === 'INWARD' ? 'arrow_downward' : 'arrow_upward'}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-bold text-[13px] text-slate-900">{entry.productName}</p>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          ID: {entry.movementId} • {new Date(entry.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
+          // Filter entries
+          const filteredLedger = ledger.filter((e) => {
+            if (ledgerFilter === 'in') return e.movementType === 'IN' || e.movementType === 'INWARD';
+            if (ledgerFilter === 'out') return e.movementType === 'OUT' || e.movementType === 'OUTWARD';
+            if (ledgerFilter === 'audit') return e.reason === 'MANUAL_ADJUSTMENT';
+            return true;
+          });
 
-                    <div className="text-right">
-                      <span
-                        className={`text-[12.5px] font-bold font-mono ${
-                          entry.movementType === 'INWARD' ? 'text-emerald-600' : 'text-indigo-600'
-                        }`}
-                      >
-                        {entry.movementType === 'INWARD' ? '+' : '-'}
-                        {entry.quantity} {entry.unit || 'Pcs'}
+          return (
+            <div className="space-y-4">
+              {/* Top Card: Putaway & Audit Actions Header */}
+              <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-black text-[17px] text-slate-900">
+                        Stock Putaway & Audit Trail
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Active Ledger
                       </span>
-                      <p className="text-[10px] text-slate-400 font-mono">
-                        {entry.stockBefore} → <strong>{entry.stockAfter}</strong>
-                      </p>
+                    </div>
+                    <p className="text-[12px] text-slate-500">
+                      Inward newly received stock with Batch/Expiry, or perform physical shelf audits & reconciliation.
+                    </p>
+                  </div>
+
+                  {/* Two Prominent Action Buttons */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPutaway()}
+                      className="px-3.5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[12px] shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-[17px]">add_box</span>
+                      <span>+ Stock Putaway (Inward)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAudit()}
+                      className="px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[12px] shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-[17px]">fact_check</span>
+                      <span>Physical Stock Audit</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Metrics Summary Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                  <div className="bg-purple-50/60 rounded-2xl p-3 border border-purple-100/80 text-left">
+                    <p className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">Total Events</p>
+                    <p className="font-display font-black text-[18px] text-purple-900 mt-0.5">{ledger.length}</p>
+                  </div>
+                  <div className="bg-emerald-50/60 rounded-2xl p-3 border border-emerald-100/80 text-left">
+                    <p className="text-[10.5px] font-bold text-emerald-700 uppercase tracking-wider">Inward Received</p>
+                    <p className="font-display font-black text-[18px] text-emerald-800 mt-0.5">+{inwardUnits} Pcs</p>
+                  </div>
+                  <div className="bg-indigo-50/60 rounded-2xl p-3 border border-indigo-100/80 text-left">
+                    <p className="text-[10.5px] font-bold text-indigo-700 uppercase tracking-wider">Outward Sold</p>
+                    <p className="font-display font-black text-[18px] text-indigo-800 mt-0.5">-{outwardUnits} Pcs</p>
+                  </div>
+                  <div className="bg-amber-50/60 rounded-2xl p-3 border border-amber-100/80 text-left">
+                    <p className="text-[10.5px] font-bold text-amber-700 uppercase tracking-wider">Audits & Fixes</p>
+                    <p className="font-display font-black text-[18px] text-amber-800 mt-0.5">{auditCount}</p>
+                  </div>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-2 overflow-x-auto pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setLedgerFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      ledgerFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    All Movements ({ledger.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerFilter('in')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      ledgerFilter === 'in' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Inward / Putaway
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerFilter('out')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      ledgerFilter === 'out' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Outward / Sales
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerFilter('audit')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      ledgerFilter === 'audit' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Physical Audits ({auditCount})
+                  </button>
+                </div>
+
+                {/* Ledger Listing */}
+                {isLoadingList ? (
+                  <div className="py-16 text-center">
+                    <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 font-bold">Loading stock ledger...</p>
+                  </div>
+                ) : filteredLedger.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 space-y-2">
+                    <span className="material-symbols-outlined text-[44px] text-slate-300">inventory_2</span>
+                    <p className="text-sm font-bold text-slate-700">No stock movements recorded yet</p>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      Use the <strong>"+ Stock Putaway"</strong> button above to record received stock, or perform a <strong>"Physical Stock Audit"</strong> to reconcile shelf quantities.
+                    </p>
+                    <div className="pt-2 flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPutaway()}
+                        className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 font-bold text-xs hover:bg-purple-100 transition-colors cursor-pointer"
+                      >
+                        + Record First Putaway
+                      </button>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto pr-1">
+                    {filteredLedger.map((entry) => {
+                      const isInward = entry.movementType === 'IN' || entry.movementType === 'INWARD';
+                      const prevStock = entry.previousStock ?? entry.stockBefore ?? entry.beforeBuyerStock ?? 0;
+                      const nextStock = entry.newStock ?? entry.stockAfter ?? entry.afterBuyerStock ?? 0;
+                      return (
+                        <div key={entry._id || entry.movementId} className="py-3 flex items-start sm:items-center justify-between gap-3 text-left">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 sm:mt-0 ${
+                                isInward ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-[19px]">
+                                {isInward ? 'arrow_downward' : 'arrow_upward'}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-[13.5px] text-slate-900 truncate">{entry.productName}</p>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono flex-wrap">
+                                <span>{entry.movementId || 'SMV-LOG'}</span>
+                                <span>•</span>
+                                <span>{new Date(entry.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                {entry.reason && (
+                                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-100">
+                                    {entry.reason.replace(/_/g, ' ')}
+                                  </span>
+                                )}
+                              </div>
+                              {entry.notes && (
+                                <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">{entry.notes}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span
+                              className={`text-[13px] font-bold font-mono ${
+                                isInward ? 'text-emerald-600' : 'text-indigo-600'
+                              }`}
+                            >
+                              {isInward ? '+' : '-'}
+                              {entry.quantity} {entry.unit || 'Pcs'}
+                            </span>
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              Stock: {prevStock} → <strong className="text-slate-800">{nextStock}</strong>
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
       </main>
 
       {/* ══════════════════════════════════════════════════════════════ */}
@@ -2455,6 +2725,321 @@ export default function B2BBillingPage() {
         </div>,
         document.body
       )}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: STOCK PUTAWAY (INWARD RECEIVING) ───────────── */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {showPutawayModal && createPortal(
+        <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 text-left">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 space-y-4 animate-scale-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-800 text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-[22px]">add_box</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-[15px]">Record Stock Putaway</h3>
+                  <p className="text-[11px] text-slate-400">Inward stock receiving into shop shelves</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPutawayModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitPutaway} className="space-y-3.5">
+              {/* Product Select */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Select Product *
+                </label>
+                <select
+                  value={putawayForm.productId}
+                  onChange={(e) => handleSelectPutawayProduct(e.target.value)}
+                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                >
+                  <option value="">-- Choose Product --</option>
+                  {vendorCatalog.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} (Current Stock: {p.stock ?? 0} {p.unit || 'Pcs'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Inward Qty */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Inward Quantity (+) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={putawayForm.quantity}
+                    onChange={(e) => setPutawayForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                    placeholder="10"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-[13.5px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Rack / Shelf Location
+                  </label>
+                  <input
+                    type="text"
+                    value={putawayForm.locationRack}
+                    onChange={(e) => setPutawayForm((prev) => ({ ...prev, locationRack: e.target.value }))}
+                    placeholder="e.g. Rack A-1"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
+
+              {/* Batch & Expiry */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-purple-50/50 rounded-2xl border border-purple-100">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Batch / Lot No.
+                  </label>
+                  <input
+                    type="text"
+                    value={putawayForm.batchNumber}
+                    onChange={(e) => setPutawayForm((prev) => ({ ...prev, batchNumber: e.target.value }))}
+                    placeholder="e.g. BATCH-001"
+                    className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Expiry Date
+                  </label>
+                  <input
+                    type="date"
+                    value={putawayForm.expiryDate}
+                    onChange={(e) => setPutawayForm((prev) => ({ ...prev, expiryDate: e.target.value }))}
+                    className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12px] text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
+
+              {/* Source Supplier & Notes */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Supplier / Source
+                </label>
+                <input
+                  type="text"
+                  value={putawayForm.sourceSupplier}
+                  onChange={(e) => setPutawayForm((prev) => ({ ...prev, sourceSupplier: e.target.value }))}
+                  placeholder="e.g. Factory Direct / Wholesaler"
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] text-slate-900 focus:outline-none focus:border-purple-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Notes / Invoice Ref
+                </label>
+                <input
+                  type="text"
+                  value={putawayForm.notes}
+                  onChange={(e) => setPutawayForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Optional receiving notes..."
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] text-slate-900 focus:outline-none focus:border-purple-600"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPutawayModal(false)}
+                  className="w-1/3 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPutaway}
+                  className="w-2/3 py-3 rounded-xl bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-bold text-[13px] shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                >
+                  {isSubmittingPutaway ? (
+                    <span className="animate-spin material-symbols-outlined text-[16px]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                  )}
+                  <span>Confirm Putaway</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* ─── MODAL: PHYSICAL STOCK AUDIT & RECONCILIATION ─────── */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {showAuditModal && (() => {
+        const selectedProd = vendorCatalog.find((p) => p._id === auditForm.productId);
+        const currentRecorded = Number(selectedProd?.stock) || 0;
+        const physicalCount = Number(auditForm.countedStock) || 0;
+        const variance = physicalCount - currentRecorded;
+
+        return createPortal(
+          <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 text-left">
+            <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 space-y-4 animate-scale-up max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
+                    <span className="material-symbols-outlined text-[22px]">fact_check</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-[15px]">Physical Stock Audit</h3>
+                    <p className="text-[11px] text-slate-400">Reconcile counted stock with system inventory</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAuditModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitAudit} className="space-y-3.5">
+                {/* Product Select */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Product to Audit *
+                  </label>
+                  <select
+                    value={auditForm.productId}
+                    onChange={(e) => handleSelectAuditProduct(e.target.value)}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                  >
+                    <option value="">-- Choose Product --</option>
+                    {vendorCatalog.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} (System Stock: {p.stock ?? 0} {p.unit || 'Pcs'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Stock Comparison Box */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">System Stock</p>
+                    <p className="font-display font-black text-[20px] text-slate-900 mt-0.5">
+                      {currentRecorded} <span className="text-xs font-normal text-slate-500">{selectedProd?.unit || 'Pcs'}</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">
+                      Physical Count *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={auditForm.countedStock}
+                      onChange={(e) => setAuditForm((prev) => ({ ...prev, countedStock: e.target.value }))}
+                      className="w-full h-9 px-2 bg-white border border-slate-300 rounded-lg text-[16px] font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600 mt-0.5"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Variance Display */}
+                <div
+                  className={`p-3 rounded-2xl border flex items-center justify-between text-xs font-bold ${
+                    variance === 0
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : variance < 0
+                      ? 'bg-rose-50 border-rose-200 text-rose-800'
+                      : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                  }`}
+                >
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">
+                      {variance === 0 ? 'verified' : variance < 0 ? 'remove_circle' : 'add_circle'}
+                    </span>
+                    <span>
+                      {variance === 0 ? 'Exact Match (No Discrepancy)' : variance < 0 ? 'Stock Shortage' : 'Stock Surplus'}
+                    </span>
+                  </span>
+                  <span className="font-mono text-sm font-black">
+                    {variance >= 0 ? `+${variance}` : variance} {selectedProd?.unit || 'Pcs'}
+                  </span>
+                </div>
+
+                {/* Audit Reason */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Reason for Adjustment *
+                  </label>
+                  <select
+                    value={auditForm.auditReason}
+                    onChange={(e) => setAuditForm((prev) => ({ ...prev, auditReason: e.target.value }))}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] font-medium text-slate-900 focus:outline-none focus:border-purple-600"
+                  >
+                    <option value="Routine Physical Stock Audit">Routine Physical Stock Audit</option>
+                    <option value="Damaged / Broken Goods">Damaged / Broken Goods</option>
+                    <option value="Expired Stock Discarded">Expired Stock Discarded</option>
+                    <option value="Shrinkage / Unaccounted Loss">Shrinkage / Unaccounted Loss</option>
+                    <option value="Supplier Mismatch Correction">Supplier Mismatch Correction</option>
+                    <option value="Manual Reconciliation">Manual Reconciliation</option>
+                  </select>
+                </div>
+
+                {/* Audit Notes */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Audit Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={auditForm.notes}
+                    onChange={(e) => setAuditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="e.g. Audit conducted by store manager"
+                    className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12.5px] text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditModal(false)}
+                    className="w-1/3 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAudit}
+                    className="w-2/3 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[13px] shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                  >
+                    {isSubmittingAudit ? (
+                      <span className="animate-spin material-symbols-outlined text-[16px]">progress_activity</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[16px]">save</span>
+                    )}
+                    <span>Save Audit Adjustment</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
+
     </div>
   );
 }

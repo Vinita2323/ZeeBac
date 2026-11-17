@@ -1326,7 +1326,7 @@ export const createProduct = async (req, res) => {
     const { 
       name, price, discountPrice, category, sku, description, isHighlight, stock, isActive,
       productId,
-      barcode, mrp, wholesalePrice, unit, gst, expiryDate, brand,
+      barcode, mrp, wholesalePrice, unit, gst, expiryDate, batchNumber, brand,
       isBranded, brandName, brandCompany, brandWebsite, brandDescription, 
       brandEmail, brandContact, cashbackPercentage 
     } = req.body;
@@ -1423,6 +1423,7 @@ export const createProduct = async (req, res) => {
       unit: unit || 'Pcs',
       gst: gst ? Number(gst) : 0,
       expiryDate,
+      batchNumber: batchNumber ? String(batchNumber).trim() : undefined,
       brand: brand || brandName,
       description,
       image: imageUrl,
@@ -1487,6 +1488,7 @@ export const updateProduct = async (req, res) => {
     if (updates.barcode !== undefined) product.barcode = String(updates.barcode).trim();
     if (updates.unit !== undefined) product.unit = String(updates.unit).trim();
     if (updates.expiryDate !== undefined) product.expiryDate = updates.expiryDate;
+    if (updates.batchNumber !== undefined) product.batchNumber = String(updates.batchNumber).trim();
     if (updates.brand !== undefined) product.brand = updates.brand;
     if (updates.cashbackPercentage !== undefined) {
       if (product.sourceProductId) {

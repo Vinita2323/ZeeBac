@@ -25,7 +25,7 @@ export default function MerchantPaymentPage() {
   const [foundRecipient, setFoundRecipient] = useState(null);
 
   // Payment state
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(location.state?.amount ? String(location.state.amount) : '');
   const [paymentMethod, setPaymentMethod] = useState('Wallet'); // 'Wallet' | 'Razorpay'
   const [isProcessing, setIsProcessing] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -55,6 +55,9 @@ export default function MerchantPaymentPage() {
   useEffect(() => {
     if (location.state?.recipientZeebacId && !foundRecipient) {
       handleSearch(location.state.recipientZeebacId);
+    }
+    if (location.state?.amount) {
+      setAmount(String(location.state.amount));
     }
   }, [location.state]);
 

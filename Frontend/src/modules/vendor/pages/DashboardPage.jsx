@@ -8,6 +8,7 @@ import StoreHeroIllustration from '../components/StoreHeroIllustration';
 import StoreStoriesModal from '../components/StoreStoriesModal';
 import VendorLoanModal from '../components/VendorLoanModal';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
+import B2BRepurchaseModal from '../components/B2BRepurchaseModal';
 import SalesAnalyticsModal from '../components/SalesAnalyticsModal';
 import { getSocket } from '../../../services/socket';
 import useLanguageStore from '../../../store/useLanguageStore';
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showPayLaterModal, setShowPayLaterModal] = useState(false);
+  const [showRepurchaseModal, setShowRepurchaseModal] = useState(false);
   const [showSalesModal, setShowSalesModal] = useState(false);
   const [posAmount, setPosAmount] = useState('1590');
   const [generatedPosBill, setGeneratedPosBill] = useState(null);
@@ -520,18 +522,18 @@ export default function DashboardPage() {
             <p className="text-[10px] text-slate-400 font-medium">{isB2B ? 'Tax Invoices' : 'POS Counter'}</p>
           </button>
 
-          {/* Tile 2: BNPL */}
+          {/* Tile 2: Re-Purchase (B2B Reorder Stock) */}
           <button
-            onClick={() => setShowPayLaterModal(true)}
+            onClick={() => setShowRepurchaseModal(true)}
             className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
           >
             <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
-              <span className="material-symbols-outlined text-[24px]">handshake</span>
+              <span className="material-symbols-outlined text-[24px]">repeat</span>
             </div>
             <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
-              BNPL
+              Re-Purchase
             </p>
-            <p className="text-[10px] text-slate-400 font-medium">Pay Later</p>
+            <p className="text-[10px] text-slate-400 font-medium">Reorder Stock</p>
           </button>
 
           {/* Tile 3: Check Inventory */}
@@ -820,45 +822,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Prominent B2B Merchant Payment Card */}
-      <div 
-        onClick={() => navigate('/vendor/merchant-payment')}
-        className="group bg-gradient-to-r from-[#16082f] via-[#2a0b5c] to-[#6000da] rounded-2xl p-4 sm:p-4.5 text-white shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer relative overflow-hidden border border-white/10"
-      >
-        <div className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none"></div>
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-              <span className="material-symbols-outlined text-[26px]">swap_horiz</span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/15">
-                  {t('New • B2B Trade')}
-                </span>
-                <span className="text-[10.5px] font-semibold text-purple-200">
-                  {t('Instant Cashback')}
-                </span>
-              </div>
-              <h3 className="font-extrabold text-[15px] sm:text-[16px] text-white leading-tight">
-                {t('Merchant Payment')}
-              </h3>
-              <p className="text-[12px] text-purple-100/80 mt-0.5 leading-relaxed truncate sm:whitespace-normal">
-                {t('Pay Manufacturers, Wholesalers & Retailers directly and earn cashback on stock purchases.')}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); navigate('/vendor/merchant-payment'); }}
-            className="self-start sm:self-auto px-4 py-2 bg-white text-purple-900 hover:bg-purple-50 text-[12px] font-black rounded-xl shadow-sm flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
-          >
-            <span>{t('Pay Merchant')}</span>
-            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Actions Toolbar - Aesthetic, Theme-Branded & Responsive */}
+      {/* Quick Actions Toolbar - Clean B2B & In-Store Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mx-auto w-full">
         {/* 1. Merchant Payment */}
         <button
@@ -875,19 +839,19 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Pay Supplier')}</p>
         </button>
 
-        {/* 2. GST & Tax */}
+        {/* 2. Re-Purchase (Replaces GST & Tax, strictly for B2B supplier reordering) */}
         <button
-          onClick={() => navigate('/vendor/gst')}
-          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-emerald-300 hover:border-emerald-600 shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center ring-1 ring-emerald-100"
+          onClick={() => setShowRepurchaseModal(true)}
+          className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-purple-300 hover:border-purple-600 shadow-[0_2px_10px_rgba(96,0,218,0.04)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.1)] active:scale-[0.98] transition-all cursor-pointer text-center ring-1 ring-purple-100"
         >
-          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md uppercase">
-            {t('GST')}
+          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md uppercase">
+            {t('B2B')}
           </span>
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-800 text-white group-hover:scale-105 transition-all flex items-center justify-center mb-2 shadow-xs">
-            <span className="material-symbols-outlined text-[20px]">bar_chart</span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#16082f] to-[#6000da] text-white group-hover:scale-105 transition-all flex items-center justify-center mb-2 shadow-xs">
+            <span className="material-symbols-outlined text-[20px]">repeat</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('GST & Tax')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Auto File & ITC')}</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Re-Purchase')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Reorder Stock')}</p>
         </button>
 
         {/* 3. Store QR */}
@@ -902,19 +866,19 @@ export default function DashboardPage() {
           <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Standee')}</p>
         </button>
 
-        {/* 4. Pay Later */}
+        {/* 4. B2B Invoices (Replaces Pay Later) */}
         <button
-          onClick={() => setShowPayLaterModal(true)}
+          onClick={() => navigate('/vendor/billing')}
           className="group relative flex flex-col items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-white border border-primary/15 hover:border-primary/40 shadow-[0_2px_10px_rgba(96,0,218,0.03)] hover:shadow-[0_4px_16px_rgba(96,0,218,0.08)] active:scale-[0.98] transition-all cursor-pointer text-center"
         >
-          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md uppercase">
-            {t('Soon')}
+          <span className="absolute top-2 right-2 text-[8px] sm:text-[8.5px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md uppercase">
+            {t('Invoices')}
           </span>
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-xs">
-            <span className="material-symbols-outlined text-[20px]">credit_score</span>
+            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
           </div>
-          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('Pay Later')}</p>
-          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Up to ₹25k')}</p>
+          <p className="text-[12px] sm:text-[13px] font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">{t('B2B Invoices')}</p>
+          <p className="text-[10px] sm:text-[10.5px] text-on-surface-variant font-medium mt-0.5">{t('Tax Invoices')}</p>
         </button>
       </div>
 
@@ -1555,6 +1519,12 @@ export default function DashboardPage() {
         onClose={() => setShowSalesModal(false)}
         initialData={dashboardData?.data}
         storeName={currentUser?.storeName || 'Vendor Store'}
+      />
+
+      {/* B2B Re-Purchase Modal (Strictly for Merchants, Wholesalers & Manufacturers) */}
+      <B2BRepurchaseModal
+        isOpen={showRepurchaseModal}
+        onClose={() => setShowRepurchaseModal(false)}
       />
 
     </div>
