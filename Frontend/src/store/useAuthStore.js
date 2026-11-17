@@ -363,12 +363,16 @@ const useAuthStore = create((set, get) => ({
     // Default target role to active user's role or path
     let targetRole = roleToLogout;
     if (!targetRole) {
-      const activeRole = get().currentUser?.role;
-      if (activeRole === 'admin' || activeRole === 'super_admin') targetRole = 'admin';
-      else if (activeRole === 'vendor') targetRole = 'vendor';
-      else if (typeof window !== 'undefined' && window.location.pathname.startsWith('/vendor')) targetRole = 'vendor';
-      else if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) targetRole = 'admin';
-      else targetRole = 'customer';
+      if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/vendor') || window.location.pathname.startsWith('/vendor-app'))) {
+        targetRole = 'vendor';
+      } else if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+        targetRole = 'admin';
+      } else {
+        const activeRole = get().currentUser?.role;
+        if (activeRole === 'admin' || activeRole === 'super_admin') targetRole = 'admin';
+        else if (activeRole === 'vendor') targetRole = 'vendor';
+        else targetRole = 'customer';
+      }
     }
 
     if (targetRole === 'all') {
@@ -416,11 +420,35 @@ const useAuthStore = create((set, get) => ({
       localStorage.removeItem(keys.token);
       localStorage.removeItem(keys.refresh);
       if (keys.balance) localStorage.removeItem(keys.balance);
-      if (targetRole === 'vendor') localStorage.removeItem('vendor_transactions');
+      if (targetRole === 'vendor') {
+        localStorage.removeItem('vendor_transactions');
+        localStorage.removeItem('zeebac_vendor_last_unlocked_at');
+      }
       if (targetRole === 'customer') {
         localStorage.removeItem('zeebac_transactions');
         localStorage.removeItem('user_profile');
         localStorage.removeItem('cashback_requests');
+        localStorage.removeItem('zeebac_customer_last_unlocked_at');
+      }
+    }
+
+    // Purge legacy mirrored keys if they belong to the role being logged out
+    const currentLegacyUserStr = localStorage.getItem('zeebac_current_user');
+    if (currentLegacyUserStr) {
+      try {
+        const parsed = JSON.parse(currentLegacyUserStr);
+        const legacyRole = (parsed.role === 'admin' || parsed.role === 'super_admin')
+          ? 'admin'
+          : (parsed.role === 'vendor' || parsed.storeName || parsed.ownerName ? 'vendor' : 'customer');
+        if (legacyRole === targetRole) {
+          localStorage.removeItem('zeebac_current_user');
+          localStorage.removeItem('zeebac_access_token');
+          localStorage.removeItem('zeebac_refresh_token');
+        }
+      } catch {
+        localStorage.removeItem('zeebac_current_user');
+        localStorage.removeItem('zeebac_access_token');
+        localStorage.removeItem('zeebac_refresh_token');
       }
     }
 

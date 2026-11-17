@@ -12,7 +12,20 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   const handleLogout = (e) => {
     if (e) e.stopPropagation();
     useAuthStore.getState().logout('vendor');
-    window.location.replace('/vendor-app');
+    localStorage.removeItem('zeebac_vendor_user');
+    localStorage.removeItem('zeebac_vendor_token');
+    localStorage.removeItem('zeebac_vendor_refresh_token');
+    localStorage.removeItem('vendor_balance');
+    localStorage.removeItem('vendor_transactions');
+    try {
+      const cur = localStorage.getItem('zeebac_current_user');
+      if (cur && (cur.includes('"vendor"') || cur.includes('storeName') || cur.includes('ownerName'))) {
+        localStorage.removeItem('zeebac_current_user');
+        localStorage.removeItem('zeebac_access_token');
+        localStorage.removeItem('zeebac_refresh_token');
+      }
+    } catch {}
+    window.location.replace('/vendor-app/login');
   };
 
   const navItems = [

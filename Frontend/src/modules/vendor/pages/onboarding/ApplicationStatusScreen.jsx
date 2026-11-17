@@ -24,6 +24,24 @@ export default function ApplicationStatusScreen() {
     }).finally(() => setIsLoading(false));
   }, []);
 
+  const handleLogout = () => {
+    logout('vendor');
+    localStorage.removeItem('zeebac_vendor_user');
+    localStorage.removeItem('zeebac_vendor_token');
+    localStorage.removeItem('zeebac_vendor_refresh_token');
+    localStorage.removeItem('vendor_balance');
+    localStorage.removeItem('vendor_transactions');
+    try {
+      const cur = localStorage.getItem('zeebac_current_user');
+      if (cur && (cur.includes('"vendor"') || cur.includes('storeName') || cur.includes('ownerName'))) {
+        localStorage.removeItem('zeebac_current_user');
+        localStorage.removeItem('zeebac_access_token');
+        localStorage.removeItem('zeebac_refresh_token');
+      }
+    } catch {}
+    window.location.replace('/vendor-app/login');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center mesh-gradient">
@@ -88,7 +106,7 @@ export default function ApplicationStatusScreen() {
         )}
 
         <button
-          onClick={() => { logout(); window.location.replace('/vendor-app'); }}
+          onClick={handleLogout}
           className="w-full h-11 rounded-xl border border-gray-200 text-gray-500 font-bold text-[13px] hover:bg-gray-50 transition-colors cursor-pointer"
         >
           {t('Log Out')}
