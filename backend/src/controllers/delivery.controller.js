@@ -42,7 +42,7 @@ const createRiderToken = (rider) => {
 // ─────────────────────────────────────────────────────────────
 export const checkDeliveryPhone = async (req, res) => {
   try {
-    const rawPhone = req.query.phone || req.body?.phone;
+    const rawPhone = req.query?.phone || req.body?.phone;
     if (!rawPhone) {
       return res.status(400).json({ success: false, message: 'Mobile number is required' });
     }
@@ -1096,7 +1096,7 @@ export const getDeliveryHistory = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
     }
 
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20 } = req.query || {};
     const skip = (Number(page) - 1) * Number(limit);
 
     const [orders, total] = await Promise.all([
@@ -1253,7 +1253,7 @@ export const getAdminDeliveryStats = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const getAdminDeliveryPartners = async (req, res) => {
   try {
-    const { status, search, vehicleType, page = 1, limit = 20 } = req.query;
+    const { status, search, vehicleType, page = 1, limit = 20 } = req.query || {};
 
     const query = {};
     if (status && status.toLowerCase() !== 'all') {
@@ -1358,7 +1358,7 @@ export const adminApproveDeliveryPartner = async (req, res) => {
       adminId: req.user.id,
       adminName: req.user.name || 'Admin',
       action: 'APPROVE_PARTNER',
-      reason: req.body.reason || 'All documents verified and approved',
+      reason: req.body?.reason || 'All documents verified and approved',
       timestamp: new Date(),
     });
 
@@ -1388,7 +1388,7 @@ export const adminApproveDeliveryPartner = async (req, res) => {
 export const adminRejectDeliveryPartner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const reason = req.body?.reason;
 
     if (!reason || !reason.trim()) {
       return res.status(400).json({ success: false, message: 'Please provide a clear rejection reason' });
@@ -1450,7 +1450,7 @@ export const adminMarkUnderReview = async (req, res) => {
       adminId: req.user.id,
       adminName: req.user.name || 'Admin',
       action: 'MARK_UNDER_REVIEW',
-      reason: req.body.reason || 'Verification in progress',
+      reason: req.body?.reason || 'Verification in progress',
       timestamp: new Date(),
     });
 
@@ -1472,7 +1472,7 @@ export const adminMarkUnderReview = async (req, res) => {
 export const adminSuspendDeliveryPartner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const reason = req.body?.reason;
 
     const partner = await DeliveryPartner.findById(id);
     if (!partner) {
@@ -1523,7 +1523,7 @@ export const adminReactivateDeliveryPartner = async (req, res) => {
       adminId: req.user.id,
       adminName: req.user.name || 'Admin',
       action: 'REACTIVATE_PARTNER',
-      reason: req.body.reason || 'Account reactivated after review',
+      reason: req.body?.reason || 'Account reactivated after review',
       timestamp: new Date(),
     });
 
