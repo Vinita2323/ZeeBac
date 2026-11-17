@@ -1119,7 +1119,7 @@ export const getDeliveryHistory = async (req, res) => {
       _id: o._id,
       orderId: o.orderId,
       deliveredAt: o.riderDetails?.deliveredAt || o.updatedAt,
-      earnedAmount: 50,
+      earnedAmount: o.deliveryPayout || 50,
       storeName: o.vendorId?.storeName || o.storeName || 'Partner Store',
       storeAddress: o.vendorId?.address?.street || o.vendorId?.address || 'Store Location',
       customerName: o.customerName || 'Customer',
@@ -1133,7 +1133,7 @@ export const getDeliveryHistory = async (req, res) => {
       data: {
         history: formattedHistory,
         totalDeliveries: total,
-        totalEarnings: rider.totalEarnings || total * 50,
+        totalEarnings: rider.totalEarnings ?? 0,
       },
     });
   } catch (error) {
