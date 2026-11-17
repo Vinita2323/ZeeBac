@@ -550,7 +550,7 @@ export default function ProfilePage() {
                 {t('Wallet Balance')}
               </p>
               <p className="font-display font-black text-[22px] text-slate-900 leading-tight">
-                ₹{Number(stats.walletBalance || 735).toLocaleString('en-IN')}
+                ₹{Number(stats.walletBalance ?? 0).toLocaleString('en-IN')}
               </p>
             </div>
           </div>

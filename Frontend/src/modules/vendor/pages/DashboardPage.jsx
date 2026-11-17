@@ -371,17 +371,19 @@ export default function DashboardPage() {
     }
   };
 
-  const displaySales = typeof todaySales?.total === 'number' && todaySales.total > 0
+  const displaySales = typeof todaySales?.total === 'number'
     ? todaySales.total
-    : (typeof dashboardData?.data?.todaySales === 'number' && dashboardData.data.todaySales > 0)
-      ? dashboardData.data.todaySales
-      : 24500;
+    : (typeof dashboardData?.data?.todaySales?.total === 'number'
+        ? dashboardData.data.todaySales.total
+        : (typeof dashboardData?.data?.todaySales === 'number' ? dashboardData.data.todaySales : 0));
 
-  const displayCashback = typeof dashboardData?.data?.todayCashback === 'number' && dashboardData.data.todayCashback > 0
-    ? dashboardData.data.todayCashback
-    : (typeof dashboardData?.data?.totalCashbackGiven === 'number' && dashboardData.data.totalCashbackGiven > 0)
-      ? dashboardData.data.totalCashbackGiven
-      : 735;
+  const displayCashback = typeof todaySales?.cashbackGiven === 'number'
+    ? todaySales.cashbackGiven
+    : (typeof dashboardData?.data?.todaySales?.cashbackGiven === 'number'
+        ? dashboardData.data.todaySales.cashbackGiven
+        : (typeof dashboardData?.data?.todayCashback === 'number'
+            ? dashboardData.data.todayCashback
+            : (typeof dashboardData?.data?.totalCashbackGiven === 'number' ? dashboardData.data.totalCashbackGiven : 0)));
 
   return (
     <div className="space-y-4 sm:space-y-5 pt-0 pb-12 text-left">
@@ -397,7 +399,7 @@ export default function DashboardPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="font-display font-black text-[15px] sm:text-[16px] text-slate-900 truncate group-hover:text-purple-700 transition-colors">
-                {currentUser?.storeName || 'Sharma General Store'}
+                {currentUser?.storeName || dashboardData?.data?.storeName || currentUser?.ownerName || currentUser?.name || 'My Store'}
               </h2>
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -468,7 +470,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[18px]">shopping_bag</span>
             </div>
             <h4 className="font-display font-black text-[18px] sm:text-[22px] text-slate-900 leading-tight">
-              {dashboardOrders.length || 12}
+              {dashboardOrders.length}
             </h4>
             <p className="text-[11px] font-bold text-slate-500 mt-0.5">{isB2B ? 'Purchase Orders' : 'New Orders'}</p>
           </div>
