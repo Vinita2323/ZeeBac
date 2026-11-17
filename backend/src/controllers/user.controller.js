@@ -237,7 +237,7 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category subCategory cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours stats socialLinks subscription shopType location deliverySettings');
+      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours stats socialLinks subscription shopType location deliverySettings');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });

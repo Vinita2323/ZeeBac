@@ -6,6 +6,7 @@ import { UserAPI, API_BASE_URL } from '../../../services/api';
 import { calculateDistance } from '../../../utils/distance';
 import useCartStore from '../../../store/useCartStore';
 import useLanguageStore from '../../../store/useLanguageStore';
+import { getStoreTypeConfig, getCategoryFallbackImage } from '../data/storeCategoryConfigs';
 
 // Blinkit / Zepto Style Visual Category Hierarchy matching user reference interface
 const BLINKIT_CATEGORY_SECTIONS = [
@@ -609,6 +610,21 @@ export default function VendorDetailScreen() {
   };
 
   const [vendor, setVendor] = useState(passedVendor || defaultVendor);
+
+  // Dynamic store configuration based on shop's actual business category
+  const storeConfig = useMemo(() => {
+    return getStoreTypeConfig(vendor?.category || vendor?.shopType) || getStoreTypeConfig('grocery');
+  }, [vendor?.category, vendor?.shopType]);
+
+  const searchPlaceholder = useMemo(() => {
+    return storeConfig?.searchPlaceholder || `Search products in ${vendor?.storeName || 'store'}...`;
+  }, [storeConfig, vendor?.storeName]);
+
+  const dynamicDepartmentTabs = useMemo(() => {
+    return storeConfig?.departmentTabs || [
+      { id: 'all', label: 'All', icon: 'grid_view' },
+    ];
+  }, [storeConfig]);
   const [products, setProducts] = useState([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -779,9 +795,10 @@ export default function VendorDetailScreen() {
             return;
           }
         }
-        // Fallback realistic shop catalog tailored with this store's cashback
+        // Fallback realistic shop catalog tailored to this shop's actual business category
         const storeCashback = vendor.cashbackRate || 3;
-        const mappedDemo = DEFAULT_SHOP_PRODUCTS.map(p => ({
+        const defaultList = storeConfig?.defaultProducts || DEFAULT_SHOP_PRODUCTS;
+        const mappedDemo = defaultList.map(p => ({
           ...p,
           cashbackRate: storeCashback
         }));
@@ -923,7 +940,7 @@ export default function VendorDetailScreen() {
         (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (product.category && product.category.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchesCat = matchesCategory(product.category, activeCategory);
+      const matchesCat = activeCategory === 'All' || (product.category && product.category.toLowerCase().trim() === activeCategory.toLowerCase().trim()) || matchesCategory(product.category, activeCategory);
       return matchesSearch && matchesCat;
     });
   }, [products, searchQuery, activeCategory]);
@@ -961,6 +978,49 @@ export default function VendorDetailScreen() {
   };
 
   // Tapping a category card from the Blinkit visual grid
+
+  // Dynamic Category Sections derived from vendor's real products & customCategories
+  const dynamicCategorySections = useMemo(() => {
+    const catSet = new Set();
+    (vendor?.customCategories || []).forEach(c => c && catSet.add(c.trim()));
+    products.forEach(p => {
+      if (p.category && p.category.trim() && p.category !== 'All') catSet.add(p.category.trim());
+    });
+
+    if (catSet.size > 0) {
+      const catList = Array.from(catSet).map((catName) => {
+        const matchingProds = products.filter(p => (p.category || '').toLowerCase() === catName.toLowerCase());
+        const prodWithImg = matchingProds.find(p => p.image);
+        const imgUrl = prodWithImg?.image
+          ? (prodWithImg.image.startsWith('http') || prodWithImg.image.startsWith('data:') ? prodWithImg.image : `${API_BASE_URL}${prodWithImg.image}`)
+          : getCategoryFallbackImage(catName);
+
+        return {
+          id: catName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          name: catName,
+          image: imgUrl,
+          itemCount: matchingProds.length,
+          bgColor: 'bg-slate-50',
+        };
+      });
+
+      return [
+        {
+          groupTitle: `${vendor?.category || vendor?.storeName || 'Store'} Categories`,
+          department: vendor?.category || 'Store',
+          icon: 'category',
+          categories: catList,
+        }
+      ];
+    }
+
+    if (storeConfig?.categorySections && storeConfig.categorySections.length > 0) {
+      return storeConfig.categorySections;
+    }
+
+    return BLINKIT_CATEGORY_SECTIONS;
+  }, [products, vendor?.customCategories, vendor?.category, vendor?.storeName, storeConfig]);
+
   const handleSelectCategory = (categoryName) => {
     setActiveCategory(categoryName);
     setSearchQuery('');
@@ -1101,7 +1161,7 @@ export default function VendorDetailScreen() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for atta, dal, coke, snacks, milk..."
+              placeholder={searchPlaceholder}
               className="w-full h-11 pl-11 pr-10 bg-white rounded-2xl border border-slate-200/90 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-[13px] text-slate-800 placeholder:text-slate-400 shadow-2xs transition-all"
             />
             {searchQuery && (
@@ -1130,7 +1190,7 @@ export default function VendorDetailScreen() {
 
         {/* ── 3. TOP DEPARTMENT QUICK TABS (HORIZONTAL CAROUSEL) ── */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {DEPARTMENT_TABS.map((tab) => {
+          {dynamicDepartmentTabs.map((tab) => {
             const isSelected = selectedDepartment === tab.id;
             return (
               <button
@@ -1157,8 +1217,8 @@ export default function VendorDetailScreen() {
         {/* ── 4. BLINKIT / ZEPTO STYLE GROUPED CATEGORIES GRID (AS PER REFERENCE IMAGE) ── */}
         {activeCategory === 'All' && !searchQuery && (
           <div className="space-y-5 pt-1">
-            {BLINKIT_CATEGORY_SECTIONS.filter((section) =>
-              selectedDepartment === 'all' || section.department.toLowerCase().includes(selectedDepartment.toLowerCase())
+            {dynamicCategorySections.filter((section) =>
+              selectedDepartment === 'all' || (section.department && section.department.toLowerCase().includes(selectedDepartment.toLowerCase()))
             ).map((section) => (
               <section key={section.groupTitle} className="space-y-3">
                 {/* Section Header */}

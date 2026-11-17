@@ -8,6 +8,9 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getVendorCategories,
+  addVendorCategory,
+  deleteVendorCategory,
   lookupCustomerByPhone,
   getVendorQrToken,
   logPurchase,
@@ -82,6 +85,10 @@ router.get('/sales-analytics', requireApprovedVendor, getVendorSalesAnalytics);
 router.get('/dashboard/sales-analytics', requireApprovedVendor, getVendorSalesAnalytics);
 
 // Product Routes (Phase 3B)
+router.get('/categories', requireApprovedVendor, getVendorCategories);
+router.post('/categories', requireApprovedVendor, addVendorCategory);
+router.delete('/categories/:category', requireApprovedVendor, deleteVendorCategory);
+
 router.route('/products')
   .get(requireApprovedVendor, getProducts)
   .post(

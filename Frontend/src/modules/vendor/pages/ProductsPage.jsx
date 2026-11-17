@@ -6,8 +6,7 @@ import useLanguageStore from '../../../store/useLanguageStore';
 import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
 import ProductBarcodeScannerModal from '../../../components/common/ProductBarcodeScannerModal';
-
-const CATEGORIES = ['All', 'FMCG', 'Snacks', 'Dairy', 'Home Care', 'Instant Food', 'Beverages', 'Others'];
+import { getStoreTypeConfig } from '../../user/data/storeCategoryConfigs';
 
 export default function ProductsPage() {
   const navigate = useNavigate();
@@ -18,6 +17,20 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  // Custom Category State
+  const storePreset = getStoreTypeConfig(currentVendor?.category);
+  const defaultCategoryList = (storePreset?.categorySections?.[0]?.categories || []).map(c => c.name);
+  const fallbackDefaults = defaultCategoryList.length > 0
+    ? defaultCategoryList
+    : ['Bestsellers', 'Featured', 'New Arrivals', 'Daily Essentials', 'Others'];
+
+  const [storeCategories, setStoreCategories] = useState([]);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [isCustomCategoryInput, setIsCustomCategoryInput] = useState(false);
+  const [customCategoryInputText, setCustomCategoryInputText] = useState('');
 
   // Add / Edit Product Modal State (3-Step Wizard)
   const [showAddModal, setShowAddModal] = useState(false);
@@ -31,7 +44,7 @@ export default function ProductsPage() {
   const initialFormState = {
     productId: '',
     name: '',
-    category: 'Snacks',
+    category: fallbackDefaults[0] || 'General',
     brand: '',
     barcode: '',
     mrp: '',
@@ -69,9 +82,55 @@ export default function ProductsPage() {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      const res = await VendorAPI.getCategories();
+      if (res.success && res.data?.categories) {
+        setStoreCategories(res.data.categories.filter(c => c !== 'All'));
+      }
+    } catch (_) {
+      setStoreCategories(fallbackDefaults);
+    }
+  };
+
   useEffect(() => {
     loadProducts();
-  }, []);
+    loadCategories();
+  }, [currentVendor?.category]);
+
+  // Combined Unique Categories
+  const allCategories = Array.from(new Set([
+    'All',
+    ...fallbackDefaults,
+    ...storeCategories,
+    ...products.map(p => p.category).filter(Boolean)
+  ]));
+
+  const handleAddCategory = async (catName) => {
+    const trimmed = String(catName || '').trim();
+    if (!trimmed) return;
+    try {
+      setIsAddingCategory(true);
+      await VendorAPI.addCategory(trimmed);
+      setStoreCategories(prev => Array.from(new Set([...prev, trimmed])));
+      setSelectedCategory(trimmed);
+      updateProductForm('category', trimmed);
+      toast.success(`Category "${trimmed}" added!`);
+      setShowAddCategoryModal(false);
+      setNewCategoryName('');
+      return trimmed;
+    } catch (err) {
+      setStoreCategories(prev => Array.from(new Set([...prev, trimmed])));
+      setSelectedCategory(trimmed);
+      updateProductForm('category', trimmed);
+      toast.success(`Category "${trimmed}" added!`);
+      setShowAddCategoryModal(false);
+      setNewCategoryName('');
+      return trimmed;
+    } finally {
+      setIsAddingCategory(false);
+    }
+  };
 
   // Filter Products by Search & Category
   const filteredProducts = products.filter((p) => {
@@ -231,13 +290,22 @@ export default function ProductsPage() {
 
           {/* Category Filter Pills (Horizontal Scroll) */}
           <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pt-1 pb-0.5">
-            {CATEGORIES.map((cat) => {
+            <button
+              type="button"
+              onClick={() => setShowAddCategoryModal(true)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 flex items-center gap-1 shrink-0"
+              title="Add a new product category"
+            >
+              <span className="material-symbols-outlined text-[14px]">add</span>
+              <span>+ Add Category</span>
+            </button>
+            {allCategories.map((cat) => {
               const isSelected = selectedCategory === cat;
               return (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
                     isSelected
                       ? 'bg-purple-700 text-white shadow-sm'
                       : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80'
@@ -384,6 +452,77 @@ export default function ProductsPage() {
         )}
       </main>
 
+      {/* ── MODAL: ADD NEW CATEGORY ── */}
+      {showAddCategoryModal && createPortal(
+        <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-gray-100 space-y-4 animate-scale-up text-left">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-700 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">category</span>
+                </div>
+                <h3 className="font-bold text-slate-900 text-[15px]">Add Store Category</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCategoryModal(false);
+                  setNewCategoryName('');
+                }}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Create a custom category for your shop products (e.g. Smartwatches, Audio, Winter Collection, Organic Cereals).
+            </p>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                Category Name *
+              </label>
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="e.g. Smartwatches, Casual Shirts..."
+                className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[13.5px] font-bold text-slate-900 focus:outline-none focus:border-purple-600 focus:bg-white"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCategoryName.trim()) {
+                    handleAddCategory(newCategoryName);
+                  }
+                }}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCategoryModal(false);
+                  setNewCategoryName('');
+                }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddCategory(newCategoryName)}
+                disabled={!newCategoryName.trim() || isAddingCategory}
+                className="flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs active:scale-95 disabled:opacity-50 cursor-pointer shadow-sm shadow-purple-200"
+              >
+                {isAddingCategory ? 'Adding...' : 'Add Category'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* ── MODAL: 3-STEP ADD / EDIT PRODUCT WIZARD ── */}
       {showAddModal &&
         createPortal(
@@ -460,15 +599,54 @@ export default function ProductsPage() {
                       <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
                         Category *
                       </label>
-                      <select
-                        value={productForm.category}
-                        onChange={(e) => updateProductForm('category', e.target.value)}
-                        className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-purple-600"
-                      >
-                        {CATEGORIES.filter((c) => c !== 'All').map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
+<div>
+                        <select
+                          value={isCustomCategoryInput ? '__custom__' : productForm.category}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') {
+                              setIsCustomCategoryInput(true);
+                              setCustomCategoryInputText('');
+                            } else {
+                              setIsCustomCategoryInput(false);
+                              updateProductForm('category', e.target.value);
+                            }
+                          }}
+                          className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-purple-600 cursor-pointer"
+                        >
+                          {allCategories.filter((c) => c !== 'All').map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                          <option value="__custom__">+ Add New Category...</option>
+                        </select>
+
+                        {isCustomCategoryInput && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={customCategoryInputText}
+                              onChange={(e) => setCustomCategoryInputText(e.target.value)}
+                              placeholder="Type new category..."
+                              className="flex-1 h-10 px-3 bg-slate-50 border border-purple-300 rounded-xl text-[13px] font-bold text-slate-900 focus:outline-none focus:border-purple-600 focus:bg-white"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (customCategoryInputText.trim()) {
+                                  const c = customCategoryInputText.trim();
+                                  handleAddCategory(c);
+                                  updateProductForm('category', c);
+                                  setIsCustomCategoryInput(false);
+                                }
+                              }}
+                              disabled={!customCategoryInputText.trim()}
+                              className="h-10 px-3 bg-purple-700 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 cursor-pointer"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div>

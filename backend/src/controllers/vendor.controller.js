@@ -488,6 +488,20 @@ export const updateProfile = async (req, res) => {
       }
     }
 
+    if (req.body.customCategories !== undefined) {
+      let cats = req.body.customCategories;
+      if (typeof cats === 'string') {
+        try {
+          cats = JSON.parse(cats);
+        } catch (_) {
+          cats = cats.split(',').map(c => c.trim()).filter(Boolean);
+        }
+      }
+      if (Array.isArray(cats)) {
+        vendor.customCategories = Array.from(new Set(cats.map(c => String(c).trim()).filter(Boolean)));
+      }
+    }
+
     // Fix GeoJSON 2dsphere index error for existing bad data
     if (vendor.location && (!vendor.location.coordinates || vendor.location.coordinates.length === 0)) {
       vendor.location = undefined;
@@ -1047,7 +1061,220 @@ export const requestWithdrawal = async (req, res) => {
   }
 };
 
-// ─── Products (Phase 3B) ───
+// ─── Products (Phase 3B) & Category Management ───
+
+export const getDefaultCategoriesForVendor = (categoryStr = '') => {
+  const cat = String(categoryStr || '').toLowerCase();
+  if (cat.includes('electr') || cat.includes('mobile') || cat.includes('gadget') || cat.includes('computer')) {
+    return [
+      'All',
+      'Mobile Accessories',
+      'Audio & Headphones',
+      'Cables & Chargers',
+      'Smart Wearables',
+      'Computer & Gaming',
+      'Storage & Memory',
+      'Home Appliances',
+      'Others',
+    ];
+  }
+  if (cat.includes('fash') || cat.includes('cloth') || cat.includes('apparel') || cat.includes('wear') || cat.includes('garment')) {
+    return [
+      'All',
+      "Men's Wear",
+      "Women's Wear",
+      'Kids Wear',
+      'Footwear',
+      'Bags & Accessories',
+      'Watches & Eyewear',
+      'Ethnic Wear',
+      'Others',
+    ];
+  }
+  if (cat.includes('pharm') || cat.includes('medic') || cat.includes('health') || cat.includes('chemist')) {
+    return [
+      'All',
+      'Medicines & First Aid',
+      'Health Supplements',
+      'Personal Hygiene',
+      'Baby & Mother Care',
+      'Medical Equipment',
+      'Ayurvedic & Herbal',
+      'Wellness',
+      'Others',
+    ];
+  }
+  if (cat.includes('rest') || cat.includes('cafe') || cat.includes('food') || cat.includes('bakery') || cat.includes('dining')) {
+    return [
+      'All',
+      'Starters & Snacks',
+      'Main Course',
+      'Breads & Rice',
+      'Beverages & Shakes',
+      'Pizzas & Burgers',
+      'Desserts & Sweets',
+      'Combos & Thalis',
+      'Others',
+    ];
+  }
+  if (cat.includes('hardw') || cat.includes('electri') || cat.includes('sanitary') || cat.includes('paint') || cat.includes('tool')) {
+    return [
+      'All',
+      'Hand & Power Tools',
+      'Electrical & Wiring',
+      'Paints & Adhesives',
+      'Plumbing & Pipes',
+      'Lighting & Fixtures',
+      'Hardware Fittings',
+      'Others',
+    ];
+  }
+  if (cat.includes('beauty') || cat.includes('salon') || cat.includes('cosmetic')) {
+    return [
+      'All',
+      'Skin Care',
+      'Hair Care',
+      'Makeup & Cosmetics',
+      'Fragrances & Perfumes',
+      'Bath & Body',
+      'Tools & Accessories',
+      'Others',
+    ];
+  }
+  if (cat.includes('auto') || cat.includes('vehicle') || cat.includes('bike') || cat.includes('motor')) {
+    return [
+      'All',
+      'Vehicle Accessories',
+      'Oils & Lubricants',
+      'Spare Parts',
+      'Cleaning & Polishing',
+      'Helmets & Riding Gear',
+      'Tyres & Tubes',
+      'Others',
+    ];
+  }
+  if (cat.includes('book') || cat.includes('station') || cat.includes('toy') || cat.includes('gift')) {
+    return [
+      'All',
+      'Books & Novels',
+      'Office & School Stationery',
+      'Art & Craft Supplies',
+      'Toys & Games',
+      'Gift Items',
+      'Bags & Pouches',
+      'Others',
+    ];
+  }
+  if (cat.includes('groc') || cat.includes('super') || cat.includes('fmcg') || cat.includes('kirana')) {
+    return [
+      'All',
+      'Vegetables & Fruits',
+      'Atta, Rice & Dal',
+      'Oil, Ghee & Masala',
+      'Dairy, Bread & Eggs',
+      'Snacks & Namkeen',
+      'Drinks & Juices',
+      'Personal & Home Care',
+      'Others',
+    ];
+  }
+  return [
+    'All',
+    'Bestsellers',
+    'Daily Essentials',
+    'Featured Items',
+    'New Arrivals',
+    'Special Offers',
+    'Others',
+  ];
+};
+
+// Get categories for vendor (tailored to shop category + vendor custom categories + product categories)
+export const getVendorCategories = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id).select('category subCategory customCategories');
+    const productCategories = await Product.find({ vendorId: req.user.id }).distinct('category');
+
+    const defaultCats = getDefaultCategoriesForVendor(vendor?.category);
+    const customCats = vendor?.customCategories || [];
+
+    const uniqueList = Array.from(new Set([
+      'All',
+      ...defaultCats.filter(c => c !== 'All' && c !== 'Others'),
+      ...customCats,
+      ...productCategories.filter(Boolean),
+      'Others',
+    ]));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        vendorCategory: vendor?.category || 'Retail',
+        customCategories: customCats,
+        categories: uniqueList,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in vendor getVendorCategories: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// Add a custom category for vendor
+export const addVendorCategory = async (req, res) => {
+  try {
+    const { category } = req.body;
+    const trimmed = String(category || '').trim();
+    if (!trimmed) {
+      return res.status(400).json({ success: false, message: 'Category name is required' });
+    }
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    if (!vendor.customCategories) vendor.customCategories = [];
+    if (!vendor.customCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      vendor.customCategories.push(trimmed);
+      await vendor.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Category added successfully',
+      data: vendor.customCategories,
+    });
+  } catch (error) {
+    logger.error(`Error in vendor addVendorCategory: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// Delete a custom category for vendor
+export const deleteVendorCategory = async (req, res) => {
+  try {
+    const catToDelete = decodeURIComponent(req.params.category || '').trim();
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    vendor.customCategories = (vendor.customCategories || []).filter(
+      c => c.toLowerCase() !== catToDelete.toLowerCase()
+    );
+    await vendor.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Category deleted successfully',
+      data: vendor.customCategories,
+    });
+  } catch (error) {
+    logger.error(`Error in vendor deleteVendorCategory: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
 
 // Get all products for the vendor
 export const getProducts = async (req, res) => {
@@ -1169,6 +1396,22 @@ export const createProduct = async (req, res) => {
     });
 
     await newProduct.save();
+
+    if (category && String(category).trim() && !['All', 'Bestsellers', 'Others'].includes(String(category).trim())) {
+      const catTrim = String(category).trim();
+      try {
+        const v = await Vendor.findById(vendorId);
+        if (v) {
+          if (!v.customCategories) v.customCategories = [];
+          if (!v.customCategories.some(c => c.toLowerCase() === catTrim.toLowerCase())) {
+            v.customCategories.push(catTrim);
+            await v.save();
+          }
+        }
+      } catch (catErr) {
+        logger.warn(`Failed to update vendor customCategories: ${catErr.message}`);
+      }
+    }
     
     logger.info(`[vendor.controller] Product created: ${newProduct._id} by Vendor: ${vendorId}`);
     res.status(201).json({ success: true, message: 'Product created successfully', data: newProduct });
@@ -1285,6 +1528,22 @@ export const updateProduct = async (req, res) => {
     }
 
     await product.save();
+
+    if (updates.category && String(updates.category).trim() && !['All', 'Bestsellers', 'Others'].includes(String(updates.category).trim())) {
+      const catTrim = String(updates.category).trim();
+      try {
+        const v = await Vendor.findById(vendorId);
+        if (v) {
+          if (!v.customCategories) v.customCategories = [];
+          if (!v.customCategories.some(c => c.toLowerCase() === catTrim.toLowerCase())) {
+            v.customCategories.push(catTrim);
+            await v.save();
+          }
+        }
+      } catch (catErr) {
+        logger.warn(`Failed to update vendor customCategories on updateProduct: ${catErr.message}`);
+      }
+    }
     
     logger.info(`[vendor.controller] Product updated: ${product._id} by Vendor: ${vendorId}`);
     res.status(200).json({ success: true, message: 'Product updated successfully', data: product });

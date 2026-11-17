@@ -569,7 +569,19 @@ export const VendorAPI = {
     const res = await apiClient.get(url);
     return res.data;
   },
-  // Phase 3B: Products
+  // Phase 3B: Categories & Products
+  getCategories: async () => {
+    const res = await apiClient.get('/vendor/categories');
+    return res.data;
+  },
+  addCategory: async (category) => {
+    const res = await apiClient.post('/vendor/categories', { category });
+    return res.data;
+  },
+  deleteCategory: async (category) => {
+    const res = await apiClient.delete(`/vendor/categories/${encodeURIComponent(category)}`);
+    return res.data;
+  },
   getProducts: async () => {
     const res = await apiClient.get('/vendor/products');
     return res.data;

@@ -124,6 +124,10 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    customCategories: [{
+      type: String,
+      trim: true,
+    }],
     description: String,
     businessContactNumber: {
       type: String,
