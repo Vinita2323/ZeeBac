@@ -161,7 +161,7 @@ const orderSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
-      enum: ['UPI_INTENT', 'ZEEBAC_POINTS', 'CASH'],
+      enum: ['UPI_INTENT', 'ZEEBAC_POINTS', 'CASH', 'ONLINE', 'RAZORPAY'],
       default: 'UPI_INTENT',
     },
     paymentStatus: {

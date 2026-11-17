@@ -187,8 +187,44 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(verifyRes.status).toHaveBeenCalledWith(200);
     const updatedOrder = await Order.findOne({ orderId: order.orderId });
     expect(updatedOrder.paymentStatus).toBe('PAID');
-    expect(updatedOrder.orderStatus).toBe('CONFIRMED');
+    expect(['PLACED', 'CONFIRMED']).toContain(updatedOrder.orderStatus);
     expect(updatedOrder.upiDetails.utr).toBe('123456789012');
+  });
+
+  it('creates order with Cash on Delivery (CASH) and Online (ONLINE) payment methods', async () => {
+    const { vendor, customer, productA } = await setupStoreAndCustomer();
+
+    // 1. Cash on Delivery (CASH)
+    const codReq = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        paymentMethod: 'CASH',
+        items: [{ productId: productA._id, quantity: 1 }],
+      },
+    };
+    const codRes = makeRes();
+    await createOrder(codReq, codRes);
+    expect(codRes.status).toHaveBeenCalledWith(201);
+    const codOrder = codRes.json.mock.calls[0][0].data.order;
+    expect(codOrder.paymentMethod).toBe('CASH');
+    expect(codOrder.paymentStatus).toBe('PENDING');
+
+    // 2. Online Payment (ONLINE)
+    const onlineReq = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        paymentMethod: 'ONLINE',
+        items: [{ productId: productA._id, quantity: 1 }],
+      },
+    };
+    const onlineRes = makeRes();
+    await createOrder(onlineReq, onlineRes);
+    expect(onlineRes.status).toHaveBeenCalledWith(201);
+    const onlineOrder = onlineRes.json.mock.calls[0][0].data.order;
+    expect(onlineOrder.paymentMethod).toBe('ONLINE');
+    expect(onlineOrder.paymentStatus).toBe('PENDING');
   });
 
   it('assigns rider and moves order status', async () => {

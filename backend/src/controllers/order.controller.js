@@ -239,6 +239,9 @@ export const createOrder = async (req, res) => {
     } else if (paymentMethod === 'CASH') {
       resolvedPaymentMethod = 'CASH';
       initialPaymentStatus = 'PENDING';
+    } else if (paymentMethod === 'ONLINE' || paymentMethod === 'RAZORPAY') {
+      resolvedPaymentMethod = 'ONLINE';
+      initialPaymentStatus = 'PENDING';
     }
 
     let createdOrder;
@@ -878,7 +881,7 @@ export const getVendorOrders = async (req, res) => {
       // Strictly exclude online UPI orders that have not been verified/paid yet
       $or: [
         { paymentStatus: 'PAID' },
-        { paymentMethod: { $in: ['CASH', 'ZEEBAC_POINTS'] } },
+        { paymentMethod: { $in: ['CASH', 'ZEEBAC_POINTS', 'ONLINE'] } },
       ],
     };
     if (status) query.orderStatus = status;
