@@ -161,9 +161,14 @@ export const generateReceiptPDF = (bill) => {
 
   printRow('Tax Invoice / Bill No:', bill.billNumber || bill.transactionId || 'N/A', true);
   
-  const dateFormatted = bill.date
-    ? new Date(bill.date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'medium' })
-    : new Date().toLocaleString('en-IN');
+  let dateFormatted = '';
+  try {
+    const rawD = bill.date || bill.createdAt || bill.timestamp || Date.now();
+    const d = new Date(rawD);
+    dateFormatted = isNaN(d.getTime()) ? String(rawD) : d.toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'medium' });
+  } catch {
+    dateFormatted = new Date().toLocaleString('en-IN');
+  }
   printRow('Date & Time:', dateFormatted);
   printRow('Customer:', bill.customerName || 'Valued Customer');
   if (bill.customerZeebacId) {

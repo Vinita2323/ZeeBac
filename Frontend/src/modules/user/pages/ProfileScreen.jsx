@@ -9,6 +9,7 @@ import { getBiometricSupportStatus, describeBiometricUnsupportedReason, register
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { useBackableSubview } from '../../../utils/navigationUtils';
+import StoreBillsSubView from '../components/StoreBillsSubView';
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
@@ -17,9 +18,11 @@ export default function ProfileScreen() {
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const { t } = useLanguageStore();
-  const [subView, setSubView] = useState(
-    location.state?.openLinkedAccounts ? 'linked-accounts' : null
-  ); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn'
+  const [subView, setSubView] = useState(() => {
+    if (location.state?.openLinkedAccounts) return 'linked-accounts';
+    if (location.state?.openBills || location.search?.includes('tab=bills') || location.search?.includes('subView=bills')) return 'bills';
+    return null;
+  }); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn', 'audits', 'bills'
 
   // Make the browser/hardware back button close an open subview one step at
   // a time instead of jumping straight past Profile to the previous route.
@@ -365,6 +368,16 @@ export default function ProfileScreen() {
     );
   }
 
+  // SUBVIEW 7: STORE INVOICES & BILLS
+  if (subView === 'bills' || subView === 'invoices') {
+    return (
+      <StoreBillsSubView
+        onBack={() => window.history.back()}
+        t={t}
+      />
+    );
+  }
+
   // MAIN PROFILE SCREEN VIEW
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
@@ -497,7 +510,7 @@ export default function ProfileScreen() {
             </div>
 
             <div 
-              onClick={() => navigate('/passbook?tab=bills')}
+              onClick={() => setSubView('bills')}
               className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">

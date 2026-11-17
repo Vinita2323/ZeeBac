@@ -8,6 +8,16 @@ import useAuthStore from '../../../store/useAuthStore';
 import { generatePassbookPDF, generateReceiptPDF } from '../../../utils/exportUtils';
 import useLanguageStore from '../../../store/useLanguageStore';
 
+const formatSafeDateTime = (val, opts = { dateStyle: 'short', timeStyle: 'short' }) => {
+  if (!val) return 'Recently';
+  try {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? String(val) : d.toLocaleString('en-IN', opts);
+  } catch {
+    return String(val);
+  }
+};
+
 export default function WalletPassbookScreen({ initialTab }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -274,7 +284,7 @@ export default function WalletPassbookScreen({ initialTab }) {
     if (activeTab === 'Bills') {
       if (storeBills.length === 0) return alert('No store bills to export');
       const exportData = storeBills.map((b) => ({
-        date: new Date(b.date).toLocaleString(),
+        date: formatSafeDateTime(b.date),
         title: `${b.vendorStoreName} (Bill #${b.billNumber})`,
         type: 'debit',
         amount: `₹${b.amount}`,
@@ -593,7 +603,7 @@ export default function WalletPassbookScreen({ initialTab }) {
                       {/* Date & Actions */}
                       <div className="flex items-center justify-between pt-0.5">
                         <span className="text-[10.5px] text-slate-400 font-medium">
-                          {new Date(bill.date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                          {formatSafeDateTime(bill.date)}
                         </span>
                         <div className="flex items-center gap-2">
                           <button
@@ -807,9 +817,14 @@ export default function WalletPassbookScreen({ initialTab }) {
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Date & Time:</span>
                   <span className="text-slate-700">
-                    {selectedInvoice.date
-                      ? new Date(selectedInvoice.date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                      : (selectedInvoice.time || new Date().toLocaleString())}
+                    {formatSafeDateTime(selectedInvoice.date || selectedInvoice.createdAt, {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
                   </span>
                 </div>
                 <div className="flex justify-between">
