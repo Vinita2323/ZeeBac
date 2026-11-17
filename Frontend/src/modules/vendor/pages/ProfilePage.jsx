@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { VendorAPI, getMediaUrl } from '../../../services/api';
@@ -22,13 +22,17 @@ import {
   ALL_DAYS,
 } from '../../../utils/storeTiming';
 
-export default function ProfilePage() {
+export default function ProfilePage({ openDocs = false }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useLanguageStore();
 
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
+
+  const searchParams = new URLSearchParams(location.search);
+  const shouldOpenDocs = openDocs || searchParams.get('tab') === 'docs' || searchParams.get('tab') === 'documents' || location.pathname.includes('/documents') || location.pathname.includes('/kyc') || location.pathname.includes('/verification');
 
   // Loading & Data States
   const [isLoading, setIsLoading] = useState(true);
@@ -40,11 +44,56 @@ export default function ProfilePage() {
   const [profilePic, setProfilePic] = useState(currentUser.profilePic || null);
   const fileInputRef = useRef(null);
 
+  // Document Upload States
+  const [uploadingDoc, setUploadingDoc] = useState(null);
+  const docInputRefs = useRef({});
+
   // Modal Visibility States
   const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [showOpeningHoursModal, setShowOpeningHoursModal] = useState(false);
   const [showBusinessDetailsModal, setShowBusinessDetailsModal] = useState(false);
-  const [showDocsModal, setShowDocsModal] = useState(false);
+  const [showDocsModal, setShowDocsModal] = useState(shouldOpenDocs);
+
+  useEffect(() => {
+    if (shouldOpenDocs) {
+      setShowDocsModal(true);
+    }
+  }, [shouldOpenDocs]);
+
+  const handleDocumentUpload = async (fieldKey, file) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    setUploadingDoc(fieldKey);
+    try {
+      const formData = new FormData();
+      formData.append(fieldKey, file);
+
+      const res = await VendorAPI.updateProfile(formData);
+      if (res.success && res.data) {
+        setVendorData((prev) => ({
+          ...prev,
+          ...res.data,
+          documents: {
+            ...(prev?.documents || {}),
+            ...(res.data.documents || {}),
+          },
+        }));
+        updateProfileStore(res.data);
+        toast.success('Document uploaded successfully!');
+      } else {
+        toast.error(res.message || 'Failed to upload document');
+      }
+    } catch (err) {
+      console.error('Doc upload error:', err);
+      toast.error(err.response?.data?.message || 'Failed to upload document');
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
   const [showBankModal, setShowBankModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -615,6 +664,37 @@ export default function ProfilePage() {
                 }`}
               >
                 {activeStoreTiming.badgeText}
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+                chevron_right
+              </span>
+            </div>
+          </button>
+
+          {/* KYC & Verification Documents */}
+          <button
+            type="button"
+            onClick={() => setShowDocsModal(true)}
+            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">verified_user</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                  {isB2B ? t('Business & Verification Documents') : t('KYC & Verification Documents')}
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium truncate">
+                  {vendorData?.status === 'Verified' ? 'Store Verified • All Documents Active' : 'Store Verification & KYC'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                vendorData?.status === 'Verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}>
+                {vendorData?.status === 'Verified' ? 'Verified' : 'Under Review'}
               </span>
               <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
                 chevron_right
@@ -1432,19 +1512,28 @@ export default function ProfilePage() {
       {/* ───────────────────────────────────────────────────────────── */}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* MODAL: VERIFICATION DOCUMENTS */}
+      {/* MODAL: VERIFICATION & KYC DOCUMENTS (INTERACTIVE MANAGER) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {showDocsModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-4 text-left">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-4 text-left">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">verified_user</span>
-                <h3 className="font-display font-black text-[16px] text-slate-900">
-                  {isB2B ? 'Enterprise Verification Documents' : 'KYC & Verification Documents'}
-                </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <span className="material-symbols-outlined text-[20px]">verified_user</span>
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-[15.5px] text-slate-900 leading-tight">
+                    {isB2B ? 'Business & Verification Documents' : 'KYC & Verification Documents'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Store ID: <span className="font-mono font-bold text-purple-700">{zeebacId}</span> • Status: <span className="font-bold text-emerald-700">{vendorData?.status === 'Verified' ? 'Store Verified' : 'Under Review'}</span>
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowDocsModal(false)}
                 className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
               >
@@ -1452,136 +1541,195 @@ export default function ProfilePage() {
               </button>
             </div>
 
+            {/* Explanatory Banner */}
+            <div className="p-3 bg-purple-50/70 border border-purple-200/80 rounded-2xl flex items-start gap-2.5 text-[11px] text-purple-900">
+              <span className="material-symbols-outlined text-purple-700 text-[18px] shrink-0 mt-0.5">info</span>
+              <div>
+                <p className="font-bold text-slate-900">Store KYC & Document Management</p>
+                <p className="text-slate-600 mt-0.5 leading-relaxed">
+                  View uploaded certificates, check real-time verification status, or upload updated and replacement files directly without leaving your store account.
+                </p>
+              </div>
+            </div>
+
+            {/* Document Cards List */}
             <div className="space-y-3">
-              {isB2B ? (
-                <>
-                  <p className="text-[12px] text-slate-500">
-                    Required verification documents for {vendorData?.businessType || 'Enterprise'}:
-                  </p>
-                  
-                  {/* Trademark / Udyam Certificate */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">Trademark Certificate / Udyam Certificate</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {vendorData?.documents?.udyamCertificate?.fileName || vendorData?.documents?.trademarkCertificate?.fileName || (vendorData?.documents?.udyamCertificate?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
-                      </p>
-                    </div>
-                    {(vendorData?.documents?.udyamCertificate?.fileUrl || vendorData?.documents?.trademarkCertificate?.fileUrl) ? (
-                      <a
-                        href={getMediaUrl(vendorData?.documents?.udyamCertificate?.fileUrl || vendorData?.documents?.trademarkCertificate?.fileUrl)}
-                        target="_blank" rel="noreferrer"
-                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
-                      >
-                        View
-                      </a>
-                    ) : (
-                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
-                    )}
-                  </div>
+              {[
+                {
+                  key: 'aadhaarPan',
+                  label: 'Owner KYC (Aadhaar / PAN Card)',
+                  desc: 'Government photo identification proof of store proprietor or director',
+                  required: true,
+                },
+                {
+                  key: 'shopLicense',
+                  label: 'Shop License / Registration Certificate',
+                  desc: 'Trade license, Gumasta, Municipal certificate, or incorporation deed',
+                  required: true,
+                },
+                {
+                  key: 'gstCertificate',
+                  label: 'GST Registration Certificate',
+                  desc: 'Goods & Services Tax registration with 15-digit GSTIN (Mandatory for B2B/GST filing)',
+                  required: isB2B,
+                },
+                {
+                  key: 'cancelledCheque',
+                  label: 'Settlement Bank Account Proof',
+                  desc: 'Cancelled cheque leaf, bank passbook front page, or account statement',
+                  required: true,
+                },
+                ...(isFood ? [{
+                  key: 'fssaiCertificate',
+                  label: 'FSSAI Food Safety License',
+                  desc: 'FSSAI certificate for food, beverage, grocery, and restaurant businesses',
+                  required: true,
+                }] : []),
+                ...(isB2B ? [{
+                  key: 'udyamCertificate',
+                  label: 'Udyam / MSME Certificate',
+                  desc: 'Government of India MSME / Udyam registration number and certificate',
+                  required: true,
+                }, {
+                  key: 'trademarkCertificate',
+                  label: 'Brand Trademark / Authorization',
+                  desc: 'Trademark certificate or brand distribution authorization letter',
+                  required: false,
+                }] : []),
+                {
+                  key: 'additionalDoc',
+                  label: 'Additional Store Document (Optional)',
+                  desc: 'Store electricity bill, rent agreement, or other supporting document',
+                  required: false,
+                },
+              ].map(({ key, label, desc, required }) => {
+                const doc = vendorData?.documents?.[key];
+                const fileUrl = doc?.fileUrl;
+                const fileName = doc?.fileName;
+                const isUploaded = !!fileUrl;
+                const isVerified = (doc?.status === 'Verified') || (vendorData?.status === 'Verified' && doc?.status !== 'Rejected' && isUploaded);
+                const isRejected = doc?.status === 'Rejected';
+                const isUnderReview = isUploaded && !isVerified && !isRejected;
+                const isUploadingThis = uploadingDoc === key;
 
-                  {/* GST Certificate */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">GST Certificate</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {vendorData?.documents?.gstCertificate?.fileName || (vendorData?.documents?.gstCertificate?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
-                      </p>
-                    </div>
-                    {vendorData?.documents?.gstCertificate?.fileUrl ? (
-                      <a
-                        href={getMediaUrl(vendorData?.documents?.gstCertificate?.fileUrl)}
-                        target="_blank" rel="noreferrer"
-                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
-                      >
-                        View
-                      </a>
-                    ) : (
-                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
-                    )}
-                  </div>
+                return (
+                  <div
+                    key={key}
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-purple-200 transition-all space-y-2.5 text-left"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[13px] font-bold text-slate-900 leading-snug">{label}</p>
+                          {required && (
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                              Required
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{desc}</p>
+                      </div>
 
-                  {/* FSSAI License */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">FSSAI License Certificate</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {vendorData?.documents?.fssaiCertificate?.fileName || (vendorData?.documents?.fssaiCertificate?.fileUrl ? 'Document uploaded' : (isFood ? 'Required for food sector' : 'Optional - food sector only'))}
-                      </p>
+                      {/* Status Badge */}
+                      <div className="shrink-0">
+                        {isVerified ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                            <span>Verified</span>
+                          </span>
+                        ) : isRejected ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="material-symbols-outlined text-[13px]">cancel</span>
+                            <span>Rejected</span>
+                          </span>
+                        ) : isUnderReview ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <span className="material-symbols-outlined text-[13px]">schedule</span>
+                            <span>Under Review</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            <span className="material-symbols-outlined text-[13px]">radio_button_unchecked</span>
+                            <span>Not Uploaded</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {vendorData?.documents?.fssaiCertificate?.fileUrl ? (
-                      <a
-                        href={getMediaUrl(vendorData?.documents?.fssaiCertificate?.fileUrl)}
-                        target="_blank" rel="noreferrer"
-                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
-                      >
-                        View
-                      </a>
-                    ) : (
-                      <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500">
-                        {isFood ? 'Required' : 'Optional'}
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Retailer documents */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">Owner ID / KYC (Aadhaar / PAN)</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {vendorData?.documents?.aadhaarPan?.fileName || (vendorData?.documents?.aadhaarPan?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
-                      </p>
-                    </div>
-                    {vendorData?.documents?.aadhaarPan?.fileUrl && (
-                      <a
-                        href={getMediaUrl(vendorData?.documents?.aadhaarPan?.fileUrl)}
-                        target="_blank" rel="noreferrer"
-                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
-                      >
-                        View
-                      </a>
-                    )}
-                  </div>
 
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">Shop Registration Document</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {vendorData?.documents?.shopLicense?.fileName || (vendorData?.documents?.shopLicense?.fileUrl ? 'Document uploaded' : 'Not uploaded')}
-                      </p>
-                    </div>
-                    {vendorData?.documents?.shopLicense?.fileUrl && (
-                      <a
-                        href={getMediaUrl(vendorData?.documents?.shopLicense?.fileUrl)}
-                        target="_blank" rel="noreferrer"
-                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
-                      >
-                        View
-                      </a>
+                    {/* File info if uploaded */}
+                    {isUploaded && (
+                      <div className="text-[11px] text-slate-700 flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-100 font-medium">
+                        <span className="material-symbols-outlined text-[16px] text-purple-600 shrink-0">description</span>
+                        <span className="truncate flex-1 font-mono text-[11px]">{fileName || 'Document File'}</span>
+                        {doc?.uploadedAt && (
+                          <span className="text-[10px] text-slate-400 shrink-0">
+                            {new Date(doc.uploadedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     )}
-                  </div>
 
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">GST Certificate</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {vendorData?.documents?.gstCertificate?.fileName || (vendorData?.documents?.gstCertificate?.fileUrl ? 'Document uploaded' : 'Optional')}
+                    {isRejected && doc?.rejectionReason && (
+                      <p className="text-[11px] text-rose-700 bg-rose-50 p-2 rounded-xl border border-rose-200">
+                        <span className="font-bold">Rejection note:</span> {doc.rejectionReason}
                       </p>
-                    </div>
-                    {vendorData?.documents?.gstCertificate?.fileUrl && (
-                      <a
-                        href={getMediaUrl(vendorData?.documents?.gstCertificate?.fileUrl)}
-                        target="_blank" rel="noreferrer"
-                        className="px-3 py-1.5 rounded-xl bg-purple-100 text-purple-700 font-bold text-[11px] hover:bg-purple-200"
-                      >
-                        View
-                      </a>
                     )}
+
+                    {/* Action Buttons: View, Upload / Replace */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
+                      {/* Hidden file input */}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        ref={(el) => { if (docInputRefs.current) docInputRefs.current[key] = el; }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleDocumentUpload(key, file);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+
+                      {isUploaded && (
+                        <a
+                          href={getMediaUrl(fileUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">visibility</span>
+                          <span>View</span>
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={isUploadingThis}
+                        onClick={() => docInputRefs.current?.[key]?.click()}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 ${
+                          isUploaded
+                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                            : 'bg-primary hover:bg-purple-800 text-white'
+                        }`}
+                      >
+                        {isUploadingThis ? (
+                          <>
+                            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                            <span>Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[14px]">
+                              {isUploaded ? 'sync' : 'upload_file'}
+                            </span>
+                            <span>{isUploaded ? 'Replace Document' : 'Upload Document'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </>
-              )}
+                );
+              })}
             </div>
 
             <div className="pt-2">
@@ -1590,7 +1738,7 @@ export default function ProfilePage() {
                 onClick={() => setShowDocsModal(false)}
                 className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] cursor-pointer"
               >
-                Close
+                Done
               </button>
             </div>
           </div>

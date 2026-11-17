@@ -14,6 +14,7 @@ import AdminUser from '../models/AdminUser.js';
 import OtpVerification from '../models/OtpVerification.js';
 import Notification from '../models/Notification.js';
 import Order from '../models/Order.js';
+import PosBill from '../models/PosBill.js';
 import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
@@ -1205,12 +1206,142 @@ export const getMyWallet = async (req, res) => {
 // 2. Get Transaction History
 export const getMyTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find({ customerId: req.user.id })
+    const user = await User.findById(req.user.id);
+    const conditions = [{ customerId: req.user.id }];
+    if (user?.zeebacId) conditions.push({ customerZeebacId: user.zeebacId });
+    if (user?.phone) conditions.push({ customerPhone: user.phone });
+
+    const transactions = await Transaction.find({ $or: conditions })
+      .populate('vendorId', 'storeName ownerName phone address logo storeLogo zeebacId gstNumber')
       .sort({ createdAt: -1 })
       .limit(50);
     res.status(200).json({ success: true, data: transactions });
   } catch (error) {
     logger.error(`getMyTransactions error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// 2b. Get Customer Store Bills & Invoices (with items, thermal receipt data & downloads)
+export const getCustomerBills = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const customerConditions = [{ customerId: user._id }];
+    if (user.zeebacId) customerConditions.push({ customerZeebacId: user.zeebacId });
+    if (user.phone) customerConditions.push({ customerPhone: user.phone });
+
+    // 1. Fetch store transactions (POS bills, QR transactions, purchases)
+    const transactions = await Transaction.find({ $or: customerConditions })
+      .populate('vendorId', 'storeName ownerName phone address logo storeLogo zeebacId gstNumber')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // 2. Fetch claimed / linked POS bills
+    const posBillConditions = [{ claimedBy: user._id }];
+    if (user.phone) posBillConditions.push({ customerPhone: user.phone });
+
+    const posBills = await PosBill.find({ $or: posBillConditions })
+      .populate('vendor', 'storeName ownerName phone address logo storeLogo zeebacId gstNumber')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // 3. Normalize into unified bill items
+    const seenBillNumbers = new Set();
+    const bills = [];
+
+    for (const tx of transactions) {
+      const billNo = tx.billNumber || tx.transactionId;
+      if (seenBillNumbers.has(billNo)) continue;
+      seenBillNumbers.add(billNo);
+
+      const vendor = tx.vendorId || {};
+      const fullAddr = typeof vendor.address === 'object'
+        ? [vendor.address?.fullAddress, vendor.address?.city, vendor.address?.state].filter(Boolean).join(', ')
+        : (vendor.address || 'Verified Merchant Store');
+
+      bills.push({
+        id: tx._id,
+        transactionId: tx.transactionId,
+        billNumber: tx.billNumber || tx.transactionId,
+        date: tx.createdAt || tx.timestamp || new Date(),
+        vendorStoreName: tx.vendorName || vendor.storeName || vendor.ownerName || 'Zeebac Store',
+        vendorZeebacId: tx.vendorZeebacId || vendor.zeebacId || 'ZBV-STORE',
+        vendorPhone: tx.vendorPhone || vendor.phone || '',
+        vendorAddress: fullAddr,
+        vendorGst: vendor.gstNumber || '',
+        vendorLogo: vendor.storeLogo || vendor.logo || '',
+        customerName: tx.customerName || user.name || 'Valued Customer',
+        customerZeebacId: tx.customerZeebacId || user.zeebacId,
+        customerPhone: tx.customerPhone || user.phone,
+        paymentMethod: tx.paymentMethod || 'Cash',
+        items: Array.isArray(tx.items) && tx.items.length > 0 ? tx.items : [
+          {
+            name: `${tx.vendorCategory || 'Retail'} Store Purchase`,
+            quantity: 1,
+            price: tx.amount,
+            total: tx.amount,
+            cashbackPercentage: tx.cashbackPercent || 0,
+          }
+        ],
+        amount: tx.amount,
+        cashbackPercent: tx.cashbackPercent || 0,
+        cashbackAmount: tx.cashbackAmount || 0,
+        status: tx.status || 'Approved',
+        source: tx.source || 'pos_billing',
+        type: tx.type || 'pos_bill',
+      });
+    }
+
+    for (const pb of posBills) {
+      const billNo = pb.billCode || pb.invoiceNumber;
+      if (seenBillNumbers.has(billNo)) continue;
+      seenBillNumbers.add(billNo);
+
+      const vendor = pb.vendor || {};
+      const fullAddr = typeof vendor.address === 'object'
+        ? [vendor.address?.fullAddress, vendor.address?.city, vendor.address?.state].filter(Boolean).join(', ')
+        : (vendor.address || 'Verified Merchant Store');
+
+      bills.push({
+        id: pb._id,
+        transactionId: pb.billCode,
+        billNumber: pb.billCode || pb.invoiceNumber,
+        date: pb.claimedAt || pb.createdAt || new Date(),
+        vendorStoreName: vendor.storeName || vendor.ownerName || 'Zeebac Store',
+        vendorZeebacId: pb.vendorZeebacId || vendor.zeebacId || 'ZBV-STORE',
+        vendorPhone: vendor.phone || '',
+        vendorAddress: fullAddr,
+        vendorGst: vendor.gstNumber || '',
+        vendorLogo: vendor.storeLogo || vendor.logo || '',
+        customerName: user.name || 'Valued Customer',
+        customerZeebacId: user.zeebacId,
+        customerPhone: pb.customerPhone || user.phone,
+        paymentMethod: pb.paymentMethod || 'Cash',
+        items: [
+          {
+            name: 'Store Counter Shopping',
+            quantity: 1,
+            price: pb.amount,
+            total: pb.amount,
+            cashbackPercentage: pb.cashbackRate || 0,
+          }
+        ],
+        amount: pb.amount,
+        cashbackPercent: pb.cashbackRate || 0,
+        cashbackAmount: pb.cashbackAmount || 0,
+        status: pb.status === 'CLAIMED' ? 'Approved' : pb.status,
+        source: 'pos_bill_claim',
+        type: 'pos_bill',
+      });
+    }
+
+    bills.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    res.status(200).json({ success: true, data: bills });
+  } catch (error) {
+    logger.error(`getCustomerBills error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

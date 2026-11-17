@@ -104,3 +104,169 @@ export const generatePassbookPDF = (ledgerEntries, vendorName, dateRangeLabel) =
   // Save PDF
   doc.save(`ZeeBac_Passbook_${new Date().getTime()}.pdf`);
 };
+
+// Generate Retail Thermal / POS Receipt PDF (Matching Zeebac Store Receipt)
+export const generateReceiptPDF = (bill) => {
+  if (!bill) return;
+  const doc = new jsPDF({
+    unit: 'mm',
+    format: [80, 200], // 80mm thermal receipt format
+  });
+
+  const pageWidth = 80;
+  let y = 10;
+
+  // Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(66, 0, 147); // Zeebac primary
+  doc.text(bill.vendorStoreName || 'ZEEBAC STORE', pageWidth / 2, y, { align: 'center' });
+  y += 5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Zeebac Store ID: ${bill.vendorZeebacId || 'ZBV-STORE'}`, pageWidth / 2, y, { align: 'center' });
+  y += 4;
+  doc.text('Verified Merchant Store', pageWidth / 2, y, { align: 'center' });
+  y += 4;
+  if (bill.vendorPhone) {
+    doc.text(`Ph: ${bill.vendorPhone}`, pageWidth / 2, y, { align: 'center' });
+    y += 4;
+  }
+  if (bill.vendorAddress) {
+    const splitAddr = doc.splitTextToSize(bill.vendorAddress, 70);
+    doc.text(splitAddr, pageWidth / 2, y, { align: 'center' });
+    y += splitAddr.length * 3.5;
+  }
+
+  // Dotted separator
+  y += 2;
+  doc.setLineDashPattern([1, 1], 0);
+  doc.setDrawColor(180, 180, 180);
+  doc.line(5, y, 75, y);
+  y += 4;
+
+  // Metadata
+  doc.setFontSize(8);
+  doc.setTextColor(50, 50, 50);
+
+  const printRow = (label, val, isBoldVal = false) => {
+    doc.setFont('helvetica', 'normal');
+    doc.text(label, 6, y);
+    doc.setFont('helvetica', isBoldVal ? 'bold' : 'normal');
+    doc.text(String(val), 74, y, { align: 'right' });
+    y += 4;
+  };
+
+  printRow('Tax Invoice / Bill No:', bill.billNumber || bill.transactionId || 'N/A', true);
+  
+  const dateFormatted = bill.date
+    ? new Date(bill.date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'medium' })
+    : new Date().toLocaleString('en-IN');
+  printRow('Date & Time:', dateFormatted);
+  printRow('Customer:', bill.customerName || 'Valued Customer');
+  if (bill.customerZeebacId) {
+    printRow('Customer ID:', bill.customerZeebacId, true);
+  }
+  printRow('Payment Mode:', bill.paymentMethod || 'Cash');
+
+  // Dotted separator
+  y += 1;
+  doc.line(5, y, 75, y);
+  y += 4;
+
+  // Items table
+  const items = Array.isArray(bill.items) && bill.items.length > 0
+    ? bill.items
+    : [{ name: 'Store Purchase', quantity: 1, price: bill.amount, total: bill.amount }];
+
+  const tableBody = items.map((it) => [
+    it.name || 'Store Item',
+    String(it.quantity || 1),
+    `₹${Number(it.price || 0).toFixed(0)}`,
+    `₹${Number(it.total || (it.price * it.quantity) || 0).toFixed(0)}`
+  ]);
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 5, right: 5 },
+    head: [['Item', 'Qty', 'Price', 'Total']],
+    body: tableBody,
+    theme: 'plain',
+    headStyles: {
+      fontSize: 7.5,
+      fontStyle: 'bold',
+      textColor: [80, 80, 80],
+      fillColor: [245, 245, 245],
+      cellPadding: 1.5,
+    },
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 1.5,
+      textColor: [30, 30, 30],
+    },
+    columnStyles: {
+      0: { cellWidth: 32 },
+      1: { halign: 'center', cellWidth: 10 },
+      2: { halign: 'right', cellWidth: 14 },
+      3: { halign: 'right', cellWidth: 14, fontStyle: 'bold' },
+    },
+  });
+
+  y = doc.lastAutoTable.finalY + 3;
+
+  // Dotted separator
+  doc.line(5, y, 75, y);
+  y += 4;
+
+  // Grand Total
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(20, 20, 20);
+  doc.text('Grand Total:', 6, y);
+  doc.text(`₹${Number(bill.amount || 0).toFixed(0)}`, 74, y, { align: 'right' });
+  y += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(120, 120, 120);
+  doc.text('GST (Statutory Included):', 6, y);
+  doc.text('₹0 (Inc.)', 74, y, { align: 'right' });
+  y += 5;
+
+  // Instant Cashback Box
+  if (Number(bill.cashbackAmount) > 0) {
+    doc.setFillColor(243, 232, 255);
+    doc.roundedRect(6, y, 68, 14, 2, 2, 'F');
+    y += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(107, 33, 168);
+    doc.text('ZEEBAC INSTANT REWARD', pageWidth / 2, y, { align: 'center' });
+    y += 4;
+
+    doc.setFontSize(9);
+    doc.text(`+₹${Number(bill.cashbackAmount).toFixed(0)} Cashback`, pageWidth / 2, y, { align: 'center' });
+    y += 3.5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text('Points Credited Instantly to Customer Wallet!', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+  }
+
+  // Footer
+  y += 2;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(120, 120, 120);
+  doc.text('Thank you for shopping with us!', pageWidth / 2, y, { align: 'center' });
+  y += 3.5;
+  doc.text('Powered by Zeebac Retail POS Network', pageWidth / 2, y, { align: 'center' });
+
+  // Save PDF
+  const safeBillNo = (bill.billNumber || bill.transactionId || 'Bill').replace(/[^a-zA-Z0-9_-]/g, '_');
+  doc.save(`Zeebac_Receipt_${safeBillNo}.pdf`);
+};

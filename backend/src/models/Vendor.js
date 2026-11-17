@@ -37,6 +37,13 @@ const documentFieldSchema = {
   fileUrl: { type: String, get: sanitizeMediaUrl },
   fileType: String,
   uploadedAt: Date,
+  status: {
+    type: String,
+    enum: ['Pending', 'Verified', 'Rejected', 'Under Review'],
+    default: 'Pending',
+  },
+  rejectionReason: String,
+  verifiedAt: Date,
 };
 
 const vendorSchema = new mongoose.Schema(

@@ -492,7 +492,9 @@ export const updateProfile = async (req, res) => {
             fileUrl: getUrl(req.files[field][0]),
             fileType: req.files[field][0].mimetype,
             uploadedAt: new Date(),
+            status: vendor.status === 'Verified' ? 'Verified' : 'Under Review',
           };
+          vendor.markModified('documents');
         }
       }
     }

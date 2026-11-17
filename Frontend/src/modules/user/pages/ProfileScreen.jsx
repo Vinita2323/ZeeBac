@@ -497,7 +497,7 @@ export default function ProfileScreen() {
             </div>
 
             <div 
-              onClick={() => navigate('/wallet/passbook')}
+              onClick={() => navigate('/passbook?tab=bills')}
               className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">

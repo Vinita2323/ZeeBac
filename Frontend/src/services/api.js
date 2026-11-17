@@ -930,6 +930,10 @@ export const UserAPI = {
     const res = await apiClient.get('/user/transactions');
     return res.data;
   },
+  getCustomerBills: async () => {
+    const res = await apiClient.get('/user/bills');
+    return res.data;
+  },
   requestWithdrawal: async (amount) => {
     const res = await apiClient.post('/user/wallet/withdraw', { amount });
     return res.data;

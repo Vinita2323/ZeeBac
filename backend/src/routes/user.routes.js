@@ -100,6 +100,8 @@ router.post('/transactions', createCustomerTransaction);
 // Wallet & Passbook (Phase 4D)
 router.get('/wallet', getMyWallet);
 router.get('/transactions', getMyTransactions);
+router.get('/bills', getCustomerBills);
+router.get('/pos-bills', getCustomerBills);
 router.post('/wallet/withdraw', requestWithdrawal);
 router.get('/wallet/withdrawals', getUserWithdrawals);
 router.post('/wallet/create-order', createUserWalletOrder);

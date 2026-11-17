@@ -1,23 +1,29 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { UserAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
-import { generatePassbookPDF } from '../../../utils/exportUtils';
+import { generatePassbookPDF, generateReceiptPDF } from '../../../utils/exportUtils';
 import useLanguageStore from '../../../store/useLanguageStore';
 
-export default function WalletPassbookScreen() {
+export default function WalletPassbookScreen({ initialTab }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const authBalance = useAuthStore((state) => state.walletBalance);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const { t } = useLanguageStore();
 
-  const [activeTab, setActiveTab] = useState('Transactions'); // 'Transactions' (All) or 'Cashback' (Gained only)
+  const searchParams = new URLSearchParams(location.search);
+  const paramTab = searchParams.get('tab');
+  const defaultTab = initialTab || (paramTab === 'bills' || paramTab === 'Store Bills' || paramTab === 'store-bills' ? 'Bills' : 'Transactions');
+
+  const [activeTab, setActiveTab] = useState(defaultTab); // 'Transactions', 'Cashback', or 'Bills'
   
   const [allTransactions, setAllTransactions] = useState([]);
   const [cashbackTransactions, setCashbackTransactions] = useState([]);
+  const [storeBills, setStoreBills] = useState([]);
   const [totalEarned, setTotalEarned] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -29,12 +35,19 @@ export default function WalletPassbookScreen() {
   const [filterType, setFilterType] = useState('All'); // 'All', 'Credited', 'Debited'
 
   useEffect(() => {
+    if (paramTab === 'bills' || paramTab === 'Store Bills') {
+      setActiveTab('Bills');
+    }
+  }, [paramTab]);
+
+  useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [walletRes, txnRes] = await Promise.all([
+        const [walletRes, txnRes, billsRes] = await Promise.all([
           UserAPI.getMyWallet(),
-          UserAPI.getMyTransactions()
+          UserAPI.getMyTransactions(),
+          UserAPI.getCustomerBills().catch(() => ({ success: false, data: [] }))
         ]);
 
         const combined = [];
@@ -129,6 +142,8 @@ export default function WalletPassbookScreen() {
               txData: matchedTx || (entry.metadata ? {
                 billNumber: entry.metadata.billNumber,
                 vendorName: entry.vendorName || entry.metadata.storeName,
+                vendorStoreName: entry.vendorName || entry.metadata.storeName,
+                vendorZeebacId: entry.metadata.vendorZeebacId,
                 amount: entry.metadata.billAmount,
                 cashbackAmount: entry.metadata.cashbackAmount || amountVal,
                 createdAt: entry.createdAt,
@@ -183,6 +198,44 @@ export default function WalletPassbookScreen() {
 
         setAllTransactions(combined);
         setCashbackTransactions(combined.filter((item) => item.isCashback));
+
+        // 3. Process Store Bills & Invoices
+        if (billsRes && billsRes.success && Array.isArray(billsRes.data) && billsRes.data.length > 0) {
+          setStoreBills(billsRes.data);
+        } else {
+          // Fallback: extract store bills from txnRes
+          const extractedBills = [];
+          const seenBillKeys = new Set();
+          if (txnRes.success && Array.isArray(txnRes.data)) {
+            txnRes.data.forEach((tx) => {
+              const bKey = tx.billNumber || tx.transactionId;
+              if (bKey && !seenBillKeys.has(bKey)) {
+                seenBillKeys.add(bKey);
+                extractedBills.push({
+                  id: tx._id,
+                  transactionId: tx.transactionId,
+                  billNumber: tx.billNumber || tx.transactionId,
+                  date: tx.createdAt || tx.timestamp || new Date(),
+                  vendorStoreName: tx.vendorName || 'Zeebac Store',
+                  vendorZeebacId: tx.vendorZeebacId || 'ZBV-STORE',
+                  vendorPhone: tx.vendorPhone || '',
+                  vendorAddress: tx.vendorAddress || 'Verified Merchant Store',
+                  customerName: tx.customerName || currentUser?.name || 'Valued Customer',
+                  customerZeebacId: tx.customerZeebacId || currentUser?.zeebacId,
+                  paymentMethod: tx.paymentMethod || 'Cash',
+                  items: Array.isArray(tx.items) && tx.items.length > 0 ? tx.items : [
+                    { name: 'Store Purchase', quantity: 1, price: tx.amount, total: tx.amount }
+                  ],
+                  amount: tx.amount,
+                  cashbackAmount: tx.cashbackAmount || 0,
+                  cashbackPercent: tx.cashbackPercent || 0,
+                  status: tx.status || 'Approved',
+                });
+              }
+            });
+          }
+          setStoreBills(extractedBills);
+        }
       } catch (err) {
         console.error('Failed to load passbook', err);
       } finally {
@@ -193,20 +246,42 @@ export default function WalletPassbookScreen() {
   }, [currentUser]);
 
   // Active list based on selected Tab
-  // 1. Transactions: ALL transactions (gained cashback, withdrawal, perks, payments)
-  // 2. Cashback: ONLY gained cashback
-  const currentList = activeTab === 'Transactions' ? allTransactions : cashbackTransactions;
+  const currentList = activeTab === 'Transactions' 
+    ? allTransactions 
+    : activeTab === 'Cashback' 
+    ? cashbackTransactions 
+    : storeBills;
 
-  const filteredItems = currentList.filter((t) => {
-    const matchesSearch =
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.tag.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterType === 'All' || t.type === filterType;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredItems = activeTab === 'Bills'
+    ? storeBills.filter((b) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          (b.vendorStoreName || '').toLowerCase().includes(q) ||
+          (b.billNumber || '').toLowerCase().includes(q) ||
+          (b.vendorZeebacId || '').toLowerCase().includes(q) ||
+          (b.items || []).some((it) => (it.name || '').toLowerCase().includes(q))
+        );
+      })
+    : currentList.filter((t) => {
+        const matchesSearch =
+          t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          t.tag.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesFilter = filterType === 'All' || t.type === filterType;
+        return matchesSearch && matchesFilter;
+      });
 
   const handleExport = () => {
-    if (activeTab === 'Transactions') {
+    if (activeTab === 'Bills') {
+      if (storeBills.length === 0) return alert('No store bills to export');
+      const exportData = storeBills.map((b) => ({
+        date: new Date(b.date).toLocaleString(),
+        title: `${b.vendorStoreName} (Bill #${b.billNumber})`,
+        type: 'debit',
+        amount: `₹${b.amount}`,
+        status: b.status || 'Completed'
+      }));
+      generatePassbookPDF(exportData, currentUser?.name || 'Customer', 'Store Invoices & Bills');
+    } else if (activeTab === 'Transactions') {
       const exportData = allTransactions.map((t) => ({
         date: t.time,
         title: t.name,
@@ -238,114 +313,107 @@ export default function WalletPassbookScreen() {
           <header className="flex items-center gap-2 mb-3">
             <button
               onClick={() => safeNavigateBack(navigate, '/wallet')}
-              className="w-8 h-8 flex items-center justify-center text-on-surface active:scale-95 transition-transform cursor-pointer"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/20 active:scale-95 transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </button>
-            <h1 className="font-display text-title-md text-primary font-bold tracking-tight">
-              {t('Balance & History', 'Balance & History')}
+            <h1 className="font-display text-title-lg font-black tracking-tight text-on-surface flex-1">
+              {t('Wallet Passbook', 'Passbook')}
             </h1>
+
+            {/* Top Right Action Icons */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowSearch(!showSearch)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                  showSearch ? 'bg-primary text-white' : 'text-on-surface-variant hover:bg-surface-variant/20'
+                }`}
+                title="Search"
+              >
+                <span className="material-symbols-outlined text-[19px]">search</span>
+              </button>
+              {activeTab !== 'Bills' && (
+                <button
+                  onClick={() => setShowFilter(!showFilter)}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    showFilter || filterType !== 'All' ? 'bg-primary text-white' : 'text-on-surface-variant hover:bg-surface-variant/20'
+                  }`}
+                  title="Filter"
+                >
+                  <span className="material-symbols-outlined text-[19px]">tune</span>
+                </button>
+              )}
+              <button
+                onClick={handleExport}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/20 active:scale-95 transition-all cursor-pointer"
+                title="Export PDF Statement"
+              >
+                <span className="material-symbols-outlined text-[19px]">download</span>
+              </button>
+            </div>
           </header>
 
-          {/* Your Accounts Section */}
-          <div className="space-y-2">
-            <h2 className="text-[12px] uppercase tracking-wider text-on-surface-variant font-bold px-1">
-              {t('Your Accounts', 'Your Accounts')}
-            </h2>
-
-            {/* Horizontal scroll for cards */}
-            <div className="flex gap-3 overflow-x-auto pb-1 scroll-hide">
-              {/* ZeeBac Wallet Card */}
-              <div className="min-w-[220px] bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#a855f7] rounded-[14px] p-3 text-white shadow-md shadow-primary/20 relative overflow-hidden flex flex-col justify-between h-[96px]">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-xs tracking-wide">{t('ZeeBac Wallet')}</h3>
-                    <p className="text-[9px] text-white/80 mt-0.5">
-                      A/c No: {currentUser.phone ? currentUser.phone.slice(-4) : 'XXXX'}
-                    </p>
-                  </div>
-                  <div className="w-5.5 h-5.5 bg-white/20 rounded-full flex items-center justify-center shadow-inner">
-                    <span className="material-symbols-outlined text-white text-[12px]">account_balance_wallet</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate('/wallet')}
-                  className="bg-white hover:bg-white/90 text-primary text-[10.5px] font-bold py-1 rounded-lg w-full transition-colors active:scale-[0.98] cursor-pointer"
-                >
-                  {t('Check Balance')}
-                </button>
-              </div>
+          {/* Quick Stats Banner */}
+          <div className="bg-gradient-to-r from-primary/10 via-purple-500/5 to-primary/5 rounded-2xl p-3 border border-primary/15 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-on-surface-variant uppercase font-black tracking-wider">
+                {t('Current Wallet Balance', 'Available Balance')}
+              </p>
+              <p className="font-display font-black text-xl text-primary mt-0.5">
+                ₹{Number(authBalance || 0).toFixed(2)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-emerald-800 uppercase font-black tracking-wider flex items-center justify-end gap-1">
+                <span className="material-symbols-outlined text-[12px] text-emerald-600">redeem</span>
+                {t('Lifetime Cashback', 'Total Cashback')}
+              </p>
+              <p className="font-display font-black text-xl text-emerald-600 mt-0.5">
+                ₹{Number(totalEarned || 0).toFixed(2)}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="flex-grow app-container px-container-margin pt-3 text-left space-y-3">
-        {/* Upload Receipt CTA */}
-        <button
-          onClick={() => navigate('/request-cashback')}
-          className="w-full flex items-center gap-3 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/15 rounded-xl px-4 py-3 active:scale-[0.98] transition-all group cursor-pointer"
-        >
-          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-            <span className="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
-          </div>
-          <div className="flex-1 text-left">
-            <p className="font-bold text-[13px] text-on-surface leading-tight">{t('Missing Cashback?')}</p>
-            <p className="text-[10.5px] text-on-surface-variant">{t('Upload your receipt to claim it')}</p>
-          </div>
-          <span className="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
-        </button>
-
-        {/* Payment History Header */}
-        <div className="flex items-center justify-between px-1">
-          <h2 className="font-display text-[15px] text-[#1A202C] font-black tracking-tight">
-            {t('Payment History', 'Payment History')}
-          </h2>
-          <div className="flex items-center gap-3.5 text-[#4A5568]">
-            <button onClick={() => setShowSearch(!showSearch)} className="active:scale-95 transition-transform cursor-pointer">
-              <span className="material-symbols-outlined text-[20px]">search</span>
-            </button>
-            <button onClick={() => setShowFilter(!showFilter)} className="active:scale-95 transition-transform cursor-pointer">
-              <span className="material-symbols-outlined text-[20px]">tune</span>
-            </button>
-            <button onClick={handleExport} className="active:scale-95 transition-transform cursor-pointer">
-              <span className="material-symbols-outlined text-[20px]">download</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Search Bar */}
+      {/* Main Content Area */}
+      <main className="app-container px-container-margin py-3 flex-1 flex flex-col space-y-3">
+        {/* Search Bar Input */}
         {showSearch && (
-          <div className="mx-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-2">
-            <span className="material-symbols-outlined text-gray-400 text-[18px]">search</span>
+          <div className="relative animate-reveal">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">
+              search
+            </span>
             <input
               type="text"
-              placeholder={t('Search by name, cashback or tag...')}
+              placeholder={activeTab === 'Bills' ? t('Search by store, bill no or items...') : t('Search transactions, stores, tags...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent border-none outline-none flex-1 text-[13px] text-gray-800 placeholder-gray-400"
+              className="w-full bg-surface-container-low pl-9 pr-9 py-2 rounded-xl text-xs text-on-surface border border-outline-variant/20 focus:border-primary focus:bg-white transition-all outline-none"
               autoFocus
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="cursor-pointer">
-                <span className="material-symbols-outlined text-gray-400 text-[16px]">close</span>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             )}
           </div>
         )}
 
-        {/* Filter Chips */}
-        {showFilter && (
-          <div className="mx-1 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        {/* Filter Pills */}
+        {showFilter && activeTab !== 'Bills' && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-reveal">
             {['All', 'Credited', 'Debited'].map((type) => (
               <button
                 key={type}
                 onClick={() => setFilterType(type)}
-                className={`px-3 py-1 text-[11px] font-bold rounded-full border whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1 rounded-full text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
                   filterType === type
-                    ? 'bg-[#1A202C] text-white border-[#1A202C]'
-                    : 'bg-white text-gray-600 border-gray-200'
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-variant/20'
                 }`}
               >
                 {t(type, type)}
@@ -354,22 +422,22 @@ export default function WalletPassbookScreen() {
           </div>
         )}
 
-        {/* Tab Toggle: Transactions (All) vs Cashback (Gained Only) */}
+        {/* 3-Way Tab Toggle: Transactions vs Cashback vs Store Bills */}
         <div className="bg-surface-variant/30 p-1 rounded-xl flex mx-1 mt-1 gap-1 border border-outline-variant/15">
           <button
             onClick={() => {
               setActiveTab('Transactions');
               setFilterType('All');
             }}
-            className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 text-[11px] sm:text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
               activeTab === 'Transactions'
                 ? 'bg-white text-on-surface shadow-sm font-black'
                 : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className="material-symbols-outlined text-[16px]">sync_alt</span>
-            <span>{t('All Transactions', 'Transactions')}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+            <span className="material-symbols-outlined text-[15px]">sync_alt</span>
+            <span>{t('All', 'All')}</span>
+            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
               activeTab === 'Transactions' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-600'
             }`}>
               {allTransactions.length}
@@ -381,18 +449,38 @@ export default function WalletPassbookScreen() {
               setActiveTab('Cashback');
               setFilterType('All');
             }}
-            className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 text-[11px] sm:text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
               activeTab === 'Cashback'
                 ? 'bg-white text-emerald-700 shadow-sm font-black'
                 : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className="material-symbols-outlined text-[16px] text-emerald-600">redeem</span>
-            <span>{t('Gained Cashback', 'Cashback')}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+            <span className="material-symbols-outlined text-[15px] text-emerald-600">redeem</span>
+            <span>{t('Cashback', 'Cashback')}</span>
+            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
               activeTab === 'Cashback' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
             }`}>
               {cashbackTransactions.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('Bills');
+              setFilterType('All');
+            }}
+            className={`flex-1 py-2 text-[11px] sm:text-[12px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              activeTab === 'Bills'
+                ? 'bg-white text-purple-700 shadow-sm font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
+            <span>{t('Store Bills', 'Store Bills')}</span>
+            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === 'Bills' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {storeBills.length}
             </span>
           </button>
         </div>
@@ -408,336 +496,425 @@ export default function WalletPassbookScreen() {
               <div className="bg-primary/5 flex justify-between items-center py-2 px-3 rounded-xl mx-1 mb-2 border border-primary/10">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary text-[18px]">history</span>
-                  <span className="font-bold text-primary text-[12.5px]">{t('All Activity (Cashback, Withdrawal, Perks)', 'All Activity')}</span>
+                  <span className="text-[11px] font-bold text-on-surface">
+                    {t('All Wallet Credits & Debits', 'All Wallet Activity')}
+                  </span>
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] text-on-surface-variant leading-tight">{t('Current Balance', 'Current Balance')}</p>
-                  <p className="font-black text-primary text-[12px]">₹{authBalance.toFixed(2)}</p>
+                <span className="text-[10px] text-on-surface-variant font-medium">
+                  {filteredItems.length} {t('records', 'items')}
+                </span>
+              </div>
+            ) : activeTab === 'Cashback' ? (
+              <div className="bg-emerald-50/70 flex justify-between items-center py-2 px-3 rounded-xl mx-1 mb-2 border border-emerald-100">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-[18px]">savings</span>
+                  <span className="text-[11px] font-bold text-emerald-950">
+                    {t('Lifetime Cashback Points Credited', 'Cashback Points Gained')}
+                  </span>
                 </div>
+                <span className="text-[10.5px] font-black text-emerald-700 font-mono">
+                  ₹{Number(totalEarned || 0).toFixed(2)}
+                </span>
               </div>
             ) : (
-              <div className="bg-emerald-500/10 flex justify-between items-center py-2 px-3 rounded-xl mx-1 mb-2 border border-emerald-500/20">
+              <div className="bg-purple-50/70 flex justify-between items-center py-2 px-3 rounded-xl mx-1 mb-2 border border-purple-100">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-emerald-700 text-[18px]">verified</span>
-                  <span className="font-black text-emerald-800 text-[12.5px]">{t('Gained Cashback Only', 'Gained Cashback Only')}</span>
+                  <span className="material-symbols-outlined text-purple-700 text-[18px]">receipt_long</span>
+                  <span className="text-[11px] font-bold text-purple-950">
+                    {t('Store Shopping Bills & Tax Invoices', 'In-Store Purchase Bills')}
+                  </span>
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] text-emerald-800/80 leading-tight">{t('Total Cashback Earned', 'Total Earned')}</p>
-                  <p className="font-black text-emerald-700 text-[12px]">₹{totalEarned.toFixed(2)}</p>
-                </div>
+                <span className="text-[10px] text-purple-700 font-bold">
+                  {storeBills.length} {t('invoices', 'bills')}
+                </span>
               </div>
             )}
 
-            {/* Transaction List */}
-            <div className="space-y-1">
-              {filteredItems.length > 0 ? (
-                filteredItems.map((tx, idx) => {
-                  const isCredit = tx.type === 'Credited';
-                  const isCashback = tx.isCashback;
-                  const isWithdrawal = tx.category === 'withdrawal';
-                  const isPerk = tx.category === 'perk';
-                  const hasInvoice = Boolean(tx.txData || tx.isCashback || tx.category === 'payment' || tx.refId);
-
-                  return (
+            {/* List View */}
+            <div className="space-y-2">
+              {activeTab === 'Bills' ? (
+                /* Store Bills Dedicated List View */
+                filteredItems.length > 0 ? (
+                  filteredItems.map((bill) => (
                     <div
-                      key={tx.id}
-                      onClick={() => {
-                        if (hasInvoice) {
-                          setSelectedInvoice(tx.txData || tx);
-                        }
-                      }}
-                      className={`py-2.5 px-2 rounded-xl transition-colors flex items-center gap-3 ${
-                        hasInvoice ? 'cursor-pointer hover:bg-primary/5 active:scale-[0.99]' : 'hover:bg-surface-container-low/40'
-                      } ${
-                        idx !== filteredItems.length - 1 ? 'border-b border-gray-100' : ''
-                      }`}
+                      key={bill.id || bill.billNumber}
+                      className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs hover:border-purple-300 hover:shadow-md transition-all space-y-2.5 text-left"
                     >
-                      {/* Avatar */}
-                      <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-xs ${
-                          isCashback
-                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                            : isWithdrawal
-                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                            : isPerk
-                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                            : isCredit
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-primary/10 text-primary'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">{tx.icon}</span>
-                      </div>
-
-                      {/* Center Details */}
-                      <div className="flex-grow min-w-0 space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-on-surface text-[13px] leading-tight truncate">{tx.name}</h4>
-                          {hasInvoice && (
-                            <span className="material-symbols-outlined text-[13px] text-primary/60 shrink-0" title="Click to view digital bill invoice">
-                              receipt_long
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <p className="text-on-surface-variant text-[10px]">{tx.time}</p>
-
-                          {/* Tag Pill */}
-                          <div
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                              isCashback
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : isWithdrawal
-                                ? 'bg-rose-100 text-rose-800'
-                                : isPerk
-                                ? 'bg-purple-100 text-purple-800'
-                                : isCredit
-                                ? 'bg-green-50 text-green-800'
-                                : 'bg-primary/5 text-primary'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[10px]">{tx.tagIcon}</span>
-                            <span>{t(tx.tag, tx.tag)}</span>
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[22px]">receipt_long</span>
                           </div>
+                          <div className="min-w-0">
+                            <h4 className="font-display font-black text-[14px] text-slate-900 truncate">
+                              {bill.vendorStoreName || 'Zeebac Store'}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded text-[10px] border border-purple-200/60">
+                                {bill.vendorZeebacId || 'ZBV-STORE'}
+                              </span>
+                              <span>•</span>
+                              <span className="font-mono font-semibold text-slate-700">{bill.billNumber}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-mono font-black text-[15px] text-slate-900 leading-tight">
+                            ₹{Number(bill.amount || 0).toLocaleString('en-IN')}
+                          </p>
+                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-0.5">
+                            <span className="material-symbols-outlined text-[11px]">redeem</span>
+                            +{Number(bill.cashbackAmount || 0)} Cashback
+                          </span>
+                        </div>
+                      </div>
 
-                          {/* Quick View Bill Badge */}
-                          {hasInvoice && (
-                            <span className="text-[9px] font-bold text-primary hover:underline flex items-center">
-                              {t('View Bill', 'View Bill')}
-                            </span>
+                      {/* Items preview */}
+                      <div className="bg-slate-50/80 rounded-xl p-2.5 text-[11px] text-slate-600 space-y-1">
+                        <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
+                          <span>Items ({(bill.items || []).length})</span>
+                          <span className="font-mono font-normal lowercase">{bill.paymentMethod || 'Cash'}</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          {(bill.items || []).slice(0, 3).map((it, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-slate-700 text-[11px]">
+                              <span className="truncate pr-2 font-medium">{it.name} (x{it.quantity})</span>
+                              <span className="font-mono font-medium shrink-0">₹{it.total || (it.price * it.quantity)}</span>
+                            </div>
+                          ))}
+                          {(bill.items || []).length > 3 && (
+                            <p className="text-[10px] text-slate-400 font-medium italic pt-0.5">
+                              +{(bill.items.length - 3)} more items
+                            </p>
                           )}
                         </div>
                       </div>
 
-                      {/* Right Amount */}
-                      <div className="text-right shrink-0">
-                        <p
-                          className={`font-mono font-black text-[13.5px] ${
-                            isCashback
-                              ? 'text-emerald-600'
-                              : isWithdrawal
-                              ? 'text-rose-600'
-                              : isCredit
-                              ? 'text-green-600'
-                              : 'text-on-surface'
-                          }`}
-                        >
-                          {tx.amount}
-                        </p>
-                        <p className="text-[9px] text-on-surface-variant flex items-center justify-end gap-1 mt-0.5 font-medium">
-                          {tx.status === 'Completed' ? (
-                            <span className="text-green-600 font-bold">Success</span>
-                          ) : (
-                            <span>{tx.status}</span>
-                          )}
-                        </p>
+                      {/* Date & Actions */}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-[10.5px] text-slate-400 font-medium">
+                          {new Date(bill.date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => generateReceiptPDF(bill)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Download Receipt PDF"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">download</span>
+                            <span>Download</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoice(bill)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">visibility</span>
+                            <span>View Bill</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  );
-                })
+                  ))
+                ) : (
+                  <div className="py-12 text-center space-y-2 opacity-60">
+                    <span className="material-symbols-outlined text-[38px] text-purple-600">receipt_long</span>
+                    <p className="text-sm font-bold text-slate-800">{t('No store bills yet')}</p>
+                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                      {t('When you shop at any partner store and provide your Zeebac ID or mobile number, digital bills with items and instant cashback appear here.')}
+                    </p>
+                  </div>
+                )
               ) : (
-                <div className="py-12 text-center space-y-2 opacity-60">
-                  <span className="material-symbols-outlined text-[36px]">
-                    {activeTab === 'Cashback' ? 'savings' : 'history'}
-                  </span>
-                  <p className="text-sm font-bold">
-                    {activeTab === 'Cashback'
-                      ? t('No gained cashback found')
-                      : t('No transactions found')}
-                  </p>
-                  <p className="text-[11px] text-on-surface-variant">
-                    {activeTab === 'Cashback'
-                      ? t('Shop at partner stores or scan receipts to earn instant cashback!')
-                      : t('Your wallet transactions and withdrawals will show here.')}
-                  </p>
-                </div>
+                /* Transactions & Cashback List View */
+                filteredItems.length > 0 ? (
+                  filteredItems.map((tx, idx) => {
+                    const isCredit = tx.type === 'Credited';
+                    const isCashback = tx.category === 'cashback';
+                    const isWithdrawal = tx.category === 'withdrawal';
+                    const isPerk = tx.category === 'perk';
+                    const hasInvoice = !!(tx.txData || tx.refId || tx.isCashback);
+
+                    return (
+                      <div
+                        key={tx.id}
+                        onClick={() => {
+                          if (hasInvoice) {
+                            setSelectedInvoice(tx.txData || tx);
+                          }
+                        }}
+                        className={`py-2.5 px-2 rounded-xl transition-colors flex items-center gap-3 ${
+                          hasInvoice ? 'cursor-pointer hover:bg-primary/5 active:scale-[0.99]' : 'hover:bg-surface-container-low/40'
+                        } ${
+                          idx !== filteredItems.length - 1 ? 'border-b border-gray-100' : ''
+                        }`}
+                      >
+                        {/* Avatar */}
+                        <div
+                          className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-xs ${
+                            isCashback
+                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                              : isWithdrawal
+                              ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                              : isPerk
+                              ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                              : isCredit
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-primary/10 text-primary'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">{tx.icon}</span>
+                        </div>
+
+                        {/* Center Details */}
+                        <div className="flex-grow min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="font-bold text-on-surface text-[13px] leading-tight truncate">{tx.name}</h4>
+                            {hasInvoice && (
+                              <span className="material-symbols-outlined text-[13px] text-primary/60 shrink-0" title="Click to view digital bill invoice">
+                                receipt_long
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <p className="text-on-surface-variant text-[10px]">{tx.time}</p>
+
+                            {/* Tag Pill */}
+                            <div
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                isCashback
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isWithdrawal
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : isPerk
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : isCredit
+                                  ? 'bg-green-50 text-green-800'
+                                  : 'bg-primary/5 text-primary'
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-[10px]">{tx.tagIcon}</span>
+                              <span>{t(tx.tag, tx.tag)}</span>
+                            </div>
+
+                            {/* Quick View Bill Badge */}
+                            {hasInvoice && (
+                              <span className="text-[9px] font-bold text-primary hover:underline flex items-center">
+                                {t('View Bill', 'View Bill')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right Amount */}
+                        <div className="text-right shrink-0">
+                          <p
+                            className={`font-mono font-black text-[13.5px] ${
+                              isCashback
+                                ? 'text-emerald-600'
+                                : isWithdrawal
+                                ? 'text-rose-600'
+                                : isCredit
+                                ? 'text-green-600'
+                                : 'text-on-surface'
+                            }`}
+                          >
+                            {tx.amount}
+                          </p>
+                          <p className="text-[9px] text-on-surface-variant flex items-center justify-end gap-1 mt-0.5 font-medium">
+                            {tx.status === 'Completed' || tx.status === 'Approved' ? (
+                              <span className="text-green-600 font-bold">Success</span>
+                            ) : (
+                              <span>{tx.status}</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-12 text-center space-y-2 opacity-60">
+                    <span className="material-symbols-outlined text-[36px]">
+                      {activeTab === 'Cashback' ? 'savings' : 'history'}
+                    </span>
+                    <p className="text-sm font-bold">
+                      {activeTab === 'Cashback'
+                        ? t('No gained cashback found')
+                        : t('No transactions found')}
+                    </p>
+                    <p className="text-[11px] text-on-surface-variant">
+                      {activeTab === 'Cashback'
+                        ? t('Shop at partner stores or scan receipts to earn instant cashback!')
+                        : t('Your wallet transactions and withdrawals will show here.')}
+                    </p>
+                  </div>
+                )
               )}
             </div>
           </div>
         )}
       </main>
 
-      {/* Digital Bill / Invoice Modal */}
+      {/* ─── MODAL: THERMAL POS RECEIPT (MATCHING SCREENSHOT media_1794940746404_eef49dbe.jpg) ─── */}
       {selectedInvoice && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3"
+          className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-reveal"
           onClick={() => setSelectedInvoice(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-gray-100"
+            className="bg-white rounded-3xl max-w-[420px] w-full shadow-2xl p-5 sm:p-6 text-left space-y-4 relative max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-primary to-purple-800 text-white p-4 relative">
+            <button
+              type="button"
+              onClick={() => setSelectedInvoice(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+
+            {/* Printable Thermal POS Slip Card */}
+            <div className="border border-slate-200 rounded-2xl p-4 sm:p-5 bg-white text-slate-800 font-mono text-xs space-y-3 shadow-xs">
+              {/* Store Brand Header */}
+              <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-3">
+                <div className="w-10 h-10 mx-auto rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold mb-1 shadow-xs">
+                  <span className="material-symbols-outlined text-[22px]">storefront</span>
+                </div>
+                <h3 className="font-display font-black text-base text-slate-900 tracking-wide uppercase">
+                  {selectedInvoice.vendorStoreName || selectedInvoice.vendorName || selectedInvoice.storeName || 'Zeebac Store'}
+                </h3>
+                <p className="text-[11px] text-slate-500 font-sans">
+                  Zeebac Store ID: <span className="font-mono font-bold text-purple-700">{selectedInvoice.vendorZeebacId || 'ZBV-STORE'}</span>
+                </p>
+                <p className="text-[10px] text-slate-500 font-sans">Verified Merchant Store</p>
+                {selectedInvoice.vendorPhone && (
+                  <p className="text-[10px] text-slate-500 font-sans">Ph: {selectedInvoice.vendorPhone}</p>
+                )}
+                {selectedInvoice.vendorAddress && (
+                  <p className="text-[9.5px] text-slate-400 font-sans truncate max-w-[280px] mx-auto">
+                    {selectedInvoice.vendorAddress}
+                  </p>
+                )}
+              </div>
+
+              {/* Invoice & Customer Meta */}
+              <div className="space-y-1 text-[11px] border-b border-dashed border-slate-300 pb-2.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-sans">Tax Invoice / Bill No:</span>
+                  <span className="font-bold text-slate-900">{selectedInvoice.billNumber || selectedInvoice.transactionId || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-sans">Date & Time:</span>
+                  <span className="text-slate-700">
+                    {selectedInvoice.date
+                      ? new Date(selectedInvoice.date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                      : (selectedInvoice.time || new Date().toLocaleString())}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-sans">Customer:</span>
+                  <span className="font-bold text-slate-800">{selectedInvoice.customerName || currentUser?.name || 'Valued Customer'}</span>
+                </div>
+                {selectedInvoice.customerZeebacId && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-sans">Customer ID:</span>
+                    <span className="font-bold text-purple-700">{selectedInvoice.customerZeebacId}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-sans">Payment Mode:</span>
+                  <span className="font-bold text-slate-900">{selectedInvoice.paymentMethod || selectedInvoice.paymentMode || 'Cash'}</span>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <div className="space-y-1.5 border-b border-dashed border-slate-300 pb-2.5">
+                <div className="grid grid-cols-12 font-bold text-[10.5px] text-slate-500 pb-1 border-b border-slate-100 font-sans">
+                  <span className="col-span-6">Item</span>
+                  <span className="col-span-2 text-center">Qty</span>
+                  <span className="col-span-2 text-right">Price</span>
+                  <span className="col-span-2 text-right">Total</span>
+                </div>
+                {(Array.isArray(selectedInvoice.items) && selectedInvoice.items.length > 0 ? selectedInvoice.items : [
+                  { name: 'Store Purchase', quantity: 1, price: selectedInvoice.amount || selectedInvoice.rawAmount || 0, total: selectedInvoice.amount || selectedInvoice.rawAmount || 0 }
+                ]).map((it, idx) => (
+                  <div key={idx} className="grid grid-cols-12 text-[11px] text-slate-800">
+                    <span className="col-span-6 truncate font-medium">{it.name}</span>
+                    <span className="col-span-2 text-center">{it.quantity}</span>
+                    <span className="col-span-2 text-right">₹{Number(it.price || it.rate || 0).toFixed(0)}</span>
+                    <span className="col-span-2 text-right font-bold">
+                      ₹{Number(it.total || ((it.price || it.rate || 0) * (it.quantity || 1))).toFixed(0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Grand Total */}
+              <div className="space-y-1 pt-1 text-[11px]">
+                <div className="flex justify-between font-bold text-[13px] text-slate-900 pt-1 border-t border-slate-200">
+                  <span>Grand Total:</span>
+                  <span>₹{Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-slate-500 text-[10.5px] font-sans">
+                  <span>GST (Statutory Included):</span>
+                  <span>₹0 (Inc.)</span>
+                </div>
+              </div>
+
+              {/* Zeebac Instant Reward Box */}
+              {Number(selectedInvoice.cashbackAmount || (selectedInvoice.isCashback ? selectedInvoice.rawAmount : 0)) > 0 && (
+                <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 text-center space-y-0.5 text-[11px] font-sans">
+                  <p className="text-[10px] font-bold uppercase text-purple-700">
+                    🎁 Zeebac Instant Reward
+                  </p>
+                  <p className="font-black text-purple-900 text-[14px]">
+                    +₹{Number(selectedInvoice.cashbackAmount || (selectedInvoice.isCashback ? selectedInvoice.rawAmount : 0)).toFixed(0)} Cashback
+                  </p>
+                  <p className="text-[9.5px] text-purple-700">
+                    Points Credited Instantly to Customer Wallet!
+                  </p>
+                </div>
+              )}
+
+              <div className="text-center pt-1 text-[10px] text-slate-400 leading-tight font-sans">
+                <p>Thank you for shopping with us!</p>
+                <p>Powered by Zeebac Retail POS Network</p>
+              </div>
+            </div>
+
+            {/* Receipt Modal Action Buttons */}
+            <div className="grid grid-cols-3 gap-2 pt-1 font-sans">
               <button
                 type="button"
-                onClick={() => setSelectedInvoice(null)}
-                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors cursor-pointer"
+                onClick={() => generateReceiptPDF(selectedInvoice)}
+                className="py-3 px-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                title="Download PDF Bill"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="material-symbols-outlined text-[17px]">download</span>
+                <span>Download</span>
               </button>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="material-symbols-outlined text-[20px] text-amber-300">receipt_long</span>
-                <span className="text-[11px] font-black tracking-wider uppercase opacity-90">{t('Digital Store Bill Invoice', 'Digital Store Bill')}</span>
-              </div>
-              <h3 className="text-base font-bold leading-tight truncate">
-                {selectedInvoice.vendorName || selectedInvoice.storeName || selectedInvoice.name || 'ZeeBac Partner Store'}
-              </h3>
-              {(selectedInvoice.vendorAddress || selectedInvoice.vendorPhone) && (
-                <p className="text-[11px] text-white/80 mt-0.5 truncate">
-                  {[selectedInvoice.vendorAddress, selectedInvoice.vendorPhone].filter(Boolean).join(' • ')}
-                </p>
-              )}
-              {selectedInvoice.vendorGst && (
-                <p className="text-[10px] text-white/70 font-mono mt-0.5">
-                  GSTIN: {selectedInvoice.vendorGst}
-                </p>
-              )}
-            </div>
 
-            {/* Bill Meta Bar */}
-            <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between text-[11px]">
-              <div>
-                <span className="text-gray-500 font-medium">Bill No: </span>
-                <span className="font-mono font-bold text-gray-800">
-                  {selectedInvoice.billNumber || selectedInvoice.refId || 'N/A'}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-gray-500 font-medium">Date: </span>
-                <span className="font-bold text-gray-800">
-                  {selectedInvoice.createdAt
-                    ? new Date(selectedInvoice.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : (selectedInvoice.time || 'N/A')}
-                </span>
-              </div>
-            </div>
-
-            {/* Customer & Payment Meta */}
-            <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between text-[11px] bg-white">
-              <div>
-                <span className="text-gray-500">Customer: </span>
-                <span className="font-bold text-gray-800">{selectedInvoice.customerName || currentUser?.name || 'Customer'}</span>
-              </div>
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold uppercase text-[9px]">
-                <span className="material-symbols-outlined text-[11px]">payments</span>
-                <span>{selectedInvoice.paymentMode || 'Cash'}</span>
-              </div>
-            </div>
-
-            {/* Scrollable Receipt Body */}
-            <div className="p-4 overflow-y-auto space-y-3 flex-1 text-left text-xs">
-              {/* Items List */}
-              {Array.isArray(selectedInvoice.items) && selectedInvoice.items.length > 0 ? (
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  <div className="bg-gray-100 px-3 py-1.5 font-bold text-[10.5px] text-gray-600 flex justify-between">
-                    <span className="w-1/2">Item Description</span>
-                    <span className="w-1/4 text-center">Qty x Rate</span>
-                    <span className="w-1/4 text-right">Total</span>
-                  </div>
-                  <div className="divide-y divide-gray-100 bg-white">
-                    {selectedInvoice.items.map((item, i) => (
-                      <div key={i} className="px-3 py-2 flex items-center justify-between text-[11px]">
-                        <div className="w-1/2 pr-1">
-                          <p className="font-bold text-gray-800 truncate">{item.name || 'Store Item'}</p>
-                          {item.cashbackPercentage > 0 && (
-                            <span className="inline-block text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">
-                              {item.cashbackPercentage}% Cashback
-                            </span>
-                          )}
-                        </div>
-                        <div className="w-1/4 text-center text-gray-500 font-mono">
-                          {item.quantity} x ₹{Number(item.price || item.rate || 0).toFixed(0)}
-                        </div>
-                        <div className="w-1/4 text-right font-bold text-gray-800 font-mono">
-                          ₹{Number(item.total || ((item.price || item.rate || 0) * (item.quantity || 1))).toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
-                  <p className="text-[11px] text-gray-600 font-medium">
-                    Store Purchase / Instant Cashback Transaction
-                  </p>
-                  <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
-                    Ref ID: {selectedInvoice.refId || selectedInvoice.id || selectedInvoice.transactionId || 'N/A'}
-                  </p>
-                </div>
-              )}
-
-              {/* Total Summary */}
-              <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-1.5">
-                <div className="flex justify-between text-gray-600 text-[11px]">
-                  <span>Total Bill Amount</span>
-                  <span className="font-bold font-mono">
-                    ₹{Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-gray-500 text-[10px]">
-                  <span>GST / Taxes</span>
-                  <span className="text-emerald-600 font-medium">Included</span>
-                </div>
-                <div className="pt-1.5 border-t border-gray-200 flex justify-between text-gray-900 font-bold text-sm">
-                  <span>Net Paid Amount</span>
-                  <span className="font-mono text-primary font-black">
-                    ₹{Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Instant Cashback Badge */}
-              {Number(selectedInvoice.cashbackAmount || (selectedInvoice.isCashback ? selectedInvoice.rawAmount : 0)) > 0 && (
-                <div className="bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/15 border border-emerald-300 rounded-xl p-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <span className="material-symbols-outlined text-[18px]">redeem</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">
-                      Zeebac Instant Cashback Earned
-                    </p>
-                    <p className="font-black text-emerald-700 text-base font-mono">
-                      +₹{Number(selectedInvoice.cashbackAmount || (selectedInvoice.isCashback ? selectedInvoice.rawAmount : 0)).toFixed(2)} Points
-                    </p>
-                    <p className="text-[9.5px] text-emerald-800/80">
-                      Credited directly into your Zeebac Wallet balance!
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="p-3 bg-gray-50 border-t border-gray-100 flex gap-2">
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                className="py-3 px-2 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[16px]">print</span>
-                <span>Print / Save</span>
+                <span className="material-symbols-outlined text-[17px]">print</span>
+                <span>Print</span>
               </button>
-              {typeof navigator !== 'undefined' && navigator.share && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.share({
-                      title: `Zeebac Bill #${selectedInvoice.billNumber || selectedInvoice.refId}`,
-                      text: `Bill from ${selectedInvoice.vendorName || 'ZeeBac Partner Store'}: ₹${Number(selectedInvoice.amount || selectedInvoice.rawAmount || 0).toFixed(2)}. Earned ₹${Number(selectedInvoice.cashbackAmount || 0).toFixed(2)} Cashback on Zeebac!`,
-                    }).catch(() => {});
-                  }}
-                  className="py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]">share</span>
-                </button>
-              )}
+
               <button
                 type="button"
-                onClick={() => setSelectedInvoice(null)}
-                className="flex-1 py-2 px-3 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer shadow-sm shadow-primary/20"
+                onClick={() => {
+                  const bill = selectedInvoice;
+                  const text = `🧾 *Zeebac Bill Receipt*\nStore: ${bill.vendorStoreName || 'Zeebac Store'}\nBill No: ${bill.billNumber || bill.transactionId}\nCustomer: ${bill.customerName || 'Customer'} (${bill.customerZeebacId || ''})\nTotal: ₹${bill.amount || bill.rawAmount}\n🎁 *Cashback Credited:* ₹${bill.cashbackAmount || 0} Points in Zeebac Wallet!\nThank you!`;
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                className="py-3 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
               >
-                Done
+                <span className="material-symbols-outlined text-[17px]">share</span>
+                <span>WhatsApp</span>
               </button>
             </div>
           </div>
@@ -745,6 +922,7 @@ export default function WalletPassbookScreen() {
         document.body
       )}
 
+      {/* Bottom Navigation */}
       <BottomNavBar />
     </div>
   );

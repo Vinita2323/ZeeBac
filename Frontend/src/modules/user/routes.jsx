@@ -38,6 +38,9 @@ export default function UserRoutes() {
         <Route path="/transaction-success" element={<TransactionSuccessScreen />} />
         <Route path="/wallet" element={<WalletScreen />} />
         <Route path="/passbook" element={<WalletPassbookScreen />} />
+        <Route path="/wallet/passbook" element={<WalletPassbookScreen />} />
+        <Route path="/bills" element={<WalletPassbookScreen initialTab="Bills" />} />
+        <Route path="/invoices" element={<WalletPassbookScreen initialTab="Bills" />} />
         <Route path="/request-cashback" element={<RequestCashbackScreen />} />
         <Route path="/request/:id" element={<RequestDetailsScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />

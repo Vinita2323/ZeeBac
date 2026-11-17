@@ -72,6 +72,9 @@ export default function VendorRoutes() {
             <Route path="passbook" element={<PassbookPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="documents" element={<ProfilePage openDocs={true} />} />
+            <Route path="kyc" element={<ProfilePage openDocs={true} />} />
+            <Route path="verification" element={<ProfilePage openDocs={true} />} />
             <Route path="ratings" element={<RatingsPage />} />
             <Route path="reviews" element={<RatingsPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
