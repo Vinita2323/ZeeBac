@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { B2BAPI, VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
@@ -8,7 +9,24 @@ import ProductBarcodeScannerModal from '../../../components/common/ProductBarcod
 
 export default function B2BBillingPage() {
   const currentVendor = useAuthStore((s) => s.currentUser) || {};
-  const [activeTab, setActiveTab] = useState('retail'); // 'retail' | 'wholesale' | 'invoices' | 'ledger'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabs = ['retail', 'wholesale', 'invoices', 'ledger'];
+  const tabFromQuery = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(
+    validTabs.includes(tabFromQuery) ? tabFromQuery : 'retail'
+  );
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const handleTabSelect = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   // ══════════════════════════════════════════════════════════════
   // ─── TAB 1: RETAIL POS (B2C) COUNTER BILLING STATE ──────────
@@ -613,12 +631,14 @@ export default function B2BBillingPage() {
                   Zeebac Billing POS
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-50 text-purple-700 border border-purple-200">
-                  {activeTab === 'retail' ? 'B2C Counter POS' : activeTab === 'wholesale' ? 'B2B Trade' : 'History'}
+                  {activeTab === 'retail' ? 'B2C Counter POS' : activeTab === 'wholesale' ? 'B2B Trade' : activeTab === 'ledger' ? 'Stock Putaway & Audit' : 'History'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium">
                 {activeTab === 'retail'
                   ? 'Cashier Billing • Instant Customer Wallet Cashback Points'
+                  : activeTab === 'ledger'
+                  ? 'Putaway & Stock Movement Audit Trail • Realtime Inward/Outward Log'
                   : 'Supply Chain Trade • Automatic Retailer Stock Import'}
               </p>
             </div>
@@ -627,7 +647,7 @@ export default function B2BBillingPage() {
           {/* Mode Navigation Tabs */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto hide-scrollbar">
             <button
-              onClick={() => setActiveTab('retail')}
+              onClick={() => handleTabSelect('retail')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'retail' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -637,7 +657,7 @@ export default function B2BBillingPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('wholesale')}
+              onClick={() => handleTabSelect('wholesale')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'wholesale' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -647,7 +667,7 @@ export default function B2BBillingPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('invoices')}
+              onClick={() => handleTabSelect('invoices')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'invoices' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -657,13 +677,13 @@ export default function B2BBillingPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('ledger')}
+              onClick={() => handleTabSelect('ledger')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'ledger' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-              <span>Stock Ledger</span>
+              <span>Stock Audit / Ledger</span>
             </button>
           </div>
         </div>

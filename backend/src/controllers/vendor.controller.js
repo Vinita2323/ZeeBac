@@ -1326,6 +1326,12 @@ export const createProduct = async (req, res) => {
       }
     }
 
+    if (req.body.image && typeof req.body.image === 'string' && req.body.image.trim()) {
+      const img = req.body.image.trim();
+      if (!imageUrl) imageUrl = img;
+      if (!imagesList.includes(img)) imagesList.unshift(img);
+    }
+
     if (req.files) {
       if (req.files['images'] && Array.isArray(req.files['images'])) {
         for (const f of req.files['images']) {
@@ -1491,6 +1497,12 @@ export const updateProduct = async (req, res) => {
           updatedImages = [updates.images];
         }
       }
+    }
+
+    if (updates.image && typeof updates.image === 'string' && updates.image.trim()) {
+      const img = updates.image.trim();
+      product.image = img;
+      if (!updatedImages.includes(img)) updatedImages.unshift(img);
     }
 
     if (req.files) {

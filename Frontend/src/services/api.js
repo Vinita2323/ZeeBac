@@ -586,11 +586,10 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/products');
     return res.data;
   },
-  createProduct: async (formData) => {
-    // using formData, so don't pass standard json. Axios interceptor usually handles this.
-    // wait, we need to let axios set the multipart/form-data boundary, so we don't set Content-Type manually.
-    const res = await apiClient.post('/vendor/products', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+  createProduct: async (data) => {
+    const isFormData = data instanceof FormData;
+    const res = await apiClient.post('/vendor/products', data, {
+      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined
     });
     return res.data;
   },

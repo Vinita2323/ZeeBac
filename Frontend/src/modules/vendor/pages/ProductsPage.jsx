@@ -41,6 +41,12 @@ export default function ProductsPage() {
   // Barcode Scanner Modal
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
+  // Direct Image Upload State
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = useRef(null);
+
   const initialFormState = {
     productId: '',
     name: '',
@@ -150,6 +156,9 @@ export default function ProductsPage() {
   // Open Edit Modal
   const handleEditProduct = (p) => {
     setEditingProductId(p._id);
+    setImageFile(null);
+    setImagePreview(p.image ? getMediaUrl(p.image) : (p.images && p.images[0] ? getMediaUrl(p.images[0]) : ''));
+    setShowUrlInput(false);
     setProductForm({
       productId: p.productId || '',
       name: p.name || '',
@@ -170,6 +179,41 @@ export default function ProductsPage() {
     });
     setAddProductStep(1);
     setShowAddModal(true);
+  };
+
+  // Image Selection & Upload Handlers
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (JPG, PNG, WEBP)');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image size must be less than 10MB');
+      return;
+    }
+
+    setImageFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+    updateProductForm('image', '');
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview('');
+    updateProductForm('image', '');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImageUrlChange = (url) => {
+    updateProductForm('image', url);
+    setImageFile(null);
+    setImagePreview(url);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Toggle In Stock / Out of Stock
@@ -210,19 +254,47 @@ export default function ProductsPage() {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        ...productForm,
-        price: Number(productForm.price),
-        mrp: productForm.mrp ? Number(productForm.mrp) : Number(productForm.price),
-        stock: productForm.stock !== '' ? Number(productForm.stock) : 50,
-        cashbackPercentage: Number(productForm.cashbackPercentage || 5),
-      };
-
       let res;
-      if (editingProductId) {
-        res = await VendorAPI.updateProduct(editingProductId, payload);
+      if (imageFile) {
+        // Send multipart form-data when a new direct photo is uploaded
+        const formData = new FormData();
+        formData.append('name', productForm.name.trim());
+        formData.append('category', productForm.category || 'General');
+        formData.append('brand', productForm.brand || '');
+        formData.append('barcode', (productForm.barcode || '').trim());
+        formData.append('price', Number(productForm.price));
+        formData.append('mrp', productForm.mrp ? Number(productForm.mrp) : Number(productForm.price));
+        formData.append('wholesalePrice', productForm.wholesalePrice ? Number(productForm.wholesalePrice) : Number(productForm.price));
+        formData.append('discountPrice', productForm.discountPrice || '');
+        formData.append('stock', productForm.stock !== '' ? Number(productForm.stock) : 50);
+        formData.append('unit', productForm.unit || 'Pcs');
+        formData.append('gst', productForm.gst ?? 5);
+        formData.append('cashbackPercentage', Number(productForm.cashbackPercentage || 5));
+        formData.append('description', productForm.description || '');
+        if (productForm.productId) formData.append('productId', productForm.productId);
+
+        formData.append('image', imageFile);
+
+        if (editingProductId) {
+          res = await VendorAPI.updateProduct(editingProductId, formData);
+        } else {
+          res = await VendorAPI.createProduct(formData);
+        }
       } else {
-        res = await VendorAPI.createProduct(payload);
+        // Plain JSON object when existing image or URL is used
+        const payload = {
+          ...productForm,
+          price: Number(productForm.price),
+          mrp: productForm.mrp ? Number(productForm.mrp) : Number(productForm.price),
+          stock: productForm.stock !== '' ? Number(productForm.stock) : 50,
+          cashbackPercentage: Number(productForm.cashbackPercentage || 5),
+        };
+
+        if (editingProductId) {
+          res = await VendorAPI.updateProduct(editingProductId, payload);
+        } else {
+          res = await VendorAPI.createProduct(payload);
+        }
       }
 
       if (res.success) {
@@ -230,6 +302,9 @@ export default function ProductsPage() {
         setShowAddModal(false);
         setEditingProductId(null);
         setProductForm(initialFormState);
+        setImageFile(null);
+        setImagePreview('');
+        setShowUrlInput(false);
         setAddProductStep(1);
         loadProducts();
       } else {
@@ -256,6 +331,9 @@ export default function ProductsPage() {
               onClick={() => {
                 setEditingProductId(null);
                 setProductForm(initialFormState);
+                setImageFile(null);
+                setImagePreview('');
+                setShowUrlInput(false);
                 setAddProductStep(1);
                 setShowAddModal(true);
               }}
@@ -343,6 +421,10 @@ export default function ProductsPage() {
               onClick={() => {
                 setEditingProductId(null);
                 setProductForm(initialFormState);
+                setImageFile(null);
+                setImagePreview('');
+                setShowUrlInput(false);
+                setAddProductStep(1);
                 setShowAddModal(true);
               }}
               className="px-5 py-2.5 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
@@ -823,30 +905,173 @@ export default function ProductsPage() {
               {/* STEP 3: Image & Submit */}
               {addProductStep === 3 && (
                 <div className="space-y-4">
+                  {/* Photo Upload Card */}
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                      Product Photo URL or Upload
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                        Product Photo
+                      </label>
+                      <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                        Gallery / Camera
+                      </span>
+                    </div>
+
                     <input
-                      type="text"
-                      value={productForm.image || ''}
-                      onChange={(e) => updateProductForm('image', e.target.value)}
-                      placeholder="Paste image URL (e.g. https://...)"
-                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-900 focus:outline-none focus:border-purple-600"
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="hidden"
                     />
+
+                    {imagePreview ? (
+                      /* Preview & Change/Remove Box */
+                      <div className="p-3 bg-white rounded-2xl border border-purple-200 shadow-xs flex items-center gap-3">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                          <img
+                            src={imagePreview}
+                            alt="Product Preview"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://placehold.co/100x100?text=No+Photo';
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-bold mb-0.5">
+                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                            <span>Photo Selected</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {imageFile ? imageFile.name : (productForm.image ? 'Custom Image URL' : 'Product Photo')}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                              <span>Change</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveImage}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                              <span>Remove</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Tap to Upload Dropzone */
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full p-5 sm:p-6 rounded-2xl border-2 border-dashed border-purple-300 hover:border-purple-600 bg-purple-50/40 hover:bg-purple-50/80 transition-all flex flex-col items-center justify-center text-center cursor-pointer group active:scale-[0.99]"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform shadow-2xs">
+                          <span className="material-symbols-outlined text-[28px]">add_a_photo</span>
+                        </div>
+                        <p className="text-[13px] font-black text-purple-950">
+                          Tap to Upload Product Photo
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Directly take photo with camera or choose from gallery
+                        </p>
+                        <span className="inline-block mt-2 px-3 py-1 bg-white border border-purple-200 text-purple-700 font-bold text-[11px] rounded-xl shadow-2xs">
+                          Choose File (JPG, PNG, WEBP)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Or Paste URL Toggle */}
+                    <div className="mt-2.5">
+                      {!showUrlInput && !productForm.image ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowUrlInput(true)}
+                          className="text-[11px] text-purple-700 hover:text-purple-800 font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">link</span>
+                          <span>Or paste image URL instead</span>
+                        </button>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-slate-600">
+                              Image Web Link (URL)
+                            </label>
+                            {showUrlInput && !productForm.image && (
+                              <button
+                                type="button"
+                                onClick={() => setShowUrlInput(false)}
+                                className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                              >
+                                Hide
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={productForm.image || ''}
+                            onChange={(e) => handleImageUrlChange(e.target.value)}
+                            placeholder="Paste image URL (e.g. https://...)"
+                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-[12px] text-slate-900 focus:outline-none focus:border-purple-600"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Summary Review Card */}
-                  <div className="p-4 bg-purple-50/60 rounded-2xl border border-purple-200/80 space-y-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-900">
-                      Product Review Summary
-                    </p>
-                    <p className="font-bold text-[15px] text-slate-900">{productForm.name}</p>
-                    <div className="grid grid-cols-2 gap-2 text-[12px] text-slate-600">
-                      <div>Selling Price: <strong className="text-slate-900">₹{productForm.price}</strong></div>
-                      <div>MRP: <strong className="text-slate-900">₹{productForm.mrp || productForm.price}</strong></div>
-                      <div>Stock: <strong className="text-slate-900">{productForm.stock || 50} {productForm.unit}</strong></div>
-                      <div>Cashback: <strong className="text-emerald-600">{productForm.cashbackPercentage}%</strong></div>
+                  <div className="p-3.5 bg-gradient-to-br from-purple-50/80 to-indigo-50/40 rounded-2xl border border-purple-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10.5px] font-black uppercase tracking-wider text-purple-900 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">preview</span>
+                        <span>Product Review Summary</span>
+                      </p>
+                      <span className="text-[10px] font-bold text-purple-700 bg-white/80 px-2 py-0.5 rounded-md border border-purple-200">
+                        {productForm.category || 'General'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt={productForm.name}
+                          className="w-14 h-14 rounded-xl object-cover border border-purple-200 bg-white shrink-0"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://placehold.co/60x60?text=Item';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200">
+                          <span className="material-symbols-outlined text-[24px]">inventory_2</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-[14px] text-slate-900 truncate">
+                          {productForm.name || 'Untitled Product'}
+                        </p>
+                        {productForm.brand && (
+                          <p className="text-[11px] text-slate-500 font-medium">Brand: {productForm.brand}</p>
+                        )}
+                        <p className="text-[10.5px] text-slate-400 font-mono">
+                          Barcode: {productForm.barcode || 'Auto-generated'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-purple-100">
+                      <div>Selling Price: <strong className="text-slate-900 font-bold">₹{productForm.price || '0'}</strong></div>
+                      <div>MRP: <strong className="text-slate-900 font-bold">₹{productForm.mrp || productForm.price || '0'}</strong></div>
+                      <div>Stock: <strong className="text-slate-900 font-bold">{productForm.stock || 50} {productForm.unit || 'Pcs'}</strong></div>
+                      <div>Cashback: <strong className="text-emerald-600 font-bold">{productForm.cashbackPercentage || 5}%</strong></div>
                     </div>
                   </div>
 
