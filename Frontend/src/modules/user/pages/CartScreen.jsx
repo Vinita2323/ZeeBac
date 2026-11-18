@@ -159,29 +159,117 @@ export default function CartScreen() {
 
   // Delivery Scheduling state (Instant vs Scheduled delivery)
   const [deliveryType, setDeliveryType] = useState(() => (storeTimingInfo.isOpen ? 'INSTANT' : 'SCHEDULED'));
-  const [scheduledSlot, setScheduledSlot] = useState('Tomorrow Morning (09:00 AM - 10:00 AM)');
+
+  // Custom Date and Time scheduling state
+  const [dateMode, setDateMode] = useState(() => {
+    const h = new Date().getHours();
+    return (!storeTimingInfo.isOpen || h >= 20) ? 'tomorrow' : 'today';
+  });
+  const [customDate, setCustomDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+  });
+
+  const [timeMode, setTimeMode] = useState('slot'); // 'slot' | 'custom'
+  const [selectedSlot, setSelectedSlot] = useState('Morning'); // 'Morning' | 'Afternoon' | 'Evening' | 'Night'
+  const [customTime, setCustomTime] = useState('11:00'); // 24hr HH:mm
 
   useEffect(() => {
     if (!storeTimingInfo.isOpen && deliveryType !== 'SCHEDULED') {
       setDeliveryType('SCHEDULED');
+      setDateMode('tomorrow');
     }
   }, [storeTimingInfo.isOpen]);
 
-  const availableSlots = useMemo(() => {
-    const slots = [];
+  // Helpers for date calculations & formatting
+  const dateCalculations = useMemo(() => {
     const now = new Date();
     const currentHour = now.getHours();
 
-    if (storeTimingInfo.isOpen) {
-      if (currentHour < 14) slots.push('Today Afternoon (02:00 PM - 03:00 PM)');
-      if (currentHour < 18) slots.push('Today Evening (06:00 PM - 07:00 PM)');
-      if (currentHour < 20) slots.push('Today Night (08:30 PM - 09:30 PM)');
-    }
-    slots.push('Tomorrow Morning (09:00 AM - 10:00 AM)');
-    slots.push('Tomorrow Afternoon (01:00 PM - 02:00 PM)');
-    slots.push('Tomorrow Evening (06:00 PM - 07:00 PM)');
-    return slots;
+    const todayObj = new Date(now);
+    const tomorrowObj = new Date(now);
+    tomorrowObj.setDate(todayObj.getDate() + 1);
+    const dayAfterObj = new Date(now);
+    dayAfterObj.setDate(todayObj.getDate() + 2);
+    const maxDateObj = new Date(now);
+    maxDateObj.setDate(todayObj.getDate() + 14);
+
+    const fmtShort = (d) => d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    const fmtIso = (d) => {
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${yr}-${mo}-${da}`;
+    };
+
+    const isTodayDisabled = !storeTimingInfo.isOpen || currentHour >= 21;
+
+    return {
+      currentHour,
+      todayIso: fmtIso(todayObj),
+      tomorrowIso: fmtIso(tomorrowObj),
+      maxDateIso: fmtIso(maxDateObj),
+      todayShortLabel: fmtShort(todayObj),
+      tomorrowShortLabel: fmtShort(tomorrowObj),
+      dayAfterShortLabel: fmtShort(dayAfterObj),
+      isTodayDisabled,
+      fmtShort,
+    };
   }, [storeTimingInfo.isOpen]);
+
+  // Standard predefined delivery slots
+  const standardSlots = useMemo(() => [
+    { id: 'morning', name: 'Morning', label: 'Morning (09:00 AM - 12:00 PM)', time: '09:00 AM - 12:00 PM', icon: 'wb_sunny', endHour: 12 },
+    { id: 'afternoon', name: 'Afternoon', label: 'Afternoon (12:00 PM - 04:00 PM)', time: '12:00 PM - 04:00 PM', icon: 'light_mode', endHour: 16 },
+    { id: 'evening', name: 'Evening', label: 'Evening (04:00 PM - 07:00 PM)', time: '04:00 PM - 07:00 PM', icon: 'wb_twilight', endHour: 19 },
+    { id: 'night', name: 'Night', label: 'Night (07:00 PM - 09:30 PM)', time: '07:00 PM - 09:30 PM', icon: 'bedtime', endHour: 21.5 },
+  ], []);
+
+  // Helper to format 24h string to 12h AM/PM
+  const format12hTime = (timeStr) => {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    let h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) || 0;
+    if (isNaN(h)) return timeStr;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    h = h ? h : 12;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  // Formatted date string for order payload & UI summary
+  const formattedScheduledDate = useMemo(() => {
+    if (dateMode === 'today') return `Today (${dateCalculations.todayShortLabel})`;
+    if (dateMode === 'tomorrow') return `Tomorrow (${dateCalculations.tomorrowShortLabel})`;
+    if (dateMode === 'day_after') return `Day After (${dateCalculations.dayAfterShortLabel})`;
+    if (dateMode === 'custom' && customDate) {
+      const d = new Date(customDate + 'T00:00:00');
+      return !isNaN(d.getTime()) ? dateCalculations.fmtShort(d) : customDate;
+    }
+    return `Tomorrow (${dateCalculations.tomorrowShortLabel})`;
+  }, [dateMode, customDate, dateCalculations]);
+
+  // Formatted custom date preview for input badge
+  const formattedCustomDatePreview = useMemo(() => {
+    if (!customDate) return '';
+    const d = new Date(customDate + 'T00:00:00');
+    return !isNaN(d.getTime()) ? dateCalculations.fmtShort(d) : customDate;
+  }, [customDate, dateCalculations]);
+
+  // Formatted slot/time string for order payload & UI summary
+  const formattedScheduledSlot = useMemo(() => {
+    if (timeMode === 'slot') {
+      const match = standardSlots.find((s) => s.name === selectedSlot || s.label === selectedSlot);
+      return match ? match.label : selectedSlot;
+    }
+    return `${format12hTime(customTime)} (Custom Time)`;
+  }, [timeMode, selectedSlot, customTime, standardSlots]);
 
   // 1. Fetch Store Delivery Settings & Admin Tax Rate
   useEffect(() => {
@@ -652,8 +740,8 @@ export default function CartScreen() {
         fulfillmentType,
         deliverySchedule: {
           deliveryType: !storeTimingInfo.isOpen ? 'SCHEDULED' : deliveryType,
-          scheduledDate: deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen ? (scheduledSlot.includes('Today') ? 'Today' : 'Tomorrow') : '',
-          scheduledSlot: deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen ? scheduledSlot : '',
+          scheduledDate: deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen ? formattedScheduledDate : '',
+          scheduledSlot: deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen ? formattedScheduledSlot : '',
         },
         deliveryAddress: selectedSavedAddress
           ? `${selectedSavedAddress.houseNo}, ${selectedSavedAddress.street}${selectedSavedAddress.landmark ? `, Near ${selectedSavedAddress.landmark}` : ''}, ${selectedSavedAddress.city} - ${selectedSavedAddress.pincode} (${selectedSavedAddress.receiverName}, ${selectedSavedAddress.receiverPhone})`
@@ -910,7 +998,7 @@ export default function CartScreen() {
                 <div className="text-left">
                   <p className="font-extrabold text-[12.5px] text-amber-900">Scheduled Delivery Order</p>
                   <p className="text-[11px] text-amber-800 font-medium">
-                    Slot: <strong>{activeOrder.deliverySchedule.scheduledSlot || 'Tomorrow Morning'}</strong> ({activeOrder.deliverySchedule.scheduledDate || 'Tomorrow'})
+                    📅 Date: <strong>{activeOrder.deliverySchedule.scheduledDate || 'Scheduled'}</strong> • ⏰ Slot: <strong>{activeOrder.deliverySchedule.scheduledSlot || 'Slot'}</strong>
                   </p>
                 </div>
               </div>
@@ -1428,24 +1516,229 @@ export default function CartScreen() {
           </div>
 
           {(deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen) && (
-            <div className="pt-1 space-y-1.5 animate-fadeIn">
-              <label className="block text-[11px] font-bold text-slate-700">
-                Select Preferred Delivery Slot:
-              </label>
-              <select
-                value={scheduledSlot}
-                onChange={(e) => setScheduledSlot(e.target.value)}
-                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-800 focus:bg-white focus:border-purple-600 outline-none cursor-pointer"
-              >
-                {availableSlots.map((slot) => (
-                  <option key={slot} value={slot}>
-                    {slot}
-                  </option>
-                ))}
-              </select>
+            <div className="pt-2 space-y-3 animate-fadeIn">
+              {/* 1. Date Selection Section */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11.5px] font-black text-slate-800 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[15px] text-purple-700">calendar_today</span>
+                    Select Delivery Date:
+                  </label>
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+                    {formattedScheduledDate}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5">
+                  {/* Today Button */}
+                  <button
+                    type="button"
+                    disabled={dateCalculations.isTodayDisabled}
+                    onClick={() => setDateMode('today')}
+                    className={`py-2 px-1 rounded-xl text-center border transition-all cursor-pointer ${
+                      dateCalculations.isTodayDisabled
+                        ? 'opacity-40 border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : dateMode === 'today'
+                        ? 'border-purple-600 bg-purple-600 text-white shadow-xs font-black'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold'
+                    }`}
+                  >
+                    <span className="block text-[11px] leading-tight">Today</span>
+                    <span className={`block text-[9px] truncate ${dateMode === 'today' ? 'text-purple-100' : 'text-slate-400'}`}>
+                      {dateCalculations.todayShortLabel}
+                    </span>
+                  </button>
+
+                  {/* Tomorrow Button */}
+                  <button
+                    type="button"
+                    onClick={() => setDateMode('tomorrow')}
+                    className={`py-2 px-1 rounded-xl text-center border transition-all cursor-pointer ${
+                      dateMode === 'tomorrow'
+                        ? 'border-purple-600 bg-purple-600 text-white shadow-xs font-black'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold'
+                    }`}
+                  >
+                    <span className="block text-[11px] leading-tight">Tomorrow</span>
+                    <span className={`block text-[9px] truncate ${dateMode === 'tomorrow' ? 'text-purple-100' : 'text-slate-400'}`}>
+                      {dateCalculations.tomorrowShortLabel}
+                    </span>
+                  </button>
+
+                  {/* Day After Button */}
+                  <button
+                    type="button"
+                    onClick={() => setDateMode('day_after')}
+                    className={`py-2 px-1 rounded-xl text-center border transition-all cursor-pointer ${
+                      dateMode === 'day_after'
+                        ? 'border-purple-600 bg-purple-600 text-white shadow-xs font-black'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold'
+                    }`}
+                  >
+                    <span className="block text-[11px] leading-tight">Day After</span>
+                    <span className={`block text-[9px] truncate ${dateMode === 'day_after' ? 'text-purple-100' : 'text-slate-400'}`}>
+                      {dateCalculations.dayAfterShortLabel}
+                    </span>
+                  </button>
+
+                  {/* Custom Calendar Date Button */}
+                  <button
+                    type="button"
+                    onClick={() => setDateMode('custom')}
+                    className={`py-2 px-1 rounded-xl text-center border transition-all cursor-pointer ${
+                      dateMode === 'custom'
+                        ? 'border-purple-600 bg-purple-600 text-white shadow-xs font-black'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold'
+                    }`}
+                  >
+                    <span className="block text-[11px] leading-tight">Custom 📅</span>
+                    <span className={`block text-[9px] truncate ${dateMode === 'custom' ? 'text-purple-100' : 'text-slate-400'}`}>
+                      Pick Date
+                    </span>
+                  </button>
+                </div>
+
+                {/* When Custom Date is chosen, show date input */}
+                {dateMode === 'custom' && (
+                  <div className="pt-1.5 flex items-center gap-2">
+                    <input
+                      type="date"
+                      min={dateCalculations.todayIso}
+                      max={dateCalculations.maxDateIso}
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      className="flex-1 h-9 px-3 bg-purple-50/50 border border-purple-300 rounded-xl text-[12px] font-bold text-slate-800 focus:bg-white focus:border-purple-600 outline-none cursor-pointer"
+                    />
+                    <span className="text-[11px] font-black text-purple-700 shrink-0">
+                      {formattedCustomDatePreview}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Time Mode Selection (Slots vs Custom Time) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11.5px] font-black text-slate-800 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[15px] text-purple-700">schedule</span>
+                    Select Delivery Time:
+                  </label>
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setTimeMode('slot')}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold transition-all cursor-pointer ${
+                        timeMode === 'slot' ? 'bg-white text-purple-700 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Time Slot
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTimeMode('custom')}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold transition-all cursor-pointer ${
+                        timeMode === 'custom' ? 'bg-white text-purple-700 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Custom Time ⏰
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mode A: Standard Slots */}
+                {timeMode === 'slot' && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {standardSlots.map((slot) => {
+                      const isPast = dateMode === 'today' && dateCalculations.currentHour >= slot.endHour - 1;
+                      const isSelected = selectedSlot === slot.name || selectedSlot === slot.label;
+                      return (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          disabled={isPast}
+                          onClick={() => setSelectedSlot(slot.name)}
+                          className={`p-2 rounded-xl border text-left transition-all ${
+                            isPast
+                              ? 'opacity-40 border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : isSelected
+                              ? 'border-purple-600 bg-purple-50 text-purple-950 shadow-2xs font-bold cursor-pointer'
+                              : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 font-medium cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px] text-purple-600">{slot.icon}</span>
+                              {slot.name}
+                            </span>
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />}
+                          </div>
+                          <p className="text-[9.5px] text-slate-500 mt-0.5">
+                            {isPast ? 'Slot Passed' : slot.time}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Mode B: Custom Exact Time */}
+                {timeMode === 'custom' && (
+                  <div className="space-y-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-600 shrink-0">Choose Time:</span>
+                      <input
+                        type="time"
+                        value={customTime}
+                        min="07:00"
+                        max="22:30"
+                        step="900"
+                        onChange={(e) => setCustomTime(e.target.value)}
+                        className="flex-1 h-9 px-3 bg-white border border-purple-300 rounded-xl text-[12.5px] font-black text-purple-950 focus:border-purple-600 outline-none cursor-pointer"
+                      />
+                      <span className="text-[11.5px] font-black text-purple-700 bg-purple-100 px-2.5 py-1 rounded-lg shrink-0">
+                        {format12hTime(customTime)}
+                      </span>
+                    </div>
+
+                    {/* Quick Suggestions */}
+                    <div>
+                      <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Quick Times:
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {['09:00', '11:00', '14:00', '16:30', '18:30', '20:30'].map((timeStr) => (
+                          <button
+                            key={timeStr}
+                            type="button"
+                            onClick={() => setCustomTime(timeStr)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                              customTime === timeStr
+                                ? 'bg-purple-600 text-white shadow-xs'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-purple-50'
+                            }`}
+                          >
+                            {format12hTime(timeStr)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Live Confirmation Badge */}
+              <div className="bg-purple-50/80 border border-purple-200/80 rounded-xl p-2.5 flex items-center gap-2 text-purple-950">
+                <span className="material-symbols-outlined text-purple-700 text-[18px] shrink-0">
+                  check_circle
+                </span>
+                <p className="text-[11px] font-bold leading-tight">
+                  Delivery will arrive: <span className="font-black text-purple-700">{formattedScheduledDate}</span> at <span className="font-black text-purple-700">{formattedScheduledSlot}</span>
+                </p>
+              </div>
+
               {!storeTimingInfo.isOpen && (
-                <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg leading-tight">
-                  🌙 Note: Store is closed right now. Your order will be prepared and delivered during this scheduled slot.
+                <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg leading-tight border border-amber-200">
+                  🌙 Note: Store is closed right now. Your order will be prepared and delivered on this scheduled date and slot.
                 </p>
               )}
             </div>

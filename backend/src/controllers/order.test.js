@@ -470,4 +470,30 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(order.deliverySchedule.scheduledDate).toBe('Tomorrow');
     expect(order.deliverySchedule.scheduledSlot).toBe('Tomorrow Morning (09:00 AM - 10:00 AM)');
   });
+  it('supports custom calendar date and custom time in scheduled delivery orders', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    const schedReq = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'delivery',
+        deliverySchedule: {
+          deliveryType: 'SCHEDULED',
+          scheduledDate: 'Thu, 26 Nov 2026',
+          scheduledSlot: '04:30 PM (Custom Time)',
+        },
+        deliveryAddress: 'Hazratganj, Lucknow',
+        paymentMethod: 'CASH',
+        items: [{ name: 'Atta 10kg', price: 420, quantity: 1, cashbackPercentage: 5 }],
+      },
+    };
+    const schedRes = makeRes();
+    await createOrder(schedReq, schedRes);
+    expect(schedRes.status).toHaveBeenCalledWith(201);
+    const order = schedRes.json.mock.calls[0][0].data.order;
+    expect(order.deliverySchedule.deliveryType).toBe('SCHEDULED');
+    expect(order.deliverySchedule.scheduledDate).toBe('Thu, 26 Nov 2026');
+    expect(order.deliverySchedule.scheduledSlot).toBe('04:30 PM (Custom Time)');
+  });
 });

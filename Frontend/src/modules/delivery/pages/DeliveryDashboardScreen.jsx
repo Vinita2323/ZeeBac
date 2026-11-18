@@ -610,6 +610,18 @@ export default function DeliveryDashboardScreen() {
                 </span>
               </div>
 
+              {activeOrder.deliverySchedule?.deliveryType === 'SCHEDULED' && (
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-xs">
+                  <span className="material-symbols-outlined text-amber-700 text-[16px]">calendar_clock</span>
+                  <div>
+                    <span className="font-black text-[10.5px] uppercase tracking-wide block">Scheduled Delivery</span>
+                    <span className="text-[11px] font-bold text-amber-800">
+                      📅 {activeOrder.deliverySchedule.scheduledDate || 'Scheduled'} • ⏰ {activeOrder.deliverySchedule.scheduledSlot || 'Slot'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Store & Customer Info */}
               <div className="space-y-2.5 text-xs">
                 <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-100">
@@ -820,7 +832,7 @@ export default function DeliveryDashboardScreen() {
                   {ringingOrderAlert.deliverySchedule?.deliveryType === 'SCHEDULED' ? (
                     <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold flex items-center gap-0.5">
                       <span className="material-symbols-outlined text-[11px]">calendar_clock</span>
-                      <span>Scheduled: {ringingOrderAlert.deliverySchedule.scheduledSlot || 'Slot'}</span>
+                      <span>Scheduled: {ringingOrderAlert.deliverySchedule.scheduledDate ? `${ringingOrderAlert.deliverySchedule.scheduledDate} • ` : ''}{ringingOrderAlert.deliverySchedule.scheduledSlot || 'Slot'}</span>
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 text-[10px] font-bold flex items-center gap-0.5">

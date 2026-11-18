@@ -1093,7 +1093,7 @@ export default function DashboardPage() {
                       {order.deliverySchedule?.deliveryType === 'SCHEDULED' && (
                         <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-amber-900 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md mt-1">
                           <span className="material-symbols-outlined text-[11px] text-amber-700">calendar_clock</span>
-                          <span>Scheduled: {order.deliverySchedule.scheduledSlot || order.deliverySchedule.scheduledDate || 'Scheduled'}</span>
+                          <span>Scheduled: {order.deliverySchedule.scheduledDate ? `${order.deliverySchedule.scheduledDate} • ` : ''}{order.deliverySchedule.scheduledSlot || 'Scheduled'}</span>
                         </span>
                       )}
                     </div>

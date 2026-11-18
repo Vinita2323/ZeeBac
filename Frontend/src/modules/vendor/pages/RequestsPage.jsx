@@ -558,7 +558,7 @@ export default function RequestsPage() {
                       {order.deliverySchedule?.deliveryType === 'SCHEDULED' ? (
                         <span className="bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[10.5px] flex items-center gap-1">
                           <span className="material-symbols-outlined text-[12px] text-amber-700">calendar_clock</span>
-                          <span>Scheduled: {order.deliverySchedule.scheduledSlot || order.deliverySchedule.scheduledDate || 'Scheduled'}</span>
+                          <span>Scheduled: {order.deliverySchedule.scheduledDate ? `${order.deliverySchedule.scheduledDate} • ` : ''}{order.deliverySchedule.scheduledSlot || 'Scheduled'}</span>
                         </span>
                       ) : (
                         <span className="bg-emerald-100 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-md font-bold text-[10.5px] flex items-center gap-1">
