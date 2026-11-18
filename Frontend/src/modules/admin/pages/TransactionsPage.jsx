@@ -35,7 +35,7 @@ export default function TransactionsPage() {
   };
 
   const handleExport = () => {
-    if (transactions.length === 0) return alert('No transactions to export.');
+    if (!transactions || transactions.length === 0) return alert('No transactions to export.');
     
     const headers = ["Transaction ID", "Time", "Customer Name", "Customer ID", "Vendor Name", "Vendor ID", "Amount", "Cashback", "Status"];
     const rows = transactions.map(t => [
@@ -128,7 +128,7 @@ export default function TransactionsPage() {
                 <tr>
                   <td colSpan="7" className="p-8 text-center text-on-surface-variant">Loading transactions...</td>
                 </tr>
-              ) : transactions.length === 0 ? (
+              ) : (!transactions || transactions.length === 0) ? (
                 <tr>
                   <td colSpan="7" className="p-8 text-center text-on-surface-variant">No transactions found.</td>
                 </tr>

@@ -89,7 +89,7 @@ export default function FraudDetectionPage() {
               </div>
               <div>
                 <p className="text-on-surface font-bold text-lg">{riskLevel} Risk</p>
-                <p className="text-on-surface-variant text-[12px]">{alerts.length} active threats detected</p>
+                <p className="text-on-surface-variant text-[12px]">{alerts?.length || 0} active threats detected</p>
               </div>
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function FraudDetectionPage() {
           <div className="bg-white border border-outline-variant/10 rounded-2xl p-6 shadow-sm">
              <h3 className="text-on-surface-variant text-[11px] font-bold uppercase tracking-wider mb-4">Recent Alerts</h3>
              <div className="space-y-4">
-               {alerts.length === 0 && !isLoading && (
+               {(!alerts || alerts.length === 0) && !isLoading && (
                  <p className="text-sm text-on-surface-variant">No recent alerts found. System is healthy.</p>
                )}
                {alerts.map(alert => (
@@ -179,7 +179,7 @@ export default function FraudDetectionPage() {
                     </td>
                   </tr>
                 ))}
-                {flaggedAccounts.length === 0 && !isLoading && (
+                {(!flaggedAccounts || flaggedAccounts.length === 0) && !isLoading && (
                   <tr>
                     <td colSpan="5" className="py-8 px-5 text-center text-on-surface-variant">
                       No flagged accounts. All users are in good standing! 🎉

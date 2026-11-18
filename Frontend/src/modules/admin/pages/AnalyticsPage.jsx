@@ -110,7 +110,7 @@ export default function AnalyticsPage() {
           <h3 className="font-title-lg font-bold text-on-surface mb-6">Top Vendors by Volume</h3>
           
           <div className="space-y-4">
-            {topVendors.length === 0 && !isLoading && (
+            {(!topVendors || topVendors.length === 0) && !isLoading && (
               <div className="text-sm text-on-surface-variant text-center py-4">No vendor data available.</div>
             )}
             {topVendors.map((vendor, idx) => (

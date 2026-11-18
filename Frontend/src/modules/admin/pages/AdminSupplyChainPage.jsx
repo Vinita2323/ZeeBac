@@ -189,7 +189,7 @@ export default function AdminSupplyChainPage() {
       ) : activeTab === 'catalogue' ? (
         /* ── TAB 1: MASTER CATALOGUE & CIRCULATION ── */
         <div className="space-y-4">
-          {catalogue.length === 0 ? (
+          {(!catalogue || catalogue.length === 0) ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm space-y-2">
               <span className="material-symbols-outlined text-slate-300 text-[48px]">inventory</span>
               <p className="font-bold text-slate-700">No master products found</p>
@@ -335,7 +335,7 @@ export default function AdminSupplyChainPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {invoices.length === 0 ? (
+                {(!invoices || invoices.length === 0) ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-slate-400 font-medium">
                       No B2B invoices found.
@@ -420,7 +420,7 @@ export default function AdminSupplyChainPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {ledger.length === 0 ? (
+                {(!ledger || ledger.length === 0) ? (
                   <tr>
                     <td colSpan={9} className="px-4 py-12 text-center text-slate-400 font-medium">
                       No stock movements recorded yet.

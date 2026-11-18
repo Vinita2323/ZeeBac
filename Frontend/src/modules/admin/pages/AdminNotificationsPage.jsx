@@ -46,7 +46,7 @@ export default function AdminNotificationsPage() {
         <div className="p-16 flex justify-center items-center bg-white rounded-xl border border-outline-variant/20 min-h-[400px]">
           <div className="animate-spin rounded-full h-8 w-8 border-3 border-primary border-t-transparent"></div>
         </div>
-      ) : notifications.length === 0 ? (
+      ) : (!notifications || notifications.length === 0) ? (
         <div className="p-16 text-center flex flex-col items-center bg-white rounded-xl border border-outline-variant/20 min-h-[400px] justify-center">
           <span className="material-symbols-outlined text-[64px] text-outline/30 mb-4">notifications_off</span>
           <h3 className="font-bold text-lg text-on-surface">You're all caught up!</h3>

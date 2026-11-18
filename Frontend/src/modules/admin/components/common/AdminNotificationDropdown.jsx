@@ -24,7 +24,7 @@ export default function AdminNotificationDropdown({ onClose }) {
     navigate(TYPE_ROUTES[notif.type] || '/admin/notifications');
   };
 
-  const topFive = notifications.slice(0, 5);
+  const topFive = (notifications || []).slice(0, 5);
 
   return (
     <div className="absolute top-[50px] right-4 w-[340px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-outline-variant/20 z-50 overflow-hidden flex flex-col max-h-[440px]">
@@ -44,7 +44,7 @@ export default function AdminNotificationDropdown({ onClose }) {
           <div className="p-4 flex justify-center">
             <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div>
           </div>
-        ) : topFive.length === 0 ? (
+        ) : (!topFive || topFive.length === 0) ? (
           <div className="p-6 text-center text-on-surface-variant flex flex-col items-center">
             <span className="material-symbols-outlined text-[32px] text-outline/50 mb-2">notifications_off</span>
             <p className="text-[13px] font-medium">No new notifications</p>

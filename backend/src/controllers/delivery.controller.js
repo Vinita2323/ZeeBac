@@ -1578,11 +1578,17 @@ export const adminGetLiveDeliveryOperations = async (req, res) => {
       success: true,
       data: {
         activeDeliveries,
+        activeOrders: activeDeliveries,
         unassignedOrders,
         onlineRiders,
         totalActive: activeDeliveries.length,
         totalUnassigned: unassignedOrders.length,
         totalOnlineRiders: onlineRiders.length,
+        stats: {
+          inTransitCount: activeDeliveries.length,
+          unassignedCount: unassignedOrders.length,
+          onlineRidersCount: onlineRiders.length,
+        },
       },
     });
   } catch (error) {

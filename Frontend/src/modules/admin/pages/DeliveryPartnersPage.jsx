@@ -300,19 +300,19 @@ export default function DeliveryPartnersPage() {
   };
 
   const getLatestResubmission = (partner) => {
-    if (!partner?.resubmittedChanges?.length) return null;
+    if (!partner || !Array.isArray(partner.resubmittedChanges) || partner.resubmittedChanges.length === 0) return null;
     return partner.resubmittedChanges[partner.resubmittedChanges.length - 1];
   };
 
   const isFieldUpdatedInResubmission = (partner, fieldName) => {
     const latest = getLatestResubmission(partner);
-    if (!latest?.changedFields?.length) return false;
+    if (!latest || !Array.isArray(latest.changedFields) || latest.changedFields.length === 0) return false;
     return latest.changedFields.some(
       (c) =>
-        c.field === fieldName ||
-        c.field === `documents.${fieldName}` ||
-        c.field.endsWith(`.${fieldName}`) ||
-        (fieldName === 'profilePhoto' && c.field === 'profilePhoto')
+        c?.field === fieldName ||
+        c?.field === `documents.${fieldName}` ||
+        c?.field?.endsWith(`.${fieldName}`) ||
+        (fieldName === 'profilePhoto' && c?.field === 'profilePhoto')
     );
   };
 
@@ -522,7 +522,7 @@ export default function DeliveryPartnersPage() {
                     <span>Loading delivery partners...</span>
                   </td>
                 </tr>
-              ) : partners.length === 0 ? (
+              ) : (!partners || partners.length === 0) ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-500">
                     No delivery partners found matching this filter.
@@ -741,114 +741,122 @@ export default function DeliveryPartnersPage() {
               )}
 
               {/* Partner Corrections & Resubmission Audit */}
-              {(selectedPartner.applicationStatus === 'RESUBMITTED' ||
-                selectedPartner.resubmissionCount > 0 ||
-                selectedPartner.resubmittedChanges?.length > 0) && (
-                <div className="rounded-2xl p-4 bg-gradient-to-br from-indigo-50/95 via-purple-50/40 to-white border-2 border-indigo-300 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between border-b border-indigo-100 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-                        <span className="material-symbols-outlined text-[18px]">history_edu</span>
+              {(() => {
+                const latestResub = getLatestResubmission(selectedPartner);
+                if (
+                  selectedPartner.applicationStatus !== 'RESUBMITTED' &&
+                  !selectedPartner.resubmissionCount &&
+                  !latestResub
+                ) {
+                  return null;
+                }
+                return (
+                  <div className="rounded-2xl p-4 bg-gradient-to-br from-indigo-50/95 via-purple-50/40 to-white border-2 border-indigo-300 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between border-b border-indigo-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                          <span className="material-symbols-outlined text-[18px]">history_edu</span>
+                        </span>
+                        <div>
+                          <h4 className="font-black text-indigo-950 text-[13px] leading-tight flex items-center gap-1.5">
+                            <span>Partner Resubmitted Corrections</span>
+                            <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-indigo-200 text-indigo-900">
+                              Attempt #{selectedPartner.resubmissionCount || 1}
+                            </span>
+                          </h4>
+                          <p className="text-[11px] text-indigo-700 font-medium">
+                            {selectedPartner.resubmittedAt
+                              ? new Date(selectedPartner.resubmittedAt).toLocaleString('en-IN', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : 'Recently updated'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-indigo-600 text-white shadow-xs">
+                        {latestResub?.changesCount ||
+                          latestResub?.changedFields?.length ||
+                          0}{' '}
+                        Fields Updated
                       </span>
-                      <div>
-                        <h4 className="font-black text-indigo-950 text-[13px] leading-tight flex items-center gap-1.5">
-                          <span>Partner Resubmitted Corrections</span>
-                          <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-indigo-200 text-indigo-900">
-                            Attempt #{selectedPartner.resubmissionCount || 1}
-                          </span>
-                        </h4>
-                        <p className="text-[11px] text-indigo-700 font-medium">
-                          {selectedPartner.resubmittedAt
-                            ? new Date(selectedPartner.resubmittedAt).toLocaleString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : 'Recently updated'}
+                    </div>
+
+                    {/* Previous Admin Feedback */}
+                    {(selectedPartner.lastRejectionReason || selectedPartner.rejectionReason) && (
+                      <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-[11.5px] space-y-0.5">
+                        <span className="font-bold text-red-800 uppercase tracking-wider text-[10px] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px]">report</span>
+                          <span>Reason Previously Given to Partner:</span>
+                        </span>
+                        <p className="font-semibold text-red-950 pl-4">
+                          "{selectedPartner.lastRejectionReason || selectedPartner.rejectionReason}"
                         </p>
                       </div>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-indigo-600 text-white shadow-xs">
-                      {selectedPartner.resubmittedChanges?.[selectedPartner.resubmittedChanges.length - 1]?.changesCount ||
-                        selectedPartner.resubmittedChanges?.[selectedPartner.resubmittedChanges.length - 1]?.changedFields?.length ||
-                        0}{' '}
-                      Fields Updated
-                    </span>
-                  </div>
-
-                  {/* Previous Admin Feedback */}
-                  {(selectedPartner.lastRejectionReason || selectedPartner.rejectionReason) && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-[11.5px] space-y-0.5">
-                      <span className="font-bold text-red-800 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px]">report</span>
-                        <span>Reason Previously Given to Partner:</span>
-                      </span>
-                      <p className="font-semibold text-red-950 pl-4">
-                        "{selectedPartner.lastRejectionReason || selectedPartner.rejectionReason}"
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Exact Changed Fields List */}
-                  <div className="space-y-1.5">
-                    <span className="text-[10.5px] font-bold text-indigo-950 uppercase tracking-wider block">
-                      Specific Updates Made by Partner:
-                    </span>
-                    {selectedPartner.resubmittedChanges?.[selectedPartner.resubmittedChanges.length - 1]?.changedFields?.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {selectedPartner.resubmittedChanges[selectedPartner.resubmittedChanges.length - 1].changedFields.map((change, idx) => (
-                          <div
-                            key={idx}
-                            className="p-2.5 rounded-xl bg-white border border-indigo-200 shadow-2xs space-y-1 text-[11.5px]"
-                          >
-                            <div className="flex items-center justify-between">
-                              <strong className="text-slate-900 font-bold">{change.label || change.field}</strong>
-                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase bg-indigo-50 text-indigo-700">
-                                {change.category}
-                              </span>
-                            </div>
-                            {change.isDocument ? (
-                              <div className="flex items-center justify-between pt-1">
-                                <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
-                                  <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                                  <span>New Document Uploaded</span>
-                                </span>
-                                {change.field && selectedPartner.documents?.[change.field.replace('documents.', '')] && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setPreviewImage({
-                                        url: selectedPartner.documents[change.field.replace('documents.', '')],
-                                        title: `Updated ${change.label || change.field}`,
-                                      })
-                                    }
-                                    className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] cursor-pointer"
-                                  >
-                                    View
-                                  </button>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5 text-[11px] pt-0.5">
-                                <span className="text-red-500 line-through truncate max-w-[110px]" title={change.oldValue}>
-                                  {change.oldValue}
-                                </span>
-                                <span className="text-slate-400">➔</span>
-                                <span className="text-emerald-700 font-bold truncate max-w-[130px]" title={change.newValue}>
-                                  {change.newValue}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-slate-500 italic text-[11px]">Partner verified all documents and re-submitted.</p>
                     )}
+
+                    {/* Exact Changed Fields List */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10.5px] font-bold text-indigo-950 uppercase tracking-wider block">
+                        Specific Updates Made by Partner:
+                      </span>
+                      {latestResub?.changedFields?.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {latestResub.changedFields.map((change, idx) => (
+                            <div
+                              key={idx}
+                              className="p-2.5 rounded-xl bg-white border border-indigo-200 shadow-2xs space-y-1 text-[11.5px]"
+                            >
+                              <div className="flex items-center justify-between">
+                                <strong className="text-slate-900 font-bold">{change.label || change.field}</strong>
+                                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase bg-indigo-50 text-indigo-700">
+                                  {change.category}
+                                </span>
+                              </div>
+                              {change.isDocument ? (
+                                <div className="flex items-center justify-between pt-1">
+                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                    <span>New Document Uploaded</span>
+                                  </span>
+                                  {change.field && selectedPartner.documents?.[change.field.replace('documents.', '')] && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPreviewImage({
+                                          url: selectedPartner.documents[change.field.replace('documents.', '')],
+                                          title: `Updated ${change.label || change.field}`,
+                                        })
+                                      }
+                                      className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] cursor-pointer"
+                                    >
+                                      View
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-[11px] pt-0.5">
+                                  <span className="text-red-500 line-through truncate max-w-[110px]" title={change.oldValue}>
+                                    {change.oldValue}
+                                  </span>
+                                  <span className="text-slate-400">➔</span>
+                                  <span className="text-emerald-700 font-bold truncate max-w-[130px]" title={change.newValue}>
+                                    {change.newValue}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-slate-500 italic text-[11px]">Partner verified all documents and re-submitted.</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* 1. Personal & Contact Details */}
               <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 space-y-2.5">

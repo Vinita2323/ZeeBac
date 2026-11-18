@@ -59,10 +59,10 @@ export default function VendorsPage() {
     return () => clearTimeout(timer);
   }, [activeTab, search]);
 
-  useEffect(() => { fetchPendingCount(); }, [vendors.length]);
+  useEffect(() => { fetchPendingCount(); }, [vendors?.length]);
 
   const handleExport = () => {
-    if (vendors.length === 0) return alert('No vendors to export.');
+    if (!vendors || vendors.length === 0) return alert('No vendors to export.');
     const headers = ["Zeebac ID", "Store Name", "Owner Name", "Trade Type", "Retailer Subtype", "Category", "Cashback Rate", "Phone", "Status", "Resubmissions", "Joined"];
     const rows = vendors.map(v => [
       v.zeebacId,
@@ -161,7 +161,7 @@ export default function VendorsPage() {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan="11" className="p-8 text-center text-on-surface-variant">Loading...</td></tr>
-              ) : vendors.length === 0 ? (
+              ) : (!vendors || vendors.length === 0) ? (
                 <tr><td colSpan="11" className="p-8 text-center text-on-surface-variant">No vendor applications found.</td></tr>
               ) : vendors.map((vendor) => (
                 <tr key={vendor._id} className="border-b border-outline-variant/5 hover:bg-surface-container-low transition-colors text-[14px]">

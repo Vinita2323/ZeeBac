@@ -192,7 +192,7 @@ export default function CashbackRulesPage() {
                 </div>
               )}
               
-              {shopRules.length === 0 && !isAddingNew && (
+              {(!shopRules || shopRules.length === 0) && !isAddingNew && (
                 <div className="text-center py-6 text-on-surface-variant text-sm">
                   No minimum cashback rules defined.
                 </div>

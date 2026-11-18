@@ -47,7 +47,7 @@ export default function WalletMonitorPage() {
   }, [page, activeTab, search, sortBy]);
 
   const handleExport = () => {
-    if (transactions.length === 0) return alert('No wallet transactions to export.');
+    if (!transactions || transactions.length === 0) return alert('No wallet transactions to export.');
     
     const headers = ["Txn ID", "Date", "Owner ID", "Type", "Amount", "Description", "Status"];
     const rows = transactions.map(t => [
@@ -181,7 +181,7 @@ export default function WalletMonitorPage() {
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && !isLoading && (
+              {(!transactions || transactions.length === 0) && !isLoading && (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-on-surface-variant">
                     No wallet movements found.

@@ -375,7 +375,7 @@ export default function SubscriptionPlansPage() {
           <div className="py-12 flex justify-center">
             <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
           </div>
-        ) : payments.length === 0 ? (
+        ) : (!payments || payments.length === 0) ? (
           <div className="py-12 text-center text-gray-400 text-[13px]">
             <span className="material-symbols-outlined text-4xl mb-2 text-gray-300 block">receipt_long</span>
             No subscription payment transactions recorded yet.

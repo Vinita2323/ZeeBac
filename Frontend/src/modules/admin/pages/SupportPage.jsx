@@ -234,7 +234,7 @@ export default function SupportPage() {
       answer: '',
       category: 'General',
       target: faqTargetFilter !== 'all' ? faqTargetFilter : 'all',
-      order: faqs.length + 1,
+      order: (faqs?.length || 0) + 1,
       isActive: true,
     });
     setIsFaqModalOpen(true);
@@ -593,7 +593,7 @@ export default function SupportPage() {
               <div className="p-4 border-b border-outline-variant/10 bg-surface-container-lowest flex justify-between items-center">
                 <span className="font-bold text-[13px] text-on-surface flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[18px] text-primary">inbox</span>
-                  Incoming Queue ({tickets.length})
+                  Incoming Queue ({tickets?.length || 0})
                 </span>
                 <span className="text-[11px] text-on-surface-variant font-medium">Sorted by latest</span>
               </div>
@@ -604,7 +604,7 @@ export default function SupportPage() {
                     <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
                     <p className="text-[12px] text-on-surface-variant font-medium">Loading tickets...</p>
                   </div>
-                ) : tickets.length === 0 ? (
+                ) : (!tickets || tickets.length === 0) ? (
                   <div className="p-12 text-center text-on-surface-variant space-y-2">
                     <span className="material-symbols-outlined text-[36px] text-outline">mark_email_read</span>
                     <p className="font-bold text-[13px] text-on-surface">No tickets found</p>
@@ -957,7 +957,7 @@ export default function SupportPage() {
             <div className="p-4 border-b border-outline-variant/10 bg-surface-container-lowest flex justify-between items-center">
               <span className="font-bold text-[13px] text-on-surface flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[18px] text-primary">format_list_bulleted</span>
-                Configured FAQ Entries ({faqs.length})
+                Configured FAQ Entries ({faqs?.length || 0})
               </span>
               <span className="text-[11px] text-on-surface-variant font-medium">Sorted by priority order</span>
             </div>
@@ -967,7 +967,7 @@ export default function SupportPage() {
                 <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
                 <p className="text-[12px] text-on-surface-variant font-medium">Loading FAQs from database...</p>
               </div>
-            ) : faqs.length === 0 ? (
+            ) : (!faqs || faqs.length === 0) ? (
               <div className="p-12 text-center space-y-3">
                 <span className="material-symbols-outlined text-[48px] text-outline">help_center</span>
                 <p className="font-bold text-[14px] text-on-surface">No FAQs Found</p>

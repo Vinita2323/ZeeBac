@@ -39,11 +39,31 @@ export default function DeliveryOperationsPage() {
   const [cancelReason, setCancelReason] = useState('Rider unresponsive / customer request');
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const activeOrdersList = Array.isArray(liveData.activeOrders) ? liveData.activeOrders : [];
+  const unassignedOrdersList = Array.isArray(liveData.unassignedOrders) ? liveData.unassignedOrders : [];
+  const onlineRidersList = Array.isArray(liveData.onlineRiders) ? liveData.onlineRiders : [];
+
   const fetchLiveOperations = useCallback(async () => {
     try {
       const res = await AdminAPI.getLiveDeliveryOperations();
       if (res.success && res.data) {
-        setLiveData(res.data);
+        const raw = res.data;
+        const active = Array.isArray(raw.activeOrders)
+          ? raw.activeOrders
+          : (Array.isArray(raw.activeDeliveries) ? raw.activeDeliveries : []);
+        const unassigned = Array.isArray(raw.unassignedOrders) ? raw.unassignedOrders : [];
+        const fleet = Array.isArray(raw.onlineRiders) ? raw.onlineRiders : [];
+
+        setLiveData({
+          activeOrders: active,
+          unassignedOrders: unassigned,
+          onlineRiders: fleet,
+          stats: {
+            inTransitCount: raw.stats?.inTransitCount ?? raw.totalActive ?? active.length,
+            unassignedCount: raw.stats?.unassignedCount ?? raw.totalUnassigned ?? unassigned.length,
+            onlineRidersCount: raw.stats?.onlineRidersCount ?? raw.totalOnlineRiders ?? fleet.length,
+          },
+        });
       }
     } catch (err) {
       console.error('Failed to load live operations', err);
@@ -157,7 +177,7 @@ export default function DeliveryOperationsPage() {
               Active In-Transit Orders
             </span>
             <span className="text-3xl font-black text-blue-900 font-mono">
-              {liveData.stats?.inTransitCount || liveData.activeOrders.length}
+              {liveData.stats?.inTransitCount ?? activeOrdersList.length}
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center">
@@ -171,7 +191,7 @@ export default function DeliveryOperationsPage() {
               Unassigned Orders Waiting
             </span>
             <span className="text-3xl font-black text-amber-900 font-mono">
-              {liveData.stats?.unassignedCount || liveData.unassignedOrders.length}
+              {liveData.stats?.unassignedCount ?? unassignedOrdersList.length}
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
@@ -186,7 +206,7 @@ export default function DeliveryOperationsPage() {
             </span>
             <span className="text-3xl font-black text-emerald-900 font-mono flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{liveData.stats?.onlineRidersCount || liveData.onlineRiders.length}</span>
+              <span>{liveData.stats?.onlineRidersCount ?? onlineRidersList.length}</span>
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
@@ -208,7 +228,7 @@ export default function DeliveryOperationsPage() {
           >
             <span>In-Transit Deliveries</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'ACTIVE' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              {liveData.activeOrders.length}
+              {activeOrdersList.length}
             </span>
           </button>
 
@@ -222,7 +242,7 @@ export default function DeliveryOperationsPage() {
           >
             <span>Unassigned Orders</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'UNASSIGNED' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              {liveData.unassignedOrders.length}
+              {unassignedOrdersList.length}
             </span>
           </button>
 
@@ -236,7 +256,7 @@ export default function DeliveryOperationsPage() {
           >
             <span>Online Fleet</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'FLEET' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              {liveData.onlineRiders.length}
+              {onlineRidersList.length}
             </span>
           </button>
         </div>
@@ -244,7 +264,7 @@ export default function DeliveryOperationsPage() {
         {/* TAB 1: ACTIVE IN-TRANSIT ORDERS */}
         {activeTab === 'ACTIVE' && (
           <div className="overflow-x-auto">
-            {liveData.activeOrders.length === 0 ? (
+            {activeOrdersList.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs">
                 <span className="material-symbols-outlined text-[32px] text-slate-300 block mb-1">
                   check_circle
@@ -264,7 +284,7 @@ export default function DeliveryOperationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {liveData.activeOrders.map((ord) => (
+                  {activeOrdersList.map((ord) => (
                     <tr key={ord._id} className="hover:bg-slate-50/70">
                       <td className="py-3 px-3">
                         <strong className="text-slate-900 block font-mono text-xs">
@@ -337,7 +357,7 @@ export default function DeliveryOperationsPage() {
         {/* TAB 2: UNASSIGNED ORDERS */}
         {activeTab === 'UNASSIGNED' && (
           <div className="overflow-x-auto">
-            {liveData.unassignedOrders.length === 0 ? (
+            {unassignedOrdersList.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs">
                 <span className="material-symbols-outlined text-[32px] text-emerald-400 block mb-1">
                   done_all
@@ -357,7 +377,7 @@ export default function DeliveryOperationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {liveData.unassignedOrders.map((ord) => (
+                  {unassignedOrdersList.map((ord) => (
                     <tr key={ord._id} className="hover:bg-slate-50/70">
                       <td className="py-3 px-3 font-mono font-bold text-slate-900">
                         #{String(ord.orderId || ord._id).slice(-6)}
@@ -399,12 +419,12 @@ export default function DeliveryOperationsPage() {
         {/* TAB 3: ONLINE FLEET */}
         {activeTab === 'FLEET' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {liveData.onlineRiders.length === 0 ? (
+            {onlineRidersList.length === 0 ? (
               <div className="col-span-3 py-12 text-center text-slate-500 text-xs">
                 No delivery partners are currently marked ONLINE.
               </div>
             ) : (
-              liveData.onlineRiders.map((r) => (
+              onlineRidersList.map((r) => (
                 <div key={r._id} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -453,9 +473,9 @@ export default function DeliveryOperationsPage() {
             <form onSubmit={handleAssignRider} className="space-y-3.5">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Select Online Rider ({liveData.onlineRiders.length} Available)
+                  Select Online Rider ({onlineRidersList.length} Available)
                 </label>
-                {liveData.onlineRiders.length === 0 ? (
+                {onlineRidersList.length === 0 ? (
                   <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-200">
                     No riders are currently online! You can still assign from all approved partners, or ask riders to go online.
                   </p>
@@ -467,7 +487,7 @@ export default function DeliveryOperationsPage() {
                     required
                   >
                     <option value="">-- Choose an Online Partner --</option>
-                    {liveData.onlineRiders.map((r) => (
+                    {onlineRidersList.map((r) => (
                       <option key={r._id} value={r._id}>
                         {r.name} (+91 {r.phone}) • {r.vehicleType || 'Bike'} • {r.activeOrderId ? '(Has Active Drop)' : '(Idle)'}
                       </option>

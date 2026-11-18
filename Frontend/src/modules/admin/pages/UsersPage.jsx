@@ -62,7 +62,7 @@ export default function UsersPage() {
   };
 
   const handleExport = () => {
-    if (users.length === 0) return alert('No users to export.');
+    if (!users || users.length === 0) return alert('No users to export.');
     
     const headers = ["User ID", "Name", "Phone Number", "Aadhaar", "Wallet Balance", "Total Transactions", "Status", "Joined"];
     const rows = users.map(u => [
@@ -180,7 +180,7 @@ export default function UsersPage() {
         </div>
         
         <div className="p-4 border-t border-outline-variant/10 flex items-center justify-between text-[13px] text-on-surface-variant">
-          <span>Showing {users.length} of {meta?.total || 0} entries</span>
+          <span>Showing {users?.length || 0} of {meta?.total || 0} entries</span>
           <div className="flex gap-1">
             <button 
               onClick={() => setPage(p => Math.max(1, p - 1))}

@@ -158,7 +158,7 @@ export default function RewardsManagerPage() {
               : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low'
           }`}
         >
-          Partner Offers ({offers.length})
+          Partner Offers ({offers?.length || 0})
         </button>
       </div>
 
@@ -496,7 +496,7 @@ export default function RewardsManagerPage() {
         <div className="space-y-6">
           {isLoadingOffers ? (
             <div className="p-8 text-center text-on-surface-variant">Loading partner offers...</div>
-          ) : offers.length === 0 ? (
+          ) : (!offers || offers.length === 0) ? (
             <div className="bg-white rounded-2xl p-12 text-center border border-outline-variant/20 shadow-sm">
               <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">local_offer</span>
               <p className="font-bold text-on-surface">No Partner Offers Created Yet</p>

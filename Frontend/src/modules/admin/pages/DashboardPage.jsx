@@ -379,7 +379,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ))}
-                {recentTransactions.length === 0 && (
+                {(!recentTransactions || recentTransactions.length === 0) && (
                   <tr>
                     <td colSpan="4" className="text-center py-4 text-on-surface-variant text-xs">No recent transactions</td>
                   </tr>

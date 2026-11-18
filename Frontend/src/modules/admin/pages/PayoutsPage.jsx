@@ -88,13 +88,13 @@ export default function PayoutsPage() {
             onClick={() => setActiveTab('vendors')}
             className={`px-4 py-2 rounded-lg font-bold text-sm border transition-colors ${activeTab === 'vendors' ? 'bg-primary/10 text-primary border-primary/20 shadow-sm' : 'bg-white text-on-surface-variant border-outline-variant/20 hover:bg-surface-container-low border-transparent'}`}
           >
-            Vendor Requests ({payouts.vendors.length})
+            Vendor Requests ({payouts?.vendors?.length || 0})
           </button>
           <button
             onClick={() => setActiveTab('users')}
             className={`px-4 py-2 rounded-lg font-bold text-sm border transition-colors ${activeTab === 'users' ? 'bg-primary/10 text-primary border-primary/20 shadow-sm' : 'bg-white text-on-surface-variant border-outline-variant/20 hover:bg-surface-container-low border-transparent'}`}
           >
-            User Requests ({payouts.users.length})
+            User Requests ({payouts?.users?.length || 0})
           </button>
         </div>
 
@@ -114,7 +114,7 @@ export default function PayoutsPage() {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan="7" className="p-8 text-center">Loading payouts...</td></tr>
-              ) : currentList.length === 0 ? (
+              ) : (!currentList || currentList.length === 0) ? (
                 <tr><td colSpan="7" className="p-8 text-center text-on-surface-variant font-bold">No pending requests in this category.</td></tr>
               ) : (
                 currentList.map((item) => {
