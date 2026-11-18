@@ -7,6 +7,8 @@ import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import RewardConfig from '../models/RewardConfig.js';
 import DeliveryPayoutConfig from '../models/DeliveryPayoutConfig.js';
+import Review from '../models/Review.js';
+import DeliveryPartner from '../models/DeliveryPartner.js';
 import { calculateDeliveryPayout, estimateDistanceKm } from '../utils/deliveryPayout.util.js';
 import { creditWallet, debitWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
 import { sendNotification } from '../services/notification.service.js';
@@ -137,8 +139,11 @@ export const createOrder = async (req, res) => {
     const safePackaging = Number.isFinite(packagingCharge) ? packagingCharge : 0;
     const safeTax = Number.isFinite(taxAmount) ? taxAmount : 0;
 
-    // Total gross bill amount (itemTotal + deliveryCharge + packagingCharge + taxAmount)
-    const totalBillAmount = Math.round((itemTotal + safeDelivery + safePackaging + safeTax) * 100) / 100;
+    const rawTip = Number(req.body.tipAmount) || 0;
+    const tipAmount = fulfillmentType === 'delivery' && rawTip > 0 ? Math.round(rawTip * 100) / 100 : 0;
+
+    // Total gross bill amount (itemTotal + deliveryCharge + packagingCharge + taxAmount + tipAmount)
+    const totalBillAmount = Math.round((itemTotal + safeDelivery + safePackaging + safeTax + tipAmount) * 100) / 100;
 
     // ── Handle Customer Zeebac Points Redemption (1 Point = ₹1) ──
     const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
@@ -301,6 +306,7 @@ export const createOrder = async (req, res) => {
         packagingCharge: safePackaging,
         taxAmount: safeTax,
         taxPercentage,
+        tipAmount,
         totalAmount: totalGrossAmount,
         pointsRedeemed: pointsToRedeem,
         finalPayableAmount,
@@ -1037,5 +1043,155 @@ export const claimVendorCashbackReserveUpi = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   } finally {
     session.endSession();
+  }
+};
+
+// ─── 9. Submit Order Feedback for Vendor and/or Delivery Rider ───
+export const submitOrderFeedback = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { target, vendorRating, vendorComment, vendorTags, riderRating, riderComment, riderTags } = req.body;
+    const customerId = req.user.id;
+
+    const order = await Order.findOne({
+      orderId,
+      customerId,
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const shouldRateVendor = target === 'vendor' || target === 'both' || vendorRating !== undefined;
+    const shouldRateRider = target === 'rider' || target === 'both' || riderRating !== undefined;
+
+    // 1. Process Vendor Rating & Review
+    if (shouldRateVendor && vendorRating) {
+      const vRating = Number(vendorRating);
+      if (isNaN(vRating) || vRating < 1 || vRating > 5) {
+        return res.status(400).json({ success: false, message: 'Vendor rating must be between 1 and 5' });
+      }
+
+      order.vendorFeedback = {
+        rating: vRating,
+        comment: (vendorComment || '').trim(),
+        tags: Array.isArray(vendorTags) ? vendorTags : [],
+        ratedAt: new Date(),
+      };
+
+      try {
+        const customer = await User.findById(customerId);
+        const customerName = customer ? customer.name : order.customerName || 'Customer';
+
+        // Upsert into Review collection
+        await Review.findOneAndUpdate(
+          { vendorId: order.vendorId, customerId },
+          {
+            $set: {
+              rating: vRating,
+              text: (vendorComment || '').trim(),
+              customerName,
+              isVerified: true,
+            },
+          },
+          { returnDocument: 'after', upsert: true }
+        );
+
+        // Recalculate Vendor's average rating and total reviews
+        const stats = await Review.aggregate([
+          { $match: { vendorId: order.vendorId, isVisible: true } },
+          {
+            $group: {
+              _id: null,
+              avgRating: { $avg: '$rating' },
+              totalReviews: { $sum: 1 },
+            },
+          },
+        ]);
+
+        if (stats.length > 0) {
+          const avg = parseFloat(stats[0].avgRating.toFixed(1));
+          await Vendor.findByIdAndUpdate(order.vendorId, {
+            $set: {
+              'stats.avgRating': avg,
+              'stats.totalReviews': stats[0].totalReviews,
+              rating: avg,
+            },
+          });
+        }
+      } catch (revErr) {
+        logger.warn(`[submitOrderFeedback] Review sync error: ${revErr.message}`);
+      }
+    }
+
+    // 2. Process Rider Rating & Feedback
+    if (shouldRateRider && riderRating) {
+      const rRating = Number(riderRating);
+      if (isNaN(rRating) || rRating < 1 || rRating > 5) {
+        return res.status(400).json({ success: false, message: 'Rider rating must be between 1 and 5' });
+      }
+
+      order.riderFeedback = {
+        rating: rRating,
+        comment: (riderComment || '').trim(),
+        tags: Array.isArray(riderTags) ? riderTags : [],
+        ratedAt: new Date(),
+      };
+
+      try {
+        const riderPhone = order.riderDetails?.phone;
+        if (riderPhone) {
+          const rider = await DeliveryPartner.findOne({ phone: riderPhone });
+          if (rider) {
+            // Aggregate all rated orders for this delivery partner
+            const ratedOrders = await Order.find({
+              'riderDetails.phone': riderPhone,
+              'riderFeedback.rating': { $exists: true, $ne: null },
+            }).select('riderFeedback.rating');
+
+            const totalRatings = ratedOrders.length;
+            const avgRiderRating = totalRatings > 0
+              ? parseFloat((ratedOrders.reduce((acc, curr) => acc + (curr.riderFeedback?.rating || 0), 0) / totalRatings).toFixed(1))
+              : rRating;
+
+            rider.rating = avgRiderRating;
+            await rider.save();
+          }
+        }
+      } catch (riderErr) {
+        logger.warn(`[submitOrderFeedback] Rider rating error: ${riderErr.message}`);
+      }
+    }
+
+    await order.save();
+
+    // Realtime notification
+    try {
+      const io = getIO();
+      if (io) {
+        io.to(`user_${customerId}`).emit('order:feedback_submitted', {
+          orderId: order.orderId,
+          vendorFeedback: order.vendorFeedback,
+          riderFeedback: order.riderFeedback,
+        });
+        io.to(`vendor_${order.vendorId}`).emit('vendor:new_feedback', {
+          orderId: order.orderId,
+          vendorFeedback: order.vendorFeedback,
+        });
+        io.to(`vendor:${order.vendorId}`).emit('vendor:new_feedback', {
+          orderId: order.orderId,
+          vendorFeedback: order.vendorFeedback,
+        });
+      }
+    } catch (_) {}
+
+    res.status(200).json({
+      success: true,
+      message: 'Feedback submitted successfully! Thank you for rating.',
+      data: order,
+    });
+  } catch (error) {
+    logger.error(`submitOrderFeedback error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 };

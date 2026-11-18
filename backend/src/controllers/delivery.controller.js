@@ -1033,23 +1033,29 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         order.deliveryPayoutBreakdown = payoutInfo;
       }
 
+      const tip = Number(order.tipAmount) || 0;
+      const totalRiderPayout = Math.round((deliveryPayout + tip) * 100) / 100;
+
       order.riderDetails = order.riderDetails || {};
       order.riderDetails.deliveredAt = new Date();
       await order.save();
 
       rider.completedDeliveries = (rider.completedDeliveries || 0) + 1;
-      rider.totalEarnings = Math.round(((rider.totalEarnings || 0) + deliveryPayout) * 100) / 100;
+      rider.totalEarnings = Math.round(((rider.totalEarnings || 0) + totalRiderPayout) * 100) / 100;
       rider.activeOrderId = null;
       rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
 
       if (!rider.earningsLedger) rider.earningsLedger = [];
       rider.earningsLedger.unshift({
         orderId: order.orderId,
-        amount: deliveryPayout,
+        amount: totalRiderPayout,
         type: 'DELIVERY_PAYOUT',
-        description: `Delivery payout for Order #${order.orderId} (${order.storeName}) • ${order.deliveryDistanceKm || 2.0} km`,
+        description: `Delivery payout for Order #${order.orderId} (${order.storeName}) • ${order.deliveryDistanceKm || 2.0} km${tip > 0 ? ` (incl. ₹${tip} customer tip)` : ''}`,
         distanceKm: order.deliveryDistanceKm || 2.0,
-        breakdown: order.deliveryPayoutBreakdown,
+        breakdown: {
+          ...(order.deliveryPayoutBreakdown || {}),
+          tipAmount: tip,
+        },
         date: new Date(),
       });
 

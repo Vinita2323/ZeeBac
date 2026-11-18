@@ -136,6 +136,13 @@ const orderSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // Tip for delivery partner/rider
+    tipAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     fulfillmentType: {
       type: String,
       enum: ['delivery', 'pickup'],
@@ -258,6 +265,20 @@ const orderSchema = new mongoose.Schema(
       surgeBonus: { type: Number, default: 0 },
       minPayout: { type: Number, default: 30 },
       totalPayout: { type: Number, default: 50 },
+    },
+
+    // Customer Feedback & Ratings
+    vendorFeedback: {
+      rating: { type: Number, min: 1, max: 5 },
+      comment: { type: String, trim: true },
+      tags: [{ type: String }],
+      ratedAt: Date,
+    },
+    riderFeedback: {
+      rating: { type: Number, min: 1, max: 5 },
+      comment: { type: String, trim: true },
+      tags: [{ type: String }],
+      ratedAt: Date,
     },
 
     // Tracks if cashback points were settled to customer and debited from vendor pool

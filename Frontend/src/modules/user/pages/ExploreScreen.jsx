@@ -433,9 +433,18 @@ export default function ExploreScreen() {
                           <span className="material-symbols-outlined text-[13px] text-slate-400">location_on</span>
                           <span>{getVendorDistance(vendor)} • {getVendorCity(vendor)}</span>
                         </p>
-                        <p className="text-[12.5px] font-extrabold text-primary mt-0.5">
-                          {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-[10.5px]">
+                            <span className="text-amber-500 font-black">★</span>
+                            <span>{vendor.stats?.totalReviews > 0 ? vendor.stats.avgRating : (vendor.rating || 4.5)}</span>
+                            {vendor.stats?.totalReviews > 0 && (
+                              <span className="text-slate-400 font-medium text-[9.5px]">({vendor.stats.totalReviews})</span>
+                            )}
+                          </span>
+                          <span className="text-[12px] font-extrabold text-primary">
+                            • {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
+                          </span>
+                        </div>
                       </div>
                     </div>
 

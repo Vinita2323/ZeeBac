@@ -20,6 +20,97 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [copyFeedback, setCopyFeedback] = useState(null);
 
+  // Feedback Modal State
+  const [feedbackModal, setFeedbackModal] = useState({
+    isOpen: false,
+    order: null,
+    target: 'vendor', // 'vendor' | 'rider'
+  });
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackHoverRating, setFeedbackHoverRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackTags, setFeedbackTags] = useState([]);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSuccessMsg, setFeedbackSuccessMsg] = useState(null);
+
+  // Open feedback dialog
+  const handleOpenFeedback = (order, target) => {
+    const existing = target === 'vendor' ? order.vendorFeedback : order.riderFeedback;
+    setFeedbackModal({ isOpen: true, order, target });
+    setFeedbackRating(existing?.rating || 5);
+    setFeedbackHoverRating(0);
+    setFeedbackComment(existing?.comment || '');
+    setFeedbackTags(existing?.tags || []);
+    setFeedbackSuccessMsg(null);
+  };
+
+  // Toggle tag in feedback
+  const handleToggleTag = (tag) => {
+    setFeedbackTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  // Submit Feedback
+  const handleSubmitFeedback = async () => {
+    if (!feedbackModal.order) return;
+    setIsSubmittingFeedback(true);
+    try {
+      const orderIdentifier = feedbackModal.order.orderId || feedbackModal.order._id;
+      const res = await OrderAPI.submitOrderFeedback(orderIdentifier, {
+        target: feedbackModal.target,
+        rating: feedbackRating,
+        comment: feedbackComment,
+        tags: feedbackTags,
+      });
+
+      if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) => {
+            if (o.orderId === feedbackModal.order.orderId || o._id === feedbackModal.order._id) {
+              if (feedbackModal.target === 'vendor') {
+                return {
+                  ...o,
+                  vendorFeedback: {
+                    rating: feedbackRating,
+                    comment: feedbackComment,
+                    tags: feedbackTags,
+                    ratedAt: new Date().toISOString(),
+                  },
+                };
+              } else {
+                return {
+                  ...o,
+                  riderFeedback: {
+                    rating: feedbackRating,
+                    comment: feedbackComment,
+                    tags: feedbackTags,
+                    ratedAt: new Date().toISOString(),
+                  },
+                };
+              }
+            }
+            return o;
+          })
+        );
+
+        setFeedbackSuccessMsg(
+          feedbackModal.target === 'vendor'
+            ? 'Thank you! Store review submitted successfully.'
+            : 'Thank you! Delivery partner rating submitted.'
+        );
+        setTimeout(() => {
+          setFeedbackModal({ isOpen: false, order: null, target: 'vendor' });
+          setFeedbackSuccessMsg(null);
+        }, 1400);
+      }
+    } catch (err) {
+      console.error('Failed to submit order feedback', err);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   // 1. Fetch Customer's Orders
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -375,6 +466,12 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
               const hasOtp = Boolean(order.riderDetails?.deliveryOtp) && !isDelivered && !isCancelled;
               const { stages, currentStep } = getStepperStages(order);
 
+              // Feedback eligibility:
+              // 1. Vendor: Can rate once order is confirmed/accepted by store or beyond (not when PLACED or CANCELLED)
+              const canRateVendor = order.orderStatus !== 'PLACED' && order.orderStatus !== 'CANCELLED';
+              // 2. Rider: Can rate when delivery order is marked DELIVERED
+              const canRateRider = isDelivered && !isPickup;
+
               // Status badge style
               let statusBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
               let statusIcon = 'schedule';
@@ -687,6 +784,12 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                               <span className="font-mono">-₹{order.pointsRedeemed}</span>
                             </div>
                           )}
+                          {order.tipAmount > 0 && (
+                            <div className="flex justify-between text-purple-700 font-bold">
+                              <span>Delivery Partner Tip</span>
+                              <span className="font-mono">₹{order.tipAmount}</span>
+                            </div>
+                          )}
                           <div className="border-t border-purple-200/60 pt-1 flex justify-between font-black text-slate-900 text-sm">
                             <span>Total Paid / Payable</span>
                             <span className="font-mono text-purple-900">
@@ -699,6 +802,66 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Rating & Feedback Action Strip */}
+                  {(canRateVendor || canRateRider) && (
+                    <div className="px-3.5 py-2.5 bg-slate-50/90 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {canRateVendor && (
+                          order.vendorFeedback?.rating ? (
+                            <button
+                              onClick={() => handleOpenFeedback(order, 'vendor')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              title="Click to view or edit store review"
+                            >
+                              <span className="text-amber-500 font-black text-[13px]">★</span>
+                              <span>{order.vendorFeedback.rating}/5</span>
+                              <span className="text-slate-500 font-medium text-[10.5px]">Store</span>
+                              <span className="material-symbols-outlined text-[13px] text-slate-400">edit</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenFeedback(order, 'vendor')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 transition-all shadow-2xs cursor-pointer active:scale-95"
+                            >
+                              <span className="material-symbols-outlined text-[15px] text-purple-600">star</span>
+                              <span>Rate Store</span>
+                            </button>
+                          )
+                        )}
+
+                        {canRateRider && (
+                          order.riderFeedback?.rating ? (
+                            <button
+                              onClick={() => handleOpenFeedback(order, 'rider')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-900 hover:bg-emerald-100 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              title="Click to view or edit delivery partner rating"
+                            >
+                              <span className="material-symbols-outlined text-[14px] text-emerald-600">two_wheeler</span>
+                              <span>★ {order.riderFeedback.rating}/5</span>
+                              <span className="text-slate-500 font-medium text-[10.5px]">Rider</span>
+                              <span className="material-symbols-outlined text-[13px] text-slate-400">edit</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenFeedback(order, 'rider')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-all shadow-2xs cursor-pointer active:scale-95"
+                            >
+                              <span className="material-symbols-outlined text-[15px] text-indigo-600">two_wheeler</span>
+                              <span>Rate Rider</span>
+                            </button>
+                          )
+                        )}
+                      </div>
+
+                      {order.tipAmount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-1 rounded-lg">
+                          <span>🛵 Rider Tip:</span>
+                          <span className="font-mono font-black">₹{order.tipAmount}</span>
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -832,6 +995,12 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
 
               {/* Total & Cashback */}
               <div className="space-y-1 text-[12px]">
+                {selectedOrderForInvoice.tipAmount > 0 && (
+                  <div className="flex justify-between text-purple-700 font-bold">
+                    <span>Delivery Partner Tip:</span>
+                    <span className="font-mono">₹{selectedOrderForInvoice.tipAmount}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-black text-slate-900 text-sm">
                   <span>Grand Total:</span>
                   <span className="font-mono text-purple-900">
@@ -873,6 +1042,183 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                 Close
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Order Feedback Modal ── */}
+      {feedbackModal.isOpen && feedbackModal.order && createPortal(
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 space-y-4 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center font-bold ${
+                    feedbackModal.target === 'vendor'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {feedbackModal.target === 'vendor' ? 'storefront' : 'two_wheeler'}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-sm text-slate-900 leading-tight">
+                    {feedbackModal.target === 'vendor'
+                      ? `Rate Store: ${feedbackModal.order.storeName || 'Merchant'}`
+                      : `Rate Rider: ${feedbackModal.order.riderDetails?.name || 'Delivery Partner'}`}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Order #{feedbackModal.order.orderId}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setFeedbackModal({ isOpen: false, order: null, target: 'vendor' })}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {feedbackSuccessMsg ? (
+              <div className="py-8 text-center space-y-2 animate-scaleUp">
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <span className="material-symbols-outlined text-[32px]">check_circle</span>
+                </div>
+                <h4 className="font-display font-black text-slate-900 text-base">Feedback Saved!</h4>
+                <p className="text-xs text-slate-600">{feedbackSuccessMsg}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* 5-Star Rating Selector */}
+                <div className="text-center space-y-1 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Your Rating
+                  </span>
+                  <div className="flex items-center justify-center gap-1.5 py-1">
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const isFilled = (feedbackHoverRating || feedbackRating) >= star;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onMouseEnter={() => setFeedbackHoverRating(star)}
+                          onMouseLeave={() => setFeedbackHoverRating(0)}
+                          onClick={() => setFeedbackRating(star)}
+                          className="p-1 cursor-pointer transition-transform hover:scale-125 active:scale-95 text-amber-400 focus:outline-hidden"
+                        >
+                          <span
+                            className={`material-symbols-outlined text-[32px] ${
+                              isFilled ? 'fill-current text-amber-400' : 'text-slate-300'
+                            }`}
+                            style={{ fontVariationSettings: isFilled ? "'FILL' 1" : "'FILL' 0" }}
+                          >
+                            star
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="text-xs font-black text-amber-600 block">
+                    {(feedbackHoverRating || feedbackRating) === 5 && '⭐⭐⭐⭐⭐ Excellent! Loved it!'}
+                    {(feedbackHoverRating || feedbackRating) === 4 && '⭐⭐⭐⭐ Very Good!'}
+                    {(feedbackHoverRating || feedbackRating) === 3 && '⭐⭐⭐ Good, Average'}
+                    {(feedbackHoverRating || feedbackRating) === 2 && '⭐⭐ Needs Improvement'}
+                    {(feedbackHoverRating || feedbackRating) === 1 && '⭐ Poor Experience'}
+                  </span>
+                </div>
+
+                {/* Quick Tags Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider block">
+                    What stood out? (Quick Tags)
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(feedbackModal.target === 'vendor'
+                      ? [
+                          '⚡ Fast Preparation',
+                          '🥗 Fresh & Quality Food',
+                          '📦 Neat Packaging',
+                          '🏷️ Value for Money',
+                          '❤️ Polite Store Team',
+                        ]
+                      : [
+                          '⏱️ On-time Delivery',
+                          '🤝 Polite & Professional',
+                          '🛵 Contactless Handover',
+                          '🛡️ Handled with Care',
+                          '📍 Quick Route Navigation',
+                        ]
+                    ).map((tag) => {
+                      const isSelected = feedbackTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => handleToggleTag(tag)}
+                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Optional Review Comment */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider block">
+                    Detailed Review (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={feedbackComment}
+                    onChange={(e) => setFeedbackComment(e.target.value)}
+                    placeholder={
+                      feedbackModal.target === 'vendor'
+                        ? 'Write how was the food, freshness, taste or store service...'
+                        : 'Share feedback about the rider behavior and delivery handling...'
+                    }
+                    className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-400 text-slate-800 placeholder-slate-400 resize-none bg-slate-50/50"
+                  />
+                </div>
+
+                {/* Submit / Cancel Buttons */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={isSubmittingFeedback}
+                    onClick={handleSubmitFeedback}
+                    className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs disabled:opacity-50 active:scale-95"
+                  >
+                    {isSubmittingFeedback ? (
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[16px]">send</span>
+                        <span>Submit Feedback</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackModal({ isOpen: false, order: null, target: 'vendor' })}
+                    className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs cursor-pointer hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>,
         document.body

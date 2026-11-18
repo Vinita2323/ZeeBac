@@ -300,6 +300,8 @@ const vendorSchema = new mongoose.Schema(
       avgRating: { type: Number, default: 0 },
       totalReviews: { type: Number, default: 0 },
     },
+    rating: { type: Number, default: 0 },
+    reviewCount: { type: Number, default: 0 },
     qrCodeUrl: String,
     role: {
       type: String,

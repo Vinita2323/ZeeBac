@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { UserAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
 
-export default function ReviewsTab({ vendorId, vendor }) {
+export default function ReviewsTab({ vendorId, vendor, onClose }) {
   const [reviews, setReviews] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showWriteModal, setShowWriteModal] = useState(false);
@@ -90,12 +90,27 @@ export default function ReviewsTab({ vendorId, vendor }) {
   return (
     <div className="space-y-lg animate-reveal pb-[110px]">
       
-      {/* Header (Clean title without top write button) */}
+      {/* Header */}
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-display text-[18px] font-black text-on-surface">Customer Reviews</h3>
-        <span className="text-[12px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-full">
-          {totalReviews} {totalReviews === 1 ? 'Review' : 'Reviews'}
-        </span>
+        <div>
+          <h3 className="font-display text-[18px] font-black text-on-surface leading-tight">Customer Reviews</h3>
+          {vendor?.storeName && (
+            <p className="text-[11px] text-on-surface-variant font-medium">{vendor.storeName}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-full">
+            {totalReviews} {totalReviews === 1 ? 'Review' : 'Reviews'}
+          </span>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4 p-4 bg-white rounded-3xl shadow-sm border border-outline-variant/10">

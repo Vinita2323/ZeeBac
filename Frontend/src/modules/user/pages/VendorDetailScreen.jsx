@@ -8,6 +8,7 @@ import { getStoreTimingStatus } from '../../../utils/storeTiming';
 import useCartStore from '../../../store/useCartStore';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { getStoreTypeConfig, getCategoryFallbackImage } from '../data/storeCategoryConfigs';
+import ReviewsTab from '../components/vendor-detail/ReviewsTab';
 
 // Blinkit / Zepto Style Visual Category Hierarchy matching user reference interface
 const BLINKIT_CATEGORY_SECTIONS = [
@@ -215,6 +216,7 @@ export default function VendorDetailScreen() {
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [activeCategory, setActiveCategory] = useState('All');
   const [showShopDetailsModal, setShowShopDetailsModal] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
   // Product Lightbox Modal State
@@ -651,9 +653,18 @@ export default function VendorDetailScreen() {
                   {t('Closed now')} • Opens {storeTimingInfo.openTimeStr}
                 </span>
               )}
-              <span className="text-[11px] font-bold text-slate-600">
-                ⭐ {vendor.rating || '4.5'}
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowReviewsModal(true)}
+                className="text-[11px] font-extrabold text-slate-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                title="View Customer Ratings & Reviews"
+              >
+                <span className="text-amber-500 font-black">★</span>
+                <span>{vendor.stats?.totalReviews > 0 ? vendor.stats.avgRating : (vendor.rating || '4.5')}</span>
+                <span className="text-slate-400 font-normal text-[10px]">
+                  ({vendor.stats?.totalReviews > 0 ? `${vendor.stats.totalReviews}` : 'Reviews'})
+                </span>
+              </button>
             </div>
 
             <button
@@ -1311,6 +1322,19 @@ export default function VendorDetailScreen() {
                 {t('Close')}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Reviews & Ratings Modal */}
+      {showReviewsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[88vh] overflow-y-auto animate-scale-up text-left">
+            <ReviewsTab
+              vendorId={vendor._id || vendor.zeebacId}
+              vendor={vendor}
+              onClose={() => setShowReviewsModal(false)}
+            />
           </div>
         </div>
       )}

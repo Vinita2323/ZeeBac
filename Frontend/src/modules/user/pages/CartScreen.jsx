@@ -369,8 +369,14 @@ export default function CartScreen() {
   const taxRate = storeDeliveryConfig.platformTaxPercent;
   const taxAmount = Math.round(itemTotal * (taxRate / 100) * 100) / 100;
 
+  // Rider Tip State (100% passed to delivery partner)
+  const [riderTip, setRiderTip] = useState(0);
+  const [customTipInput, setCustomTipInput] = useState('');
+  const [showCustomTipInput, setShowCustomTipInput] = useState(false);
+  const safeTip = !isPickup && riderTip > 0 ? Number(riderTip) : 0;
+
   // Gross total bill before points redemption
-  const grossBillTotal = Math.round((itemTotal + deliveryFee + packagingFee + taxAmount) * 100) / 100;
+  const grossBillTotal = Math.round((itemTotal + deliveryFee + packagingFee + taxAmount + safeTip) * 100) / 100;
 
   // Points redemption (1 Point = ₹1)
   const [usePoints, setUsePoints] = useState(false);
@@ -760,6 +766,7 @@ export default function CartScreen() {
             : paymentMethod === 'Online'
             ? 'ONLINE'
             : 'UPI_INTENT',
+        tipAmount: isPickup ? 0 : safeTip,
         redeemPoints: usePoints ? pointsRedeemed : 0,
         items: items.map((item) => ({
           productId: item._id || item.id,
@@ -1282,6 +1289,12 @@ export default function CartScreen() {
                 <div className="flex justify-between text-slate-600">
                   <span>Taxes & GST ({activeOrder.taxPercentage || 5}%):</span>
                   <span className="font-mono text-slate-900 font-bold">₹{formatCurrency(activeOrder.taxAmount)}</span>
+                </div>
+              )}
+              {activeOrder.tipAmount !== undefined && activeOrder.tipAmount > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Delivery Partner Tip:</span>
+                  <span className="font-mono text-purple-700 font-bold">₹{formatCurrency(activeOrder.tipAmount)}</span>
                 </div>
               )}
               {activeOrder.pointsRedeemed > 0 && (
@@ -1857,6 +1870,102 @@ export default function CartScreen() {
           )}
         </div>
 
+        {/* ── RIDER TIP COMPONENT (ONLY FOR HOME DELIVERY) ── */}
+        {!isPickup && (
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-50 text-primary flex items-center justify-center font-bold">
+                  <span className="material-symbols-outlined text-[18px]">volunteer_activism</span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-[13.5px] text-slate-900 leading-tight">
+                    Tip Your Delivery Partner
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    100% of your tip goes directly to your rider
+                  </p>
+                </div>
+              </div>
+              {riderTip > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setRiderTip(0); setCustomTipInput(''); setShowCustomTipInput(false); }}
+                  className="text-red-500 hover:text-red-700 text-[11px] font-bold cursor-pointer transition-colors"
+                >
+                  Clear Tip
+                </button>
+              )}
+            </div>
+
+            {/* Quick Tip Chips */}
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+              {[10, 20, 30, 50].map((amt) => {
+                const isSelected = riderTip === amt && !showCustomTipInput;
+                return (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => {
+                      setRiderTip(amt);
+                      setShowCustomTipInput(false);
+                      setCustomTipInput('');
+                    }}
+                    className={`py-2 px-1 rounded-xl text-[12px] font-black font-mono transition-all cursor-pointer border flex flex-col items-center justify-center ${
+                      isSelected
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm scale-102'
+                        : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200/80 hover:border-purple-200'
+                    }`}
+                  >
+                    <span>₹{amt}</span>
+                  </button>
+                );
+              })}
+
+              {/* Custom Tip Button */}
+              <button
+                type="button"
+                onClick={() => setShowCustomTipInput(!showCustomTipInput)}
+                className={`py-2 px-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer border flex items-center justify-center ${
+                  showCustomTipInput || (riderTip > 0 && ![10, 20, 30, 50].includes(riderTip))
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                    : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200/80'
+                }`}
+              >
+                <span>Custom</span>
+              </button>
+            </div>
+
+            {/* Custom Tip Input */}
+            {showCustomTipInput && (
+              <div className="pt-1 flex items-center gap-2 animate-fadeIn">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={customTipInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomTipInput(val);
+                      const num = Math.max(0, parseInt(val, 10) || 0);
+                      setRiderTip(num);
+                    }}
+                    placeholder="Enter tip amount"
+                    className="w-full h-9 pl-7 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-primary"
+                  />
+                </div>
+                {riderTip > 0 && (
+                  <span className="text-[11px] font-bold text-emerald-600 shrink-0">
+                    +₹{riderTip} Applied
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── STEP 5: BILL DETAILS (ZOMATO BREAKDOWN: TAX, DELIVERY & PACKAGING) ── */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5 text-[12.5px]">
           <h3 className="font-display font-black text-[14px] text-slate-900 border-b border-slate-100 pb-2">
@@ -1918,7 +2027,18 @@ export default function CartScreen() {
             </div>
           )}
 
-          {/* 5. Zeebac Points Discount */}
+          {/* 5. Delivery Partner Tip */}
+          {!isPickup && safeTip > 0 && (
+            <div className="flex justify-between items-center text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <span>🛵 Delivery Partner Tip</span>
+                <span className="text-[9.5px] bg-purple-100 text-purple-800 font-black px-1.5 py-0.2 rounded">100% to rider</span>
+              </span>
+              <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(safeTip)}</span>
+            </div>
+          )}
+
+          {/* 6. Zeebac Points Discount */}
           {usePoints && pointsRedeemed > 0 && (
             <div className="flex justify-between items-center text-emerald-600 font-bold">
               <span>Zeebac Points Applied (Discount):</span>

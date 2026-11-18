@@ -261,6 +261,11 @@ export const lookupVendorById = async (req, res) => {
     vendorObj.cashbackBlockedReason = subState.cashbackBlockedReason;
     vendorObj.subscriptionState = subState;
 
+    const totalReviews = vendor.stats?.totalReviews || 0;
+    const avgRating = vendor.stats?.avgRating || 0;
+    vendorObj.rating = totalReviews > 0 ? avgRating : (vendor.rating || 4.5);
+    vendorObj.reviewCount = totalReviews;
+
     // Attach Admin configured Order GST Tax Percentage
     const rewardConfig = (await RewardConfig.findOne()) || {};
     const isTaxEnabled = rewardConfig.enableOrderTax !== false;
@@ -988,6 +993,10 @@ export const searchVendors = async (req, res) => {
         vObj.inGracePeriod = state.inGracePeriod;
         vObj.cashbackBlocked = state.cashbackBlocked;
         vObj.subscriptionState = state;
+        const totalReviews = vendor.stats?.totalReviews || 0;
+        const avgRating = vendor.stats?.avgRating || 0;
+        vObj.rating = totalReviews > 0 ? avgRating : (vendor.rating || 4.5);
+        vObj.reviewCount = totalReviews;
         return vObj;
       });
 
@@ -1109,6 +1118,10 @@ export const getVendorsByCategory = async (req, res) => {
         vObj.inGracePeriod = state.inGracePeriod;
         vObj.cashbackBlocked = state.cashbackBlocked;
         vObj.subscriptionState = state;
+        const totalReviews = vendor.stats?.totalReviews || 0;
+        const avgRating = vendor.stats?.avgRating || 0;
+        vObj.rating = totalReviews > 0 ? avgRating : (vendor.rating || 4.5);
+        vObj.reviewCount = totalReviews;
         return vObj;
       });
       
@@ -1701,6 +1714,10 @@ export const getNearbyVendors = async (req, res) => {
         vObj.inGracePeriod = state.inGracePeriod;
         vObj.cashbackBlocked = state.cashbackBlocked;
         vObj.subscriptionState = state;
+        const totalReviews = vendor.stats?.totalReviews || 0;
+        const avgRating = vendor.stats?.avgRating || 0;
+        vObj.rating = totalReviews > 0 ? avgRating : (vendor.rating || 4.5);
+        vObj.reviewCount = totalReviews;
         return vObj;
       });
 
@@ -1731,6 +1748,10 @@ export const getRecentVendors = async (req, res) => {
         vObj.inGracePeriod = state.inGracePeriod;
         vObj.cashbackBlocked = state.cashbackBlocked;
         vObj.subscriptionState = state;
+        const totalReviews = vendor.stats?.totalReviews || 0;
+        const avgRating = vendor.stats?.avgRating || 0;
+        vObj.rating = totalReviews > 0 ? avgRating : (vendor.rating || 4.5);
+        vObj.reviewCount = totalReviews;
         return vObj;
       });
     

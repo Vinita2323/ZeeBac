@@ -543,9 +543,18 @@ export default function HomeScreen() {
                         <span>•</span>
                         <span>{vendor.cityDisplay || vendor.city || 'Lucknow'}</span>
                       </p>
-                      <p className="text-[11px] font-extrabold text-primary pt-0.5">
-                        {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
-                      </p>
+                      <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-[10.5px]">
+                          <span className="text-amber-500 font-black">★</span>
+                          <span>{vendor.stats?.totalReviews > 0 ? vendor.stats.avgRating : (vendor.rating || 4.5)}</span>
+                          {vendor.stats?.totalReviews > 0 && (
+                            <span className="text-slate-400 font-medium text-[9px]">({vendor.stats.totalReviews})</span>
+                          )}
+                        </span>
+                        <span className="text-[11px] font-extrabold text-primary">
+                          • {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 

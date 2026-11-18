@@ -1200,6 +1200,10 @@ export const OrderAPI = {
     const res = await apiClient.get(`/orders/${id}`);
     return res.data;
   },
+  submitOrderFeedback: async (orderId, feedbackData) => {
+    const res = await apiClient.post(`/orders/${orderId}/feedback`, feedbackData);
+    return res.data;
+  },
   getVendorOrders: async (params = {}) => {
     const res = await apiClient.get('/orders/vendor/list', { params });
     return res.data;
