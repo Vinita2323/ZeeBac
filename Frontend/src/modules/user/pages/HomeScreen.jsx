@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserAPI, API_BASE_URL } from '../../../services/api';
+import { UserAPI, OrderAPI, API_BASE_URL } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import BottomNavBar from '../components/common/BottomNavBar';
 import { calculateDistance } from '../../../utils/distance';
@@ -9,6 +9,7 @@ import useNotifications from '../../../hooks/useNotifications';
 import PermissionPrimerModal, { LocationPreview } from '../../../components/common/PermissionPrimerModal';
 import { hasSeenPrimer, markPrimerSeen, usePrimerGate, usePrimerSlot, PRIMER_PRIORITY } from '../../../utils/permissionPrimer.util';
 import useLanguageStore from '../../../store/useLanguageStore';
+import { getSocket } from '../../../services/socket';
 
 const demoShops = [
   {
@@ -83,10 +84,42 @@ export default function HomeScreen() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const [vendors, setVendors] = useState([]);
   const [recentVendors, setRecentVendors] = useState([]);
+  const [activeOrder, setActiveOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [location, setLocation] = useState(null);
   const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
+  // Real-time socket updates for active order
+  useEffect(() => {
+    let socket;
+    try {
+      socket = getSocket();
+      if (socket) {
+        const handleStatus = (data) => {
+          if (data?.orderId) {
+            setActiveOrder((prev) => {
+              if (prev && prev.orderId === data.orderId) {
+                return { ...prev, ...data };
+              }
+              return prev;
+            });
+          }
+        };
+        socket.on('order:status_update', handleStatus);
+        socket.on('order:rider_assigned', handleStatus);
+        socket.on('order:out_for_delivery', handleStatus);
+        socket.on('order:delivered', handleStatus);
+        socket.on('order:cancelled', handleStatus);
+        return () => {
+          socket.off('order:status_update', handleStatus);
+          socket.off('order:rider_assigned', handleStatus);
+          socket.off('order:out_for_delivery', handleStatus);
+          socket.off('order:delivered', handleStatus);
+          socket.off('order:cancelled', handleStatus);
+        };
+      }
+    } catch (_) {}
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
@@ -100,6 +133,27 @@ export default function HomeScreen() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Fetch Active / Recent Order for live tracking banner
+        try {
+          const ordersRes = await OrderAPI.getMyOrders({ limit: 5 });
+          if (ordersRes?.success && Array.isArray(ordersRes.data) && ordersRes.data.length > 0) {
+            const active = ordersRes.data.find(
+              (o) => !['DELIVERED', 'CANCELLED'].includes(o.orderStatus)
+            );
+            if (active) {
+              setActiveOrder(active);
+            } else {
+              const latest = ordersRes.data[0];
+              const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+              if (latest && new Date(latest.createdAt).getTime() > twoHoursAgo) {
+                setActiveOrder(latest);
+              }
+            }
+          }
+        } catch (ordErr) {
+          console.warn("Could not fetch active order for home banner", ordErr);
+        }
+
         // Fetch Recent Vendors
         const recentRes = await UserAPI.getRecentVendors();
         if (recentRes.success) setRecentVendors(recentRes.data || []);
@@ -336,6 +390,60 @@ export default function HomeScreen() {
           </div>
         </div>
 
+        {/* Live Order Tracker Banner */}
+        {activeOrder && (
+          <div
+            onClick={() => navigate('/orders')}
+            className="bg-gradient-to-r from-purple-900 via-indigo-950 to-purple-900 text-white p-3.5 rounded-2xl shadow-md border border-purple-400/30 flex items-center justify-between gap-3 cursor-pointer hover:border-purple-300 transition-all active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/25 border border-purple-400/40 flex items-center justify-center text-amber-300 shrink-0">
+                <span className="material-symbols-outlined text-[22px]">
+                  {activeOrder.fulfillmentType === 'pickup' ? 'storefront' : 'two_wheeler'}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`text-[9.5px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded ${
+                    activeOrder.orderStatus === 'DELIVERED'
+                      ? 'bg-emerald-500 text-white'
+                      : activeOrder.orderStatus === 'OUT_FOR_DELIVERY' || activeOrder.orderStatus === 'PICKED_UP'
+                      ? 'bg-amber-400 text-purple-950 animate-pulse'
+                      : activeOrder.orderStatus === 'READY_FOR_PICKUP'
+                      ? 'bg-indigo-400 text-purple-950'
+                      : activeOrder.orderStatus === 'CONFIRMED' || activeOrder.orderStatus === 'PREPARING'
+                      ? 'bg-purple-300 text-purple-950'
+                      : 'bg-white/20 text-white'
+                  }`}>
+                    {activeOrder.orderStatus === 'READY_FOR_PICKUP'
+                      ? (activeOrder.fulfillmentType === 'pickup' ? 'Ready at Counter' : 'Ready for Pickup')
+                      : activeOrder.orderStatus === 'OUT_FOR_DELIVERY' || activeOrder.orderStatus === 'PICKED_UP'
+                      ? 'Out for Delivery 🛵'
+                      : activeOrder.orderStatus === 'RIDER_ASSIGNED'
+                      ? 'Rider Assigned'
+                      : activeOrder.orderStatus === 'CONFIRMED' || activeOrder.orderStatus === 'PREPARING'
+                      ? 'Store Preparing'
+                      : activeOrder.orderStatus === 'DELIVERED'
+                      ? 'Delivered ✅'
+                      : 'Order Placed'}
+                  </span>
+                  <span className="text-[10.5px] text-purple-200 font-mono">#{activeOrder.orderId}</span>
+                </div>
+                <p className="font-display font-black text-[13px] text-white truncate mt-0.5">
+                  {activeOrder.storeName || 'Partner Store'}
+                </p>
+                <p className="text-[10.5px] text-purple-200 truncate">
+                  ₹{activeOrder.finalPayableAmount || activeOrder.totalAmount} • {activeOrder.items?.length || 1} items
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-1 bg-white text-purple-900 font-black text-[11.5px] px-3 py-1.5 rounded-xl shadow-xs">
+              <span>Track</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </div>
+          </div>
+        )}
+
         {/* Quick Actions */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -344,10 +452,11 @@ export default function HomeScreen() {
             </h2>
           </div>
 
-          {/* Primary 4 Actions: Scan & Pay | My QR | Wallet | History */}
-          <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
+          {/* Primary 5 Actions: Scan & Pay | My Orders | My QR | Wallet | History */}
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
             {[
               { label: t('Scan & Pay'), icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+              { label: t('My Orders'), icon: 'local_shipping', onClick: () => navigate('/orders'), bg: 'from-[#4c1d95] via-[#6d28d9] to-[#7c3aed]', highlight: Boolean(activeOrder) },
               { label: t('My QR'), icon: 'qr_code_2', onClick: () => navigate('/profile', { state: { subView: 'qr-code' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
               { label: t('Wallet'), icon: 'account_balance_wallet', onClick: () => navigate('/wallet'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
               { label: t('History'), icon: 'history', onClick: () => navigate('/passbook'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
@@ -355,12 +464,15 @@ export default function HomeScreen() {
               <button
                 key={action.label}
                 onClick={action.onClick}
-                className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-2xl bg-white/90 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
+                className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-0.5 rounded-2xl bg-white/90 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
               >
-                <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs`}>
-                  <span className="material-symbols-outlined text-[20px]">{action.icon}</span>
+                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs relative`}>
+                  <span className="material-symbols-outlined text-[19px] sm:text-[20px]">{action.icon}</span>
+                  {action.highlight && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white animate-ping" />
+                  )}
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-bold text-on-surface-variant text-center leading-[1.15] h-[24px] flex items-center justify-center px-0.5">
+                <span className="text-[9.5px] sm:text-[11px] font-bold text-on-surface-variant text-center leading-[1.15] h-[24px] flex items-center justify-center px-0.5">
                   {action.label}
                 </span>
               </button>

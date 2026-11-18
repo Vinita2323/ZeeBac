@@ -25,7 +25,7 @@ export default function BottomNavBar() {
     <nav className="fixed bottom-0 inset-x-0 z-50 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
       <div className="glass-nav pointer-events-auto w-full max-w-[480px] rounded-[1.75rem] flex justify-around items-center h-16 px-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path || (item.path === '/profile' && (location.pathname === '/orders' || location.pathname === '/my-orders'));
           return (
             <Link
               key={item.label}

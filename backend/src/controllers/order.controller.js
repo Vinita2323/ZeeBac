@@ -861,10 +861,19 @@ export const getMyCustomerOrders = async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
     
-    // Robust query: match customerId OR customerPhone
+    // Robust query: match customerId OR customerPhone with 10-digit normalization
     const orConditions = [{ customerId: req.user.id }];
+    if (req.user._id && String(req.user._id) !== String(req.user.id)) {
+      orConditions.push({ customerId: req.user._id });
+    }
     if (req.user.phone) {
-      orConditions.push({ customerPhone: req.user.phone });
+      const rawPhone = String(req.user.phone).trim();
+      const tenDigits = rawPhone.replace(/\D/g, '').slice(-10);
+      orConditions.push({ customerPhone: rawPhone });
+      if (tenDigits) {
+        orConditions.push({ customerPhone: tenDigits });
+        orConditions.push({ customerPhone: `+91${tenDigits}` });
+      }
     }
     const query = { $or: orConditions };
     if (status) query.orderStatus = status;
@@ -902,12 +911,17 @@ export const getOrderById = async (req, res) => {
     const order = await Order.findOne(query);
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    // Authorization check
-    const isOwner = order.customerId.toString() === req.user.id;
-    const isVendor = order.vendorId.toString() === req.user.id;
-    const isAdmin = req.user.role === 'admin';
+    // Robust authorization check with normalized phone match
+    const userPhoneClean = req.user.phone ? String(req.user.phone).replace(/\D/g, '').slice(-10) : '';
+    const orderPhoneClean = order.customerPhone ? String(order.customerPhone).replace(/\D/g, '').slice(-10) : '';
+    const phoneMatches = Boolean(userPhoneClean && orderPhoneClean && userPhoneClean === orderPhoneClean);
 
-    if (!isOwner && !isVendor && !isAdmin) {
+    const isOwner = order.customerId.toString() === req.user.id || phoneMatches;
+    const isVendor = order.vendorId.toString() === req.user.id;
+    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const isRider = req.user.role === 'delivery_partner' && (order.riderDetails?.riderId?.toString() === req.user.id?.toString());
+
+    if (!isOwner && !isVendor && !isAdmin && !isRider) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 

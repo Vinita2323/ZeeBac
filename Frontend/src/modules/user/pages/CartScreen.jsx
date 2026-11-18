@@ -1329,8 +1329,15 @@ export default function CartScreen() {
           {/* Action Buttons */}
           <div className="space-y-2 pt-2">
             <button
-              onClick={() => navigate('/wallet')}
+              onClick={() => navigate('/orders')}
               className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[13px] shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">local_shipping</span>
+              <span>Track Live Delivery & All Orders</span>
+            </button>
+            <button
+              onClick={() => navigate('/wallet')}
+              className="w-full py-3 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[13px] cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
               <span>View Zeebac Points Wallet</span>

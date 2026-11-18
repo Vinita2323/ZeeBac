@@ -407,7 +407,7 @@ export default function ProfileScreen() {
   if (subView === 'orders' || subView === 'my-orders') {
     return (
       <OnlineOrdersSubView
-        onBack={() => setSubView(null)}
+        onBack={() => window.history.back()}
         t={t}
       />
     );
@@ -547,7 +547,7 @@ export default function ProfileScreen() {
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
 
             <div 
-              onClick={() => setSubView('orders')}
+              onClick={() => navigate('/orders')}
               className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">

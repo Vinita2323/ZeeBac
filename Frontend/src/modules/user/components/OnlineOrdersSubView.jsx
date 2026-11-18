@@ -229,6 +229,14 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
     }
   };
 
+  // Format Delivery Address Safely
+  const formatAddress = (addr) => {
+    if (!addr) return 'Customer Address';
+    if (typeof addr === 'string') return addr;
+    const parts = [addr.addressLine, addr.street, addr.city, addr.pincode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Customer Address';
+  };
+
   // Reorder Items
   const handleReorder = (order) => {
     if (!order.items || order.items.length === 0) return;
@@ -746,8 +754,8 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                         </span>
                         <p className="font-bold text-slate-800 text-xs">
                           {isPickup
-                            ? `${order.storeName || 'Store'}, ${order.vendorAddress || 'Market Area'}`
-                            : order.deliveryAddress || 'Saved customer address'}
+                            ? `${order.storeName || order.vendorId?.storeName || 'Store'}, ${order.vendorAddress || order.vendorId?.address || 'Market Area'}`
+                            : formatAddress(order.deliveryAddress)}
                         </p>
                         {order.orderNotes && (
                           <p className="text-[11px] text-slate-500 italic mt-1">
@@ -889,9 +897,9 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                       </button>
 
                       {/* Store Call */}
-                      {order.vendorPhone && (
+                      {(order.vendorPhone || order.vendorId?.phone) && (
                         <a
-                          href={`tel:${order.vendorPhone}`}
+                          href={`tel:${order.vendorPhone || order.vendorId?.phone}`}
                           className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1"
                         >
                           <span className="material-symbols-outlined text-[16px]">call</span>
