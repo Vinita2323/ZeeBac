@@ -496,4 +496,155 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(order.deliverySchedule.scheduledDate).toBe('Thu, 26 Nov 2026');
     expect(order.deliverySchedule.scheduledSlot).toBe('04:30 PM (Custom Time)');
   });
+
+  it('executes end-to-end Instant Counter Pickup flow without requiring rider and blocks rejection once accepted', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    // 1. Create Instant Counter Pickup Order
+    const req1 = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'pickup',
+        paymentMethod: 'CASH',
+        items: [{ name: 'Samosa (4 pcs)', price: 80, quantity: 2, cashbackPercentage: 10 }],
+      },
+    };
+    const res1 = makeRes();
+    await createOrder(req1, res1);
+    expect(res1.status).toHaveBeenCalledWith(201);
+    const order = res1.json.mock.calls[0][0].data.order;
+    expect(order.fulfillmentType).toBe('pickup');
+    expect(order.orderStatus).toBe('PLACED');
+    expect(order.totalCashbackPoints).toBe(16);
+
+    // 2. Merchant accepts order -> PREPARING
+    const req2 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'PREPARING' },
+    };
+    const res2 = makeRes();
+    await updateOrderStatus(req2, res2);
+    expect(res2.status).toHaveBeenCalledWith(200);
+    expect(res2.json.mock.calls[0][0].data.order.orderStatus).toBe('PREPARING');
+
+    // 3. Merchant tries to reject/cancel -> MUST BE BLOCKED WITH 400
+    const req3 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'CANCELLED', cancellationReason: 'Store closing' },
+    };
+    const res3 = makeRes();
+    await updateOrderStatus(req3, res3);
+    expect(res3.status).toHaveBeenCalledWith(400);
+    expect(res3.json.mock.calls[0][0].message).toContain('cannot be rejected');
+
+    // 4. Merchant packs and marks READY_FOR_PICKUP -> MUST SUCCEED (no invalid status!)
+    const req4 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'READY_FOR_PICKUP' },
+    };
+    const res4 = makeRes();
+    await updateOrderStatus(req4, res4);
+    expect(res4.status).toHaveBeenCalledWith(200);
+    expect(res4.json.mock.calls[0][0].data.order.orderStatus).toBe('READY_FOR_PICKUP');
+
+    // 5. Customer collects at counter -> Merchant hands over (DELIVERED) -> Points settled
+    const req5 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'DELIVERED' },
+    };
+    const res5 = makeRes();
+    await updateOrderStatus(req5, res5);
+    expect(res5.status).toHaveBeenCalledWith(200);
+    const deliveredOrder = res5.json.mock.calls[0][0].data.order;
+    expect(deliveredOrder.orderStatus).toBe('DELIVERED');
+    expect(deliveredOrder.paymentStatus).toBe('PAID');
+    expect(deliveredOrder.cashbackSettled).toBe(true);
+  });
+
+  it('executes end-to-end Scheduled Delivery flow: custom date & time -> accept -> ready -> rider assign -> deliver', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    // 1. Create Scheduled Delivery Order with custom date and time
+    const schedDate = 'Fri, 20 Nov 2026';
+    const schedSlot = '06:30 PM (Custom Time)';
+    const req1 = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'delivery',
+        deliverySchedule: {
+          deliveryType: 'SCHEDULED',
+          scheduledDate: schedDate,
+          scheduledSlot: schedSlot,
+        },
+        deliveryAddress: 'Indira Nagar, Lucknow',
+        paymentMethod: 'CASH',
+        items: [{ name: 'Gulab Jamun (1kg)', price: 300, quantity: 1, cashbackPercentage: 5 }],
+      },
+    };
+    const res1 = makeRes();
+    await createOrder(req1, res1);
+    expect(res1.status).toHaveBeenCalledWith(201);
+    const order = res1.json.mock.calls[0][0].data.order;
+    expect(order.deliverySchedule.deliveryType).toBe('SCHEDULED');
+    expect(order.deliverySchedule.scheduledDate).toBe(schedDate);
+    expect(order.deliverySchedule.scheduledSlot).toBe(schedSlot);
+
+    // 2. Merchant accepts order -> PREPARING
+    const req2 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'PREPARING' },
+    };
+    const res2 = makeRes();
+    await updateOrderStatus(req2, res2);
+    expect(res2.status).toHaveBeenCalledWith(200);
+
+    // 3. Merchant marks READY_FOR_PICKUP
+    const req3 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'READY_FOR_PICKUP' },
+    };
+    const res3 = makeRes();
+    await updateOrderStatus(req3, res3);
+    expect(res3.status).toHaveBeenCalledWith(200);
+    expect(res3.json.mock.calls[0][0].data.order.orderStatus).toBe('READY_FOR_PICKUP');
+
+    // 4. Assign Rider
+    const req4 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: {
+        name: 'Ravi Verma',
+        phone: '9123456789',
+        vehicleNo: 'UP32 AB 1234',
+      },
+    };
+    const res4 = makeRes();
+    await assignRider(req4, res4);
+    expect(res4.status).toHaveBeenCalledWith(200);
+
+    // 5. Rider marks DELIVERED with OTP
+    const assignedOrder = res4.json.mock.calls[0][0].data.order;
+    const req5 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: {
+        status: 'DELIVERED',
+        deliveryOtp: assignedOrder.riderDetails.deliveryOtp,
+      },
+    };
+    const res5 = makeRes();
+    await updateOrderStatus(req5, res5);
+    expect(res5.status).toHaveBeenCalledWith(200);
+    const finalOrder = res5.json.mock.calls[0][0].data.order;
+    expect(finalOrder.orderStatus).toBe('DELIVERED');
+    expect(finalOrder.cashbackSettled).toBe(true);
+  });
 });

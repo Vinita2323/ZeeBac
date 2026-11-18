@@ -254,7 +254,9 @@ export default function RequestsPage() {
         if (newStatus === 'DELIVERED') {
           speakVoice('Order marked delivered. Cashback points paid to customer.');
         } else if (newStatus === 'PREPARING' || newStatus === 'CONFIRMED') {
-          speakVoice('Order accepted and preparing. Dispatching to nearby riders.');
+          speakVoice('Order accepted and preparing.');
+        } else if (newStatus === 'READY_FOR_PICKUP') {
+          speakVoice('Order is packed and ready for pickup.');
         }
       }
     } catch (err) {
@@ -675,22 +677,36 @@ export default function RequestsPage() {
 
                     {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING' || order.orderStatus === 'READY_FOR_PICKUP') && (
                       <div className="w-full space-y-2">
-                        {/* Auto-Dispatch Radar Status (Automatic radius matching) */}
-                        {!isRiderAssigned && (
-                          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-purple-50/80 border border-purple-200 text-purple-950 text-[12px]">
-                            <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
-                              <span className="w-4 h-4 rounded-full bg-primary/25 animate-ping absolute"></span>
-                              <span className="material-symbols-outlined text-primary text-[18px] relative z-10">radar</span>
-                            </div>
+                        {/* Auto-Dispatch Radar Status or Counter Pickup Banner */}
+                        {order.fulfillmentType === 'pickup' ? (
+                          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-950 text-[12px]">
+                            <span className="material-symbols-outlined text-amber-700 text-[18px]">storefront</span>
                             <div className="min-w-0 flex-1">
-                              <p className="font-bold text-slate-900 leading-tight">
-                                Auto-Dispatching to Nearby Delivery Riders...
+                              <p className="font-bold text-amber-900 leading-tight">
+                                Store Counter Pickup Order
                               </p>
-                              <p className="text-[10.5px] text-slate-500 mt-0.5">
-                                Order broadcast to active riders in store radius. Partner will be automatically assigned upon acceptance.
+                              <p className="text-[10.5px] text-amber-700 mt-0.5">
+                                Customer will collect this order directly from your store. Pack the items and click Mark Ready for Pickup.
                               </p>
                             </div>
                           </div>
+                        ) : (
+                          !isRiderAssigned && (
+                            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-purple-50/80 border border-purple-200 text-purple-950 text-[12px]">
+                              <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
+                                <span className="w-4 h-4 rounded-full bg-primary/25 animate-ping absolute"></span>
+                                <span className="material-symbols-outlined text-primary text-[18px] relative z-10">radar</span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-900 leading-tight">
+                                  Auto-Dispatching to Nearby Delivery Riders...
+                                </p>
+                                <p className="text-[10.5px] text-slate-500 mt-0.5">
+                                  Order broadcast to active riders in store radius. Partner will be automatically assigned upon acceptance.
+                                </p>
+                              </div>
+                            </div>
+                          )
                         )}
 
                         <div className="flex flex-wrap items-center gap-2">

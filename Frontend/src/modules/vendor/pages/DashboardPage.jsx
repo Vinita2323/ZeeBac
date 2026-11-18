@@ -1128,7 +1128,12 @@ export default function DashboardPage() {
                   {/* Auto-dispatch / Rider info badge */}
                   {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING' || order.orderStatus === 'READY_FOR_PICKUP') && (
                     <div className="bg-purple-50/70 border border-purple-200/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[11px]">
-                      {order.riderDetails?.name ? (
+                      {order.fulfillmentType === 'pickup' ? (
+                        <span className="flex items-center gap-1.5 text-amber-900 font-bold truncate">
+                          <span className="material-symbols-outlined text-[15px] text-amber-600">storefront</span>
+                          <span>Counter Pickup Order</span>
+                        </span>
+                      ) : order.riderDetails?.name ? (
                         <span className="flex items-center gap-1.5 text-purple-900 font-bold truncate">
                           <span className="material-symbols-outlined text-[15px] text-purple-600">two_wheeler</span>
                           <span>Rider: {order.riderDetails.name} ({order.riderDetails.phone || 'Assigned'})</span>
