@@ -172,114 +172,157 @@ export default function StepBusiness({ data, update, errors, minRates = {} }) {
         </p>
       </div>
 
-      {/* 1. Merchant Business Type Selection / Review */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">
-            {t('Merchant Business Type')}<span className="text-red-500">*</span>
-          </label>
-          <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-            {t('Supply Chain Role')}
-          </span>
+      {/* Confirmed Registered Business Role (Selected at registration) */}
+      {data.businessType ? (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50/90 via-indigo-50/60 to-purple-50/80 border border-purple-200/80 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-white border border-purple-200 shadow-2xs flex items-center justify-center text-2xl shrink-0">
+              <span>
+                {isManufacturer ? '🏭' : isWholesaler ? '📦' : isChain ? '🏢' : '🏪'}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-700">
+                  {t('Registered Business Role')}
+                </span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-md">
+                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                  {t('Confirmed')}
+                </span>
+              </div>
+              <p className="text-[14.5px] font-black text-gray-900 leading-tight mt-0.5">
+                {isManufacturer
+                  ? t('Manufacturer')
+                  : isWholesaler
+                  ? t('Wholesaler')
+                  : isChain
+                  ? t('Retailer — Chain Brand')
+                  : t('Retailer — Independent Store')}
+              </p>
+              <p className="text-[11.5px] text-gray-500 font-medium truncate mt-0.5">
+                {isManufacturer
+                  ? t('Produces & crafts goods • Direct B2B Supply Chain')
+                  : isWholesaler
+                  ? t('Bulk trade & distributor • B2B Wholesale Network')
+                  : isChain
+                  ? t('Chain Retail Outlets • Min 5% Cashback • GST Required')
+                  : t('Direct-to-consumer store • Min 2% Cashback')}
+              </p>
+            </div>
+          </div>
         </div>
-        <p className="text-[12px] text-gray-500 mb-2.5">
-          {t('Your registered role in the ZeeBac commerce network:')}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-          {[
-            { id: 'Manufacturer', icon: 'precision_manufacturing', emoji: '🏭', label: 'Manufacturer', desc: 'Produces & crafts goods' },
-            { id: 'Wholesaler', icon: 'inventory_2', emoji: '📦', label: 'Wholesaler', desc: 'Bulk trade & distributor' },
-            { id: 'Retailer', icon: 'storefront', emoji: '🛍️', label: 'Retailer', desc: 'Direct-to-consumer store' },
-          ].map((type) => {
-            const isSelected = data.businessType === type.id;
-            return (
-              <button
-                key={type.id}
-                type="button"
-                onClick={() => handleSelectBusinessType(type.id)}
-                className={`flex flex-col items-center justify-center p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative ${
-                  isSelected
-                    ? 'border-[#7c3aed] bg-[#7c3aed]/10 shadow-sm text-gray-900 ring-2 ring-[#7c3aed]/25'
-                    : 'border-gray-200 bg-white hover:border-[#7c3aed]/40 text-gray-700'
-                }`}
-              >
-                {isSelected && (
-                  <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#7c3aed] text-white flex items-center justify-center text-[12px] font-black shadow-xs">
-                    ✓
-                  </span>
-                )}
-                <span className="text-3xl mb-1.5">{type.emoji}</span>
-                <p className={`text-[13.5px] font-black leading-tight ${isSelected ? 'text-[#7c3aed]' : 'text-gray-900'}`}>{t(type.label)}</p>
-                <span className="text-[10.5px] font-medium text-gray-500 mt-0.5 leading-snug">{t(type.desc)}</span>
-              </button>
-            );
-          })}
-        </div>
-        {errors.businessType && (
-          <p className="text-[11.5px] font-bold text-red-500 flex items-center gap-1 mt-1.5 ml-1">
-            <span className="material-symbols-outlined text-[13px]">error</span>{errors.businessType}
-          </p>
-        )}
-      </div>
+      ) : (
+        /* Fallback selector only if businessType is not yet selected */
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">
+                {t('Merchant Business Type')}<span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                {t('Supply Chain Role')}
+              </span>
+            </div>
+            <p className="text-[12px] text-gray-500 mb-2.5">
+              {t('Your registered role in the ZeeBac commerce network:')}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              {[
+                { id: 'Manufacturer', icon: 'precision_manufacturing', emoji: '🏭', label: 'Manufacturer', desc: 'Produces & crafts goods' },
+                { id: 'Wholesaler', icon: 'inventory_2', emoji: '📦', label: 'Wholesaler', desc: 'Bulk trade & distributor' },
+                { id: 'Retailer', icon: 'storefront', emoji: '🛍️', label: 'Retailer', desc: 'Direct-to-consumer store' },
+              ].map((type) => {
+                const isSelected = data.businessType === type.id;
+                return (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => handleSelectBusinessType(type.id)}
+                    className={`flex flex-col items-center justify-center p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative ${
+                      isSelected
+                        ? 'border-[#7c3aed] bg-[#7c3aed]/10 shadow-sm text-gray-900 ring-2 ring-[#7c3aed]/25'
+                        : 'border-gray-200 bg-white hover:border-[#7c3aed]/40 text-gray-700'
+                    }`}
+                  >
+                    {isSelected && (
+                      <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#7c3aed] text-white flex items-center justify-center text-[12px] font-black shadow-xs">
+                        ✓
+                      </span>
+                    )}
+                    <span className="text-3xl mb-1.5">{type.emoji}</span>
+                    <p className={`text-[13.5px] font-black leading-tight ${isSelected ? 'text-[#7c3aed]' : 'text-gray-900'}`}>{t(type.label)}</p>
+                    <span className="text-[10.5px] font-medium text-gray-500 mt-0.5 leading-snug">{t(type.desc)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {errors.businessType && (
+              <p className="text-[11.5px] font-bold text-red-500 flex items-center gap-1 mt-1.5 ml-1">
+                <span className="material-symbols-outlined text-[13px]">error</span>{errors.businessType}
+              </p>
+            )}
+          </div>
 
-      {/* 2. Retailer Store Scale (Visible for Retailers) */}
-      {isRetailer && (
-        <div className="animate-reveal">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">
-              {t('Retailer Scale & Model')}<span className="text-red-500">*</span>
-            </label>
-            <span className="text-[11px] font-bold text-purple-700">
-              {isChain ? t('Chain Brand') : t('Independent Store')}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => handleSelectShopType('Independent Store')}
-              className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
-                !isChain
-                  ? 'border-emerald-500 bg-emerald-50/70 shadow-sm text-emerald-900 ring-2 ring-emerald-500/20'
-                  : 'border-gray-200 bg-white hover:border-emerald-300 text-gray-700'
-              }`}
-            >
-              {!isChain && (
-                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[12px] font-black shadow-xs">
-                  ✓
+          {isRetailer && (
+            <div className="animate-reveal">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider">
+                  {t('Retailer Scale & Model')}<span className="text-red-500">*</span>
+                </label>
+                <span className="text-[11px] font-bold text-purple-700">
+                  {isChain ? t('Chain Brand') : t('Independent Store')}
                 </span>
-              )}
-              <span className="text-3xl mb-1">🏪</span>
-              <p className={`text-[13.5px] font-black ${!isChain ? 'text-emerald-800' : 'text-gray-800'}`}>
-                {t('Independent Store')}
-              </p>
-              <span className="text-[10.5px] font-bold text-emerald-600 mt-0.5">
-                {t('Min')} {minRates['Independent Store'] ?? 2}% {t('Cashback')} · {t('Single Outlet')}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectShopType('Chain & Brand')}
-              className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
-                isChain
-                  ? 'border-blue-500 bg-blue-50/70 shadow-sm text-blue-900 ring-2 ring-blue-500/20'
-                  : 'border-gray-200 bg-white hover:border-blue-300 text-gray-700'
-              }`}
-            >
-              {isChain && (
-                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[12px] font-black shadow-xs">
-                  ✓
-                </span>
-              )}
-              <span className="text-3xl mb-1">🏢</span>
-              <p className={`text-[13.5px] font-black ${isChain ? 'text-blue-800' : 'text-gray-800'}`}>
-                {t('Chain Brand')}
-              </p>
-              <span className="text-[10.5px] font-bold text-blue-600 mt-0.5">
-                {t('Chain Retail Outlets')} · {t('GST Required')}
-              </span>
-            </button>
-          </div>
-          {errors.shopType && <p className="text-[11.5px] font-bold text-red-500 mt-1.5 ml-1">{errors.shopType}</p>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleSelectShopType('Independent Store')}
+                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                    !isChain
+                      ? 'border-emerald-500 bg-emerald-50/70 shadow-sm text-emerald-900 ring-2 ring-emerald-500/20'
+                      : 'border-gray-200 bg-white hover:border-emerald-300 text-gray-700'
+                  }`}
+                >
+                  {!isChain && (
+                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[12px] font-black shadow-xs">
+                      ✓
+                    </span>
+                  )}
+                  <span className="text-3xl mb-1">🏪</span>
+                  <p className={`text-[13.5px] font-black ${!isChain ? 'text-emerald-800' : 'text-gray-800'}`}>
+                    {t('Independent Store')}
+                  </p>
+                  <span className="text-[10.5px] font-bold text-emerald-600 mt-0.5">
+                    {t('Min')} {minRates['Independent Store'] ?? 2}% {t('Cashback')} · {t('Single Outlet')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectShopType('Chain & Brand')}
+                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                    isChain
+                      ? 'border-blue-500 bg-blue-50/70 shadow-sm text-blue-900 ring-2 ring-blue-500/20'
+                      : 'border-gray-200 bg-white hover:border-blue-300 text-gray-700'
+                  }`}
+                >
+                  {isChain && (
+                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[12px] font-black shadow-xs">
+                      ✓
+                    </span>
+                  )}
+                  <span className="text-3xl mb-1">🏢</span>
+                  <p className={`text-[13.5px] font-black ${isChain ? 'text-blue-800' : 'text-gray-800'}`}>
+                    {t('Chain Brand')}
+                  </p>
+                  <span className="text-[10.5px] font-bold text-blue-600 mt-0.5">
+                    {t('Chain Retail Outlets')} · {t('GST Required')}
+                  </span>
+                </button>
+              </div>
+              {errors.shopType && <p className="text-[11.5px] font-bold text-red-500 mt-1.5 ml-1">{errors.shopType}</p>}
+            </div>
+          )}
         </div>
       )}
 
