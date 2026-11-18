@@ -162,428 +162,7 @@ const DEPARTMENT_TABS = [
   { id: 'personal', label: 'Personal & Care', icon: 'sanitizer', department: 'Personal Care & Household' }
 ];
 
-// Comprehensive realistic shop catalog spanning every Blinkit/Zepto category
-const DEFAULT_SHOP_PRODUCTS = [
-  // Vegetables & Fruits
-  {
-    _id: 'prod_veg_tomato',
-    name: 'Fresh Hybrid Tomatoes 1 kg',
-    price: 35,
-    discountPrice: 45,
-    category: 'Vegetables & Fruits',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&auto=format&fit=crop&q=80',
-    description: 'Farm-fresh juicy red tomatoes, rich in vitamin C and antioxidants.'
-  },
-  {
-    _id: 'prod_veg_potato',
-    name: 'Fresh Farm Potatoes (Aloo) 1 kg',
-    price: 28,
-    discountPrice: 35,
-    category: 'Vegetables & Fruits',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400&auto=format&fit=crop&q=80',
-    description: 'Fresh earthen potatoes suitable for curries, boiling, and roasting.'
-  },
-  {
-    _id: 'prod_veg_apple',
-    name: 'Shimla Royal Delicious Apples 1 kg',
-    price: 140,
-    discountPrice: 180,
-    category: 'Vegetables & Fruits',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400&auto=format&fit=crop&q=80',
-    description: 'Crisp and sweet hand-picked premium mountain apples.'
-  },
-  {
-    _id: 'prod_veg_banana',
-    name: 'Fresh Robusta Bananas (1 Dozen)',
-    price: 60,
-    discountPrice: 75,
-    category: 'Vegetables & Fruits',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400&auto=format&fit=crop&q=80',
-    description: 'Naturally ripened, rich in potassium and instant energy.'
-  },
-
-  // Atta, Rice & Dal
-  {
-    _id: 'prod_atta_aashirvaad',
-    name: 'Aashirvaad Shudh Chakki Atta 5 kg',
-    price: 260,
-    discountPrice: 295,
-    category: 'Atta, Rice & Dal',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80',
-    description: '100% whole wheat chakki atta with natural dietary fibers.'
-  },
-  {
-    _id: 'prod_rice_indiagate',
-    name: 'India Gate Super Basmati Rice 1 kg',
-    price: 135,
-    discountPrice: 160,
-    category: 'Atta, Rice & Dal',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80',
-    description: 'Aromatic long-grain aged Basmati rice for special biryanis.'
-  },
-  {
-    _id: 'prod_dal_toor',
-    name: 'Tata Sampann Unpolished Toor Dal 1 kg',
-    price: 175,
-    discountPrice: 199,
-    category: 'Atta, Rice & Dal',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1585994192700-4e12e12e3e60?w=400&auto=format&fit=crop&q=80',
-    description: 'High protein unpolished toor dal for everyday nutrition.'
-  },
-
-  // Oil, Ghee & Masala
-  {
-    _id: 'prod_oil_fortune',
-    name: 'Fortune Sunlite Refined Sunflower Oil 1 L',
-    price: 145,
-    discountPrice: 175,
-    category: 'Oil, Ghee & Masala',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&auto=format&fit=crop&q=80',
-    description: 'Enriched with Vitamin A and D for healthy daily cooking.'
-  },
-  {
-    _id: 'prod_ghee_amul',
-    name: 'Amul Pure Cow Ghee 1 L',
-    price: 590,
-    discountPrice: 640,
-    category: 'Oil, Ghee & Masala',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&auto=format&fit=crop&q=80',
-    description: 'Traditional aroma and pure cow ghee goodness for home delicacies.'
-  },
-  {
-    _id: 'prod_salt_tata',
-    name: 'Tata Salt Vacuum Evaporated 1 kg',
-    price: 28,
-    discountPrice: 32,
-    category: 'Oil, Ghee & Masala',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1518110925495-5fe2fda0442c?w=400&auto=format&fit=crop&q=80',
-    description: 'Desh Ka Namak - Vacuum evaporated iodized salt.'
-  },
-
-  // Dairy, Bread & Eggs
-  {
-    _id: 'prod_dairy_milk',
-    name: 'Amul Taaza Homogenised Toned Milk 1 L',
-    price: 72,
-    discountPrice: 75,
-    category: 'Dairy, Bread & Eggs',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&auto=format&fit=crop&q=80',
-    description: 'Pasteurized long-life toned milk with zero preservatives.'
-  },
-  {
-    _id: 'prod_dairy_butter',
-    name: 'Amul Salted Butter 500g',
-    price: 275,
-    discountPrice: 290,
-    category: 'Dairy, Bread & Eggs',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&auto=format&fit=crop&q=80',
-    description: 'Utterly butterly delicious creamy salted butter.'
-  },
-  {
-    _id: 'prod_dairy_bread',
-    name: 'Britannia 100% Whole Wheat Bread 400g',
-    price: 45,
-    discountPrice: 50,
-    category: 'Dairy, Bread & Eggs',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80',
-    description: 'Soft and healthy whole wheat bread baked fresh daily.'
-  },
-  {
-    _id: 'prod_dairy_eggs',
-    name: 'Farm Fresh White Eggs (Pack of 6)',
-    price: 55,
-    discountPrice: 65,
-    category: 'Dairy, Bread & Eggs',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=400&auto=format&fit=crop&q=80',
-    description: 'Nutritious farm fresh protein-rich poultry eggs.'
-  },
-
-  // Bakery & Biscuits
-  {
-    _id: 'prod_bisc_oreo',
-    name: 'Oreo Vanilla Cream Biscuits 120g',
-    price: 40,
-    discountPrice: 45,
-    category: 'Bakery & Biscuits',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&auto=format&fit=crop&q=80',
-    description: 'Crunchy chocolate cookie sandwich with smooth vanilla cream.'
-  },
-  {
-    _id: 'prod_bisc_goodday',
-    name: 'Britannia Good Day Cashew Cookies 200g',
-    price: 45,
-    discountPrice: 50,
-    category: 'Bakery & Biscuits',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80',
-    description: 'Rich buttery cookies with roasted crunchy cashew nuts.'
-  },
-
-  // Dry Fruits & Cereals
-  {
-    _id: 'prod_dry_almonds',
-    name: 'Premium California Almonds (Badam) 250g',
-    price: 230,
-    discountPrice: 280,
-    category: 'Dry Fruits & Cereals',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?w=400&auto=format&fit=crop&q=80',
-    description: 'Whole crisp crunchy California badam packed with vitamin E.'
-  },
-  {
-    _id: 'prod_cereal_cornflakes',
-    name: "Kellogg's Real Honey & Almond Corn Flakes 500g",
-    price: 195,
-    discountPrice: 240,
-    category: 'Dry Fruits & Cereals',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1521483451569-e33803c0330c?w=400&auto=format&fit=crop&q=80',
-    description: 'Golden crunchy corn flakes for wholesome breakfast energy.'
-  },
-
-  // Chicken, Meat & Fish
-  {
-    _id: 'prod_meat_chicken',
-    name: 'Fresh Chicken Curry Cut (Skinless) 500g',
-    price: 160,
-    discountPrice: 190,
-    category: 'Chicken, Meat & Fish',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&auto=format&fit=crop&q=80',
-    description: 'Tender antibiotic-free chicken washed and cut for homestyle curry.'
-  },
-
-  // Kitchenware & Appliances
-  {
-    _id: 'prod_kit_bottle',
-    name: 'Prestige Stainless Steel Water Bottle 1 L',
-    price: 299,
-    discountPrice: 450,
-    category: 'Kitchenware & Appliances',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400&auto=format&fit=crop&q=80',
-    description: 'BPA-free durable single-wall stainless steel sports bottle.'
-  },
-
-  // Chips & Namkeen
-  {
-    _id: 'prod_chips_lays',
-    name: "Lay's India's Magic Masala Chips 50g",
-    price: 20,
-    discountPrice: 20,
-    category: 'Chips & Namkeen',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&auto=format&fit=crop&q=80',
-    description: 'Crispy wafer thin potato chips seasoned with authentic Indian spices.'
-  },
-  {
-    _id: 'prod_namkeen_bhujia',
-    name: "Haldiram's Nagpur Aloo Bhujia 400g",
-    price: 95,
-    discountPrice: 110,
-    category: 'Chips & Namkeen',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&auto=format&fit=crop&q=80',
-    description: 'Crispy spicy mint-flavoured potato and gram flour sev namkeen.'
-  },
-
-  // Sweets & Chocolates
-  {
-    _id: 'prod_choc_silk',
-    name: 'Cadbury Dairy Milk Silk Chocolate 150g',
-    price: 175,
-    discountPrice: 190,
-    category: 'Sweets & Chocolates',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=400&auto=format&fit=crop&q=80',
-    description: 'Velvety smooth melt-in-mouth milk chocolate delight.'
-  },
-  {
-    _id: 'prod_sweet_gulabjamun',
-    name: "Haldiram's Gulab Jamun Tin 1 kg",
-    price: 220,
-    discountPrice: 260,
-    category: 'Sweets & Chocolates',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=400&auto=format&fit=crop&q=80',
-    description: 'Soft traditional Indian khoya dumplings soaked in fragrant rose syrup.'
-  },
-
-  // Drinks & Juices
-  {
-    _id: 'prod_drink_coke',
-    name: 'Coca-Cola Soft Drink 750ml Bottle',
-    price: 40,
-    discountPrice: 45,
-    category: 'Drinks & Juices',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&auto=format&fit=crop&q=80',
-    description: 'Chilled refreshing sparkling cola drink with classic crisp taste.'
-  },
-  {
-    _id: 'prod_juice_real',
-    name: 'Real Fruit Power Mixed Fruit Juice 1 L',
-    price: 110,
-    discountPrice: 135,
-    category: 'Drinks & Juices',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=400&auto=format&fit=crop&q=80',
-    description: 'Made from 9 delicious fruits with no added preservatives.'
-  },
-
-  // Tea, Coffee & Drinks
-  {
-    _id: 'prod_tea_redlabel',
-    name: 'Brooke Bond Red Label Natural Care Tea 500g',
-    price: 285,
-    discountPrice: 330,
-    category: 'Tea, Coffee & Drinks',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=80',
-    description: 'CTC tea blended with 5 ayurvedic ingredients like Tulsi, Ashwagandha and Ginger.'
-  },
-  {
-    _id: 'prod_coffee_nescafe',
-    name: 'Nescafe Classic 100% Pure Coffee 50g',
-    price: 165,
-    discountPrice: 190,
-    category: 'Tea, Coffee & Drinks',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80',
-    description: 'Rich aroma and signature roast coffee granules for an instant boost.'
-  },
-
-  // Instant Food
-  {
-    _id: 'prod_food_maggi',
-    name: 'Maggi 2-Minute Masala Instant Noodles 280g',
-    price: 55,
-    discountPrice: 60,
-    category: 'Instant Food',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?w=400&auto=format&fit=crop&q=80',
-    description: "India's favourite noodles with iron and authentic roasted masala tastemaker."
-  },
-
-  // Sauces & Spreads
-  {
-    _id: 'prod_sauce_ketchup',
-    name: 'Kissan Fresh Tomato Ketchup 1 kg',
-    price: 125,
-    discountPrice: 150,
-    category: 'Sauces & Spreads',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?w=400&auto=format&fit=crop&q=80',
-    description: 'Tangy red tomato ketchup made from 100% real ripe tomatoes.'
-  },
-  {
-    _id: 'prod_spread_nutella',
-    name: 'Nutella Hazelnut Cocoa Spread 350g',
-    price: 360,
-    discountPrice: 410,
-    category: 'Sauces & Spreads',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1584824486509-112e4181ff6b?w=400&auto=format&fit=crop&q=80',
-    description: 'Creamy rich hazelnut spread with premium cocoa.'
-  },
-
-  // Paan Corner
-  {
-    _id: 'prod_paan_passpass',
-    name: 'Pass Pass Mint Mouth Freshener 115g',
-    price: 45,
-    discountPrice: 50,
-    category: 'Paan Corner',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&auto=format&fit=crop&q=80',
-    description: 'Traditional herbal mouth freshener with sweet dates and mint.'
-  },
-
-  // Ice Creams & More
-  {
-    _id: 'prod_ice_amul',
-    name: 'Amul Real Milk Vanilla Magic Ice Cream 1 L',
-    price: 160,
-    discountPrice: 180,
-    category: 'Ice Creams & More',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=400&auto=format&fit=crop&q=80',
-    description: 'Rich creamy vanilla ice cream prepared with pure dairy milk.'
-  },
-
-  // Bath & Body
-  {
-    _id: 'prod_soap_dettol',
-    name: 'Dettol Original Germ Protection Bath Soap (125g)',
-    price: 40,
-    discountPrice: 48,
-    category: 'Bath & Body',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1607006314605-724e54885834?w=400&auto=format&fit=crop&q=80',
-    description: 'Complete germ protection bath soap for daily skin hygiene.'
-  },
-  {
-    _id: 'prod_soap_dove',
-    name: 'Dove Deep Moisture Body Wash 250ml',
-    price: 199,
-    discountPrice: 245,
-    category: 'Bath & Body',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&auto=format&fit=crop&q=80',
-    description: 'Nourishing microbiome gentle body wash for softer smoother skin.'
-  },
-
-  // Cleaning & Detergents
-  {
-    _id: 'prod_clean_surf',
-    name: 'Surf Excel Easy Wash Detergent Powder 1 kg',
-    price: 140,
-    discountPrice: 160,
-    category: 'Cleaning & Detergents',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=400&auto=format&fit=crop&q=80',
-    description: 'Superfast stain removal washing powder that dissolves easily in water.'
-  },
-
-  // Oral & Dental Care
-  {
-    _id: 'prod_oral_colgate',
-    name: 'Colgate Strong Teeth Dental Care Toothpaste 200g',
-    price: 110,
-    discountPrice: 125,
-    category: 'Oral & Dental Care',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1559591937-e16e45f65b11?w=400&auto=format&fit=crop&q=80',
-    description: 'Amino Shakti formula adds natural calcium to make teeth 2X stronger.'
-  },
-
-  // Pooja Needs
-  {
-    _id: 'prod_pooja_agarbatti',
-    name: 'Mangaldeep Sandalwood Fragrance Agarbatti',
-    price: 45,
-    discountPrice: 50,
-    category: 'Pooja Needs',
-    cashbackRate: 3,
-    image: 'https://images.unsplash.com/photo-1609137144822-446757d5eeea?w=400&auto=format&fit=crop&q=80',
-    description: 'Pure sandalwood aroma incense sticks for peaceful home worship.'
-  }
-];
+// Products are strictly loaded from vendor uploaded catalog
 
 export default function VendorDetailScreen() {
   const navigate = useNavigate();
@@ -622,10 +201,13 @@ export default function VendorDetailScreen() {
   }, [storeConfig, vendor?.storeName]);
 
   const dynamicDepartmentTabs = useMemo(() => {
+    if (products.length === 0) {
+      return [];
+    }
     return storeConfig?.departmentTabs || [
       { id: 'all', label: 'All', icon: 'grid_view' },
     ];
-  }, [storeConfig]);
+  }, [storeConfig, products.length]);
   const [products, setProducts] = useState([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -657,7 +239,7 @@ export default function VendorDetailScreen() {
     if (lightboxProduct.images && Array.isArray(lightboxProduct.images) && lightboxProduct.images.length > 0) {
       return lightboxProduct.images.map(img => img.startsWith('http') || img.startsWith('data:') ? img : `${API_BASE_URL}${img}`);
     }
-    const single = lightboxProduct.image || DEFAULT_SHOP_PRODUCTS[0].image;
+    const single = lightboxProduct.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&auto=format&fit=crop&q=80';
     return [single.startsWith('http') || single.startsWith('data:') ? single : `${API_BASE_URL}${single}`];
   }, [lightboxProduct]);
 
@@ -717,8 +299,8 @@ export default function VendorDetailScreen() {
   // Fetch full vendor details if available
   useEffect(() => {
     const fetchVendorData = async () => {
-      const targetId = queryId || passedVendor?.zeebacId || vendor.zeebacId;
-      if (!targetId) return;
+      const targetId = queryId || passedVendor?._id || passedVendor?.zeebacId || vendor?._id || vendor?.zeebacId;
+      if (!targetId || targetId === 'sharma_gen_store' || targetId === 'ZBV-1001') return;
       try {
         const res = await UserAPI.getVendorDetails(targetId);
         if (res.success && res.data) {
@@ -729,43 +311,39 @@ export default function VendorDetailScreen() {
       }
     };
     fetchVendorData();
-  }, [queryId, passedVendor?.zeebacId]);
+  }, [queryId, passedVendor?._id, passedVendor?.zeebacId]);
 
   // Store Open / Closed Status based on operatingHours or businessHours
   const storeTimingInfo = useMemo(() => {
     return getStoreTimingStatus(vendor);
   }, [vendor]);
 
-  // Fetch Products from Backend or load rich realistic catalog
+  // Fetch Products from Backend - strictly real products uploaded by the vendor
   useEffect(() => {
     const loadProducts = async () => {
       setIsLoadingProducts(true);
       try {
-        if (vendor?._id && typeof vendor._id === 'string' && vendor._id.length === 24) {
-          const res = await UserAPI.getVendorProducts(vendor._id);
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        const targetVendorId = vendor?._id || passedVendor?._id || vendor?.zeebacId || passedVendor?.zeebacId || queryId;
+        if (targetVendorId && targetVendorId !== 'sharma_gen_store' && targetVendorId !== 'ZBV-1001') {
+          const res = await UserAPI.getVendorProducts(targetVendorId);
+          if (res.success && Array.isArray(res.data)) {
             setProducts(res.data);
             setIsLoadingProducts(false);
             return;
           }
         }
-        // Fallback realistic shop catalog tailored to this shop's actual business category
-        const storeCashback = vendor.cashbackRate || 3;
-        const defaultList = storeConfig?.defaultProducts || DEFAULT_SHOP_PRODUCTS;
-        const mappedDemo = defaultList.map(p => ({
-          ...p,
-          cashbackRate: storeCashback
-        }));
-        setProducts(mappedDemo);
+        // Do NOT inject fake demo products for registered merchants.
+        // If the merchant has not added products yet, catalog stays empty.
+        setProducts([]);
       } catch (err) {
-        console.warn('Failed to load products, using fallback:', err);
-        setProducts(DEFAULT_SHOP_PRODUCTS);
+        console.warn('Failed to load vendor products:', err);
+        setProducts([]);
       } finally {
         setIsLoadingProducts(false);
       }
     };
     loadProducts();
-  }, [vendor]);
+  }, [vendor?._id, vendor?.zeebacId, passedVendor?._id, passedVendor?.zeebacId, queryId]);
 
   // Check favorite status
   useEffect(() => {
@@ -968,12 +546,9 @@ export default function VendorDetailScreen() {
       ];
     }
 
-    if (storeConfig?.categorySections && storeConfig.categorySections.length > 0) {
-      return storeConfig.categorySections;
-    }
-
-    return BLINKIT_CATEGORY_SECTIONS;
-  }, [products, vendor?.customCategories, vendor?.category, vendor?.storeName, storeConfig]);
+    // When a store has no products yet, do NOT render fake categories
+    return [];
+  }, [products, vendor?.customCategories, vendor?.category, vendor?.storeName]);
 
   const handleSelectCategory = (categoryName) => {
     setActiveCategory(categoryName);
@@ -996,7 +571,7 @@ export default function VendorDetailScreen() {
     }
   };
 
-  const vendorImageSrc = vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage || DEFAULT_SHOP_PRODUCTS[0].image;
+  const vendorImageSrc = vendor.storeLogo || vendor.profilePic || vendor.storeCoverImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&auto=format&fit=crop&q=80';
 
   return (
     <div className="mesh-gradient text-on-surface font-body-lg min-h-screen flex flex-col pb-36">
@@ -1106,70 +681,74 @@ export default function VendorDetailScreen() {
         )}
 
         {/* ── 2. BLINKIT-STYLE QUICK SEARCH BAR WITH VOICE INPUT ── */}
-        <div className="relative flex items-center gap-2">
-          <div className="relative flex-1">
-            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={searchPlaceholder}
-              className="w-full h-11 pl-11 pr-10 bg-white rounded-2xl border border-slate-200/90 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-[13px] text-slate-800 placeholder:text-slate-400 shadow-2xs transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            )}
-          </div>
+        {(products.length > 0 || searchQuery) && (
+          <div className="relative flex items-center gap-2">
+            <div className="relative flex-1">
+              <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full h-11 pl-11 pr-10 bg-white rounded-2xl border border-slate-200/90 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-[13px] text-slate-800 placeholder:text-slate-400 shadow-2xs transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              )}
+            </div>
 
-          <button
-            type="button"
-            onClick={handleVoiceSearch}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-all cursor-pointer ${
-              isListening
-                ? 'bg-red-500 text-white animate-pulse border-red-500 shadow-md'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-2xs'
-            }`}
-            title="Voice Search"
-          >
-            <span className="material-symbols-outlined text-[20px]">mic</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleVoiceSearch}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-all cursor-pointer ${
+                isListening
+                  ? 'bg-red-500 text-white animate-pulse border-red-500 shadow-md'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-2xs'
+              }`}
+              title="Voice Search"
+            >
+              <span className="material-symbols-outlined text-[20px]">mic</span>
+            </button>
+          </div>
+        )}
 
         {/* ── 3. TOP DEPARTMENT QUICK TABS (HORIZONTAL CAROUSEL) ── */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {dynamicDepartmentTabs.map((tab) => {
-            const isSelected = selectedDepartment === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setSelectedDepartment(tab.id);
-                  if (tab.id === 'all') {
-                    setActiveCategory('All');
-                  }
-                }}
-                className={`px-3.5 py-2 rounded-2xl text-[12px] whitespace-nowrap cursor-pointer transition-all flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-slate-900 text-white font-extrabold shadow-sm'
-                    : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 font-bold'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {products.length > 0 && dynamicDepartmentTabs.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {dynamicDepartmentTabs.map((tab) => {
+              const isSelected = selectedDepartment === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setSelectedDepartment(tab.id);
+                    if (tab.id === 'all') {
+                      setActiveCategory('All');
+                    }
+                  }}
+                  className={`px-3.5 py-2 rounded-2xl text-[12px] whitespace-nowrap cursor-pointer transition-all flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-slate-900 text-white font-extrabold shadow-sm'
+                      : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 font-bold'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── 4. BLINKIT / ZEPTO STYLE GROUPED CATEGORIES GRID (AS PER REFERENCE IMAGE) ── */}
-        {activeCategory === 'All' && !searchQuery && (
+        {products.length > 0 && activeCategory === 'All' && !searchQuery && dynamicCategorySections.length > 0 && (
           <div className="space-y-5 pt-1">
             {dynamicCategorySections.filter((section) =>
               selectedDepartment === 'all' || (section.department && section.department.toLowerCase().includes(selectedDepartment.toLowerCase()))
@@ -1241,22 +820,55 @@ export default function VendorDetailScreen() {
 
         {/* ── 6. PRODUCTS LISTING GRID ── */}
         <section ref={productSectionRef} className="space-y-2.5 pt-1">
-          <div className="flex items-center justify-between pl-0.5">
-            <h2 className="font-display font-black text-[15px] sm:text-[16px] text-slate-900">
-              {searchQuery
-                ? `Search: "${searchQuery}"`
-                : activeCategory === 'All'
-                ? t('Popular Products')
-                : `${activeCategory}`}
-            </h2>
-            <span className="text-[11.5px] font-bold text-slate-500">
-              {filteredProducts.length} {t('Items')}
-            </span>
-          </div>
+          {products.length > 0 && (
+            <div className="flex items-center justify-between pl-0.5">
+              <h2 className="font-display font-black text-[15px] sm:text-[16px] text-slate-900">
+                {searchQuery
+                  ? `Search: "${searchQuery}"`
+                  : activeCategory === 'All'
+                  ? t('Popular Products')
+                  : `${activeCategory}`}
+              </h2>
+              <span className="text-[11.5px] font-bold text-slate-500">
+                {filteredProducts.length} {t('Items')}
+              </span>
+            </div>
+          )}
 
           {isLoadingProducts ? (
             <div className="py-16 flex justify-center">
               <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+            </div>
+          ) : products.length === 0 ? (
+            <div className="py-10 px-5 text-center space-y-4 bg-white rounded-3xl border border-slate-100 shadow-2xs my-2">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-purple-50 border border-purple-100 flex items-center justify-center text-primary shadow-xs">
+                <span className="material-symbols-outlined text-[32px]">storefront</span>
+              </div>
+              <div className="space-y-1.5 max-w-sm mx-auto">
+                <h3 className="font-display font-black text-[16px] text-slate-900">
+                  {t('No Products Listed Yet')}
+                </h3>
+                <p className="text-[12.5px] text-slate-500 leading-relaxed">
+                  <strong>{vendor.storeName || 'This store'}</strong> {t('has not added products to their online catalog yet. You can still pay at their store counter to earn instant cashback!')}
+                </p>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row gap-2.5 justify-center max-w-xs mx-auto">
+                <button
+                  onClick={() => navigate('/pay-vendor', { state: { vendor } })}
+                  className="w-full py-2.5 px-4 rounded-xl btn-primary-gradient text-white text-[12.5px] font-black inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+                  <span>Pay Counter with Cashback</span>
+                </button>
+                <button
+                  onClick={() => navigate('/shops')}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                >
+                  <span className="material-symbols-outlined text-[16px]">store</span>
+                  <span>Explore Other Stores</span>
+                </button>
+              </div>
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="py-12 text-center space-y-2.5 bg-white rounded-3xl border border-slate-100 p-6">
@@ -1291,7 +903,7 @@ export default function VendorDetailScreen() {
                       title={t('Click to preview product photos')}
                     >
                       <img
-                        src={(product.image || (product.images && product.images[0]) || DEFAULT_SHOP_PRODUCTS[0].image)}
+                        src={(product.image || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&auto=format&fit=crop&q=80')}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
                         loading="lazy"
@@ -1616,13 +1228,13 @@ export default function VendorDetailScreen() {
           </button>
 
           <button
-            onClick={handleShopAtStore}
+            onClick={products.length === 0 && cartItemsCount === 0 ? () => navigate('/pay-vendor', { state: { vendor } }) : handleShopAtStore}
             className="h-11 rounded-full btn-primary-gradient text-white font-black text-[13px] flex items-center justify-center gap-1.5 shadow-md shadow-primary/25 active:scale-95 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">
-              {cartItemsCount > 0 ? 'shopping_bag' : 'storefront'}
+              {cartItemsCount > 0 ? 'shopping_bag' : products.length === 0 ? 'qr_code_scanner' : 'storefront'}
             </span>
-            <span>{cartItemsCount > 0 ? `${t('Cart')} (${cartItemsCount})` : t('Shop at Store')}</span>
+            <span>{cartItemsCount > 0 ? `${t('Cart')} (${cartItemsCount})` : products.length === 0 ? t('Pay Counter') : t('Shop at Store')}</span>
           </button>
         </div>
       </footer>

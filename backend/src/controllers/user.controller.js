@@ -1636,10 +1636,18 @@ export const getCashbackRequestById = async (req, res) => {
 
 export const getVendorProducts = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.vendorId)) {
-      return res.status(400).json({ success: false, message: 'Invalid vendor ID' });
+    const { vendorId } = req.params;
+    let targetVendorId = vendorId;
+
+    if (!mongoose.Types.ObjectId.isValid(vendorId)) {
+      const v = await Vendor.findOne({ zeebacId: vendorId }).select('_id');
+      if (!v) {
+        return res.status(200).json({ success: true, data: [] });
+      }
+      targetVendorId = v._id;
     }
-    const products = await Product.find({ vendorId: req.params.vendorId, isActive: true });
+
+    const products = await Product.find({ vendorId: targetVendorId, isActive: true });
     res.status(200).json({ success: true, data: products });
   } catch (error) {
     logger.error(`getVendorProducts error: ${error.message}`);
