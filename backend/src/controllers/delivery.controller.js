@@ -733,7 +733,7 @@ export const acceptDeliveryOrder = async (req, res) => {
     const order = await Order.findOne({
       _id: id,
       fulfillmentType: 'delivery',
-      orderStatus: { $in: ['CONFIRMED', 'PREPARING', 'PLACED'] },
+      orderStatus: { $in: ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'PLACED'] },
       $or: [
         { 'riderDetails.name': { $in: [null, ''] } },
         { 'riderDetails.phone': { $in: [null, ''] } },

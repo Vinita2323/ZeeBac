@@ -365,4 +365,109 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(data.order.deliveryAddress).toBe('Flat 402, Royal Residency, Near Tedhi Pulia, Lucknow, Uttar Pradesh, 226021');
     expect(data.order.items[0].name).toBe('Tata Salt 1 kg');
   });
+  it('allows merchant to update order status to READY_FOR_PICKUP without error', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    const createReq = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'delivery',
+        deliveryAddress: 'Test Address Lucknow',
+        paymentMethod: 'CASH',
+        items: [{ name: 'Bread', price: 40, quantity: 1, cashbackPercentage: 10 }],
+      },
+    };
+    const createRes = makeRes();
+    await createOrder(createReq, createRes);
+    const order = createRes.json.mock.calls[0][0].data.order;
+
+    // Step 1: Vendor accepts order -> PREPARING
+    const prepReq = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'PREPARING' },
+    };
+    const prepRes = makeRes();
+    await updateOrderStatus(prepReq, prepRes);
+    expect(prepRes.status).toHaveBeenCalledWith(200);
+
+    // Step 2: Vendor marks order as READY_FOR_PICKUP
+    const pickupReq = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'READY_FOR_PICKUP' },
+    };
+    const pickupRes = makeRes();
+    await updateOrderStatus(pickupReq, pickupRes);
+    expect(pickupRes.status).toHaveBeenCalledWith(200);
+    const updated = pickupRes.json.mock.calls[0][0].data.order;
+    expect(updated.orderStatus).toBe('READY_FOR_PICKUP');
+  });
+
+  it('blocks merchant from rejecting or cancelling an order once it has been accepted', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    const createReq = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'delivery',
+        deliveryAddress: 'Test Address',
+        paymentMethod: 'CASH',
+        items: [{ name: 'Milk', price: 30, quantity: 1, cashbackPercentage: 5 }],
+      },
+    };
+    const createRes = makeRes();
+    await createOrder(createReq, createRes);
+    const order = createRes.json.mock.calls[0][0].data.order;
+
+    // Vendor accepts order -> PREPARING
+    const prepReq = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'PREPARING' },
+    };
+    const prepRes = makeRes();
+    await updateOrderStatus(prepReq, prepRes);
+    expect(prepRes.status).toHaveBeenCalledWith(200);
+
+    // Vendor attempts to cancel/reject the accepted order -> MUST BE REJECTED
+    const cancelReq = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'CANCELLED', cancellationReason: 'Changed mind' },
+    };
+    const cancelRes = makeRes();
+    await updateOrderStatus(cancelReq, cancelRes);
+    expect(cancelRes.status).toHaveBeenCalledWith(400);
+    expect(cancelRes.json.mock.calls[0][0].message).toContain('cannot be rejected');
+  });
+
+  it('supports scheduled delivery orders and preserves slot and date accurately', async () => {
+    const { vendor, customer } = await setupStoreAndCustomer();
+
+    const schedReq = {
+      user: { id: customer._id.toString(), role: 'customer' },
+      body: {
+        vendorZeebacId: vendor.zeebacId,
+        fulfillmentType: 'delivery',
+        deliverySchedule: {
+          deliveryType: 'SCHEDULED',
+          scheduledDate: 'Tomorrow',
+          scheduledSlot: 'Tomorrow Morning (09:00 AM - 10:00 AM)',
+        },
+        deliveryAddress: 'Indore MG Road',
+        paymentMethod: 'CASH',
+        items: [{ name: 'Rice 5kg', price: 350, quantity: 1, cashbackPercentage: 5 }],
+      },
+    };
+    const schedRes = makeRes();
+    await createOrder(schedReq, schedRes);
+    expect(schedRes.status).toHaveBeenCalledWith(201);
+    const order = schedRes.json.mock.calls[0][0].data.order;
+    expect(order.deliverySchedule.deliveryType).toBe('SCHEDULED');
+    expect(order.deliverySchedule.scheduledDate).toBe('Tomorrow');
+    expect(order.deliverySchedule.scheduledSlot).toBe('Tomorrow Morning (09:00 AM - 10:00 AM)');
+  });
 });

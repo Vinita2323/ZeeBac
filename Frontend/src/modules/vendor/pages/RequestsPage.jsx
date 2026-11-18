@@ -554,7 +554,18 @@ export default function RequestsPage() {
                       <span className="truncate max-w-xs">{order.deliveryAddress || 'Store Pickup'}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      {order.deliverySchedule?.deliveryType === 'SCHEDULED' ? (
+                        <span className="bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[10.5px] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px] text-amber-700">calendar_clock</span>
+                          <span>Scheduled: {order.deliverySchedule.scheduledSlot || order.deliverySchedule.scheduledDate || 'Scheduled'}</span>
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-100 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-md font-bold text-[10.5px] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px] text-emerald-700">bolt</span>
+                          <span>Instant Order</span>
+                        </span>
+                      )}
                       <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[10.5px]">
                         {order.fulfillmentType === 'pickup' ? 'Counter Pickup' : 'Rider Delivery'}
                       </span>
@@ -683,7 +694,7 @@ export default function RequestsPage() {
                         )}
 
                         <div className="flex flex-wrap items-center gap-2">
-                          {order.orderStatus === 'PREPARING' && (
+                          {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING') && (
                             <button
                               disabled={isProcessing}
                               onClick={() => handleOrderStatusUpdate(order.orderId, 'READY_FOR_PICKUP')}
@@ -695,20 +706,35 @@ export default function RequestsPage() {
                           )}
 
                           {order.orderStatus === 'READY_FOR_PICKUP' && (
-                            <span className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl">
-                              <span className="material-symbols-outlined text-[15px]">done_all</span>
-                              <span>Food/Order Packed & Ready for Pickup</span>
-                            </span>
-                          )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl">
+                                <span className="material-symbols-outlined text-[15px]">done_all</span>
+                                <span>Order Packed & Ready for Pickup</span>
+                              </span>
 
-                          <button
-                            disabled={isProcessing}
-                            onClick={() => setRejectModalOrder(order)}
-                            className="py-2 px-3 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-[11.5px] flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
-                          >
-                            <span className="material-symbols-outlined text-[15px]">close</span>
-                            <span>Cancel Order</span>
-                          </button>
+                              {order.fulfillmentType === 'pickup' && (
+                                <button
+                                  disabled={isProcessing}
+                                  onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
+                                  className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">verified</span>
+                                  <span>Handover to Customer (Settle Points)</span>
+                                </button>
+                              )}
+
+                              {order.fulfillmentType === 'delivery' && !isRiderAssigned && (
+                                <button
+                                  disabled={isProcessing}
+                                  onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
+                                  className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">verified</span>
+                                  <span>Store Self-Delivered (Settle Points)</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

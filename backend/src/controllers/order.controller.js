@@ -603,7 +603,20 @@ export const updateOrderStatus = async (req, res) => {
     const { orderId } = req.params;
     const { status, deliveryOtp } = req.body;
 
-    const validStatuses = ['PLACED', 'CONFIRMED', 'PREPARING', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+    const validStatuses = [
+      'PLACED',
+      'CONFIRMED',
+      'PREPARING',
+      'READY_FOR_PICKUP',
+      'RIDER_ASSIGNED',
+      'ARRIVED_AT_PICKUP',
+      'PICKED_UP',
+      'OUT_FOR_DELIVERY',
+      'ARRIVED_AT_CUSTOMER',
+      'DELIVERED',
+      'CANCELLED',
+      'FAILED_DELIVERY'
+    ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid order status' });
     }
@@ -614,6 +627,14 @@ export const updateOrderStatus = async (req, res) => {
     // Ensure authorized vendor or admin
     if (req.user.role === 'vendor' && order.vendorId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Business Rule: Once an order is accepted by the merchant, it CANNOT be rejected or cancelled
+    if (status === 'CANCELLED' && req.user.role === 'vendor' && order.orderStatus !== 'PLACED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Order already accepted and in progress. Accepted orders cannot be rejected.'
+      });
     }
 
     if (order.orderStatus === 'DELIVERED') {
@@ -792,15 +813,27 @@ export const updateOrderStatus = async (req, res) => {
         orderId: order.orderId,
         orderStatus: status,
       });
-      if (['CONFIRMED', 'PREPARING'].includes(status) && order.fulfillmentType === 'delivery') {
+      if (['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(status) && order.fulfillmentType === 'delivery') {
         getIO().emit('delivery:new_order', {
           order,
           orderId: order.orderId,
           storeName: order.storeName,
           payout: order.deliveryPayout || 50,
           distanceKm: order.deliveryDistanceKm || 2.0,
-          message: `Delivery request from ${order.storeName}!`,
+          message: status === 'READY_FOR_PICKUP' 
+            ? `Order #${order.orderId} at ${order.storeName} is packed and ready for pickup!`
+            : `Delivery request from ${order.storeName}!`,
         });
+        if (status === 'READY_FOR_PICKUP') {
+          getIO().emit('delivery:ready_for_pickup', {
+            order,
+            orderId: order.orderId,
+            storeName: order.storeName,
+            payout: order.deliveryPayout || 50,
+            distanceKm: order.deliveryDistanceKm || 2.0,
+            message: `Order #${order.orderId} is packed and ready for pickup!`,
+          });
+        }
       }
     } catch (_) {}
 

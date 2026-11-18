@@ -813,12 +813,23 @@ export default function DeliveryDashboardScreen() {
             {/* Store Pickup Section (From Image 1) */}
             <div className="space-y-3 my-4">
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-                <div className="flex items-center gap-1.5 mb-1">
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span className="px-2 py-0.5 rounded bg-slate-700 text-white text-[10px] font-black uppercase">
                     Pick up
                   </span>
+                  {ringingOrderAlert.deliverySchedule?.deliveryType === 'SCHEDULED' ? (
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[11px]">calendar_clock</span>
+                      <span>Scheduled: {ringingOrderAlert.deliverySchedule.scheduledSlot || 'Slot'}</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 text-[10px] font-bold flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[11px]">bolt</span>
+                      <span>Instant</span>
+                    </span>
+                  )}
                   <span className="text-[11px] text-slate-400 font-bold">
-                    ⏱ 5 mins away
+                    ⏱ {ringingOrderAlert.pickupDistanceKm ? `${ringingOrderAlert.pickupDistanceKm} km away` : 'Near Store'}
                   </span>
                 </div>
                 <h4 className="font-display font-black text-sm text-slate-950">

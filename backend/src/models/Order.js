@@ -185,6 +185,7 @@ const orderSchema = new mongoose.Schema(
         'PLACED',
         'CONFIRMED',
         'PREPARING',
+        'READY_FOR_PICKUP',
         'RIDER_ASSIGNED',
         'ARRIVED_AT_PICKUP',
         'PICKED_UP',

@@ -304,6 +304,28 @@ export default function CartScreen() {
   // Active Order Live Tracking state
   const [activeOrder, setActiveOrder] = useState(null);
 
+  // Auto-fetch latest active order on mount if cart is empty or coming from profile viewOrders
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLatestOrder = async () => {
+      try {
+        const res = await OrderAPI.getMyOrders({ limit: 10 });
+        if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const active = res.data.find((o) => !['DELIVERED', 'CANCELLED'].includes(o.orderStatus));
+          if (active && (!items || items.length === 0 || location.state?.viewOrders)) {
+            setActiveOrder(active);
+          } else if (location.state?.viewOrders && res.data[0]) {
+            setActiveOrder(res.data[0]);
+          }
+        }
+      } catch (_) {}
+    };
+    fetchLatestOrder();
+    return () => {
+      isMounted = false;
+    };
+  }, [location.state?.viewOrders]);
+
   // Sync payment method when points redemption changes
   useEffect(() => {
     if (finalPayableAmount === 0 && pointsRedeemed > 0) {
@@ -882,17 +904,31 @@ export default function CartScreen() {
               </span>
             </div>
 
+            {activeOrder.deliverySchedule?.deliveryType === 'SCHEDULED' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2.5 text-amber-900 text-[12px]">
+                <span className="material-symbols-outlined text-amber-700 text-[20px]">calendar_clock</span>
+                <div className="text-left">
+                  <p className="font-extrabold text-[12.5px] text-amber-900">Scheduled Delivery Order</p>
+                  <p className="text-[11px] text-amber-800 font-medium">
+                    Slot: <strong>{activeOrder.deliverySchedule.scheduledSlot || 'Tomorrow Morning'}</strong> ({activeOrder.deliverySchedule.scheduledDate || 'Tomorrow'})
+                  </p>
+                </div>
+              </div>
+            )}
+
             <h2 className="font-display font-black text-[20px] text-slate-900">
               {isDelivered
-                ? 'Order Delivered Successfully!'
+                ? (activeOrder.fulfillmentType === 'pickup' ? 'Order Picked Up Successfully! 🎉' : 'Order Delivered Successfully! 🎉')
                 : isCancelled
                 ? 'Order Cancelled by Store'
                 : activeOrder.orderStatus === 'OUT_FOR_DELIVERY'
                 ? 'Rider is Out for Delivery! 🛵'
                 : activeOrder.orderStatus === 'RIDER_ASSIGNED'
-                ? 'Rider Assigned & Packing Order'
+                ? 'Rider Assigned & Collecting Order'
+                : activeOrder.orderStatus === 'READY_FOR_PICKUP'
+                ? (activeOrder.fulfillmentType === 'pickup' ? 'Order Packed & Ready for Counter Pickup! 🛍️' : 'Order Packed & Ready for Rider Pickup! 📦')
                 : activeOrder.orderStatus === 'CONFIRMED' || activeOrder.orderStatus === 'PREPARING'
-                ? 'Store Accepted & Preparing Order'
+                ? 'Store Accepted & Preparing Order 🍳'
                 : 'Order Placed with Store (Waiting for Store to Accept)'}
             </h2>
 
@@ -928,19 +964,21 @@ export default function CartScreen() {
                   {[
                     { label: 'Placed', active: true, icon: 'receipt_long' },
                     {
-                      label: 'Prepared',
-                      active: ['CONFIRMED', 'PREPARING', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(
+                      label: activeOrder.fulfillmentType === 'pickup' ? 'Packed' : 'Prepared',
+                      active: ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(
                         activeOrder.orderStatus
                       ),
                       icon: 'inventory_2',
                     },
                     {
-                      label: 'On the Way',
-                      active: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeOrder.orderStatus),
-                      icon: 'two_wheeler',
+                      label: activeOrder.fulfillmentType === 'pickup' ? 'Ready' : 'On the Way',
+                      active: activeOrder.fulfillmentType === 'pickup'
+                        ? ['READY_FOR_PICKUP', 'DELIVERED'].includes(activeOrder.orderStatus)
+                        : ['READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(activeOrder.orderStatus),
+                      icon: activeOrder.fulfillmentType === 'pickup' ? 'store' : 'two_wheeler',
                     },
                     {
-                      label: 'Delivered',
+                      label: activeOrder.fulfillmentType === 'pickup' ? 'Collected' : 'Delivered',
                       active: isDelivered,
                       icon: 'check_circle',
                     },
