@@ -19,6 +19,7 @@ import ApplyLoanScreen from './pages/ApplyLoanScreen';
 import NotificationsScreen from './pages/NotificationsScreen';
 import BnplScreen from './pages/BnplScreen';
 import CartScreen from './pages/CartScreen';
+import OrdersScreen from './pages/OrdersScreen';
 import ProtectedRoute from '../auth/components/ProtectedRoute';
 
 export default function UserRoutes() {
@@ -50,6 +51,8 @@ export default function UserRoutes() {
         <Route path="/apply-loan" element={<ApplyLoanScreen />} />
         <Route path="/bnpl" element={<BnplScreen />} />
         <Route path="/cart" element={<CartScreen />} />
+        <Route path="/orders" element={<OrdersScreen />} />
+        <Route path="/my-orders" element={<OrdersScreen />} />
         <Route path="/notifications" element={<NotificationsScreen />} />
       </Route>
     </Routes>

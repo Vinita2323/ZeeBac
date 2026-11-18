@@ -854,10 +854,17 @@ export const updateOrderStatus = async (req, res) => {
 export const getMyCustomerOrders = async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
-    const query = { customerId: req.user.id };
+    
+    // Robust query: match customerId OR customerPhone
+    const orConditions = [{ customerId: req.user.id }];
+    if (req.user.phone) {
+      orConditions.push({ customerPhone: req.user.phone });
+    }
+    const query = { $or: orConditions };
     if (status) query.orderStatus = status;
 
     const orders = await Order.find(query)
+      .populate('vendorId', 'storeName phone address location storeLogo city zeebacId')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));

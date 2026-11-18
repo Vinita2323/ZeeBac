@@ -10,6 +10,7 @@ import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { useBackableSubview } from '../../../utils/navigationUtils';
 import StoreBillsSubView from '../components/StoreBillsSubView';
+import OnlineOrdersSubView from '../components/OnlineOrdersSubView';
 import { toast } from 'react-hot-toast';
 
 export default function ProfileScreen() {
@@ -402,6 +403,16 @@ export default function ProfileScreen() {
     );
   }
 
+  // SUBVIEW 8: ONLINE ORDERS & DELIVERIES
+  if (subView === 'orders' || subView === 'my-orders') {
+    return (
+      <OnlineOrdersSubView
+        onBack={() => setSubView(null)}
+        t={t}
+      />
+    );
+  }
+
   // MAIN PROFILE SCREEN VIEW
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
@@ -536,7 +547,7 @@ export default function ProfileScreen() {
           <div className="bg-white border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
 
             <div 
-              onClick={() => navigate('/cart', { state: { viewOrders: true } })}
+              onClick={() => setSubView('orders')}
               className="p-md hover:bg-[#7c3aed]/5 cursor-pointer flex items-center justify-between transition-colors border-b border-outline-variant/10"
             >
               <div className="flex items-center gap-sm">

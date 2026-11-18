@@ -392,7 +392,14 @@ export default function CartScreen() {
   // Active Order Live Tracking state
   const [activeOrder, setActiveOrder] = useState(null);
 
-  // Auto-fetch latest active order on mount if cart is empty or coming from profile viewOrders
+  // If navigating from profile viewOrders, smoothly redirect to /orders
+  useEffect(() => {
+    if (location.state?.viewOrders) {
+      navigate('/orders', { replace: true });
+    }
+  }, [location.state?.viewOrders, navigate]);
+
+  // Auto-fetch latest active order on mount if cart is empty
   useEffect(() => {
     let isMounted = true;
     const fetchLatestOrder = async () => {
@@ -400,10 +407,8 @@ export default function CartScreen() {
         const res = await OrderAPI.getMyOrders({ limit: 10 });
         if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
           const active = res.data.find((o) => !['DELIVERED', 'CANCELLED'].includes(o.orderStatus));
-          if (active && (!items || items.length === 0 || location.state?.viewOrders)) {
+          if (active && (!items || items.length === 0)) {
             setActiveOrder(active);
-          } else if (location.state?.viewOrders && res.data[0]) {
-            setActiveOrder(res.data[0]);
           }
         }
       } catch (_) {}
@@ -412,7 +417,7 @@ export default function CartScreen() {
     return () => {
       isMounted = false;
     };
-  }, [location.state?.viewOrders]);
+  }, [items]);
 
   // Sync payment method when points redemption changes
   useEffect(() => {
@@ -930,13 +935,22 @@ export default function CartScreen() {
             </p>
           </div>
 
-          <button
-            onClick={() => navigate('/explore')}
-            className="btn-primary-gradient text-white px-6 py-3 rounded-2xl font-bold text-[13px] flex items-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all mt-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">storefront</span>
-            <span>{t('Explore Partner Stores')}</span>
-          </button>
+          <div className="w-full max-w-xs space-y-2 mt-2">
+            <button
+              onClick={() => navigate('/explore')}
+              className="w-full btn-primary-gradient text-white px-6 py-3 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">storefront</span>
+              <span>{t('Explore Partner Stores')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/orders')}
+              className="w-full py-2.5 px-4 rounded-2xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100/60 text-purple-700 font-bold text-[12px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+              <span>View My Online Orders & Deliveries</span>
+            </button>
+          </div>
         </main>
 
         <BottomNavBar />
@@ -955,13 +969,27 @@ export default function CartScreen() {
     return (
       <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md px-4 py-3 border-b border-slate-100 shadow-xs flex items-center justify-between">
-          <h1 className="font-display font-black text-[18px] text-slate-900 mx-auto">
+          <button
+            onClick={() => navigate('/orders')}
+            className="text-[12px] font-bold text-purple-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+            <span>All Orders</span>
+          </button>
+          <h1 className="font-display font-black text-[16.5px] text-slate-900">
             {isDelivered
               ? 'Order Delivered 🎉'
               : isCancelled
               ? 'Order Cancelled ❌'
               : 'Order Tracking & Delivery'}
           </h1>
+          <button
+            onClick={() => navigate('/orders')}
+            className="w-8 h-8 rounded-full hover:bg-purple-50 text-purple-700 flex items-center justify-center cursor-pointer"
+            title="View All Orders"
+          >
+            <span className="material-symbols-outlined text-[20px]">list_alt</span>
+          </button>
         </header>
 
         <main className="flex-1 app-container px-4 py-6 space-y-4 text-left">
