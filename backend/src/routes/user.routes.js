@@ -41,7 +41,8 @@ import {
   addSavedAddress,
   updateSavedAddress,
   deleteSavedAddress,
-  setDefaultAddress
+  setDefaultAddress,
+  getCustomerBills
 } from '../controllers/user.controller.js';
 import { saveUserFcmToken } from '../controllers/notification.controller.js';
 import { getVendorMedia, getVendorPromotions } from '../controllers/storefront.controller.js';
