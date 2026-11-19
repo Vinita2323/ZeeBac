@@ -388,8 +388,20 @@ export const createOrder = async (req, res) => {
         getIO().to(`vendor_${vendor._id}`).emit('order:new', vendorPayload);
         getIO().to(`vendor:${vendor._id}`).emit('order:new', vendorPayload);
         if (fulfillmentType === 'delivery') {
+          const orderWithVendor = {
+            ...(createdOrder.toObject ? createdOrder.toObject() : createdOrder),
+            vendor: {
+              _id: vendor._id,
+              storeName: vendor.storeName,
+              phone: vendor.phone,
+              address: vendor.address,
+              location: vendor.location,
+              storeLogo: vendor.storeLogo || vendor.profilePic,
+              city: vendor.address?.city || vendor.location?.city || 'Indore',
+            },
+          };
           getIO().emit('delivery:new_order', {
-            order: createdOrder,
+            order: orderWithVendor,
             orderId,
             storeName: vendor.storeName,
             payout: createdOrder.deliveryPayout || 40,
@@ -525,8 +537,15 @@ export const verifyOrderUpiPayment = async (req, res) => {
         order,
       });
       if (order.fulfillmentType === 'delivery') {
+        const vendorDoc = await Vendor.findById(order.vendorId)
+          .select('storeName phone address location storeLogo city')
+          .lean();
+        const orderWithVendor = {
+          ...(order.toObject ? order.toObject() : order),
+          vendor: vendorDoc || { storeName: order.storeName },
+        };
         getIO().emit('delivery:new_order', {
-          order,
+          order: orderWithVendor,
           orderId: order.orderId,
           storeName: order.storeName,
           payout: order.deliveryPayout || 40,
@@ -845,8 +864,15 @@ export const updateOrderStatus = async (req, res) => {
         orderStatus: status,
       });
       if (['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(status) && order.fulfillmentType === 'delivery') {
+        const vendorDoc = await Vendor.findById(order.vendorId)
+          .select('storeName phone address location storeLogo city')
+          .lean();
+        const orderWithVendor = {
+          ...(order.toObject ? order.toObject() : order),
+          vendor: vendorDoc || { storeName: order.storeName },
+        };
         getIO().emit('delivery:new_order', {
-          order,
+          order: orderWithVendor,
           orderId: order.orderId,
           storeName: order.storeName,
           payout: order.deliveryPayout || 50,
@@ -857,7 +883,7 @@ export const updateOrderStatus = async (req, res) => {
         });
         if (status === 'READY_FOR_PICKUP') {
           getIO().emit('delivery:ready_for_pickup', {
-            order,
+            order: orderWithVendor,
             orderId: order.orderId,
             storeName: order.storeName,
             payout: order.deliveryPayout || 50,
