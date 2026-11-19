@@ -44,6 +44,38 @@ export default function RequestsPage() {
   const [customRejectReason, setCustomRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
 
+  // Incoming order continuous ringing alarm
+  const [ringingOrder, setRingingOrder] = useState(null);
+
+  // Prep time selector modal
+  const [prepModalOrder, setPrepModalOrder] = useState(null);
+  const [selectedPrepMinutes, setSelectedPrepMinutes] = useState(15);
+  const [customPrepMinutes, setCustomPrepMinutes] = useState('');
+
+  // Rate delivery rider modal
+  const [rateRiderModalOrder, setRateRiderModalOrder] = useState(null);
+  const [riderStarRating, setRiderStarRating] = useState(5);
+  const [riderComment, setRiderComment] = useState('');
+  const [riderSelectedTags, setRiderSelectedTags] = useState([]);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
+  // Continuous sound alarm effect for incoming order
+  useEffect(() => {
+    if (!ringingOrder) return;
+    const interval = setInterval(() => {
+      playStoreNewOrderAlarm({
+        orderId: ringingOrder.orderId,
+        amount: ringingOrder.finalPayableAmount || ringingOrder.totalAmount,
+        customerName: ringingOrder.customerName,
+      });
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [ringingOrder]);
+
+  const stopOrderRing = () => {
+    setRingingOrder(null);
+  };
+
   const currentUser = useAuthStore((state) => state.currentUser);
 
   // ── Fetch Orders ──
@@ -107,6 +139,7 @@ export default function RequestsPage() {
       const handleNewOrder = (data) => {
         if (data?.order) {
           setOrders((prev) => [data.order, ...prev.filter((o) => o._id !== data.order._id && o.orderId !== data.order.orderId)]);
+          setRingingOrder(data.order);
           playStoreNewOrderAlarm({
             orderId: data.order.orderId,
             amount: data.order.finalPayableAmount || data.order.totalAmount,
@@ -242,10 +275,15 @@ export default function RequestsPage() {
   }, []);
 
   // ── Vendor Order Actions (Accept, Prepare, Deliver) ──
-  const handleOrderStatusUpdate = async (orderId, newStatus) => {
+  const handleOrderStatusUpdate = async (orderId, newStatus, prepMinutes = null) => {
     setIsProcessing(true);
+    stopOrderRing();
     try {
-      const res = await OrderAPI.updateOrderStatus(orderId, { status: newStatus });
+      const payload = { status: newStatus };
+      if (prepMinutes) {
+        payload.prepTimeMinutes = Number(prepMinutes);
+      }
+      const res = await OrderAPI.updateOrderStatus(orderId, payload);
       if (res.success) {
         setOrders((prev) =>
           prev.map((o) => (o.orderId === orderId ? { ...o, ...res.data.order } : o))
@@ -264,6 +302,48 @@ export default function RequestsPage() {
       alert(err.response?.data?.message || 'Failed to update order status');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // ── Vendor Rates Delivery Rider ──
+  const handleRateRiderSubmit = async (e) => {
+    e?.preventDefault();
+    if (!rateRiderModalOrder) return;
+    setIsSubmittingRating(true);
+    try {
+      const res = await OrderAPI.rateRiderByVendor(rateRiderModalOrder.orderId, {
+        rating: riderStarRating,
+        comment: riderComment.trim(),
+        tags: riderSelectedTags,
+      });
+      if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.orderId === rateRiderModalOrder.orderId
+              ? {
+                  ...o,
+                  riderFeedbackFromVendor: res.data?.riderFeedbackFromVendor || {
+                    rating: riderStarRating,
+                    comment: riderComment.trim(),
+                    tags: riderSelectedTags,
+                    ratedAt: new Date(),
+                  },
+                }
+              : o
+          )
+        );
+        playNotificationChime('success');
+        speakVoice('Delivery partner rated. Thank you!');
+        setRateRiderModalOrder(null);
+        setRiderStarRating(5);
+        setRiderComment('');
+        setRiderSelectedTags([]);
+      }
+    } catch (err) {
+      console.error('Failed to submit rider rating', err);
+      alert(err.response?.data?.message || 'Failed to submit rider rating');
+    } finally {
+      setIsSubmittingRating(false);
     }
   };
 
@@ -363,6 +443,46 @@ export default function RequestsPage() {
 
   return (
     <div className="animate-reveal text-left max-w-2xl mx-auto pb-12">
+      {/* ── INCOMING ORDER SOUNDBOX ALERT BANNER ── */}
+      {ringingOrder && (
+        <div className="sticky top-1 z-40 mb-3 mx-2 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white rounded-2xl p-3.5 shadow-xl border-2 border-white animate-pulse flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-white text-rose-600 flex items-center justify-center shrink-0 shadow-md">
+              <span className="material-symbols-outlined text-[24px]">notifications_active</span>
+            </div>
+            <div className="min-w-0">
+              <p className="font-display font-black text-xs sm:text-sm leading-tight truncate">
+                🔔 New Order Received #{ringingOrder.orderId}!
+              </p>
+              <p className="text-[11px] text-amber-100 font-bold truncate">
+                ₹{ringingOrder.finalPayableAmount || ringingOrder.totalAmount} • {ringingOrder.customerName}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={stopOrderRing}
+              className="px-2.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs cursor-pointer active:scale-95"
+              title="Stop Alarm"
+            >
+              Mute 🔇
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                stopOrderRing();
+                setPrepModalOrder(ringingOrder);
+                setSelectedPrepMinutes(ringingOrder.estimatedPrepTime || 15);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-white text-rose-700 hover:bg-amber-50 font-black text-xs shadow-md cursor-pointer active:scale-95"
+            >
+              Accept ⏱️
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── TOP HEADER (Screen 4 Design) ── */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-100 shadow-xs mb-3 space-y-3">
         <div className="flex items-center justify-between">
@@ -486,9 +606,17 @@ export default function RequestsPage() {
                             {formatOrderTime(order.createdAt)}
                           </p>
                         )}
-                        <p className="font-mono font-black text-[14px] text-slate-900 mt-0.5">
-                          ₹{order.finalPayableAmount || order.totalAmount}
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="font-mono font-black text-[14px] text-slate-900">
+                            ₹{order.finalPayableAmount || order.totalAmount}
+                          </p>
+                          {order.estimatedPrepTime && ['PREPARING', 'READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(order.orderStatus) && (
+                            <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md font-bold text-[10.5px] flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px]">timer</span>
+                              <span>Prep: ~{order.estimatedPrepTime}m</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -527,6 +655,19 @@ export default function RequestsPage() {
                           +{order.totalCashbackPoints} Pts Cashback
                         </span>
                       </div>
+
+                  {/* Customer Special Instructions / Notes */}
+                  {order.orderNotes && (
+                    <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3 text-[12px] space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                        <span className="material-symbols-outlined text-amber-700 text-[18px]">edit_note</span>
+                        <span>Customer Special Instructions:</span>
+                      </div>
+                      <p className="text-amber-950 font-medium bg-white/90 p-2.5 rounded-xl border border-amber-200 shadow-2xs">
+                        "{order.orderNotes}"
+                      </p>
+                    </div>
+                  )}
 
                   {/* Order Items Breakdown with Individual Product Cashback Rates */}
                   <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-1.5 text-[12px]">
@@ -657,16 +798,24 @@ export default function RequestsPage() {
                       <>
                         <button
                           disabled={isProcessing}
-                          onClick={() => handleOrderStatusUpdate(order.orderId, 'PREPARING')}
+                          onClick={() => {
+                            setPrepModalOrder(order);
+                            setSelectedPrepMinutes(order.estimatedPrepTime || 15);
+                          }}
                           className="py-2.5 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
                         >
                           <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                          <span>Accept & Prepare Order</span>
+                          <span>Accept & Set Prep Time</span>
                         </button>
 
                         <button
                           disabled={isProcessing}
-                          onClick={() => setRejectModalOrder(order)}
+                          onClick={() => {
+                            setRejectModalOrder(order);
+                            if (order.orderNotes) {
+                              setRejectReason('Cannot fulfill special customer instructions');
+                            }
+                          }}
                           className="py-2.5 px-3.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-[12px] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                         >
                           <span className="material-symbols-outlined text-[16px]">close</span>
@@ -756,21 +905,71 @@ export default function RequestsPage() {
                     )}
 
                     {(order.orderStatus === 'RIDER_ASSIGNED' || order.orderStatus === 'OUT_FOR_DELIVERY') && (
-                      <button
-                        disabled={isProcessing}
-                        onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
-                        className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">verified</span>
-                        <span>Mark Delivered (Settle Cashback Points)</span>
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
+                          className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">verified</span>
+                          <span>Mark Delivered (Settle Cashback Points)</span>
+                        </button>
+
+                        {order.riderDetails?.name && (
+                          order.riderFeedbackFromVendor ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-[11.5px] font-bold">
+                              <span className="material-symbols-outlined text-amber-500 text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              <span>Rated Rider: {order.riderFeedbackFromVendor.rating}/5 ★</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRateRiderModalOrder(order);
+                                setRiderStarRating(5);
+                                setRiderComment('');
+                                setRiderSelectedTags([]);
+                              }}
+                              className="py-2.5 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              <span>Rate Delivery Rider</span>
+                            </button>
+                          )
+                        )}
+                      </div>
                     )}
 
                     {isDelivered && (
-                      <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-emerald-700 bg-emerald-100/70 px-3 py-1.5 rounded-xl">
-                        <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                        <span>Order Completed • Points Paid to Customer</span>
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-emerald-700 bg-emerald-100/70 px-3 py-1.5 rounded-xl">
+                          <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                          <span>Order Completed • Points Paid to Customer</span>
+                        </span>
+
+                        {order.riderDetails?.name && (
+                          order.riderFeedbackFromVendor ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-[11.5px] font-bold">
+                              <span className="material-symbols-outlined text-amber-500 text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              <span>Rated Rider: {order.riderFeedbackFromVendor.rating}/5 ★</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRateRiderModalOrder(order);
+                                setRiderStarRating(5);
+                                setRiderComment('');
+                                setRiderSelectedTags([]);
+                              }}
+                              className="py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              <span>Rate Rider</span>
+                            </button>
+                          )
+                        )}
+                      </div>
                     )}
 
                     {order.orderStatus === 'CANCELLED' && (
@@ -893,6 +1092,249 @@ export default function RequestsPage() {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
+      {/* KITCHEN PREPARATION TIME MODAL */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {prepModalOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-purple-700 text-[22px]">timer</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Kitchen Prep Time
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrepModalOrder(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div>
+              <p className="text-[12px] text-slate-600 leading-snug">
+                Select estimated time required to prepare and pack <strong>Order #{prepModalOrder.orderId}</strong> ({prepModalOrder.items?.length || 0} items).
+              </p>
+              <p className="text-[11px] text-purple-700 font-semibold mt-1">
+                Customer & nearby delivery riders will be notified.
+              </p>
+            </div>
+
+            {/* Quick Preset Chips */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Select Preparation Time:
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[10, 15, 20, 25, 30, 45].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPrepMinutes(mins);
+                      setCustomPrepMinutes('');
+                    }}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      selectedPrepMinutes === mins && !customPrepMinutes
+                        ? 'bg-purple-700 text-white shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    {mins} mins
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Input */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Or Custom Minutes:
+              </label>
+              <input
+                type="number"
+                min="5"
+                max="120"
+                value={customPrepMinutes}
+                onChange={(e) => setCustomPrepMinutes(e.target.value)}
+                placeholder="e.g. 35"
+                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPrepModalOrder(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => {
+                  const finalMinutes = customPrepMinutes ? parseInt(customPrepMinutes, 10) : selectedPrepMinutes;
+                  handleOrderStatusUpdate(prepModalOrder.orderId, 'PREPARING', finalMinutes || 15);
+                  setPrepModalOrder(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shadow-sm cursor-pointer active:scale-95 transition-all"
+              >
+                Confirm & Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* VENDOR RATES DELIVERY RIDER MODAL */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {rateRiderModalOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-reveal">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-500 text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <h3 className="font-display font-black text-[15px] text-slate-900">
+                  Rate Delivery Rider
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRateRiderModalOrder(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Rider Header */}
+            <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-700 text-white flex items-center justify-center font-black text-sm shrink-0">
+                {(rateRiderModalOrder.riderDetails?.name || 'R')[0]}
+              </div>
+              <div className="min-w-0">
+                <p className="font-display font-black text-xs text-slate-900 truncate">
+                  {rateRiderModalOrder.riderDetails?.name || 'Delivery Partner'}
+                </p>
+                <p className="text-[10.5px] text-slate-500 font-medium">
+                  Vehicle: {rateRiderModalOrder.riderDetails?.vehicleNo || 'N/A'} • {rateRiderModalOrder.riderDetails?.phone}
+                </p>
+              </div>
+            </div>
+
+            {/* Interactive 5-Star Rating */}
+            <div className="space-y-1 text-center py-1">
+              <p className="text-xs font-bold text-slate-700">How was the rider's pickup & behavior?</p>
+              <div className="flex items-center justify-center gap-1.5 pt-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRiderStarRating(star)}
+                    className="p-1 hover:scale-125 transition-transform cursor-pointer"
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[28px] ${
+                        star <= riderStarRating ? 'text-amber-400' : 'text-slate-200'
+                      }`}
+                      style={{ fontVariationSettings: star <= riderStarRating ? "'FILL' 1" : "'FILL' 0" }}
+                    >
+                      star
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] font-black text-amber-600">
+                {riderStarRating === 5
+                  ? 'Excellent (5/5)'
+                  : riderStarRating === 4
+                  ? 'Good (4/5)'
+                  : riderStarRating === 3
+                  ? 'Average (3/5)'
+                  : riderStarRating === 2
+                  ? 'Below Average (2/5)'
+                  : 'Poor (1/5)'}
+              </p>
+            </div>
+
+            {/* Quick Feedback Tags */}
+            <div className="space-y-1.5">
+              <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+                Feedback Highlights:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  '⚡ Fast Pickup',
+                  '👍 Polite & Professional',
+                  '🎒 Had Thermal Bag',
+                  '📦 Handled Food Carefully',
+                  '⏳ Delayed Arrival',
+                  '⚠️ Unprofessional',
+                ].map((tag) => {
+                  const isSelected = riderSelectedTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setRiderSelectedTags((prev) =>
+                          isSelected ? prev.filter((t) => t !== tag) : [...prev, tag]
+                        );
+                      }}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-purple-100 text-purple-800 border-purple-300'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Optional Comment */}
+            <div className="space-y-1">
+              <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+                Comment (Optional):
+              </label>
+              <textarea
+                rows={2}
+                value={riderComment}
+                onChange={(e) => setRiderComment(e.target.value)}
+                placeholder="Rider arrived quickly with clean thermal bag..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white resize-none"
+              />
+            </div>
+
+            {/* Submit Actions */}
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRateRiderModalOrder(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] cursor-pointer"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingRating}
+                onClick={handleRateRiderSubmit}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[12px] shadow-sm cursor-pointer active:scale-95 transition-all"
+              >
+                {isSubmittingRating ? 'Submitting...' : 'Submit Rating'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
       {/* STORE ORDER REJECTION MODAL */}
       {/* ───────────────────────────────────────────────────────────── */}
       {rejectModalOrder && (
@@ -919,6 +1361,7 @@ export default function RequestsPage() {
 
             <div className="space-y-2">
               {[
+                'Cannot fulfill special customer instructions',
                 'Item out of stock',
                 'Store closed / closing soon',
                 'Kitchen overloaded / cannot prepare in time',

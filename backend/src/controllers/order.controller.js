@@ -801,12 +801,17 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Regular Status Update (CONFIRMED, PREPARING, OUT_FOR_DELIVERY) ──
     order.orderStatus = status;
+    if (['CONFIRMED', 'PREPARING'].includes(status) && (req.body.prepTimeMinutes || req.body.estimatedPrepTime)) {
+      order.estimatedPrepTime = Math.max(5, Math.min(120, Number(req.body.prepTimeMinutes || req.body.estimatedPrepTime) || 15));
+      order.prepTimeSelectedAt = new Date();
+    }
     await order.save();
 
     try {
       getIO().to(`user_${order.customerId}`).emit('order:status_update', {
         orderId: order.orderId,
         orderStatus: status,
+        estimatedPrepTime: order.estimatedPrepTime || 15,
         message: status === 'CONFIRMED' || status === 'PREPARING'
           ? `Store has accepted your order #${order.orderId} and started preparing!`
           : `Order status updated to ${status}`,
@@ -1207,5 +1212,115 @@ export const submitOrderFeedback = async (req, res) => {
   } catch (error) {
     logger.error(`submitOrderFeedback error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+
+// ── 7. Vendor Rates Assigned Delivery Rider ──
+export const rateRiderByVendor = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { rating, comment, tags } = req.body;
+
+    const numericRating = Number(rating);
+    if (!numericRating || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
+    }
+
+    const order = await Order.findOne({ orderId });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (req.user.role === 'vendor' && order.vendorId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to rate this order' });
+    }
+
+    if (!order.riderDetails?.phone && !order.riderDetails?.riderId) {
+      return res.status(400).json({ success: false, message: 'No delivery rider is assigned to this order' });
+    }
+
+    // Save vendor feedback on the order
+    order.riderFeedbackFromVendor = {
+      rating: numericRating,
+      comment: typeof comment === 'string' ? comment.trim() : '',
+      tags: Array.isArray(tags) ? tags : [],
+      ratedAt: new Date(),
+    };
+    await order.save();
+
+    // Find and update delivery partner
+    const rider = await DeliveryPartner.findOne({
+      $or: [
+        { riderId: order.riderDetails.riderId },
+        { phone: order.riderDetails.phone },
+      ],
+    });
+
+    if (rider) {
+      rider.vendorRatings = rider.vendorRatings || [];
+      const existingIdx = rider.vendorRatings.findIndex((vr) => vr.orderId === order.orderId);
+      const feedbackObj = {
+        orderId: order.orderId,
+        vendorId: order.vendorId,
+        vendorName: order.storeName || 'Partner Store',
+        storeName: order.storeName || 'Partner Store',
+        rating: numericRating,
+        comment: typeof comment === 'string' ? comment.trim() : '',
+        tags: Array.isArray(tags) ? tags : [],
+        createdAt: new Date(),
+      };
+
+      if (existingIdx >= 0) {
+        rider.vendorRatings[existingIdx] = feedbackObj;
+      } else {
+        rider.vendorRatings.push(feedbackObj);
+      }
+
+      // Aggregate all ratings (vendor ratings + customer ratings)
+      const allScores = rider.vendorRatings.map((v) => v.rating).filter(Boolean);
+      const customerOrders = await Order.find({
+        $or: [
+          { 'riderDetails.phone': rider.phone },
+          { 'riderDetails.riderId': rider.riderId },
+        ],
+        'riderFeedback.rating': { $exists: true, $ne: null },
+      }).select('riderFeedback.rating');
+
+      customerOrders.forEach((co) => {
+        if (co.riderFeedback?.rating) allScores.push(co.riderFeedback.rating);
+      });
+
+      rider.ratingsCount = allScores.length;
+      rider.rating = allScores.length > 0
+        ? parseFloat((allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1))
+        : 5.0;
+
+      await rider.save();
+
+      try {
+        getIO().emit('rider:rating_received', {
+          riderId: rider.riderId,
+          rating: rider.rating,
+          ratingsCount: rider.ratingsCount,
+          newReview: feedbackObj,
+        });
+      } catch (_) {}
+    }
+
+    logger.info(`[RateRider] Order ${order.orderId} rider rated ${numericRating} stars by ${order.storeName}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Rider rating submitted successfully! Thank you.',
+      data: {
+        riderFeedbackFromVendor: order.riderFeedbackFromVendor,
+        riderRating: rider?.rating,
+        ratingsCount: rider?.ratingsCount,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in rateRiderByVendor: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error submitting rider rating' });
   }
 };

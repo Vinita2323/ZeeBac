@@ -141,7 +141,8 @@ export function getStoreTimingStatus(vendorOrHours) {
     // Overnight hours (e.g. 18:00 to 02:00)
     isWithinHours = currentMinutes >= openMinutes || currentMinutes < closeMinutes;
   }
-  const isOpen = isWorkingDay && isWithinHours;
+  const isManuallyClosed = vendor.isStoreOpen === false;
+  const isOpen = !isManuallyClosed && isWorkingDay && isWithinHours;
 
   const openTimeStr = formatTo12Hour(openH, openM);
   const closeTimeStr = formatTo12Hour(closeH, closeM);
@@ -149,7 +150,9 @@ export function getStoreTimingStatus(vendorOrHours) {
   const workingDaysText = workingDays.length === 7 ? 'All Days' : workingDays.join(', ');
 
   let statusText = 'Closed';
-  if (isOpen) {
+  if (isManuallyClosed) {
+    statusText = 'Closed by Store (Offline)';
+  } else if (isOpen) {
     statusText = `Open Now (closes ${closeTimeStr})`;
   } else if (!isWorkingDay) {
     statusText = `Closed Today (${workingDaysText})`;
@@ -161,6 +164,7 @@ export function getStoreTimingStatus(vendorOrHours) {
 
   return {
     isOpen,
+    isManuallyClosed,
     isWorkingDay,
     openHour: openH,
     openMin: openM,

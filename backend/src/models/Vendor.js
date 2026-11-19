@@ -252,6 +252,10 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       default: "Open Daily: 09:00 AM - 10:00 PM",
     },
+    isStoreOpen: {
+      type: Boolean,
+      default: true,
+    },
     businessHours: {
       openingTime: String,
       closingTime: String,

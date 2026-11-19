@@ -98,7 +98,8 @@ export const applyApplicationFields = (vendor, body = {}, files = {}) => {
   }
   if (category !== undefined) vendor.category = category;
   if (subCategory !== undefined) vendor.subCategory = subCategory;
-  if (description !== undefined) vendor.description = description;
+  if (body.isStoreOpen !== undefined) vendor.isStoreOpen = Boolean(body.isStoreOpen);
+    if (description !== undefined) vendor.description = description;
   if (businessContactNumber !== undefined) vendor.businessContactNumber = businessContactNumber;
   if (businessEmail !== undefined) vendor.businessEmail = businessEmail;
   if (gstNumber !== undefined) vendor.gstNumber = gstNumber;
@@ -4169,5 +4170,42 @@ export const getVendorGSTFilingHistory = async (req, res) => {
   } catch (error) {
     logger.error(`[getVendorGSTFilingHistory] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to fetch GST filing history' });
+  }
+};
+
+
+// ── Toggle Store Online / Offline Status ──
+export const toggleStoreStatus = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    const nextStatus = req.body.isStoreOpen !== undefined 
+      ? Boolean(req.body.isStoreOpen) 
+      : !vendor.isStoreOpen;
+
+    vendor.isStoreOpen = nextStatus;
+    await vendor.save();
+
+    try {
+      getIO().emit('store:status_change', {
+        vendorId: vendor._id,
+        isStoreOpen: vendor.isStoreOpen,
+        storeName: vendor.storeName,
+      });
+    } catch (_) {}
+
+    logger.info(`[StoreStatus] Vendor ${vendor.storeName || vendor._id} is now ${vendor.isStoreOpen ? 'ONLINE' : 'OFFLINE'}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Store is now ${vendor.isStoreOpen ? 'Online & Open' : 'Offline & Closed'}`,
+      data: { isStoreOpen: vendor.isStoreOpen },
+    });
+  } catch (error) {
+    logger.error(`Error in toggleStoreStatus: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error updating store status' });
   }
 };

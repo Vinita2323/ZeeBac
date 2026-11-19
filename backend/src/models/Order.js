@@ -143,6 +143,15 @@ const orderSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // Store preparation time estimation in minutes
+    estimatedPrepTime: {
+      type: Number,
+      default: 15,
+      min: 5,
+      max: 120,
+    },
+    prepTimeSelectedAt: Date,
+
     fulfillmentType: {
       type: String,
       enum: ['delivery', 'pickup'],
@@ -269,6 +278,12 @@ const orderSchema = new mongoose.Schema(
 
     // Customer Feedback & Ratings
     vendorFeedback: {
+      rating: { type: Number, min: 1, max: 5 },
+      comment: { type: String, trim: true },
+      tags: [{ type: String }],
+      ratedAt: Date,
+    },
+    riderFeedbackFromVendor: {
       rating: { type: Number, min: 1, max: 5 },
       comment: { type: String, trim: true },
       tags: [{ type: String }],

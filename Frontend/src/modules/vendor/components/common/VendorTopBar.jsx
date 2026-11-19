@@ -2,11 +2,44 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../../../../hooks/useNotifications';
 import VendorQRModal from '../VendorQRModal';
+import useAuthStore from '../../../../store/useAuthStore';
+import { VendorAPI } from '../../../../services/api';
+import toast from 'react-hot-toast';
 
 export default function VendorTopBar() {
   const navigate = useNavigate();
   const { unreadCount } = useNotifications();
   const [showQRModal, setShowQRModal] = useState(false);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const updateProfile = useAuthStore((state) => state.updateProfile);
+
+  const [isStoreOpen, setIsStoreOpen] = useState(currentUser?.isStoreOpen !== false);
+  const [isTogglingStore, setIsTogglingStore] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.isStoreOpen !== undefined) {
+      setIsStoreOpen(currentUser.isStoreOpen !== false);
+    }
+  }, [currentUser?.isStoreOpen]);
+
+  const handleToggleStoreStatus = async () => {
+    const nextStatus = !isStoreOpen;
+    setIsTogglingStore(true);
+    try {
+      const res = await VendorAPI.toggleStoreStatus({ isStoreOpen: nextStatus });
+      if (res.success) {
+        setIsStoreOpen(nextStatus);
+        if (updateProfile) {
+          updateProfile({ isStoreOpen: nextStatus });
+        }
+        toast.success(nextStatus ? '🟢 Store is now Online (Accepting Orders)' : '🔴 Store is now Offline (Closed)');
+      }
+    } catch (err) {
+      toast.error('Failed to update store status');
+    } finally {
+      setIsTogglingStore(false);
+    }
+  };
 
   useEffect(() => {
     const handleOpenQR = () => setShowQRModal(true);
@@ -27,8 +60,31 @@ export default function VendorTopBar() {
           />
         </div>
 
-        {/* Right: Exactly the two options */}
-        <div className="flex items-center gap-2">
+        {/* Right Section */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Store Online / Offline Toggle Pill */}
+          <button
+            type="button"
+            onClick={handleToggleStoreStatus}
+            disabled={isTogglingStore}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all cursor-pointer active:scale-95 shadow-2xs border ${
+              isStoreOpen
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
+            }`}
+            title={isStoreOpen ? 'Store is Online & Accepting Orders. Tap to Pause.' : 'Store is Offline / Closed. Tap to Open.'}
+          >
+            <span className="relative flex h-2 w-2">
+              {isStoreOpen && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${isStoreOpen ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+            </span>
+            <span className="text-[11px] font-bold">
+              {isStoreOpen ? 'Open' : 'Closed'}
+            </span>
+          </button>
+
           {/* 1. Standee Store QR */}
           <button
             type="button"

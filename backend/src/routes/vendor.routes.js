@@ -66,6 +66,8 @@ router.use(requireRole('vendor'));
 // Profile Routes — open regardless of approval status
 router.get('/me', getProfile);
 router.put('/me', upload.fields(APPLICATION_UPLOAD_FIELDS), updateProfile);
+router.patch('/store-status', toggleStoreStatus);
+router.post('/store-status', toggleStoreStatus);
 
 // Biometric & PIN Security
 router.post('/security/setup-pin', pinLimiter, setupSecurityPin);

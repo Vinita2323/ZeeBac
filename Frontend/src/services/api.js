@@ -562,6 +562,10 @@ export const VendorAPI = {
     const res = await apiClient.put('/vendor/me', data);
     return res.data;
   },
+  toggleStoreStatus: async (data = {}) => {
+    const res = await apiClient.post('/vendor/store-status', data);
+    return res.data;
+  },
   // Onboarding application (Steps 2-4 + resubmission) — formData is a FormData
   // instance, may contain plain fields, JSON-stringified nested objects
   // (address, businessHours), and files.
@@ -1214,6 +1218,10 @@ export const OrderAPI = {
   },
   updateOrderStatus: async (orderId, statusData) => {
     const res = await apiClient.patch(`/orders/${orderId}/status`, statusData);
+    return res.data;
+  },
+  rateRiderByVendor: async (orderId, ratingData) => {
+    const res = await apiClient.post(`/orders/${orderId}/rate-rider`, ratingData);
     return res.data;
   },
   createVendorCashbackReserveUpiIntent: async (amount) => {

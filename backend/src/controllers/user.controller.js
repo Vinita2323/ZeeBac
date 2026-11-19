@@ -244,7 +244,7 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings');
+      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages isStoreOpen description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -1689,7 +1689,7 @@ export const getNearbyVendors = async (req, res) => {
           }
         }
       });
-      vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location operatingHours businessHours');
+      vendors = await Vendor.find(query).select('storeName zeebacId category subCategory storeLogo profilePic storeCoverImage storeImages address cashbackRate stats subscription shopType location operatingHours businessHours isStoreOpen');
     } catch (geoErr) {
       logger.warn(`getNearbyVendors geo query warning: ${geoErr.message}`);
     }

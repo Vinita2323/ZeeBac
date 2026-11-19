@@ -253,6 +253,67 @@ export default function DeliveryProfileScreen() {
           </div>
         </div>
 
+        {/* ─── 4B. MERCHANT RATINGS & STORE REVIEWS ─── */}
+        <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display font-black text-sm text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-500 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+              <span>Store Ratings & Reviews</span>
+            </h3>
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 font-black text-xs border border-amber-200">
+              <span>★ {(fullProfile?.rating || rider?.rating || 5.0).toFixed(1)}</span>
+              <span className="text-[10px] text-amber-600 font-bold">({fullProfile?.ratingsCount || fullProfile?.vendorRatings?.length || 0})</span>
+            </span>
+          </div>
+
+          {fullProfile?.vendorRatings && fullProfile.vendorRatings.length > 0 ? (
+            <div className="space-y-2.5 pt-1">
+              {fullProfile.vendorRatings.slice(-5).reverse().map((review, idx) => (
+                <div key={idx} className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 truncate">
+                      {review.storeName || review.vendorName || 'Partner Store'}
+                    </span>
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {[...Array(5)].map((_, i) => (
+                        <span
+                          key={i}
+                          className="material-symbols-outlined text-[14px]"
+                          style={{ fontVariationSettings: i < review.rating ? "'FILL' 1" : "'FILL' 0" }}
+                        >
+                          star
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {review.tags && review.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {review.tags.map((tag, tIdx) => (
+                        <span key={tIdx} className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {review.comment && (
+                    <p className="text-slate-600 italic text-[11.5px] bg-white p-2 rounded-xl border border-slate-100">
+                      "{review.comment}"
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-xs text-slate-400 bg-slate-50/50 rounded-2xl border border-slate-100">
+              <span className="material-symbols-outlined text-slate-300 text-[26px] mb-1">reviews</span>
+              <p className="font-bold text-slate-500">No Store Reviews Yet</p>
+              <p className="text-[11px] text-slate-400">Stores will rate your pickups on arrival, behavior and food handling.</p>
+            </div>
+          )}
+        </div>
+
         {/* ─── 5. APP SETTINGS & SOUND ─── */}
         <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-2xs space-y-3">
           <h3 className="font-display font-black text-sm text-slate-900">App Settings</h3>

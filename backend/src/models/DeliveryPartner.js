@@ -170,6 +170,22 @@ const deliveryPartnerSchema = new mongoose.Schema(
       type: Number,
       default: 5.0,
     },
+    ratingsCount: {
+      type: Number,
+      default: 0,
+    },
+    vendorRatings: [
+      {
+        orderId: String,
+        vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' },
+        vendorName: String,
+        storeName: String,
+        rating: { type: Number, min: 1, max: 5 },
+        comment: String,
+        tags: [String],
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // ── Banking & Settlement ──
     bankDetails: {
