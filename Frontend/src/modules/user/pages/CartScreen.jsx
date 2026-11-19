@@ -100,7 +100,6 @@ export default function CartScreen() {
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [showAddressPickerModal, setShowAddressPickerModal] = useState(false);
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Add / Edit Address Form State
   const [newAddressForm, setNewAddressForm] = useState({
@@ -727,22 +726,6 @@ export default function CartScreen() {
   // ─────────────────────────────────────────────────────────────
   // Core Checkout: End-to-End Direct UPI Intent & Points Handler
   // ─────────────────────────────────────────────────────────────
-  const handleOpenPaymentSheet = () => {
-    if (items.length === 0 || isProcessing) return;
-
-    if (storeDeliveryConfig.minOrderAmount > 0 && itemTotal < storeDeliveryConfig.minOrderAmount) {
-      alert(`Minimum order value for delivery from this store is ₹${storeDeliveryConfig.minOrderAmount}. Please add more items.`);
-      return;
-    }
-
-    if (fulfillmentType === 'delivery' && !deliveryAddress.trim()) {
-      setShowAddAddressModal(true);
-      return;
-    }
-
-    setShowPaymentModal(true);
-  };
-
   const handlePlaceOrder = async () => {
     if (items.length === 0 || isProcessing) return;
 
@@ -2182,7 +2165,7 @@ export default function CartScreen() {
           )}
         </div>
 
-        {/* ── STEP 6: PAYMENT METHOD SUMMARY (CLICK TO OPEN SELECTOR) ── */}
+        {/* ── STEP 6: PAYMENT METHOD SELECTOR (UNLOCKED ONLY AFTER ADDRESS IS SET OR STORE PICKUP) ── */}
         {!isPickup && !selectedSavedAddress && !deliveryAddress?.trim() ? (
           <div className="bg-slate-50/90 rounded-2xl p-4 border border-dashed border-slate-200 shadow-2xs space-y-2 text-center animate-fadeIn">
             <div className="flex items-center justify-center gap-2 text-slate-500 font-bold text-[13px]">
@@ -2190,63 +2173,171 @@ export default function CartScreen() {
               <span>Step 2: Payment Method Locked</span>
             </div>
             <p className="text-[11.5px] text-slate-500 max-w-xs mx-auto">
-              Please add your delivery address above. Once address is set, payment options will unlock automatically.
+              Please add your delivery address above. Once address is set, payment options (Direct UPI, Cash on Delivery & Online) will unlock automatically.
             </p>
           </div>
         ) : (
-          <div
-            onClick={handleOpenPaymentSheet}
-            className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all active:scale-[0.99] animate-fadeIn"
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                  paymentMethod === 'Cash'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : paymentMethod === 'Online'
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : paymentMethod === 'Points'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-purple-100 text-primary'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">
-                  {paymentMethod === 'Cash'
-                    ? 'payments'
-                    : paymentMethod === 'Online'
-                    ? 'credit_card'
-                    : paymentMethod === 'Points'
-                    ? 'stars'
-                    : 'bolt'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block leading-tight">
-                  {t('Payment Method')}
-                </span>
-                <p className="font-bold text-[13px] text-slate-900 leading-snug">
-                  {paymentMethod === 'Cash'
-                    ? (isPickup ? 'Pay on Store Pickup (Counter Pay)' : 'Cash on Delivery (COD)')
-                    : paymentMethod === 'Online'
-                    ? 'Cards, Netbanking & Wallets'
-                    : paymentMethod === 'Points'
-                    ? '100% Zeebac Points Purchase'
-                    : 'Direct UPI Intent (Fast & 1-Tap)'}
-                </p>
-                <p className="text-[10.5px] text-slate-500">
-                  {paymentMethod === 'Cash'
-                    ? (isPickup ? 'Pay via Cash or UPI at store counter' : 'Pay via Cash or UPI to rider upon delivery')
-                    : paymentMethod === 'Online'
-                    ? 'Credit / Debit Card, Netbanking, Wallets'
-                    : paymentMethod === 'Points'
-                    ? 'Covered by Zeebac Points'
-                    : 'Google Pay, PhonePe, Paytm, BHIM'}
-                </p>
-              </div>
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-black text-[14px] text-slate-900">
+                {t('Select Payment Method')}
+              </h3>
+              <span className="text-[11px] font-bold text-slate-500">
+                {paymentMethod === 'UPI'
+                  ? 'UPI Selected'
+                  : paymentMethod === 'Cash'
+                  ? 'COD Selected'
+                  : paymentMethod === 'Online'
+                  ? 'Card/Online Selected'
+                  : 'Points Selected'}
+              </span>
             </div>
-            <div className="flex items-center gap-1 text-purple-700 font-bold text-xs bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-xl border border-purple-200 shrink-0">
-              <span>Change</span>
-              <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+
+            <div className="space-y-2.5">
+              {/* 1. Direct UPI Intent (Default) */}
+              {finalPayableAmount > 0 && (
+                <label
+                  onClick={() => setPaymentMethod('UPI')}
+                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === 'UPI'
+                      ? 'border-primary bg-purple-50/50 shadow-xs ring-1 ring-primary/20'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                        paymentMethod === 'UPI' ? 'bg-primary text-white shadow-xs' : 'bg-purple-100 text-primary'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">bolt</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-[13px] text-slate-900">Direct UPI Intent</p>
+                        <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                          Fast & 1-Tap
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Google Pay, PhonePe, Paytm, BHIM</p>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      paymentMethod === 'UPI' ? 'border-primary' : 'border-slate-300'
+                    }`}
+                  >
+                    {paymentMethod === 'UPI' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                </label>
+              )}
+
+              {/* 2. Cash on Delivery (COD) / Pay on Delivery */}
+              {finalPayableAmount > 0 && (
+                <label
+                  onClick={() => setPaymentMethod('Cash')}
+                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === 'Cash'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600/20'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                        paymentMethod === 'Cash' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">payments</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-[13px] text-slate-900">
+                          {isPickup ? 'Pay on Store Pickup' : 'Cash on Delivery (COD)'}
+                        </p>
+                        <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                          {isPickup ? 'Counter Pay' : 'Doorstep Pay'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {isPickup
+                          ? 'Pay via Cash or UPI at store counter upon pickup'
+                          : 'Pay via Cash or UPI to rider at doorstep upon delivery'}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      paymentMethod === 'Cash' ? 'border-emerald-600' : 'border-slate-300'
+                    }`}
+                  >
+                    {paymentMethod === 'Cash' && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+                  </div>
+                </label>
+              )}
+
+              {/* 3. Cards & Netbanking (Online) */}
+              {finalPayableAmount > 0 && (
+                <label
+                  onClick={() => setPaymentMethod('Online')}
+                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === 'Online'
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-xs ring-1 ring-indigo-600/20'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                        paymentMethod === 'Online' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-100 text-indigo-700'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">credit_card</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-[13px] text-slate-900">Cards, Netbanking & Wallets</p>
+                        <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
+                          Online
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Credit / Debit Card, Netbanking, Wallets</p>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      paymentMethod === 'Online' ? 'border-indigo-600' : 'border-slate-300'
+                    }`}
+                  >
+                    {paymentMethod === 'Online' && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
+                  </div>
+                </label>
+              )}
+
+              {/* 4. 100% Zeebac Points Payment */}
+              {finalPayableAmount === 0 && pointsRedeemed > 0 && (
+                <label
+                  onClick={() => setPaymentMethod('Points')}
+                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === 'Points'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600/20'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                      <span className="material-symbols-outlined text-[20px]">stars</span>
+                    </div>
+                    <div>
+                      <p className="font-bold text-[12.5px] text-emerald-900">100% Zeebac Points Purchase</p>
+                      <p className="text-[10.5px] text-emerald-700">₹0 Payable • Covered by {formatCurrency(pointsRedeemed)} Points</p>
+                    </div>
+                  </div>
+                  <div className="w-4 h-4 rounded-full border-2 border-emerald-600 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                  </div>
+                </label>
+              )}
             </div>
           </div>
         )}
@@ -2280,7 +2371,7 @@ export default function CartScreen() {
             </button>
           ) : (
             <button
-              onClick={handleOpenPaymentSheet}
+              onClick={handlePlaceOrder}
               disabled={isProcessing}
               className={`flex-1 py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all ${
                 isProcessing ? 'opacity-70 cursor-not-allowed' : ''
@@ -2299,7 +2390,7 @@ export default function CartScreen() {
               ) : paymentMethod === 'Cash' ? (
                 <>
                   <span className="material-symbols-outlined text-[18px]">payments</span>
-                  <span>{isPickup ? 'Confirm Pickup' : 'Place Order (COD)'} • ₹{formatCurrency(finalPayableAmount)}</span>
+                  <span>Place Order (Cash on Delivery)</span>
                 </>
               ) : paymentMethod === 'Online' ? (
                 <>
@@ -2316,224 +2407,6 @@ export default function CartScreen() {
           )}
         </div>
       </footer>
-
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* MODAL 0: SELECT PAYMENT METHOD BOTTOM SHEET (ON PAY CLICK) */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-reveal">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col text-left">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-purple-700 text-[22px]">payments</span>
-                  <h3 className="font-display font-black text-base text-slate-900">
-                    {t('Select Payment Method')}
-                  </h3>
-                </div>
-                <p className="text-[11.5px] text-slate-500 mt-0.5">
-                  Amount to Pay: <strong className="text-purple-700 font-mono text-[13px]">₹{formatCurrency(finalPayableAmount)}</strong>
-                </p>
-              </div>
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            {/* Payment Options List */}
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-              {/* Option 1: Direct UPI Intent (Default) */}
-              {finalPayableAmount > 0 && (
-                <label
-                  onClick={() => setPaymentMethod('UPI')}
-                  className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'UPI'
-                      ? 'border-purple-600 bg-purple-50/50 shadow-xs ring-1 ring-purple-600/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        paymentMethod === 'UPI' ? 'bg-primary text-white shadow-xs' : 'bg-purple-100 text-primary'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[22px]">bolt</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-[13.5px] text-slate-900">Direct UPI Intent</p>
-                        <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
-                          Fast & 1-Tap
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500">Google Pay, PhonePe, Paytm, BHIM</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      paymentMethod === 'UPI' ? 'border-primary' : 'border-slate-300'
-                    }`}
-                  >
-                    {paymentMethod === 'UPI' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
-                  </div>
-                </label>
-              )}
-
-              {/* Option 2: Cash on Delivery / Pay on Store Pickup */}
-              {finalPayableAmount > 0 && (
-                <label
-                  onClick={() => setPaymentMethod('Cash')}
-                  className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'Cash'
-                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        paymentMethod === 'Cash' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[22px]">payments</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-[13.5px] text-slate-900">
-                          {isPickup ? 'Pay on Store Pickup' : 'Cash on Delivery (COD)'}
-                        </p>
-                        <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
-                          {isPickup ? 'Counter Pay' : 'Doorstep Pay'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500">
-                        {isPickup
-                          ? 'Pay via Cash or UPI at store counter upon pickup'
-                          : 'Pay via Cash or UPI to rider at doorstep upon delivery'}
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      paymentMethod === 'Cash' ? 'border-emerald-600' : 'border-slate-300'
-                    }`}
-                  >
-                    {paymentMethod === 'Cash' && <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />}
-                  </div>
-                </label>
-              )}
-
-              {/* Option 3: Online Cards & Netbanking */}
-              {finalPayableAmount > 0 && (
-                <label
-                  onClick={() => setPaymentMethod('Online')}
-                  className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'Online'
-                      ? 'border-indigo-600 bg-indigo-50/50 shadow-xs ring-1 ring-indigo-600/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        paymentMethod === 'Online' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-100 text-indigo-700'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[22px]">credit_card</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-[13.5px] text-slate-900">Cards, Netbanking & Wallets</p>
-                        <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
-                          Online
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500">Credit / Debit Card, Netbanking, Wallets</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      paymentMethod === 'Online' ? 'border-indigo-600' : 'border-slate-300'
-                    }`}
-                  >
-                    {paymentMethod === 'Online' && <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />}
-                  </div>
-                </label>
-              )}
-
-              {/* Option 4: 100% Zeebac Points Payment */}
-              {finalPayableAmount === 0 && pointsRedeemed > 0 && (
-                <label
-                  onClick={() => setPaymentMethod('Points')}
-                  className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'Points'
-                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600/20'
-                      : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                      <span className="material-symbols-outlined text-[22px]">stars</span>
-                    </div>
-                    <div>
-                      <p className="font-bold text-[13px] text-emerald-900">100% Zeebac Points Purchase</p>
-                      <p className="text-[11px] text-emerald-700">₹0 Payable • Covered by {formatCurrency(pointsRedeemed)} Points</p>
-                    </div>
-                  </div>
-                  <div className="w-5 h-5 rounded-full border-2 border-emerald-600 flex items-center justify-center">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                  </div>
-                </label>
-              )}
-            </div>
-
-            {/* Confirm & Pay Button inside Sheet */}
-            <div className="pt-2 border-t border-slate-100 space-y-2">
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  handlePlaceOrder();
-                }}
-                className="w-full py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all"
-              >
-                {isProcessing ? (
-                  <>
-                    <span className="animate-spin material-symbols-outlined text-[18px]">progress_activity</span>
-                    <span>Processing Order...</span>
-                  </>
-                ) : paymentMethod === 'Points' ? (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">stars</span>
-                    <span>Confirm Order with Points</span>
-                  </>
-                ) : paymentMethod === 'Cash' ? (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">payments</span>
-                    <span>{isPickup ? 'Confirm Pickup' : 'Place Order (Cash on Delivery)'} • ₹{formatCurrency(finalPayableAmount)}</span>
-                  </>
-                ) : paymentMethod === 'Online' ? (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">credit_card</span>
-                    <span>Pay ₹{formatCurrency(finalPayableAmount)} Online</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">bolt</span>
-                    <span>Pay ₹{formatCurrency(finalPayableAmount)} via Direct UPI</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* MODAL 1: SAVED ADDRESSES SELECTOR / PICKER (ZOMATO STYLE) */}
