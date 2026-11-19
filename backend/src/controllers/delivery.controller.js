@@ -633,6 +633,7 @@ export const getDeliveryOrders = async (req, res) => {
         fulfillmentType: 'delivery',
         _id: { $nin: rider.rejectedOrders || [] },
         $or: [
+          { orderStatus: 'PLACED', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'CONFIRMED', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'PREPARING', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'READY_FOR_PICKUP', 'riderDetails.name': { $in: [null, ''] } },

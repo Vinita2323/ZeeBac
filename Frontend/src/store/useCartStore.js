@@ -5,7 +5,7 @@ const CART_STORAGE_KEY = 'zeebac_customer_cart';
 export const useCartStore = create((set, get) => ({
   vendor: null, // Active vendor for the cart
   items: [], // [{ _id, id, name, price, originalPrice, cashbackPercentage, image, quantity, category }]
-  fulfillmentType: 'pickup', // 'pickup' | 'delivery'
+  fulfillmentType: 'delivery', // 'delivery' | 'pickup'
   deliveryAddress: '',
   orderNotes: '',
 
@@ -19,7 +19,7 @@ export const useCartStore = create((set, get) => ({
           set({
             items: parsed.items,
             vendor: parsed.vendor || null,
-            fulfillmentType: parsed.fulfillmentType || 'pickup',
+            fulfillmentType: parsed.fulfillmentType || 'delivery',
             deliveryAddress: parsed.deliveryAddress || '',
           });
         }

@@ -387,6 +387,16 @@ export const createOrder = async (req, res) => {
         };
         getIO().to(`vendor_${vendor._id}`).emit('order:new', vendorPayload);
         getIO().to(`vendor:${vendor._id}`).emit('order:new', vendorPayload);
+        if (fulfillmentType === 'delivery') {
+          getIO().emit('delivery:new_order', {
+            order: createdOrder,
+            orderId,
+            storeName: vendor.storeName,
+            payout: createdOrder.deliveryPayout || 40,
+            distanceKm: createdOrder.deliveryDistanceKm || 2.0,
+            message: `New delivery order #${orderId} from ${vendor.storeName}!`,
+          });
+        }
       } catch (ioErr) {
         logger.warn(`createOrder socket emit skipped: ${ioErr.message}`);
       }
@@ -514,6 +524,16 @@ export const verifyOrderUpiPayment = async (req, res) => {
         paymentStatus: 'PAID',
         order,
       });
+      if (order.fulfillmentType === 'delivery') {
+        getIO().emit('delivery:new_order', {
+          order,
+          orderId: order.orderId,
+          storeName: order.storeName,
+          payout: order.deliveryPayout || 40,
+          distanceKm: order.deliveryDistanceKm || 2.0,
+          message: `New delivery order #${order.orderId} from ${order.storeName}!`,
+        });
+      }
     } catch (ioErr) {
       logger.warn(`verifyOrderUpiPayment socket emit skipped: ${ioErr.message}`);
     }
