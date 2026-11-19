@@ -623,9 +623,12 @@ export const getDeliveryOrders = async (req, res) => {
       }
     }
 
-    // Available orders ready for assignment in the area (Only store-confirmed orders)
+    // Available orders ready for assignment in the area (Only fresh, nearby store-confirmed orders)
     let availableOrders = [];
     if (rider.isOnline && !rider.activeOrderId && rider.applicationStatus === 'APPROVED') {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const todayStr = new Date().toISOString().slice(0, 10);
+
       const rawOrders = await Order.find({
         fulfillmentType: 'delivery',
         _id: { $nin: rider.rejectedOrders || [] },
@@ -634,51 +637,86 @@ export const getDeliveryOrders = async (req, res) => {
           { orderStatus: 'PREPARING', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'READY_FOR_PICKUP', 'riderDetails.name': { $in: [null, ''] } },
         ],
+        // Freshness & Timing Gate:
+        // Instant orders must be fresh (within last 2 hours). Old unpicked orders expire automatically.
+        // Scheduled orders must be scheduled for today.
+        $and: [
+          {
+            $or: [
+              {
+                'deliverySchedule.deliveryType': 'INSTANT',
+                createdAt: { $gte: twoHoursAgo },
+              },
+              {
+                'deliverySchedule.deliveryType': 'SCHEDULED',
+                'deliverySchedule.scheduledDate': { $in: [todayStr, ''] },
+              },
+              {
+                'deliverySchedule.deliveryType': { $exists: false },
+                createdAt: { $gte: twoHoursAgo },
+              },
+              {
+                orderStatus: 'READY_FOR_PICKUP',
+                updatedAt: { $gte: twoHoursAgo },
+              },
+            ],
+          },
+        ],
       })
         .populate('vendorId', 'storeName phone address location storeLogo city')
         .sort({ createdAt: -1 })
         .limit(30)
         .lean();
 
-      availableOrders = rawOrders.map((ord) => {
-        let pickupDistanceMeters = null;
-        let pickupDistanceKm = null;
-        const vendorCoords = ord.vendorId?.location?.coordinates;
+      const maxRadiusKm = Number(payoutConfig.maxDeliveryRadiusKm || 15);
 
-        if (
-          riderLat &&
-          riderLng &&
-          Array.isArray(vendorCoords) &&
-          vendorCoords.length === 2 &&
-          !isNaN(vendorCoords[0]) &&
-          !isNaN(vendorCoords[1])
-        ) {
-          pickupDistanceMeters = haversineDistanceMeters([riderLng, riderLat], vendorCoords);
-          pickupDistanceKm = (pickupDistanceMeters / 1000).toFixed(1);
-        }
+      availableOrders = rawOrders
+        .map((ord) => {
+          let pickupDistanceMeters = null;
+          let pickupDistanceKm = null;
+          const vendorCoords = ord.vendorId?.location?.coordinates;
 
-        let deliveryPayout = ord.deliveryPayout;
-        let deliveryDistanceKm = ord.deliveryDistanceKm || 2.0;
-        let deliveryPayoutBreakdown = ord.deliveryPayoutBreakdown;
+          if (
+            riderLat &&
+            riderLng &&
+            Array.isArray(vendorCoords) &&
+            vendorCoords.length === 2 &&
+            !isNaN(vendorCoords[0]) &&
+            !isNaN(vendorCoords[1])
+          ) {
+            pickupDistanceMeters = haversineDistanceMeters([riderLng, riderLat], vendorCoords);
+            pickupDistanceKm = Number((pickupDistanceMeters / 1000).toFixed(1));
+          }
 
-        if (!deliveryPayout || deliveryPayout <= 0) {
-          const payoutInfo = calculateDeliveryPayout(deliveryDistanceKm, payoutConfig);
-          deliveryPayout = payoutInfo.totalPayout;
-          deliveryDistanceKm = payoutInfo.distanceKm;
-          deliveryPayoutBreakdown = payoutInfo;
-        }
+          let deliveryPayout = ord.deliveryPayout;
+          let deliveryDistanceKm = ord.deliveryDistanceKm || 2.0;
+          let deliveryPayoutBreakdown = ord.deliveryPayoutBreakdown;
 
-        return {
-          ...ord,
-          vendor: ord.vendorId,
-          pickupDistanceMeters,
-          pickupDistanceKm,
-          deliveryDistanceKm,
-          deliveryPayout,
-          deliveryPayoutBreakdown,
-          isWithin5km: pickupDistanceMeters !== null ? pickupDistanceMeters <= 5000 : true,
-        };
-      });
+          if (!deliveryPayout || deliveryPayout <= 0) {
+            const payoutInfo = calculateDeliveryPayout(deliveryDistanceKm, payoutConfig);
+            deliveryPayout = payoutInfo.totalPayout;
+            deliveryDistanceKm = payoutInfo.distanceKm;
+            deliveryPayoutBreakdown = payoutInfo;
+          }
+
+          return {
+            ...ord,
+            vendor: ord.vendorId,
+            pickupDistanceMeters,
+            pickupDistanceKm,
+            deliveryDistanceKm,
+            deliveryPayout,
+            deliveryPayoutBreakdown,
+            isWithin5km: pickupDistanceMeters !== null ? pickupDistanceMeters <= 5000 : true,
+          };
+        })
+        .filter((ord) => {
+          // Distance Gate: do NOT show orders from stores too far away (e.g. 695 km)
+          if (ord.pickupDistanceKm !== null && ord.pickupDistanceKm > maxRadiusKm) {
+            return false;
+          }
+          return true;
+        });
 
       // Sort by proximity: nearest store first!
       availableOrders.sort((a, b) => {

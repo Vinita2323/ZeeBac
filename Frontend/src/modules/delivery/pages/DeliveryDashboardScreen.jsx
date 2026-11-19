@@ -788,36 +788,51 @@ export default function DeliveryDashboardScreen() {
               <h3 className="font-display font-black text-sm text-slate-900 px-1">
                 Nearby Orders Available ({availableOrders.length})
               </h3>
-              {availableOrders.map((ord) => (
-                <div
-                  key={ord._id}
-                  onClick={() => setRingingOrderAlert(ord)}
-                  className="bg-white rounded-3xl p-4 border border-slate-100 shadow-2xs hover:border-emerald-300 transition-all cursor-pointer flex items-center justify-between"
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">
-                        +₹{ord.deliveryPayout || 60}
-                      </span>
-                      <span className="text-xs font-black text-slate-900">
-                        {ord.vendor?.storeName || ord.vendorName || 'Store Order'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium mt-1">
-                      {ord.pickupDistanceKm ? `${ord.pickupDistanceKm} km pickup` : 'Ready for pickup'} • Drop in Lucknow
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAcceptOrder(ord._id);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-all cursor-pointer shadow-2xs"
+              {availableOrders.map((ord) => {
+                const isScheduled = ord.deliverySchedule?.deliveryType === 'SCHEDULED';
+                const timingLabel = isScheduled
+                  ? `📅 Scheduled: ${ord.deliverySchedule?.scheduledSlot || 'Today'}`
+                  : `⚡ Instant • ${formatOrderTime(ord.createdAt)}`;
+
+                return (
+                  <div
+                    key={ord._id}
+                    onClick={() => setRingingOrderAlert(ord)}
+                    className="bg-white rounded-3xl p-4 border border-slate-100 shadow-2xs hover:border-emerald-300 transition-all cursor-pointer flex items-center justify-between gap-3"
                   >
-                    Accept
-                  </button>
-                </div>
-              ))}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black shrink-0">
+                          +₹{ord.deliveryPayout || 50}
+                        </span>
+                        <span className="text-xs font-black text-slate-900 truncate">
+                          {ord.vendor?.storeName || ord.vendorName || 'Store Order'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-medium">
+                        <span className="text-purple-700 font-bold">{timingLabel}</span>
+                        <span>•</span>
+                        <span>{ord.pickupDistanceKm ? `${ord.pickupDistanceKm} km pickup` : 'Nearby store'}</span>
+                      </div>
+
+                      <p className="text-[10.5px] text-slate-400 truncate mt-0.5">
+                        Drop: {typeof ord.deliveryAddress === 'string' ? ord.deliveryAddress : (ord.deliveryAddress?.city || 'Customer Address')}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAcceptOrder(ord._id);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-all cursor-pointer shadow-2xs shrink-0"
+                    >
+                      Accept
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
