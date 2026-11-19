@@ -132,7 +132,7 @@ export default function DeliveryProfileScreen() {
                 ID: {riderId}
               </p>
               <p className="text-[11px] text-slate-500 font-medium">
-                +91 {rider?.phone || '9999999999'}
+                +91 {rider?.phone || '—'}
               </p>
             </div>
           </div>
@@ -203,13 +203,13 @@ export default function DeliveryProfileScreen() {
             <div className="py-2 flex items-center justify-between">
               <span className="text-slate-500 font-medium">Plate Number</span>
               <span className="font-mono font-bold text-slate-900 uppercase">
-                {rider?.vehicleNo || 'UP32 AB 1234'}
+                {rider?.vehicleNo || 'Not added yet'}
               </span>
             </div>
 
             <div className="py-2 flex items-center justify-between">
               <span className="text-slate-500 font-medium">Vehicle Model</span>
-              <span className="font-bold text-slate-900">{rider?.vehicleModel || 'Standard'}</span>
+              <span className="font-bold text-slate-900">{rider?.vehicleModel || 'Not added yet'}</span>
             </div>
 
             <div className="py-2 flex items-center justify-between">

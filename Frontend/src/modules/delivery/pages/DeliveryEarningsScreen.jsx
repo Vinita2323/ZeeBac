@@ -18,26 +18,25 @@ export default function DeliveryEarningsScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const loadEarnings = async () => {
+    try {
+      const res = await DeliveryAPI.getEarnings();
+      if (res.success && res.data) {
+        setEarningsData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load rider earnings', err);
+      toast.error('Could not load earnings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!token) {
       navigate('/delivery/login');
       return;
     }
-
-    const loadEarnings = async () => {
-      try {
-        const res = await DeliveryAPI.getEarnings();
-        if (res.success && res.data) {
-          setEarningsData(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to load rider earnings', err);
-        toast.error('Could not load earnings');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadEarnings();
   }, [token, navigate]);
 
@@ -54,7 +53,7 @@ export default function DeliveryEarningsScreen() {
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   const weekRangeStr = `${startOfWeek.getDate()} ${startOfWeek.toLocaleString('default', { month: 'short' })} - ${endOfWeek.getDate()} ${endOfWeek.toLocaleString('default', { month: 'short' })}`;
 
-  const handleWithdraw = (e) => {
+  const handleWithdraw = async (e) => {
     e.preventDefault();
     const amt = parseFloat(withdrawAmount);
     if (!amt || amt <= 0) {
@@ -66,12 +65,21 @@ export default function DeliveryEarningsScreen() {
       return;
     }
     setIsProcessing(true);
-    setTimeout(() => {
+    try {
+      const res = await DeliveryAPI.withdraw({ amount: amt });
+      if (res.success) {
+        toast.success(res.message || `₹${amt} successfully initiated to your UPI ID!`);
+        setShowWithdrawModal(false);
+        setWithdrawAmount('');
+        loadEarnings();
+      } else {
+        toast.error(res.message || 'Withdrawal failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Withdrawal request failed');
+    } finally {
       setIsProcessing(false);
-      setShowWithdrawModal(false);
-      setWithdrawAmount('');
-      toast.success(`🎉 ₹${amt} successfully initiated to your UPI ID! Credited in 5 mins.`);
-    }, 1200);
+    }
   };
 
   return (
@@ -137,10 +145,12 @@ export default function DeliveryEarningsScreen() {
             <div className="flex items-center justify-between cursor-pointer group">
               <div>
                 <span className="text-sm font-bold text-slate-800">Available cash limit</span>
-                <p className="text-[10px] text-slate-400 font-medium">COD Cash holding capacity</p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {earningsData?.cashInHand ? `₹${(earningsData.cashInHand).toLocaleString('en-IN')} cash in hand` : 'COD Cash holding capacity'}
+                </p>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-base font-black text-slate-950">₹500</span>
+                <span className="text-base font-black text-slate-950">₹{(earningsData?.availableCashLimit ?? 2000).toLocaleString('en-IN')}</span>
                 <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
                   chevron_right
                 </span>
@@ -178,7 +188,7 @@ export default function DeliveryEarningsScreen() {
                 <span className="text-xs font-bold text-slate-800">Customer tips balance</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-xs font-black text-emerald-700">₹{(completedCount * 15).toLocaleString('en-IN')}</span>
+                <span className="text-xs font-black text-emerald-700">₹{(earningsData?.customerTipsBalance || 0).toLocaleString('en-IN')}</span>
                 <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-slate-700">
                   chevron_right
                 </span>

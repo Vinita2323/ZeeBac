@@ -67,23 +67,23 @@ export default function DeliveryUpdatesScreen() {
   const notifications = [
     {
       id: 1,
-      title: '₹150 Bonus Added to Pocket',
-      desc: 'Congratulations! You completed 5 deliveries in the evening peak slot.',
-      time: '15 mins ago',
-      type: 'earning',
-    },
-    {
-      id: 2,
-      title: 'Assigned Store Hub Updated',
-      desc: 'Your preferred pickup store has been updated to Lucknow Vibhuti Khand Hub.',
-      time: '2 hours ago',
+      title: 'Welcome to Zeebac Fleet',
+      desc: 'Keep your status Online from the dashboard feed to start receiving customer deliveries in your operating area.',
+      time: 'Official Notice',
       type: 'hub',
     },
     {
+      id: 2,
+      title: 'Instant Direct Payouts',
+      desc: 'Delivery fees are automatically credited to your Pocket immediately upon customer drop verification.',
+      time: 'System Info',
+      type: 'earning',
+    },
+    {
       id: 3,
-      title: 'Rain Alert in your delivery zone',
-      desc: 'Rain surge active: +₹15 extra per delivery order. Drive safely!',
-      time: '5 hours ago',
+      title: 'Safety & Emergency Protocol',
+      desc: 'In case of breakdown or road hazard, tap the SOS button on top for emergency police and roadside contact.',
+      time: 'Safety Guide',
       type: 'weather',
     },
   ];

@@ -1367,6 +1367,10 @@ export const DeliveryAPI = {
     const res = await apiClient.get('/delivery/payout-config');
     return res.data;
   },
+  withdraw: async (data) => {
+    const res = await apiClient.post('/delivery/withdraw', data);
+    return res.data;
+  },
 };
 
 

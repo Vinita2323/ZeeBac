@@ -36,11 +36,6 @@ export default function DeliveryBottomNav() {
                 >
                   {item.icon}
                 </span>
-                {item.label === 'Gigs' && (
-                  <span className="absolute -top-1 -right-2 px-1 py-0.2 bg-emerald-600 text-white text-[8px] font-black rounded-full leading-none">
-                    +₹300
-                  </span>
-                )}
               </div>
               <span className="text-[11px] leading-tight tracking-tight mt-0.5">{item.label}</span>
             </Link>

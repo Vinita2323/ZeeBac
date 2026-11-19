@@ -5,8 +5,13 @@ import { toast } from 'react-hot-toast';
 
 export default function DeliveryGigsScreen() {
   const [selectedDay, setSelectedDay] = useState(null);
-  const [bookedSlots, setBookedSlots] = useState({
-    '14_slot_2': true,
+  const [bookedSlots, setBookedSlots] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zeebac_booked_gigs');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
 
   const currentDate = new Date();
@@ -35,10 +40,13 @@ export default function DeliveryGigsScreen() {
 
   const handleBookSlot = (dayId, slotId) => {
     const key = `${dayId}_${slotId}`;
-    setBookedSlots((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    setBookedSlots((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('zeebac_booked_gigs', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     toast.success(
       bookedSlots[key]
         ? 'Gig slot booking cancelled'

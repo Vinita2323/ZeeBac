@@ -691,6 +691,19 @@ export const getDeliveryOrders = async (req, res) => {
       });
     }
 
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const todayOrders = await Order.find({
+      'riderDetails.phone': rider.phone,
+      orderStatus: 'DELIVERED',
+      updatedAt: { $gte: startOfToday },
+    }).lean();
+
+    const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryPayout || 0), 0);
+    const todayDeliveriesCount = todayOrders.length;
+    const todayDistanceKm = todayOrders.reduce((sum, o) => sum + (o.deliveryDistanceKm || 0), 0);
+
     return res.status(200).json({
       success: true,
       data: {
@@ -699,6 +712,30 @@ export const getDeliveryOrders = async (req, res) => {
         isOnline: rider.isOnline,
         status: rider.status,
         applicationStatus: rider.applicationStatus,
+        todayStats: {
+          todayEarnings: Math.round(todayEarnings * 100) / 100,
+          todayDeliveriesCount,
+          todayDistanceKm: Math.round(todayDistanceKm * 10) / 10,
+        },
+        totalStats: {
+          totalEarnings: rider.totalEarnings || 0,
+          completedDeliveries: rider.completedDeliveries || 0,
+          rating: rider.rating || 5,
+        },
+        payoutConfig: {
+          baseFare: payoutConfig.baseFare || 30,
+          perKmRate: payoutConfig.perKmRate || 10,
+          minPayout: payoutConfig.minPayout || 30,
+          surgeBonus: payoutConfig.surgeBonus || 0,
+        },
+        riderDetails: {
+          name: rider.name,
+          phone: rider.phone,
+          riderId: rider.riderId || rider.zeebacId || ('ZBD-' + (rider._id || '').toString().slice(-6).toUpperCase()),
+          city: rider.address?.city || rider.city || 'Lucknow',
+          vehicleType: rider.vehicleType || 'Bike',
+          vehicleNo: rider.vehicleNo || '',
+        },
       },
     });
   } catch (error) {
@@ -1176,6 +1213,15 @@ export const getDeliveryEarnings = async (req, res) => {
       .filter((e) => new Date(e.date) >= startOfMonth)
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
+    const deliveredOrders = await Order.find({
+      'riderDetails.phone': rider.phone,
+      orderStatus: 'DELIVERED',
+    }).lean();
+
+    const totalTips = deliveredOrders.reduce((sum, o) => sum + (o.tipAmount || 0), 0);
+    const codOrders = deliveredOrders.filter((o) => o.paymentMethod === 'Cash');
+    const totalCodCollected = codOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
     const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
 
     return res.status(200).json({
@@ -1190,6 +1236,9 @@ export const getDeliveryEarnings = async (req, res) => {
         totalEarnings: rider.totalEarnings || 0,
         completedDeliveries: rider.completedDeliveries || 0,
         totalCompletedDeliveries: rider.completedDeliveries || 0,
+        customerTipsBalance: Math.round(totalTips * 100) / 100,
+        cashInHand: Math.round(totalCodCollected * 100) / 100,
+        availableCashLimit: Math.max(0, 2000 - totalCodCollected),
         perDeliveryRate: payoutConfig.baseFare || 30,
         payoutConfig: {
           baseFare: payoutConfig.baseFare,
@@ -1802,5 +1851,61 @@ export const updateAdminDeliveryPayoutConfig = async (req, res) => {
   } catch (error) {
     logger.error(`[updateAdminDeliveryPayoutConfig] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: error.message || 'Server error updating payout config' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 15. WITHDRAW EARNINGS TO LINKED UPI / BANK
+// ─────────────────────────────────────────────────────────────
+export const withdrawDeliveryEarnings = async (req, res) => {
+  try {
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    const { amount } = req.body;
+    const withdrawAmt = Number(amount);
+
+    if (isNaN(withdrawAmt) || withdrawAmt <= 0) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid withdrawal amount' });
+    }
+
+    const currentBalance = Number(rider.totalEarnings || 0);
+    if (withdrawAmt > currentBalance) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient balance. Available pocket balance is ₹${currentBalance.toFixed(2)}`,
+      });
+    }
+
+    const upiId = rider.bankDetails?.upiId || 'Linked Bank Account';
+
+    rider.totalEarnings = Math.max(0, currentBalance - withdrawAmt);
+    if (!Array.isArray(rider.earningsLedger)) {
+      rider.earningsLedger = [];
+    }
+
+    rider.earningsLedger.unshift({
+      type: 'WITHDRAWAL',
+      amount: -withdrawAmt,
+      date: new Date(),
+      description: `Payout withdrawal to UPI (${upiId})`,
+      status: 'COMPLETED',
+    });
+
+    await rider.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `₹${withdrawAmt} successfully initiated to ${upiId}!`,
+      data: {
+        totalEarnings: rider.totalEarnings,
+        withdrawnAmount: withdrawAmt,
+      },
+    });
+  } catch (error) {
+    logger.error(`[withdrawDeliveryEarnings] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to process withdrawal request' });
   }
 };

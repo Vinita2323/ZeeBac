@@ -59,6 +59,20 @@ export default function DeliveryDashboardScreen() {
   const knownOrderIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
 
+  // Real dashboard stats & payout config
+  const [todayStats, setTodayStats] = useState({
+    todayEarnings: 0,
+    todayDeliveriesCount: 0,
+    todayDistanceKm: 0,
+  });
+  const [payoutConfig, setPayoutConfig] = useState({
+    baseFare: 30,
+    perKmRate: 10,
+    minPayout: 30,
+    surgeBonus: 0,
+  });
+  const [riderDetails, setRiderDetails] = useState(null);
+
   // Rider location coordinates
   const [riderCoords, setRiderCoords] = useState({ lat: 26.8467, lng: 80.9462 }); // Default Lucknow
 
@@ -87,6 +101,15 @@ export default function DeliveryDashboardScreen() {
         setAvailableOrders(incomingList);
         if (res.data.isOnline !== undefined) {
           setOnlineStatus(res.data.isOnline);
+        }
+        if (res.data.todayStats) {
+          setTodayStats(res.data.todayStats);
+        }
+        if (res.data.payoutConfig) {
+          setPayoutConfig(res.data.payoutConfig);
+        }
+        if (res.data.riderDetails) {
+          setRiderDetails(res.data.riderDetails);
         }
 
         // Ring audio alarm for online rider when new orders arrive
@@ -351,16 +374,29 @@ export default function DeliveryDashboardScreen() {
               <path d="M0,240 Q250,220 500,260" fill="none" stroke="#ffffff" strokeWidth="16" />
             </svg>
 
-            {/* Landmark Badges on Map (From Image 11) */}
-            <div className="absolute top-6 left-6 bg-white/90 backdrop-blur-xs px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 shadow-2xs border border-slate-200 flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px] text-blue-600">apartment</span>
-              <span>Awadh Vihar Yojna</span>
-            </div>
-
-            <div className="absolute top-16 right-6 bg-white/90 backdrop-blur-xs px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 shadow-2xs border border-slate-200 flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px] text-purple-600">store</span>
-              <span>Lulu Mall Lucknow</span>
-            </div>
+            {/* Live Operational Context Badges on Map */}
+            {activeOrder ? (
+              <>
+                <div className="absolute top-6 left-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-purple-200 flex items-center gap-1.5 max-w-[200px]">
+                  <span className="material-symbols-outlined text-[14px] text-purple-700 shrink-0">storefront</span>
+                  <span className="truncate">{activeOrder.storeName || 'Pickup Store'}</span>
+                </div>
+                <div className="absolute top-16 right-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-emerald-200 flex items-center gap-1.5 max-w-[200px]">
+                  <span className="material-symbols-outlined text-[14px] text-emerald-700 shrink-0">home_pin</span>
+                  <span className="truncate">{activeOrder.customerName || 'Customer Drop'}</span>
+                </div>
+              </>
+            ) : availableOrders.length > 0 ? (
+              <div className="absolute top-6 left-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-purple-200 flex items-center gap-1.5 max-w-[240px]">
+                <span className="material-symbols-outlined text-[14px] text-purple-700 shrink-0">notifications_active</span>
+                <span className="truncate">{availableOrders[0]?.storeName || availableOrders[0]?.vendor?.storeName || 'Nearby Orders Ready'}</span>
+              </div>
+            ) : (
+              <div className="absolute top-6 left-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-slate-200 flex items-center gap-1.5 max-w-[240px]">
+                <span className="material-symbols-outlined text-[14px] text-blue-600 shrink-0">near_me</span>
+                <span className="truncate">{riderDetails?.city || rider?.address?.city || 'Lucknow Zone'} • Active Fleet Area</span>
+              </div>
+            )}
 
             {/* Rider Location Pin with Pulsing Ripple */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
@@ -377,7 +413,7 @@ export default function DeliveryDashboardScreen() {
             {/* Live GPS Status Pill */}
             <div className="absolute bottom-3 left-4 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-700 shadow-2xs flex items-center gap-1.5 border border-slate-200">
               <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              <span>{isOnline ? 'GPS Active • In Lucknow Zone' : 'GPS Idle • Offline'}</span>
+              <span>{isOnline ? `GPS Active • ${riderDetails?.city || rider?.address?.city || 'Active Zone'}` : 'GPS Idle • Offline'}</span>
             </div>
           </div>
         </div>
@@ -387,58 +423,59 @@ export default function DeliveryDashboardScreen() {
           {/* Centered Drag Handle (From Images 9, 10, 11) */}
           <div className="w-10 h-1.5 rounded-full bg-slate-300 mx-auto my-1" />
 
-          {/* ─── REFER & EARN BANNER (From Images 9, 10, 11) ─── */}
+          {/* ─── RIDER REFERRAL BANNER ─── */}
           <div
-            onClick={() =>
-              toast.success('Referral link copied! Earn up to ₹10,500 for onboarding friend riders.')
-            }
+            onClick={() => {
+              const code = riderDetails?.riderId || rider?.riderId || rider?.zeebacId || rider?.phone || 'ZBD-RIDER';
+              const shareUrl = `${window.location.origin}/delivery/login?ref=${encodeURIComponent(code)}`;
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(shareUrl);
+                toast.success(`Referral link copied! Code: ${code}`);
+              }
+            }}
             className="bg-gradient-to-r from-[#173f7a] to-[#0f2a52] text-white rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer group active:scale-[0.99] transition-all"
           >
             <div>
               <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider">
-                REFER & EARN
+                RIDER REFERRAL
               </span>
               <h3 className="font-display font-black text-base sm:text-lg text-white mt-1 leading-tight">
-                Earn upto ₹10,500 Bonus
+                Invite Delivery Partners
               </h3>
               <p className="text-xs text-blue-200 font-bold mt-0.5 flex items-center gap-1 group-hover:text-amber-300 transition-colors">
-                <span>Refer now</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                <span>Code: {riderDetails?.riderId || rider?.riderId || rider?.zeebacId || 'ZBD-RIDER'} • Tap to copy</span>
+                <span className="material-symbols-outlined text-[16px]">content_copy</span>
               </p>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-              <span className="material-symbols-outlined text-[32px] text-amber-300">payments</span>
+            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+              <span className="material-symbols-outlined text-[28px] text-amber-300">share</span>
             </div>
           </div>
 
-          {/* ─── CARD 1: GIG DETAILS (From Images 9, 10) ─── */}
+          {/* ─── CARD 1: LIVE FLEET DUTY STATUS ─── */}
           <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
-            {/* Black Header with 'g' icon */}
-            <div className="bg-black text-white px-4 py-2.5 flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-white text-black flex items-center justify-center font-black text-xs">
-                g
+            <div className="bg-black text-white px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                <span className="font-display font-black text-sm tracking-tight">
+                  {isOnline ? 'Duty Active (Online)' : 'Duty Offline'}
+                </span>
               </div>
-              <span className="font-display font-black text-sm tracking-tight">Gig details</span>
+              <span className="text-[10.5px] font-mono text-slate-300">
+                {riderDetails?.city || rider?.address?.city || 'Active Zone'}
+              </span>
             </div>
 
             <div className="p-4 space-y-3">
               <div>
                 <h4 className="font-display font-black text-base text-slate-900">
-                  Free Gig for you, 1pm - 3pm 🎉
+                  {isOnline ? '🟢 Live and ready to accept store orders' : '⚪ You are currently offline'}
                 </h4>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Special Gig - you can go online even now
+                  Payout Rate: ₹{payoutConfig.baseFare} base + ₹{payoutConfig.perKmRate}/km distance on every delivered drop
                 </p>
-                <button
-                  onClick={() => navigate('/delivery/gigs')}
-                  className="text-xs font-bold text-slate-900 hover:text-purple-700 flex items-center gap-0.5 mt-1 cursor-pointer"
-                >
-                  <span>Know more</span>
-                  <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-                </button>
               </div>
 
-              {/* Big Black Button (Image 9) */}
               <button
                 onClick={handleToggleOnline}
                 disabled={isTogglingOnline}
@@ -449,19 +486,21 @@ export default function DeliveryDashboardScreen() {
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">
-                  {isOnline ? 'check_circle' : 'bolt'}
+                  {isOnline ? 'check_circle' : 'power_settings_new'}
                 </span>
-                <span>{isOnline ? 'You are Online • Ready for Orders' : 'Book and go online now'}</span>
+                <span>{isOnline ? 'You are Online • Tap to go Offline' : 'Go Online to Receive Orders'}</span>
               </button>
             </div>
           </div>
 
-          {/* ─── CARD 2: TODAY'S PROGRESS (From Images 9, 10) ─── */}
+          {/* ─── CARD 2: TODAY'S REAL PROGRESS ─── */}
           <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
-            {/* Black Header with Calendar Icon */}
-            <div className="bg-black text-white px-4 py-2.5 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-              <span className="font-display font-black text-sm tracking-tight">Today's progress</span>
+            <div className="bg-black text-white px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+                <span className="font-display font-black text-sm tracking-tight">Today's Progress</span>
+              </div>
+              <span className="text-[10px] text-slate-300 font-bold uppercase">Live Stats</span>
             </div>
 
             <div className="p-4 grid grid-cols-2 gap-4 divide-x divide-slate-100">
@@ -472,20 +511,23 @@ export default function DeliveryDashboardScreen() {
                   className="cursor-pointer group"
                 >
                   <span className="text-2xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    ₹0
+                    ₹{todayStats.todayEarnings.toLocaleString('en-IN')}
                   </span>
                   <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Earnings</span>
+                    <span>Today's Earnings</span>
                     <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </p>
                 </div>
 
-                <div>
-                  <span className="text-xl font-display font-black text-slate-950 block">
-                    {isOnline ? '01:24 hrs' : '00:00 hrs'}
+                <div
+                  onClick={() => navigate('/delivery/history')}
+                  className="cursor-pointer group"
+                >
+                  <span className="text-xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
+                    {todayStats.todayDeliveriesCount} {todayStats.todayDeliveriesCount === 1 ? 'Drop' : 'Drops'}
                   </span>
                   <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Sessions</span>
+                    <span>Delivered Today</span>
                     <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </p>
                 </div>
@@ -498,23 +540,23 @@ export default function DeliveryDashboardScreen() {
                   className="cursor-pointer group"
                 >
                   <span className="text-2xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    0.0 km
+                    {todayStats.todayDistanceKm} km
                   </span>
                   <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Trips</span>
+                    <span>Distance Covered</span>
                     <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </p>
                 </div>
 
                 <div
-                  onClick={() => navigate('/delivery/gigs')}
+                  onClick={() => navigate('/delivery/profile')}
                   className="cursor-pointer group"
                 >
                   <span className="text-xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    0 Gigs
+                    ★ {(riderDetails?.rating || rider?.rating || 5).toFixed(1)}
                   </span>
                   <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>History</span>
+                    <span>Partner Rating</span>
                     <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </p>
                 </div>
@@ -522,74 +564,62 @@ export default function DeliveryDashboardScreen() {
             </div>
           </div>
 
-          {/* ─── CARD 3: ALL OFFERS (From Image 8) ─── */}
+          {/* ─── CARD 3: LIVE PAYOUT STRUCTURE & RATE CARD ─── */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-display font-black text-sm text-slate-900">All offers</h3>
+              <h3 className="font-display font-black text-sm text-slate-900">Live Rate Card & Payouts</h3>
               <button
                 onClick={() => setSelectedOfferModal(true)}
                 className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-0.5 cursor-pointer"
               >
-                <span>See All</span>
+                <span>Breakdown</span>
                 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               </button>
             </div>
 
             <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
-              {/* Black Offer Header */}
               <div className="bg-black text-white px-4 py-3 flex items-center justify-between">
                 <div>
                   <h4 className="font-display font-black text-xs sm:text-sm tracking-tight text-white">
-                    JOINING_OFFER_FULLDAY
+                    STANDARD_PAYOUT_CONFIG
                   </h4>
                   <p className="text-[10px] text-slate-300 font-medium mt-0.5 flex items-center gap-1">
-                    <span>Today • 4am - 4am</span>
+                    <span>Live Fleet Model</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span className="text-emerald-400 font-bold">Live</span>
+                    <span className="text-emerald-400 font-bold">Active</span>
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-base sm:text-lg font-black text-white block">₹300</span>
-                  <span className="text-[10px] text-slate-300 uppercase font-bold">Extra</span>
+                  <span className="text-base sm:text-lg font-black text-white block">₹{payoutConfig.baseFare}</span>
+                  <span className="text-[10px] text-slate-300 uppercase font-bold">Base Fare</span>
                 </div>
               </div>
 
-              {/* Incentive Slabs Grid (Image 8 Exact Match) */}
-              <div className="p-4 space-y-3">
-                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-500">Incentive</span>
-                  <div className="flex items-center gap-6 font-mono text-slate-900">
-                    <span>₹40</span>
-                    <span>₹70</span>
-                    <span>₹115</span>
-                  </div>
+              <div className="p-4 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Guaranteed Base Pay</span>
+                  <span className="font-bold text-slate-900">₹{payoutConfig.baseFare} / delivery</span>
                 </div>
-
-                <div className="flex items-center justify-between text-xs px-2 text-slate-600 font-medium">
-                  <span>Gigs</span>
-                  <div className="flex items-center gap-8">
-                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>2</span>
-                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>2</span>
-                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>3</span>
-                  </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Distance Pay</span>
+                  <span className="font-bold text-slate-900">+₹{payoutConfig.perKmRate} per km</span>
                 </div>
-
-                <div className="border-t border-slate-100" />
-
-                <div className="flex items-center justify-between text-xs px-2 text-slate-600 font-medium">
-                  <span>Orders</span>
-                  <div className="flex items-center gap-7">
-                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>10</span>
-                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>15</span>
-                    <span className="flex items-center gap-0.5"><span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>20</span>
-                  </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Minimum Guaranteed Floor</span>
+                  <span className="font-bold text-slate-900">₹{payoutConfig.minPayout} min per drop</span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-slate-500 font-medium">Surge Bonus</span>
+                  <span className={`font-bold ${payoutConfig.surgeBonus > 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
+                    {payoutConfig.surgeBonus > 0 ? `+₹${payoutConfig.surgeBonus} Active` : 'Standard Rate'}
+                  </span>
                 </div>
 
                 <button
                   onClick={() => setSelectedOfferModal(true)}
                   className="w-full mt-2 py-2.5 rounded-xl border border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-display font-black text-xs transition-all cursor-pointer shadow-2xs"
                 >
-                  View details
+                  View full payout policy
                 </button>
               </div>
             </div>
@@ -932,12 +962,12 @@ export default function DeliveryDashboardScreen() {
         </div>
       )}
 
-      {/* ─── ALL OFFERS MODAL (From Image 8) ─── */}
+      {/* ─── RATE CARD & PAYOUT BREAKDOWN MODAL ─── */}
       {selectedOfferModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-display font-black text-base text-slate-900">Joining Offer Details</h3>
+              <h3 className="font-display font-black text-base text-slate-900">Fleet Payout Policy</h3>
               <button
                 onClick={() => setSelectedOfferModal(false)}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
@@ -945,12 +975,12 @@ export default function DeliveryDashboardScreen() {
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
-            <div className="mt-4 space-y-2 text-xs text-slate-600">
-              <p>• Slabs unlock automatically upon completing minimum gig hours and drop counts.</p>
-              <p>• Tier 1: 10 orders = ₹40 Extra</p>
-              <p>• Tier 2: 15 orders = ₹70 Extra</p>
-              <p>• Tier 3: 20 orders = ₹115 Extra</p>
-              <p className="font-bold text-emerald-700 pt-2">Bonuses are directly deposited into your Pocket nightly!</p>
+            <div className="mt-4 space-y-2.5 text-xs text-slate-600">
+              <p>• <strong>Base Fare:</strong> ₹{payoutConfig.baseFare} guaranteed for pickup and drop.</p>
+              <p>• <strong>Distance Pay:</strong> ₹{payoutConfig.perKmRate} per km based on Google GPS distance between store and customer.</p>
+              <p>• <strong>Customer Tips:</strong> 100% of customer tip amount is directly credited to your Pocket balance.</p>
+              <p>• <strong>COD Orders:</strong> Collect exact cash from customer; cash holding limit is up to ₹2,000.</p>
+              <p className="font-bold text-emerald-700 pt-1">Payouts are credited in real-time upon customer OTP verification.</p>
             </div>
             <button
               onClick={() => setSelectedOfferModal(false)}

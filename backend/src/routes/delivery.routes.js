@@ -18,6 +18,7 @@ import {
   getDeliveryHistory,
   getDeliveryEarnings,
   getDeliveryPayoutConfig,
+  withdrawDeliveryEarnings,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -46,5 +47,6 @@ router.patch('/orders/:id/status', upload.single('pickupProof'), updateDeliveryO
 
 router.get('/history', getDeliveryHistory);
 router.get('/earnings', getDeliveryEarnings);
+router.post('/withdraw', withdrawDeliveryEarnings);
 
 export default router;
