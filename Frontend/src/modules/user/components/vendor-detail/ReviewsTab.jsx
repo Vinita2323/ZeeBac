@@ -233,7 +233,7 @@ export default function ReviewsTab({ vendorId, vendor, onClose }) {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm m-0" onClick={() => setShowWriteModal(false)}>
           <div className="bg-white w-[90vw] max-w-[360px] min-w-[300px] rounded-3xl overflow-hidden shadow-2xl p-6" onClick={e => e.stopPropagation()}>
             <h3 className="font-display text-[20px] font-black text-on-surface text-center mb-1">Rate your experience</h3>
-            <p className="text-center text-[12px] text-on-surface-variant mb-6">at {vendor.storeName}</p>
+            <p className="text-center text-[12px] text-on-surface-variant mb-6">at {vendor?.storeName || 'this store'}</p>
 
             <form onSubmit={handleSubmitReview} className="space-y-5">
               <div className="flex justify-center gap-2">

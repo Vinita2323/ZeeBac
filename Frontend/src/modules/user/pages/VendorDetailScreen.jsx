@@ -191,6 +191,15 @@ export default function VendorDetailScreen() {
   };
 
   const [vendor, setVendor] = useState(passedVendor || defaultVendor);
+  const [products, setProducts] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [showShopDetailsModal, setShowShopDetailsModal] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   // Dynamic store configuration based on shop's actual business category
   const storeConfig = useMemo(() => {
@@ -209,15 +218,6 @@ export default function VendorDetailScreen() {
       { id: 'all', label: 'All', icon: 'grid_view' },
     ];
   }, [storeConfig, products.length]);
-  const [products, setProducts] = useState([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('all');
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [showShopDetailsModal, setShowShopDetailsModal] = useState(false);
-  const [showReviewsModal, setShowReviewsModal] = useState(false);
-  const [isListening, setIsListening] = useState(false);
 
   // Product Lightbox Modal State
   const [lightboxProduct, setLightboxProduct] = useState(null);

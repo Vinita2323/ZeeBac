@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Outlet } from 'react-router-dom';
 import SplashScreen from './pages/SplashScreen';
 import LocationPermissionScreen from './pages/LocationPermissionScreen';
 import HomeScreen from './pages/HomeScreen';
@@ -60,7 +60,6 @@ export default function UserRoutes() {
 }
 
 // Simple wrapper to render nested routes
-import { Outlet } from 'react-router-dom';
 function RouteWrapper() {
   return <Outlet />;
 }

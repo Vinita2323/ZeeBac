@@ -11,6 +11,11 @@ export default function ApplicationRejectedScreen() {
   const [vendor, setVendor] = useState(useAuthStore.getState().currentUser);
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleLogout = () => {
+    logout();
+    navigate('/vendor-app/login');
+  };
+
   useEffect(() => {
     VendorAPI.getProfile().then((res) => {
       if (res.success) setVendor(res.data);
