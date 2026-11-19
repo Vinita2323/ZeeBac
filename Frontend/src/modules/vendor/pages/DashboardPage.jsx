@@ -522,18 +522,18 @@ export default function DashboardPage() {
             <p className="text-[10px] text-slate-400 font-medium">{isB2B ? 'Tax Invoices' : 'POS Counter'}</p>
           </button>
 
-          {/* Tile 2: Re-Purchase (B2B Reorder Stock) */}
+          {/* Tile 2: BNPL (Buy Now Pay Later) */}
           <button
-            onClick={() => setShowRepurchaseModal(true)}
+            onClick={() => setShowPayLaterModal(true)}
             className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs hover:border-purple-300 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center group"
           >
             <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 group-hover:bg-purple-700 group-hover:text-white transition-all flex items-center justify-center mb-2 shadow-2xs">
-              <span className="material-symbols-outlined text-[24px]">repeat</span>
+              <span className="material-symbols-outlined text-[24px]">handshake</span>
             </div>
             <p className="font-display font-black text-[13px] text-slate-900 group-hover:text-purple-700 transition-colors">
-              Re-Purchase
+              BNPL
             </p>
-            <p className="text-[10px] text-slate-400 font-medium">Reorder Stock</p>
+            <p className="text-[10px] text-slate-400 font-medium">Pay Later</p>
           </button>
 
           {/* Tile 3: Check Inventory */}
