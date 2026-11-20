@@ -523,6 +523,21 @@ export const toggleAvailability = async (req, res) => {
       });
     }
 
+    // Cash In Hand Safety Gate: Cannot go Online if cash-in-hand reaches or exceeds limit!
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+    const effectiveLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+    const cashInHand = Number(rider.cashInHand || 0);
+
+    if (nextOnline && cashInHand >= effectiveLimit) {
+      return res.status(403).json({
+        success: false,
+        code: 'CASH_LIMIT_EXCEEDED',
+        cashInHand,
+        maxCashLimit: effectiveLimit,
+        message: `Cannot go Online! Your floating Cash-in-Hand is ₹${cashInHand}, which reaches or exceeds the ₹${effectiveLimit} limit. Please deposit the cash to Admin first.`,
+      });
+    }
+
     rider.isOnline = nextOnline;
     rider.status = nextOnline ? (rider.activeOrderId ? 'BUSY' : 'AVAILABLE') : 'OFFLINE';
     await rider.save();
@@ -623,9 +638,14 @@ export const getDeliveryOrders = async (req, res) => {
       }
     }
 
+    const effectiveCashLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+    const cashInHand = Number(rider.cashInHand || 0);
+    const isCashLimitReached = cashInHand >= effectiveCashLimit;
+
     // Available orders ready for assignment in the area (Only fresh, nearby store-confirmed orders)
+    // BLOCKED if Rider has reached or exceeded Cash In Hand limit!
     let availableOrders = [];
-    if (rider.isOnline && !rider.activeOrderId && rider.applicationStatus === 'APPROVED') {
+    if (rider.isOnline && !rider.activeOrderId && rider.applicationStatus === 'APPROVED' && !isCashLimitReached) {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -764,6 +784,10 @@ export const getDeliveryOrders = async (req, res) => {
         isOnline: rider.isOnline,
         status: rider.status,
         applicationStatus: rider.applicationStatus,
+        cashInHand,
+        maxCashLimit: effectiveCashLimit,
+        isCashLimitReached,
+        canWithdraw: cashInHand === 0,
         todayStats: {
           todayEarnings: Math.round(todayEarnings * 100) / 100,
           todayDeliveriesCount,
@@ -815,6 +839,21 @@ export const acceptDeliveryOrder = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'You already have an active delivery in progress. Complete it first!',
+      });
+    }
+
+    // Cash in Hand Gate: Cannot accept new orders if limit is reached
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+    const effectiveLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+    const cashInHand = Number(rider.cashInHand || 0);
+
+    if (cashInHand >= effectiveLimit) {
+      return res.status(403).json({
+        success: false,
+        code: 'CASH_LIMIT_EXCEEDED',
+        cashInHand,
+        maxCashLimit: effectiveLimit,
+        message: `Cannot accept order! You have reached your Cash-in-Hand limit (₹${cashInHand} / ₹${effectiveLimit}). Please deposit collected cash to Admin first.`,
       });
     }
 
@@ -1164,14 +1203,53 @@ export const updateDeliveryOrderStatus = async (req, res) => {
 
       order.riderDetails = order.riderDetails || {};
       order.riderDetails.deliveredAt = new Date();
+
+      // Check if Cash On Delivery
+      const isCod =
+        order.paymentMethod === 'CASH' ||
+        order.paymentMethod === 'COD' ||
+        order.paymentMethod === 'Cash' ||
+        (order.paymentStatus === 'PENDING' && order.paymentMethod !== 'ONLINE' && order.paymentMethod !== 'RAZORPAY');
+
+      let collectedCash = 0;
+      if (isCod) {
+        collectedCash = Math.round(Number(order.finalPayableAmount || order.totalAmount || 0) * 100) / 100;
+        order.paymentStatus = 'PAID';
+        rider.cashInHand = Math.round(((rider.cashInHand || 0) + collectedCash) * 100) / 100;
+      }
       await order.save();
+
+      // Check if Cash in Hand reaches or exceeds limit
+      const effectiveCashLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+      const isCashLimitExceeded = Number(rider.cashInHand || 0) >= effectiveCashLimit;
 
       rider.completedDeliveries = (rider.completedDeliveries || 0) + 1;
       rider.totalEarnings = Math.round(((rider.totalEarnings || 0) + totalRiderPayout) * 100) / 100;
       rider.activeOrderId = null;
-      rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
+
+      if (isCashLimitExceeded) {
+        // Automatically pause rider duty and take offline!
+        rider.isOnline = false;
+        rider.status = 'OFFLINE';
+        safeSocketEmit(`rider_${rider._id}`, 'delivery:cash_limit_exceeded', {
+          cashInHand: rider.cashInHand,
+          maxCashLimit: effectiveCashLimit,
+          message: `🚨 Cash in hand limit reached (₹${rider.cashInHand} / ₹${effectiveCashLimit}). Orders paused until cash is deposited.`,
+        });
+      } else {
+        rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
+      }
 
       if (!rider.earningsLedger) rider.earningsLedger = [];
+      if (isCod && collectedCash > 0) {
+        rider.earningsLedger.unshift({
+          orderId: order.orderId,
+          amount: collectedCash,
+          type: 'COD_CASH_COLLECTED',
+          description: `COD Cash collected on Order #${order.orderId}`,
+          date: new Date(),
+        });
+      }
       rider.earningsLedger.unshift({
         orderId: order.orderId,
         amount: totalRiderPayout,
@@ -1207,6 +1285,9 @@ export const updateDeliveryOrderStatus = async (req, res) => {
           order,
           earnedAmount: deliveryPayout,
           totalEarnings: rider.totalEarnings,
+          cashInHand: rider.cashInHand,
+          maxCashLimit: effectiveCashLimit,
+          isCashLimitExceeded,
         },
       });
     }
@@ -1313,6 +1394,10 @@ export const getDeliveryEarnings = async (req, res) => {
 
     const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
 
+    const effectiveCashLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+    const cashInHand = Number(rider.cashInHand || 0);
+    const availableCashLimit = Math.max(0, effectiveCashLimit - cashInHand);
+
     return res.status(200).json({
       success: true,
       data: {
@@ -1326,8 +1411,11 @@ export const getDeliveryEarnings = async (req, res) => {
         completedDeliveries: rider.completedDeliveries || 0,
         totalCompletedDeliveries: rider.completedDeliveries || 0,
         customerTipsBalance: Math.round(totalTips * 100) / 100,
-        cashInHand: Math.round(totalCodCollected * 100) / 100,
-        availableCashLimit: Math.max(0, 2000 - totalCodCollected),
+        cashInHand: Math.round(cashInHand * 100) / 100,
+        maxCashLimit: effectiveCashLimit,
+        availableCashLimit: Math.round(availableCashLimit * 100) / 100,
+        isCashLimitReached: cashInHand >= effectiveCashLimit,
+        canWithdraw: cashInHand === 0,
         perDeliveryRate: payoutConfig.baseFare || 30,
         payoutConfig: {
           baseFare: payoutConfig.baseFare,
@@ -1886,6 +1974,7 @@ export const updateAdminDeliveryPayoutConfig = async (req, res) => {
       nightSurgeBonus,
       maxDeliveryRadiusKm,
       freeDeliveryRadiusKm,
+      maxCashInHandLimit,
       notes,
     } = req.body;
 
@@ -1921,6 +2010,7 @@ export const updateAdminDeliveryPayoutConfig = async (req, res) => {
     if (nightSurgeBonus !== undefined) config.nightSurgeBonus = Math.max(0, Number(nightSurgeBonus));
     if (maxDeliveryRadiusKm !== undefined) config.maxDeliveryRadiusKm = Math.max(1, Number(maxDeliveryRadiusKm));
     if (freeDeliveryRadiusKm !== undefined) config.freeDeliveryRadiusKm = Math.max(0, Number(freeDeliveryRadiusKm));
+    if (maxCashInHandLimit !== undefined) config.maxCashInHandLimit = Math.max(100, Number(maxCashInHandLimit));
     if (notes !== undefined) config.notes = String(notes).trim();
 
     config.updatedBy = req.user?.id || req.user?._id;
@@ -1929,7 +2019,7 @@ export const updateAdminDeliveryPayoutConfig = async (req, res) => {
     await config.save();
 
     logger.info(
-      `[Admin] Delivery Payout Config updated by ${config.updatedByName}: Base=₹${config.baseFare}, BaseKm=${config.baseDistanceIncludedKm}, PerKm=₹${config.perKmRate}, Min=₹${config.minPayout}, Surge=₹${config.surgeBonus}`
+      `[Admin] Delivery Payout Config updated by ${config.updatedByName}: Base=₹${config.baseFare}, BaseKm=${config.baseDistanceIncludedKm}, PerKm=₹${config.perKmRate}, Min=₹${config.minPayout}, Surge=₹${config.surgeBonus}, MaxCashLimit=₹${config.maxCashInHandLimit}`
     );
 
     return res.status(200).json({
@@ -1951,6 +2041,18 @@ export const withdrawDeliveryEarnings = async (req, res) => {
     const rider = await DeliveryPartner.findById(req.user.id);
     if (!rider) {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    // ── Floating Cash In Hand Lock ──
+    // Rider cannot withdraw earnings until collected COD cash is paid to Admin!
+    const cashInHand = Number(rider.cashInHand || 0);
+    if (cashInHand > 0) {
+      return res.status(403).json({
+        success: false,
+        code: 'CASH_IN_HAND_PENDING',
+        cashInHand,
+        message: `Withdrawal locked! You have ₹${cashInHand.toFixed(2)} in un-deposited Cash-in-Hand collected from COD deliveries. Please deposit/settle this cash with Admin to enable withdrawal.`,
+      });
     }
 
     const { amount } = req.body;
@@ -1996,5 +2098,146 @@ export const withdrawDeliveryEarnings = async (req, res) => {
   } catch (error) {
     logger.error(`[withdrawDeliveryEarnings] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to process withdrawal request' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 16. DEPOSIT / SETTLE FLOATING CASH IN HAND (RIDER TO ADMIN)
+// ─────────────────────────────────────────────────────────────
+export const depositDeliveryCash = async (req, res) => {
+  try {
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    const { amount, method, paymentMethod, utr, txnRef, referenceId } = req.body;
+    const effectiveMethod = method || paymentMethod || 'EARNINGS_DEDUCTION';
+    const effectiveUtr = utr || txnRef || referenceId || '';
+    const currentCashInHand = Number(rider.cashInHand || 0);
+
+    if (currentCashInHand <= 0) {
+      return res.status(400).json({ success: false, message: 'You have no pending Cash-in-Hand to deposit.' });
+    }
+
+    const depositAmt = amount ? Math.min(currentCashInHand, Math.round(Number(amount) * 100) / 100) : currentCashInHand;
+
+    if (isNaN(depositAmt) || depositAmt <= 0) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid deposit amount greater than ₹0' });
+    }
+
+    if (effectiveMethod === 'EARNINGS_DEDUCTION') {
+      const currentEarnings = Number(rider.totalEarnings || 0);
+      if (depositAmt > currentEarnings) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient pocket earnings (₹${currentEarnings.toFixed(2)}) to settle ₹${depositAmt}. Please choose UPI deposit or enter a smaller amount.`,
+        });
+      }
+
+      rider.totalEarnings = Math.max(0, Math.round((currentEarnings - depositAmt) * 100) / 100);
+      rider.cashInHand = Math.max(0, Math.round((currentCashInHand - depositAmt) * 100) / 100);
+
+      if (!Array.isArray(rider.earningsLedger)) rider.earningsLedger = [];
+      rider.earningsLedger.unshift({
+        type: 'CASH_SETTLEMENT',
+        amount: -depositAmt,
+        date: new Date(),
+        description: `Settled ₹${depositAmt} Cash-in-Hand from pocket earnings`,
+        status: 'COMPLETED',
+      });
+    } else {
+      // Direct UPI payment to Admin
+      rider.cashInHand = Math.max(0, Math.round((currentCashInHand - depositAmt) * 100) / 100);
+    }
+
+    if (!Array.isArray(rider.cashDepositHistory)) rider.cashDepositHistory = [];
+    rider.cashDepositHistory.unshift({
+      amount: depositAmt,
+      method: effectiveMethod,
+      txnRef: txnRef || `DEP-${Date.now()}`,
+      utr: effectiveUtr,
+      status: 'COMPLETED',
+      settledAt: new Date(),
+      note: effectiveMethod === 'EARNINGS_DEDUCTION' ? 'Settled from Pocket Earnings' : `Direct UPI payment (UTR: ${effectiveUtr || 'N/A'})`,
+    });
+
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+    const effectiveLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+    const isCashLimitReached = rider.cashInHand >= effectiveLimit;
+
+    await rider.save();
+
+    logger.info(`[DeliveryPartner] Cash-in-hand deposited: ₹${depositAmt} by rider ${rider.name} (${rider.phone}) via ${effectiveMethod}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `🎉 ₹${depositAmt} Cash-in-Hand successfully settled!`,
+      data: {
+        cashInHand: rider.cashInHand,
+        totalEarnings: rider.totalEarnings,
+        maxCashLimit: effectiveLimit,
+        isCashLimitReached,
+        canWithdraw: rider.cashInHand === 0,
+      },
+    });
+  } catch (error) {
+    logger.error(`[depositDeliveryCash] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error processing cash deposit' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17. ADMIN: SETTLE / CLEAR RIDER CASH-IN-HAND
+// ─────────────────────────────────────────────────────────────
+export const adminSettleRiderCash = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, note = 'Cash deposited at office/hub' } = req.body;
+
+    const rider = await DeliveryPartner.findById(id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    const currentCash = Number(rider.cashInHand || 0);
+    const settleAmt = amount ? Math.min(currentCash, Math.round(Number(amount) * 100) / 100) : currentCash;
+
+    if (settleAmt <= 0) {
+      return res.status(400).json({ success: false, message: 'Rider has no cash in hand to settle' });
+    }
+
+    rider.cashInHand = Math.max(0, Math.round((currentCash - settleAmt) * 100) / 100);
+
+    if (!Array.isArray(rider.cashDepositHistory)) rider.cashDepositHistory = [];
+    rider.cashDepositHistory.unshift({
+      amount: settleAmt,
+      method: 'ADMIN_CLEARANCE',
+      txnRef: `ADM-CLR-${Date.now()}`,
+      status: 'COMPLETED',
+      settledAt: new Date(),
+      verifiedBy: req.user?.name || req.user?.email || 'Admin',
+      note,
+    });
+
+    await rider.save();
+
+    safeSocketEmit(`rider_${rider._id}`, 'delivery:cash_cleared', {
+      settledAmount: settleAmt,
+      remainingCashInHand: rider.cashInHand,
+      message: `Admin has cleared ₹${settleAmt} of your floating cash.`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully settled ₹${settleAmt} for ${rider.name}. Remaining Cash: ₹${rider.cashInHand}`,
+      data: {
+        riderId: rider.riderId,
+        cashInHand: rider.cashInHand,
+      },
+    });
+  } catch (error) {
+    logger.error(`[adminSettleRiderCash] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error clearing rider cash' });
   }
 };

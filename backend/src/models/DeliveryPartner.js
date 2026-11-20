@@ -166,6 +166,32 @@ const deliveryPartnerSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // ── Floating Cash In Hand (COD Collections) ──
+    cashInHand: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    maxCashLimit: {
+      type: Number,
+      default: null, // If set, overrides global payoutConfig.maxCashInHandLimit for this rider
+    },
+    cashDepositHistory: [
+      {
+        amount: Number,
+        method: {
+          type: String,
+          enum: ['EARNINGS_DEDUCTION', 'UPI', 'CASH_HUB', 'ADMIN_CLEARANCE'],
+          default: 'UPI',
+        },
+        txnRef: String,
+        utr: String,
+        status: { type: String, enum: ['COMPLETED', 'PENDING', 'REJECTED'], default: 'COMPLETED' },
+        settledAt: { type: Date, default: Date.now },
+        verifiedBy: String,
+        note: String,
+      },
+    ],
     rating: {
       type: Number,
       default: 5.0,

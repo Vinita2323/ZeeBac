@@ -71,6 +71,7 @@ import {
   adminCancelDeliveryAssignment,
   getAdminDeliveryPayoutConfig,
   updateAdminDeliveryPayoutConfig,
+  adminSettleRiderCash,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -190,6 +191,7 @@ router.post('/delivery/partners/:id/reject', adminRejectDeliveryPartner);
 router.post('/delivery/partners/:id/under-review', adminMarkUnderReview);
 router.post('/delivery/partners/:id/suspend', adminSuspendDeliveryPartner);
 router.post('/delivery/partners/:id/reactivate', adminReactivateDeliveryPartner);
+router.post('/delivery/partners/:id/settle-cash', adminSettleRiderCash);
 
 router.get('/delivery/operations/live', adminGetLiveDeliveryOperations);
 router.post('/delivery/operations/assign', adminAssignDeliveryOrder);

@@ -137,6 +137,16 @@ export default function DeliveryDashboardScreen() {
   });
   const [riderDetails, setRiderDetails] = useState(null);
 
+  // Floating Cash In Hand & Settlement State
+  const [cashInHand, setCashInHand] = useState(0);
+  const [maxCashLimit, setMaxCashLimit] = useState(1500);
+  const [isCashLimitReached, setIsCashLimitReached] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositSubmitting, setDepositSubmitting] = useState(false);
+  const [depositMethod, setDepositMethod] = useState('EARNINGS_DEDUCTION'); // 'EARNINGS_DEDUCTION' | 'UPI'
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositUtr, setDepositUtr] = useState('');
+
   // Rider location coordinates (Default Indore Central)
   const [riderCoords, setRiderCoords] = useState({ lat: 22.7176, lng: 75.8720 });
   const watchIdRef = useRef(null);
@@ -207,6 +217,15 @@ export default function DeliveryDashboardScreen() {
         }
         if (res.data.riderDetails) {
           setRiderDetails(res.data.riderDetails);
+        }
+        if (res.data.cashInHand !== undefined) {
+          setCashInHand(Number(res.data.cashInHand));
+        }
+        if (res.data.maxCashLimit !== undefined) {
+          setMaxCashLimit(Number(res.data.maxCashLimit));
+        }
+        if (res.data.isCashLimitReached !== undefined) {
+          setIsCashLimitReached(Boolean(res.data.isCashLimitReached));
         }
 
         // Ring audio alarm for online rider when new orders arrive
@@ -309,8 +328,17 @@ export default function DeliveryDashboardScreen() {
       return;
     }
 
-    setIsTogglingOnline(true);
     const nextStatus = !isOnline;
+
+    // Block going online if floating cash limit exceeded
+    if (nextStatus && (isCashLimitReached || cashInHand >= maxCashLimit)) {
+      toast.error(`🚨 Cash Limit Reached (₹${cashInHand} / ₹${maxCashLimit}). Pehle Admin ko cash deposit karein taaki online orders shuru ho sakein.`);
+      setDepositAmount(String(cashInHand));
+      setShowDepositModal(true);
+      return;
+    }
+
+    setIsTogglingOnline(true);
 
     // If going online and no gig is booked, auto-book the current open slot
     if (nextStatus && !isCurrentSlotBooked) {
@@ -329,9 +357,67 @@ export default function DeliveryDashboardScreen() {
         fetchDashboardData();
       }
     } catch (err) {
-      toast.error('Failed to update availability status');
+      toast.error(err.response?.data?.message || 'Failed to update availability status');
+      if (err.response?.data?.message?.includes?.('limit')) {
+        setShowDepositModal(true);
+      }
     } finally {
       setIsTogglingOnline(false);
+    }
+  };
+
+  // Settle / Deposit Cash In Hand
+  const handleDepositCash = async (e) => {
+    e.preventDefault();
+    const amt = parseFloat(depositAmount) || cashInHand;
+    if (!amt || amt <= 0) {
+      toast.error('Please enter a valid deposit amount');
+      return;
+    }
+    if (amt > cashInHand) {
+      toast.error(`Deposit amount cannot exceed current cash in hand (₹${cashInHand})`);
+      return;
+    }
+    const currentEarnings = rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0;
+    if (depositMethod === 'EARNINGS_DEDUCTION' && amt > currentEarnings) {
+      toast.error(`Insufficient pocket earnings (₹${currentEarnings}) to settle ₹${amt}. Please select UPI.`);
+      return;
+    }
+    if (depositMethod === 'UPI' && !depositUtr.trim()) {
+      toast.error('Please enter the UPI Reference ID / UTR Number');
+      return;
+    }
+
+    setDepositSubmitting(true);
+    try {
+      const res = await DeliveryAPI.depositCash({
+        amount: amt,
+        paymentMethod: depositMethod,
+        referenceId: depositMethod === 'UPI' ? depositUtr.trim() : undefined,
+        notes: depositMethod === 'EARNINGS_DEDUCTION'
+          ? 'Settled via Pocket Earnings deduction'
+          : `Online UPI transfer (Ref: ${depositUtr.trim()})`,
+      });
+      if (res.success) {
+        toast.success(res.message || '🎉 Cash deposit settled successfully!');
+        setShowDepositModal(false);
+        setDepositAmount('');
+        setDepositUtr('');
+        if (res.data) {
+          setCashInHand(res.data.cashInHand ?? 0);
+          setIsCashLimitReached(res.data.isCashLimitReached ?? false);
+          if (res.data.totalEarnings !== undefined) {
+            updateRider({ totalEarnings: res.data.totalEarnings });
+          }
+        }
+        fetchDashboardData();
+      } else {
+        toast.error(res.message || 'Deposit failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to settle cash');
+    } finally {
+      setDepositSubmitting(false);
     }
   };
 
@@ -563,6 +649,76 @@ export default function DeliveryDashboardScreen() {
         {/* ─── SLIDING DASHBOARD CONTENT ─── */}
         <div className="relative -mt-5 bg-[#f5f6f8] rounded-t-3xl pt-2 px-3 sm:px-4 pb-6 space-y-3.5 shadow-[0_-8px_25px_rgba(0,0,0,0.06)]">
           <div className="w-10 h-1 rounded-full bg-slate-300 mx-auto my-1" />
+
+          {/* ─── CASH IN HAND LIMIT ALERT BANNER ─── */}
+          {(isCashLimitReached || cashInHand >= maxCashLimit) ? (
+            <div className="bg-rose-50 border-2 border-rose-400 rounded-3xl p-4 text-rose-950 shadow-md">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                  <span className="material-symbols-outlined text-[24px]">lock_clock</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white">
+                      ORDERS PAUSED
+                    </span>
+                    <span className="text-[11px] font-mono font-black text-rose-700">
+                      ₹{cashInHand.toLocaleString('en-IN')} / ₹{maxCashLimit.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <h4 className="font-display font-black text-sm text-rose-900 mt-1">
+                    Cash-In-Hand Limit Reached!
+                  </h4>
+                  <p className="text-xs text-rose-800 font-medium mt-0.5 leading-snug">
+                    Aapke paas limit se zyada COD cash jama hai. Naye orders pause hain aur online toggle blocked hai jab tak aap Admin ko cash deposit nahi kar dete.
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDepositAmount(String(cashInHand));
+                        setShowDepositModal(true);
+                      }}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-display font-black rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">payments</span>
+                      <span>Deposit ₹{cashInHand} Now</span>
+                    </button>
+                    <span className="text-[10px] text-rose-600 font-bold">
+                      1-Tap Pocket or UPI
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : cashInHand > 0 ? (
+            <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">payments</span>
+                </div>
+                <div className="truncate">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                    COD Cash in Hand: ₹{cashInHand.toLocaleString('en-IN')}
+                  </p>
+                  <p className="text-[11px] font-semibold text-slate-600">
+                    Remaining limit: ₹{Math.max(0, maxCashLimit - cashInHand).toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDepositAmount(String(cashInHand));
+                  setShowDepositModal(true);
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+              >
+                Deposit
+              </button>
+            </div>
+          ) : null}
 
           {/* ─── DUTY / ONLINE-OFFLINE CARD (Zomato Partner) ─── */}
           <div className={`rounded-3xl p-4 transition-all border shadow-sm ${
@@ -1407,6 +1563,192 @@ export default function DeliveryDashboardScreen() {
             >
               Ready for Next Order 🚀
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═════════════════════════════════════════════════════════════════════
+          DEPOSIT FLOATING CASH MODAL (Zomato Partner Cash Settlement)
+      ═════════════════════════════════════════════════════════════════════ */}
+      {showDepositModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
+                  <span className="material-symbols-outlined text-[20px]">payments</span>
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-base text-slate-900 leading-tight">
+                    Deposit Floating Cash
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    Settle COD Cash With Admin
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDepositModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Cash in Hand Info Box */}
+            <div className={`p-3.5 rounded-2xl border ${
+              isCashLimitReached || cashInHand >= maxCashLimit
+                ? 'bg-rose-50 border-rose-200 text-rose-900'
+                : 'bg-amber-50/80 border-amber-200 text-amber-950'
+            }`}>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold">Total Cash with You:</span>
+                <span className="font-mono font-black text-lg">₹{cashInHand.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px] text-slate-500 mt-1 pt-1 border-t border-slate-200/50">
+                <span>Max Cash Limit:</span>
+                <span className="font-bold">₹{maxCashLimit.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            {/* Method Tabs */}
+            <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setDepositMethod('EARNINGS_DEDUCTION')}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  depositMethod === 'EARNINGS_DEDUCTION'
+                    ? 'bg-white text-slate-900 shadow-xs font-black'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">account_balance_wallet</span>
+                <span>From Pocket</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDepositMethod('UPI')}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  depositMethod === 'UPI'
+                    ? 'bg-white text-slate-900 shadow-xs font-black'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+                <span>Online UPI</span>
+              </button>
+            </div>
+
+            {/* Method 1: Pocket Deduction */}
+            {depositMethod === 'EARNINGS_DEDUCTION' && (
+              <div className="space-y-3 bg-purple-50/60 p-3 rounded-2xl border border-purple-100 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Your Available Pocket:</span>
+                  <span className="font-mono font-black text-purple-900 text-sm">
+                    ₹{(rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Aapke pocket balance me se cash amount turant deduct ho jayegi aur Cash in Hand clear ho jayega.
+                </p>
+              </div>
+            )}
+
+            {/* Method 2: Online UPI */}
+            {depositMethod === 'UPI' && (
+              <div className="space-y-3 bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100 text-xs">
+                <div>
+                  <span className="text-slate-600 font-bold block text-[10px] uppercase">Admin UPI ID:</span>
+                  <div className="flex items-center justify-between mt-1 bg-white p-2 rounded-xl border border-emerald-200">
+                    <span className="font-mono font-black text-emerald-900 text-xs select-all">
+                      zeebac.delivery@upi
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText?.('zeebac.delivery@upi');
+                        toast.success('UPI ID copied to clipboard!');
+                      }}
+                      className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md hover:bg-emerald-100"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 block">
+                    UPI Transaction UTR / Ref ID:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 331204987612"
+                    value={depositUtr}
+                    onChange={(e) => setDepositUtr(e.target.value)}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-mono font-bold outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleDepositCash} className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <label className="font-bold text-slate-700">Amount to Settle (₹):</label>
+                  <button
+                    type="button"
+                    onClick={() => setDepositAmount(String(cashInHand))}
+                    className="text-purple-700 font-black hover:underline cursor-pointer"
+                  >
+                    Settle All (₹{cashInHand})
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={cashInHand}
+                    required
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder={`e.g. ${cashInHand}`}
+                    className="w-full pl-7 pr-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-sm font-bold font-mono outline-none focus:border-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex gap-2">
+                {[500, 1000, cashInHand].filter((amt) => amt > 0 && amt <= cashInHand).map((amt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setDepositAmount(String(amt))}
+                    className="flex-1 py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs"
+                  >
+                    ₹{amt}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="submit"
+                disabled={depositSubmitting || cashInHand <= 0}
+                className="w-full py-3 rounded-2xl bg-slate-950 hover:bg-black text-white font-display font-black text-xs shadow-md active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                <span>
+                  {depositSubmitting
+                    ? 'Processing Deposit...'
+                    : `Settle ₹${depositAmount || cashInHand} Cash`}
+                </span>
+              </button>
+            </form>
           </div>
         </div>
       )}

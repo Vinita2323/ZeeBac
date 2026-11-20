@@ -299,6 +299,10 @@ export const AdminAPI = {
     const res = await apiClient.put('/admin/delivery/payout-config', data);
     return res.data;
   },
+  settleDeliveryPartnerCash: async (id, data) => {
+    const res = await apiClient.post(`/admin/delivery/partners/${id}/settle-cash`, data);
+    return res.data;
+  },
   saveAdminFcmToken: async (token) => {
     const res = await apiClient.post('/admin/fcm-token', { token });
     return res.data;
@@ -1369,6 +1373,10 @@ export const DeliveryAPI = {
   },
   withdraw: async (data) => {
     const res = await apiClient.post('/delivery/withdraw', data);
+    return res.data;
+  },
+  depositCash: async (data) => {
+    const res = await apiClient.post('/delivery/deposit-cash', data);
     return res.data;
   },
 };

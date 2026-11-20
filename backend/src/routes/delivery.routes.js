@@ -19,6 +19,8 @@ import {
   getDeliveryEarnings,
   getDeliveryPayoutConfig,
   withdrawDeliveryEarnings,
+  depositDeliveryCash,
+  adminSettleRiderCash,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -48,5 +50,7 @@ router.patch('/orders/:id/status', upload.single('pickupProof'), updateDeliveryO
 router.get('/history', getDeliveryHistory);
 router.get('/earnings', getDeliveryEarnings);
 router.post('/withdraw', withdrawDeliveryEarnings);
+router.post('/deposit-cash', depositDeliveryCash);
+router.post('/admin/settle-cash/:id', adminSettleRiderCash);
 
 export default router;

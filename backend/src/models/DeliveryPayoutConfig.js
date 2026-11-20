@@ -52,6 +52,12 @@ const deliveryPayoutConfigSchema = new mongoose.Schema(
       default: 5,
       min: 0,
     },
+    // Maximum allowable Cash in Hand (Floating Cash from COD) for riders before pausing orders
+    maxCashInHandLimit: {
+      type: Number,
+      default: 1500,
+      min: 100,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -105,6 +111,7 @@ deliveryPayoutConfigSchema.statics.getEffectiveConfig = async function () {
       nightSurgeBonus: 0,
       maxDeliveryRadiusKm: 20,
       freeDeliveryRadiusKm: 5,
+      maxCashInHandLimit: 1500,
       isActive: true,
       notes: 'Initial default dynamic delivery payout rule',
       updatedByName: 'System Initializer',

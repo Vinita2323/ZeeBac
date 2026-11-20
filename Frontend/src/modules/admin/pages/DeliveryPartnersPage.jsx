@@ -47,6 +47,7 @@ export default function DeliveryPartnersPage() {
     minPayout: 30,
     surgeBonus: 0,
     nightSurgeBonus: 0,
+    maxCashInHandLimit: 1500,
     notes: '',
   });
   const [payoutChangeHistory, setPayoutChangeHistory] = useState([]);
@@ -107,6 +108,7 @@ export default function DeliveryPartnersPage() {
           minPayout: res.data.minPayout ?? 30,
           surgeBonus: res.data.surgeBonus ?? 0,
           nightSurgeBonus: res.data.nightSurgeBonus ?? 0,
+          maxCashInHandLimit: res.data.maxCashInHandLimit ?? 1500,
           notes: res.data.notes || '',
         });
         setPayoutChangeHistory(res.data.changeHistory || []);
@@ -294,6 +296,39 @@ export default function DeliveryPartnersPage() {
       }
     } catch (err) {
       toast.error('Failed to reactivate partner');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSettleCash = async () => {
+    const partnerId = selectedPartner?._id || selectedPartner?.partner?._id;
+    if (!partnerId) return;
+    const currentCash = selectedPartner.cashInHand || 0;
+    if (currentCash <= 0) {
+      toast.info('This partner has ₹0 Cash in Hand to settle.');
+      return;
+    }
+    if (!window.confirm(`Mark ₹${currentCash.toLocaleString('en-IN')} as collected & settled with Admin? This will clear the partner's Cash in Hand and unblock order assignments.`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await AdminAPI.settleDeliveryPartnerCash(partnerId, {
+        notes: 'Cash received & settled in cash drawer by Admin',
+      });
+      if (res.success) {
+        toast.success(res.message || 'Cash-in-hand settled successfully!');
+        setSelectedPartner((p) => ({
+          ...p,
+          cashInHand: 0,
+        }));
+        fetchPartners();
+      } else {
+        toast.error(res.message || 'Failed to settle cash');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to settle cash');
     } finally {
       setActionLoading(false);
     }
@@ -509,6 +544,7 @@ export default function DeliveryPartnersPage() {
                 <th className="py-3 px-3">Location</th>
                 <th className="py-3 px-3">Vehicle</th>
                 <th className="py-3 px-3">Status</th>
+                <th className="py-3 px-3">Cash In Hand</th>
                 <th className="py-3 px-3">Fleet Availability</th>
                 <th className="py-3 px-3">Registered</th>
                 <th className="py-3 px-3 text-right">Action</th>
@@ -517,14 +553,14 @@ export default function DeliveryPartnersPage() {
             <tbody className="divide-y divide-slate-100 font-medium">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                     <span>Loading delivery partners...</span>
                   </td>
                 </tr>
               ) : (!partners || partners.length === 0) ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                  <td colSpan={9} className="py-12 text-center text-slate-500">
                     No delivery partners found matching this filter.
                   </td>
                 </tr>
@@ -566,6 +602,29 @@ export default function DeliveryPartnersPage() {
 
                       <td className="py-3 px-3">
                         {getStatusBadge(p.applicationStatus)}
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <div>
+                          <span className={`font-mono font-black text-xs block ${
+                            (p.cashInHand || 0) >= (p.maxCashLimit || 1500)
+                              ? 'text-rose-600'
+                              : (p.cashInHand || 0) > 0
+                              ? 'text-amber-700'
+                              : 'text-slate-500'
+                          }`}>
+                            ₹{(p.cashInHand || 0).toLocaleString('en-IN')}
+                          </span>
+                          {(p.cashInHand || 0) >= (p.maxCashLimit || 1500) ? (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300">
+                              Limit Exceeded
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">
+                              / ₹{(p.maxCashLimit || 1500).toLocaleString('en-IN')}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3 px-3">
@@ -976,6 +1035,90 @@ export default function DeliveryPartnersPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Floating COD Cash In Hand & Settlement Card */}
+              <div className={`rounded-2xl p-4 border space-y-3 transition-all ${
+                (selectedPartner.cashInHand || 0) >= (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500)
+                  ? 'bg-rose-50/80 border-rose-300 ring-1 ring-rose-200'
+                  : (selectedPartner.cashInHand || 0) > 0
+                  ? 'bg-amber-50/70 border-amber-200'
+                  : 'bg-slate-50/70 border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-amber-600">payments</span>
+                    <h4 className="font-bold uppercase tracking-wider text-[11px] text-slate-800">
+                      COD Floating Cash In Hand
+                    </h4>
+                  </div>
+                  {(selectedPartner.cashInHand || 0) >= (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500) ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-600 text-white tracking-wider animate-pulse">
+                      LIMIT REACHED • ORDERS BLOCKED
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 font-bold">
+                      Limit: ₹{(selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500).toLocaleString('en-IN')}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/80">
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Cash Held with Rider</span>
+                    <span className={`font-mono font-black text-lg ${
+                      (selectedPartner.cashInHand || 0) >= (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500)
+                        ? 'text-rose-600'
+                        : (selectedPartner.cashInHand || 0) > 0
+                        ? 'text-amber-700'
+                        : 'text-slate-700'
+                    }`}>
+                      ₹{(selectedPartner.cashInHand || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/80">
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Remaining Capacity</span>
+                    <span className="font-mono font-bold text-sm text-slate-800">
+                      ₹{Math.max(0, (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500) - (selectedPartner.cashInHand || 0)).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/80 col-span-2 sm:col-span-1">
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Order Assignment Status</span>
+                    <span className={`text-[11px] font-bold flex items-center gap-1 ${
+                      (selectedPartner.cashInHand || 0) >= (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500)
+                        ? 'text-rose-600'
+                        : 'text-emerald-700'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        (selectedPartner.cashInHand || 0) >= (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500)
+                          ? 'bg-rose-500'
+                          : 'bg-emerald-500'
+                      }`} />
+                      {(selectedPartner.cashInHand || 0) >= (selectedPartner.maxCashLimit || payoutForm.maxCashInHandLimit || 1500)
+                        ? 'Blocked (Over Limit)'
+                        : 'Allowed / Active'}
+                    </span>
+                  </div>
+                </div>
+
+                {(selectedPartner.cashInHand || 0) > 0 && (
+                  <div className="pt-2 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-600">
+                      Rider has collected ₹{(selectedPartner.cashInHand || 0).toLocaleString('en-IN')} cash. Settling will reset cash-in-hand to ₹0 and unblock orders.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={actionLoading}
+                      onClick={handleSettleCash}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">done_all</span>
+                      <span>Mark Cash Collected & Settled</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* 5. Complete Verification Documents Preview */}
@@ -1562,6 +1705,36 @@ export default function DeliveryPartnersPage() {
                         </div>
                         <p className="text-[10px] text-slate-400">Late night delivery incentive</p>
                       </div>
+                    </div>
+
+                    {/* Floating Cash in Hand Limit */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[15px] text-amber-600">payments</span>
+                          <span>Max Cash-In-Hand Limit (₹)</span>
+                        </span>
+                        <span className="text-[10px] text-amber-700 font-black">Pause orders on reach</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
+                        <input
+                          type="number"
+                          min="100"
+                          step="100"
+                          value={payoutForm.maxCashInHandLimit ?? 1500}
+                          onChange={(e) =>
+                            setPayoutForm({
+                              ...payoutForm,
+                              maxCashInHandLimit: Number(e.target.value),
+                            })
+                          }
+                          className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        Rider ka COD floating cash is limit par pahunchne par order assignment pause ho jayegi aur withdrawal lock ho jayega.
+                      </p>
                     </div>
 
                     {/* Notes */}
