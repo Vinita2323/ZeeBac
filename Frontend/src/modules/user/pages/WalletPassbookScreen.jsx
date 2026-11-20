@@ -18,6 +18,16 @@ const formatSafeDateTime = (val, opts = { dateStyle: 'short', timeStyle: 'short'
   }
 };
 
+const formatVendorAddress = (addr) => {
+  if (!addr) return 'Verified Merchant Store';
+  if (typeof addr === 'string') return addr;
+  if (typeof addr === 'object') {
+    const parts = [addr.fullAddress || addr.street, addr.landmark, addr.city, addr.state, addr.pincode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Verified Merchant Store';
+  }
+  return String(addr);
+};
+
 export default function WalletPassbookScreen({ initialTab }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -229,7 +239,7 @@ export default function WalletPassbookScreen({ initialTab }) {
                   vendorStoreName: tx.vendorName || 'Zeebac Store',
                   vendorZeebacId: tx.vendorZeebacId || 'ZBV-STORE',
                   vendorPhone: tx.vendorPhone || '',
-                  vendorAddress: tx.vendorAddress || 'Verified Merchant Store',
+                  vendorAddress: formatVendorAddress(tx.vendorAddress || tx.vendorId?.address),
                   customerName: tx.customerName || currentUser?.name || 'Valued Customer',
                   customerZeebacId: tx.customerZeebacId || currentUser?.zeebacId || (currentUser?.phone === '9335825081' ? 'ZBC-5266' : (currentUser?.phone ? `ZBC-${currentUser.phone.slice(-4)}` : 'ZBC-5266')),
                   paymentMethod: tx.paymentMethod || 'Cash',
@@ -803,7 +813,7 @@ export default function WalletPassbookScreen({ initialTab }) {
                 )}
                 {selectedInvoice.vendorAddress && (
                   <p className="text-[9.5px] text-slate-400 font-sans truncate max-w-[280px] mx-auto">
-                    {selectedInvoice.vendorAddress}
+                    {formatVendorAddress(selectedInvoice.vendorAddress)}
                   </p>
                 )}
               </div>

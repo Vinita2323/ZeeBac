@@ -7,6 +7,22 @@ import { toast } from 'react-hot-toast';
 import QRCode from 'qrcode';
 import ProductBarcodeScannerModal from '../../../components/common/ProductBarcodeScannerModal';
 
+const getFormattedAddress = (addr) => {
+  if (!addr) return 'Verified Merchant Store';
+  if (typeof addr === 'string') return addr;
+  if (typeof addr === 'object') {
+    const parts = [
+      addr.fullAddress || addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.pincode,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Verified Merchant Store';
+  }
+  return String(addr);
+};
+
 export default function B2BBillingPage() {
   const currentVendor = useAuthStore((s) => s.currentUser) || {};
   const [searchParams, setSearchParams] = useSearchParams();
@@ -516,7 +532,7 @@ export default function B2BBillingPage() {
           customerPhone: verifiedCustomer?.phone || finalTxn.customerPhone,
           vendorStoreName: currentVendor?.storeName || currentVendor?.ownerName || 'Zeebac Store',
           vendorZeebacId: currentVendor?.zeebacId || 'ZBV-STORE',
-          vendorAddress: currentVendor?.address || 'Verified Merchant Store',
+          vendorAddress: getFormattedAddress(currentVendor?.address),
           vendorPhone: currentVendor?.phone || '',
           billNumber: generatedBillNo,
           cashbackCredited: finalTxn.cashbackAmount || retailTotalCashback,
@@ -1534,7 +1550,7 @@ export default function B2BBillingPage() {
                                 customerPhone: tx.customerPhone,
                                 vendorStoreName: currentVendor?.storeName || 'Zeebac Store',
                                 vendorZeebacId: currentVendor?.zeebacId || 'ZBV-STORE',
-                                vendorAddress: currentVendor?.address || 'Verified Store',
+                                vendorAddress: getFormattedAddress(currentVendor?.address),
                                 vendorPhone: currentVendor?.phone || '',
                                 items: tx.items && tx.items.length > 0 ? tx.items : [{ name: 'Store Items', quantity: 1, price: tx.amount, total: tx.amount }],
                                 amount: tx.amount,
@@ -2482,7 +2498,7 @@ export default function B2BBillingPage() {
                     Zeebac Store ID: {(completedRetailBill || receiptToView).vendorZeebacId}
                   </p>
                   <p className="text-[10px] text-slate-500">
-                    {(completedRetailBill || receiptToView).vendorAddress}
+                    {getFormattedAddress((completedRetailBill || receiptToView).vendorAddress)}
                   </p>
                   <p className="text-[10px] text-slate-500">
                     Ph: {(completedRetailBill || receiptToView).vendorPhone || 'N/A'}

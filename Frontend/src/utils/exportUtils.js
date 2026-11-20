@@ -135,7 +135,10 @@ export const generateReceiptPDF = (bill) => {
     y += 4;
   }
   if (bill.vendorAddress) {
-    const splitAddr = doc.splitTextToSize(bill.vendorAddress, 70);
+    const rawAddr = typeof bill.vendorAddress === 'object'
+      ? [bill.vendorAddress.fullAddress || bill.vendorAddress.street, bill.vendorAddress.landmark, bill.vendorAddress.city, bill.vendorAddress.state, bill.vendorAddress.pincode].filter(Boolean).join(', ')
+      : String(bill.vendorAddress);
+    const splitAddr = doc.splitTextToSize(rawAddr, 70);
     doc.text(splitAddr, pageWidth / 2, y, { align: 'center' });
     y += splitAddr.length * 3.5;
   }

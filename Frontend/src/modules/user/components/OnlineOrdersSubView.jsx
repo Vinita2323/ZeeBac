@@ -230,7 +230,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
   const formatAddress = (addr) => {
     if (!addr) return 'Customer Address';
     if (typeof addr === 'string') return addr;
-    const parts = [addr.addressLine, addr.street, addr.city, addr.pincode].filter(Boolean);
+    const parts = [addr.fullAddress, addr.addressLine, addr.street, addr.landmark, addr.city, addr.state, addr.pincode].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : 'Customer Address';
   };
 
@@ -751,7 +751,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                         </span>
                         <p className="font-bold text-slate-800 text-xs">
                           {isPickup
-                            ? `${order.storeName || order.vendorId?.storeName || 'Store'}, ${order.vendorAddress || order.vendorId?.address || 'Market Area'}`
+                            ? `${order.storeName || order.vendorId?.storeName || 'Store'}, ${formatAddress(order.vendorAddress || order.vendorId?.address || 'Market Area')}`
                             : formatAddress(order.deliveryAddress)}
                         </p>
                         {order.orderNotes && (

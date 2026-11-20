@@ -1788,6 +1788,9 @@ export const logPurchase = async (req, res) => {
         vendorName: vendor.storeName,
         vendorPhone: vendor.phone,
         vendorCategory: vendor.category,
+        vendorAddress: vendor.address?.fullAddress
+          ? [vendor.address.fullAddress, vendor.address.landmark, vendor.address.city, vendor.address.state, vendor.address.pincode].filter(Boolean).join(', ')
+          : (typeof vendor.address === 'string' ? vendor.address : (vendor.address?.city ? `${vendor.address.city}, ${vendor.address.state || ''}` : '')),
         type: 'pos_bill',
         initiatedBy: 'vendor',
         amount: parsedAmount,
@@ -2254,7 +2257,11 @@ export const respondToCashbackRequest = async (req, res) => {
           customerPhone: customer.phone, customerName: customer.name,
           vendorId: vendor._id, vendorZeebacId: vendor.zeebacId,
           vendorName: vendor.storeName, vendorPhone: vendor.phone,
-          vendorCategory: vendor.category, type: 'receipt_claim',
+          vendorCategory: vendor.category,
+          vendorAddress: vendor.address?.fullAddress
+            ? [vendor.address.fullAddress, vendor.address.landmark, vendor.address.city, vendor.address.state, vendor.address.pincode].filter(Boolean).join(', ')
+            : (typeof vendor.address === 'string' ? vendor.address : (vendor.address?.city ? `${vendor.address.city}, ${vendor.address.state || ''}` : '')),
+          type: 'receipt_claim',
           initiatedBy: 'customer', source: 'customer_request',
           amount: parseFloat(amount), cashbackPercent: vendor.cashbackRate,
           cashbackAmount, paymentMethod: claimed.paymentMethod || 'Other', status: 'Approved',

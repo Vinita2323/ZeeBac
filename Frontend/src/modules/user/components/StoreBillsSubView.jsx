@@ -4,6 +4,16 @@ import { UserAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import { generateReceiptPDF } from '../../../utils/exportUtils';
 
+const formatVendorAddress = (addr) => {
+  if (!addr) return 'Verified Merchant Store';
+  if (typeof addr === 'string') return addr;
+  if (typeof addr === 'object') {
+    const parts = [addr.fullAddress || addr.street, addr.landmark, addr.city, addr.state, addr.pincode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Verified Merchant Store';
+  }
+  return String(addr);
+};
+
 export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const [bills, setBills] = useState([]);
@@ -50,7 +60,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
                   vendorStoreName: tx.vendorName || tx.vendorId?.storeName || 'Zeebac Partner Store',
                   vendorZeebacId: tx.vendorZeebacId || tx.vendorId?.zeebacId || 'ZBV-STORE',
                   vendorPhone: tx.vendorPhone || tx.vendorId?.phone || '',
-                  vendorAddress: tx.vendorAddress || 'Verified Merchant Store',
+                  vendorAddress: formatVendorAddress(tx.vendorAddress || tx.vendorId?.address),
                   customerName: tx.customerName || currentUser?.name || 'Valued Customer',
                   customerZeebacId: tx.customerZeebacId || currentUser?.zeebacId || (currentUser?.phone === '9335825081' ? 'ZBC-5266' : (currentUser?.phone ? `ZBC-${currentUser.phone.slice(-4)}` : 'ZBC-5266')),
                   paymentMethod: tx.paymentMethod || 'Cash',
@@ -315,7 +325,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
                 )}
                 {selectedBill.vendorAddress && (
                   <p className="text-[9.5px] text-slate-400 font-sans truncate max-w-[280px] mx-auto">
-                    {selectedBill.vendorAddress}
+                    {formatVendorAddress(selectedBill.vendorAddress)}
                   </p>
                 )}
               </div>

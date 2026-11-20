@@ -37,6 +37,7 @@ const transactionSchema = new mongoose.Schema(
     vendorName: String,
     vendorPhone: String,
     vendorCategory: String,
+    vendorAddress: String,
 
     type: {
       type: String,
