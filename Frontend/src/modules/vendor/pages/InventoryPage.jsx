@@ -246,6 +246,36 @@ export default function InventoryPage() {
 
       {/* ── MAIN INVENTORY CONTENT ── */}
       <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+        {/* Dark Store Putaway Flow Banner */}
+        <div className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white rounded-3xl p-4 shadow-sm border border-purple-800/50 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white shrink-0">
+              <span className="material-symbols-outlined text-[24px]">shelves</span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-400 text-slate-950 px-2 py-0.2 rounded-full">
+                  Dark Store WMS
+                </span>
+                <span className="text-xs font-bold text-purple-200">Putaway Station</span>
+              </div>
+              <h4 className="font-display font-black text-sm text-white truncate mt-0.5">
+                Scan & Place Inbound Stock into Racks & Bins
+              </h4>
+              <p className="text-[11px] text-slate-300 truncate">
+                Zepto-style barcode inwarding, location verification & printable labels
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/vendor/putaway')}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-purple-900 text-xs font-display font-black shrink-0 transition-all active:scale-95 cursor-pointer shadow-sm"
+          >
+            Launch Putaway →
+          </button>
+        </div>
+
         {/* 1. Total Stock Hero Card (Matching Screen 3) */}
         <div className="bg-gradient-to-r from-purple-50 via-white to-purple-50/40 rounded-3xl p-5 border border-purple-100 shadow-xs flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-800 text-white flex items-center justify-center shrink-0 shadow-md">
@@ -570,6 +600,18 @@ export default function InventoryPage() {
                               <span className="material-symbols-outlined text-[12px]">edit_calendar</span>
                               <span>Edit Batch</span>
                             </button>
+
+                            {/* Dark Store Shelf / Bin Badge */}
+                            {p.warehouseLocation?.binCode && (
+                              <span
+                                onClick={() => navigate('/vendor/putaway')}
+                                className="text-[10px] font-mono font-black text-purple-900 bg-purple-100/90 hover:bg-purple-200 px-2 py-0.5 rounded-md border border-purple-300 flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Click to open Putaway Station"
+                              >
+                                <span className="material-symbols-outlined text-[12px] text-purple-700">shelves</span>
+                                <span>{p.warehouseLocation.binCode}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

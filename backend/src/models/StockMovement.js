@@ -75,7 +75,7 @@ const stockMovementSchema = new mongoose.Schema({
   },
   reason: {
     type: String,
-    enum: ['B2B_SALE', 'B2B_PURCHASE', 'ORDER_DELIVERY', 'MANUAL_ADJUSTMENT', 'INITIAL_IMPORT'],
+    enum: ['B2B_SALE', 'B2B_PURCHASE', 'ORDER_DELIVERY', 'MANUAL_ADJUSTMENT', 'INITIAL_IMPORT', 'PUTAWAY_CONFIRMED'],
     required: true,
   },
   referenceId: {
@@ -84,7 +84,7 @@ const stockMovementSchema = new mongoose.Schema({
   },
   referenceType: {
     type: String,
-    enum: ['B2BInvoice', 'Order', 'Manual'],
+    enum: ['B2BInvoice', 'Order', 'Manual', 'PutawayTask'],
     default: 'B2BInvoice',
   },
   notes: String,

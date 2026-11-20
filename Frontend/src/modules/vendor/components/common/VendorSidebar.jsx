@@ -32,6 +32,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
     { label: 'Products', icon: 'grid_view', path: '/vendor/products' },
     { label: 'Inventory', icon: 'inventory_2', path: '/vendor/inventory' },
+    { label: 'Putaway (Dark Store)', icon: 'shelves', path: '/vendor/putaway', badge: 'WMS' },
     { label: 'Billing POS', icon: 'point_of_sale', path: '/vendor/billing', badge: 'POS Bill', isHighlight: true },
     { label: 'GST & Tax', icon: 'bar_chart', path: '/vendor/gst', badge: 'Auto File' },
     { label: 'Orders & Requests', icon: 'receipt_long', path: '/vendor/orders', badge: 'Live' },

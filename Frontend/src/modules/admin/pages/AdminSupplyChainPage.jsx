@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { B2BAPI } from '../../../services/api';
+import { B2BAPI, PutawayAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
 
 export default function AdminSupplyChainPage() {
-  const [activeTab, setActiveTab] = useState('catalogue'); // 'catalogue' | 'invoices' | 'ledger'
+  const [activeTab, setActiveTab] = useState('catalogue'); // 'catalogue' | 'invoices' | 'ledger' | 'putaway'
 
   // Data states
   const [catalogue, setCatalogue] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [ledger, setLedger] = useState([]);
+  const [putaways, setPutaways] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Search & Filter states
@@ -59,6 +60,16 @@ export default function AdminSupplyChainPage() {
         const res = await B2BAPI.getAdminStockLedger(params);
         if (res.success) {
           setLedger(res.data || []);
+          setTotalPages(res.pagination?.totalPages || 1);
+          setTotalCount(res.pagination?.total || 0);
+        }
+      } else if (activeTab === 'putaway') {
+        const params = { page, limit: 20 };
+        if (statusFilter !== 'ALL') params.status = statusFilter;
+
+        const res = await PutawayAPI.getAdminTelemetry(params);
+        if (res.success) {
+          setPutaways(res.data || []);
           setTotalPages(res.pagination?.totalPages || 1);
           setTotalCount(res.pagination?.total || 0);
         }
@@ -115,7 +126,15 @@ export default function AdminSupplyChainPage() {
               activeTab === 'ledger' ? 'bg-white text-primary shadow-xs font-black' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Stock Audit Ledger
+            Stock Ledger
+          </button>
+          <button
+            onClick={() => { setActiveTab('putaway'); setPage(1); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'putaway' ? 'bg-white text-primary shadow-xs font-black' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Dark Store Putaways ({activeTab === 'putaway' ? totalCount : 'Putaway'})
           </button>
         </div>
       </div>
@@ -469,6 +488,90 @@ export default function AdminSupplyChainPage() {
                       <td className="px-4 py-3 font-mono text-[10px] text-slate-500">
                         {mov.invoiceNumber && <div>Inv: {mov.invoiceNumber}</div>}
                         {mov.paymentReference && <div>Ref: {mov.paymentReference}</div>}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Dark Store Putaways Tab Content */}
+      {activeTab === 'putaway' && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50 text-[10.5px] uppercase font-black text-slate-400 border-b border-slate-100">
+                <tr>
+                  <th className="px-4 py-3">Task Number</th>
+                  <th className="px-4 py-3">Dark Store / Vendor</th>
+                  <th className="px-4 py-3">Product Name & Barcode</th>
+                  <th className="px-4 py-3">Target Shelf / Bin</th>
+                  <th className="px-4 py-3 text-right">Inward Qty</th>
+                  <th className="px-4 py-3 text-right">Putaway Qty</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Completed At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      Loading dark store putaway tasks...
+                    </td>
+                  </tr>
+                ) : (!putaways || putaways.length === 0) ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                      No dark store putaways found.
+                    </td>
+                  </tr>
+                ) : (
+                  putaways.map((p) => (
+                    <tr key={p._id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-4 py-3 font-mono font-bold text-slate-900">
+                        #{p.taskNumber}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-slate-900">{p.vendorId?.storeName || 'Dark Store'}</p>
+                        <p className="text-[10px] text-slate-400">{p.vendorId?.city || 'Indore'}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-slate-900 truncate max-w-[200px]">{p.productName}</p>
+                        <p className="font-mono text-[10px] text-slate-400">
+                          {p.barcode ? `EAN: ${p.barcode}` : 'No Barcode'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-black text-purple-900 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          📍 {p.targetLocation?.binCode}
+                        </span>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {p.targetLocation?.rack} • {p.targetLocation?.shelf}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">
+                        {p.inwardQuantity} pcs
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-black text-emerald-700">
+                        {p.putawayQuantity || 0} pcs
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase ${
+                          p.status === 'COMPLETED'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-slate-500">
+                        {p.completedAt
+                          ? new Date(p.completedAt).toLocaleString('en-IN')
+                          : 'Pending'}
                       </td>
                     </tr>
                   ))

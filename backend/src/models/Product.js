@@ -126,7 +126,21 @@ const productSchema = new mongoose.Schema({
     brandContact: String,
     brandLogo: { type: String, get: sanitizeMediaUrl },
     cashbackPercentage: Number,
-  }
+  },
+  warehouseLocation: {
+    zone: { type: String, default: 'Zone A - FMCG' },
+    rack: { type: String, default: 'R-01' },
+    shelf: { type: String, default: 'S-01' },
+    bin: { type: String, default: 'B-01' },
+    binCode: { type: String, trim: true, uppercase: true, default: 'A01-S01-B01' },
+  },
+  putawayStatus: {
+    type: String,
+    enum: ['PENDING', 'COMPLETED'],
+    default: 'COMPLETED',
+  },
+  lastPutawayAt: Date,
+  lastPutawayBy: String,
 }, { 
   timestamps: true,
   toJSON: { getters: true },
@@ -135,4 +149,3 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 export default Product;
-

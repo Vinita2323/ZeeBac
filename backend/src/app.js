@@ -72,11 +72,14 @@ import storyRoutes from './routes/story.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import b2bRoutes from './routes/b2b.routes.js';
 import deliveryRoutes from './routes/delivery.routes.js';
+import putawayRoutes from './routes/putaway.routes.js';
 
 app.use('/api/auth', authRoutes);
 app.post('/api/vendor-app/login', vendorLogin); // Direct fallback alias for legacy client route
 app.use('/api/admin', adminRoutes);
 app.use('/api/vendor', vendorRoutes);
+app.use('/api/putaway', putawayRoutes);
+app.use('/api/vendor/putaway', putawayRoutes);
 app.use('/api/b2b', b2bRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/user', userRoutes);

@@ -1381,4 +1381,37 @@ export const DeliveryAPI = {
   },
 };
 
+// ── Dark Store / Warehouse Putaway Service ──
+export const PutawayAPI = {
+  getTasks: async (params) => {
+    const res = await apiClient.get('/vendor/putaway/tasks', { params });
+    return res.data;
+  },
+  scanItem: async (data) => {
+    const res = await apiClient.post('/vendor/putaway/scan-item', data);
+    return res.data;
+  },
+  verifyBin: async (data) => {
+    const res = await apiClient.post('/vendor/putaway/verify-bin', data);
+    return res.data;
+  },
+  confirmPutaway: async (data) => {
+    const res = await apiClient.post('/vendor/putaway/confirm', data);
+    return res.data;
+  },
+  createTask: async (data) => {
+    const res = await apiClient.post('/vendor/putaway/tasks', data);
+    return res.data;
+  },
+  getDarkStoreBins: async () => {
+    const res = await apiClient.get('/vendor/putaway/bins');
+    return res.data;
+  },
+  getAdminTelemetry: async (params) => {
+    const res = await apiClient.get('/putaway/admin/telemetry', { params });
+    return res.data;
+  },
+};
+
+
 
