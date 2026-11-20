@@ -34,15 +34,37 @@ export const initSocket = (httpServer) => {
   io.on('connection', (socket) => {
     logger.info(`Socket connected: ${socket.id} (User: ${socket.user.id}, Role: ${socket.user.role})`);
 
-    // Auto-join private user / vendor / customer rooms for targeted real-time events
+    // Auto-join private user / vendor / customer / rider rooms for targeted real-time events
     if (socket.user?.id) {
       socket.join(`user_${socket.user.id}`);
+      socket.join(`user:${socket.user.id}`);
+
       if (socket.user.role === 'vendor') {
         socket.join(`vendor_${socket.user.id}`);
+        socket.join(`vendor:${socket.user.id}`);
+      } else if (socket.user.role === 'delivery') {
+        socket.join(`rider_${socket.user.id}`);
+        socket.join(`rider:${socket.user.id}`);
       } else {
         socket.join(`customer_${socket.user.id}`);
+        socket.join(`customer:${socket.user.id}`);
       }
     }
+
+    // Dynamic order room subscription for live map GPS telemetry and lifecycle updates
+    socket.on('order:join', ({ orderId } = {}) => {
+      if (orderId) {
+        socket.join(`order:${orderId}`);
+        logger.info(`[Socket] User ${socket.user?.id} joined room order:${orderId}`);
+      }
+    });
+
+    socket.on('order:leave', ({ orderId } = {}) => {
+      if (orderId) {
+        socket.leave(`order:${orderId}`);
+        logger.info(`[Socket] User ${socket.user?.id} left room order:${orderId}`);
+      }
+    });
 
     // Register handlers
     registerChatHandlers(io, socket);

@@ -940,11 +940,20 @@ export const getMyCustomerOrders = async (req, res) => {
     const query = { $or: orConditions };
     if (status) query.orderStatus = status;
 
-    const orders = await Order.find(query)
+    const rawOrders = await Order.find(query)
       .populate('vendorId', 'storeName phone address location storeLogo city zeebacId')
+      .populate('riderDetails.riderId', 'name phone vehicleNo currentLocation')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
+
+    const orders = rawOrders.map((ord) => {
+      const obj = ord.toObject ? ord.toObject() : ord;
+      if (obj.riderDetails && !obj.riderDetails.deliveryOtp) {
+        obj.riderDetails.deliveryOtp = String(obj.orderId || '').replace(/\D/g, '').slice(-4) || '1234';
+      }
+      return obj;
+    });
 
     const total = await Order.countDocuments(query);
 
@@ -1008,10 +1017,21 @@ export const getVendorOrders = async (req, res) => {
     };
     if (status) query.orderStatus = status;
 
-    const orders = await Order.find(query)
+    const rawOrders = await Order.find(query)
+      .populate('customerId', 'name phone location')
+      .populate('riderDetails.riderId', 'name phone vehicleNo currentLocation')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
+
+    // Ensure every order has a guaranteed pickupOtp and formatted fields
+    const orders = rawOrders.map((ord) => {
+      const obj = ord.toObject ? ord.toObject() : ord;
+      if (!obj.pickupOtp) {
+        obj.pickupOtp = obj.riderDetails?.pickupOtp || String(obj.orderId || '').replace(/\D/g, '').slice(-4) || '1234';
+      }
+      return obj;
+    });
 
     const total = await Order.countDocuments(query);
 

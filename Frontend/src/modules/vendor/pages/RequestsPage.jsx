@@ -10,8 +10,12 @@ import {
   speakVoice,
   playStoreNewOrderAlarm,
   playRiderDeclinedTone,
+  playRiderArrivedBell,
+  playOrderOutForDeliveryChime,
+  playOrderDeliveredChime,
   formatOrderTime,
 } from '../../../utils/voiceUtils';
+import LiveOrderTrackingModal from '../../../components/common/LiveOrderTrackingModal';
 
 export default function RequestsPage() {
   const navigate = useNavigate();
@@ -23,6 +27,8 @@ export default function RequestsPage() {
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
   const [expandedOrderIds, setExpandedOrderIds] = useState(new Set());
+  const [trackingOrder, setTrackingOrder] = useState(null);
+  const [copiedOrderId, setCopiedOrderId] = useState(null);
 
   const toggleOrderExpand = (id) => {
     setExpandedOrderIds((prev) => {
@@ -254,9 +260,63 @@ export default function RequestsPage() {
         );
       };
 
+      // Real-time Order Status & Lifecycle Tracking updates
+      const handleLiveOrderStatusUpdate = (data) => {
+        if (!data?.orderId) return;
+        setOrders((prev) =>
+          prev.map((o) => {
+            if (o.orderId === data.orderId || o._id === data.orderId) {
+              const updatedStatus = data.orderStatus || o.orderStatus;
+              return {
+                ...o,
+                orderStatus: updatedStatus,
+                pickupOtp: data.pickupOtp || o.pickupOtp,
+                riderDetails: {
+                  ...o.riderDetails,
+                  ...(data.riderDetails || {}),
+                  name: data.riderName || o.riderDetails?.name,
+                  phone: data.riderPhone || o.riderDetails?.phone,
+                  vehicleNo: data.vehicleNo || o.riderDetails?.vehicleNo,
+                  pickupOtp: data.pickupOtp || o.riderDetails?.pickupOtp,
+                  currentLocation: data.currentLocation || o.riderDetails?.currentLocation,
+                },
+              };
+            }
+            return o;
+          })
+        );
+
+        if (data.orderStatus === 'ARRIVED_AT_PICKUP') {
+          playRiderArrivedBell({ riderName: data.riderName, pickupOtp: data.pickupOtp });
+        } else if (data.orderStatus === 'OUT_FOR_DELIVERY') {
+          playNotificationChime('incoming');
+        } else if (data.orderStatus === 'DELIVERED') {
+          playOrderDeliveredChime();
+        }
+      };
+
+      const handleRiderArrivedStore = (data) => {
+        if (!data?.orderId) return;
+        handleLiveOrderStatusUpdate({ ...data, orderStatus: 'ARRIVED_AT_PICKUP' });
+      };
+
+      const handleOutForDelivery = (data) => {
+        if (!data?.orderId) return;
+        handleLiveOrderStatusUpdate({ ...data, orderStatus: 'OUT_FOR_DELIVERY' });
+      };
+
+      const handleOrderDelivered = (data) => {
+        if (!data?.orderId) return;
+        handleLiveOrderStatusUpdate({ ...data, orderStatus: 'DELIVERED' });
+      };
+
       socket.on('order:new', handleNewOrder);
       socket.on('order:paid', handleOrderPaid);
       socket.on('order:rider_assigned', handleRiderAssigned);
+      socket.on('order:status_update', handleLiveOrderStatusUpdate);
+      socket.on('delivery:rider_arrived_store', handleRiderArrivedStore);
+      socket.on('order:out_for_delivery', handleOutForDelivery);
+      socket.on('order:delivered', handleOrderDelivered);
       socket.on('delivery:rider_declined', handleRiderDeclined);
       socket.on('order:cancelled', handleOrderCancelled);
       socket.on('new_cash_request', handleNewRequest);
@@ -266,6 +326,10 @@ export default function RequestsPage() {
         socket.off('order:new', handleNewOrder);
         socket.off('order:paid', handleOrderPaid);
         socket.off('order:rider_assigned', handleRiderAssigned);
+        socket.off('order:status_update', handleLiveOrderStatusUpdate);
+        socket.off('delivery:rider_arrived_store', handleRiderArrivedStore);
+        socket.off('order:out_for_delivery', handleOutForDelivery);
+        socket.off('order:delivered', handleOrderDelivered);
         socket.off('delivery:rider_declined', handleRiderDeclined);
         socket.off('order:cancelled', handleOrderCancelled);
         socket.off('new_cash_request', handleNewRequest);
@@ -596,10 +660,31 @@ export default function RequestsPage() {
                         <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-display font-black text-[14px] text-slate-900 truncate">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-display font-black text-[15px] text-slate-900 tracking-tight">
                             #{order.orderId}
                           </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(order.orderId);
+                              setCopiedOrderId(order.orderId);
+                              setTimeout(() => setCopiedOrderId(null), 2000);
+                            }}
+                            className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold cursor-pointer transition-colors"
+                            title="Copy Order ID"
+                          >
+                            {copiedOrderId === order.orderId ? 'Copied!' : 'Copy'}
+                          </button>
+
+                          {/* Quick Store Pickup OTP Pill in Header */}
+                          {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && (
+                            <span className="bg-amber-100 text-amber-950 border border-amber-300 px-2 py-0.5 rounded-lg text-[11px] font-mono font-black flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px] text-amber-800">key</span>
+                              <span>OTP: {order.pickupOtp || order.riderDetails?.pickupOtp || String(order.orderId || '').replace(/\D/g, '').slice(-4) || '1234'}</span>
+                            </span>
+                          )}
                         </div>
                         {order.createdAt && (
                           <p className="text-[11px] text-slate-400 font-medium mt-0.5">
@@ -623,7 +708,11 @@ export default function RequestsPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       <span
                         className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-                          statusBadgeText === 'Pending'
+                          order.orderStatus === 'ARRIVED_AT_PICKUP'
+                            ? 'bg-amber-500 text-white animate-pulse shadow-sm'
+                            : order.orderStatus === 'OUT_FOR_DELIVERY'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : statusBadgeText === 'Pending'
                             ? 'bg-amber-100 text-amber-800'
                             : statusBadgeText === 'Delivered'
                             ? 'bg-emerald-100 text-emerald-800'
@@ -632,7 +721,11 @@ export default function RequestsPage() {
                             : 'bg-purple-100 text-purple-800'
                         }`}
                       >
-                        {statusBadgeText}
+                        {order.orderStatus === 'ARRIVED_AT_PICKUP'
+                          ? '🚨 Rider At Store'
+                          : order.orderStatus === 'OUT_FOR_DELIVERY'
+                          ? '🛵 Out for Delivery'
+                          : statusBadgeText}
                       </span>
                       <span
                         className={`material-symbols-outlined text-slate-400 text-[19px] transition-transform duration-200 ${
@@ -646,7 +739,7 @@ export default function RequestsPage() {
 
                   {/* Expanded Detailed View with Actions */}
                   {isExpanded && (
-                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 space-y-3 text-left animate-reveal">
+                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 space-y-3.5 text-left animate-reveal">
                       <div className="pt-2 flex items-center justify-between text-[12px] text-slate-600">
                         <p>
                           Customer: <strong className="text-slate-900">{order.customerName}</strong> ({order.customerPhone})
@@ -655,6 +748,114 @@ export default function RequestsPage() {
                           +{order.totalCashbackPoints} Pts Cashback
                         </span>
                       </div>
+
+                      {/* ─── ZOMATO STORE PICKUP OTP HANDOVER CARD ─── */}
+                      {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && (
+                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                              <span className="material-symbols-outlined text-[24px]">key</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black uppercase text-amber-900 tracking-wider">
+                                  Store Pickup OTP
+                                </span>
+                                <span className="text-[10px] font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded-full">
+                                  Rider Handover Code
+                                </span>
+                              </div>
+                              <p className="text-2xl font-mono font-black text-amber-950 tracking-widest mt-0.5">
+                                {order.pickupOtp || order.riderDetails?.pickupOtp || String(order.orderId || '').replace(/\D/g, '').slice(-4) || '1234'}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-[11.5px] text-amber-900 font-medium max-w-xs">
+                            Rider jab aapke store pahuchega, ye 4-digit code rider ko batayein taaki parcel handover verify ho sake.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* ─── RIDER ARRIVED AT STORE ALERT BANNER ─── */}
+                      {order.orderStatus === 'ARRIVED_AT_PICKUP' && (
+                        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-2xl p-3.5 shadow-md flex items-center justify-between animate-pulse">
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-[26px]">sports_motorsports</span>
+                            <div>
+                              <p className="font-extrabold text-[13.5px] leading-tight">
+                                🚨 Delivery Partner {order.riderDetails?.name || 'Partner'} has reached your store!
+                              </p>
+                              <p className="text-[11px] text-amber-100 mt-0.5">
+                                Match OTP: <strong className="font-mono text-white text-[13px]">{order.pickupOtp || order.riderDetails?.pickupOtp}</strong> and handover parcel to rider.
+                              </p>
+                            </div>
+                          </div>
+                          {order.riderDetails?.phone && (
+                            <a
+                              href={`tel:${order.riderDetails.phone}`}
+                              className="px-3.5 py-2 rounded-xl bg-white text-orange-900 font-bold text-xs flex items-center gap-1 shadow-xs shrink-0 active:scale-95 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">call</span>
+                              <span>Call Rider</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ─── DELIVERY LIFECYCLE PROGRESS STEPPER (MERCHANT VIEW) ─── */}
+                      <div className="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80 space-y-2">
+                        <span className="text-[10.5px] font-black uppercase text-slate-400 tracking-wider block">
+                          Delivery Lifecycle Status
+                        </span>
+                        <div className="grid grid-cols-5 gap-1.5 text-center text-[10.5px]">
+                          {[
+                            { id: 'PLACED', label: '1. Placed', icon: 'receipt' },
+                            { id: 'PREPARING', label: '2. Preparing', icon: 'soup_kitchen' },
+                            { id: 'ARRIVED_AT_PICKUP', label: '3. At Store', icon: 'store' },
+                            { id: 'OUT_FOR_DELIVERY', label: '4. On the Way', icon: 'two_wheeler' },
+                            { id: 'DELIVERED', label: '5. Delivered', icon: 'check_circle' },
+                          ].map((step, idx) => {
+                            const stageOrder = ['PLACED', 'PREPARING', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+                            const currIdx = stageOrder.indexOf(order.orderStatus);
+                            const isDone = currIdx >= idx;
+                            const isCurrent = currIdx === idx;
+                            return (
+                              <div
+                                key={step.id}
+                                className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-all ${
+                                  isCurrent
+                                    ? 'bg-purple-700 text-white font-bold shadow-xs'
+                                    : isDone
+                                    ? 'bg-emerald-100 text-emerald-900 font-bold'
+                                    : 'bg-white text-slate-400 border border-slate-100'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[16px]">{step.icon}</span>
+                                <span className="leading-tight text-[10px]">{step.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* ─── LIVE GPS RIDER TRACKING BUTTON (MERCHANT VIEW) ─── */}
+                      {['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY'].includes(order.orderStatus) && (
+                        <button
+                          type="button"
+                          onClick={() => setTrackingOrder(order)}
+                          className="w-full py-2.5 px-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-between shadow-xs active:scale-98 transition-all cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[18px]">map</span>
+                            <span>Track Rider Live Location on Map</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] bg-white/20 px-2.5 py-0.5 rounded-full">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span>Live GPS</span>
+                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                          </span>
+                        </button>
+                      )}
 
                   {/* Customer Special Instructions / Notes */}
                   {order.orderNotes && (
@@ -1467,6 +1668,15 @@ export default function RequestsPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* LIVE GPS ORDER & RIDER TRACKING MODAL */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {trackingOrder && (
+        <LiveOrderTrackingModal
+          order={trackingOrder}
+          onClose={() => setTrackingOrder(null)}
+        />
       )}
     </div>
   );

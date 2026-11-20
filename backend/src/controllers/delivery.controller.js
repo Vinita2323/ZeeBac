@@ -579,13 +579,51 @@ export const updateDeliveryLocation = async (req, res) => {
       await rider.save();
     }
 
-    // If rider has an active order, broadcast location to customer room
+    // If rider has an active order, broadcast location to customer and vendor rooms
     if (rider.activeOrderId && rider.currentLocation?.latitude && rider.currentLocation?.longitude) {
-      safeSocketEmit(`order:${rider.activeOrderId}`, 'delivery:location_update', {
-        riderId: rider.riderId,
-        latitude: rider.currentLocation.latitude,
-        longitude: rider.currentLocation.longitude,
-      });
+      try {
+        const activeOrder = await Order.findById(rider.activeOrderId);
+        if (activeOrder) {
+          activeOrder.riderDetails = activeOrder.riderDetails || {};
+          activeOrder.riderDetails.currentLocation = {
+            latitude: rider.currentLocation.latitude,
+            longitude: rider.currentLocation.longitude,
+            heading: Number(req.body?.heading || 0),
+            speed: Number(req.body?.speed || 0),
+            updatedAt: new Date(),
+          };
+          await activeOrder.save();
+
+          const locPayload = {
+            orderId: activeOrder.orderId,
+            orderStatus: activeOrder.orderStatus,
+            riderId: rider.riderId,
+            riderName: rider.name,
+            riderPhone: rider.phone,
+            latitude: rider.currentLocation.latitude,
+            longitude: rider.currentLocation.longitude,
+            heading: Number(req.body?.heading || 0),
+            speed: Number(req.body?.speed || 0),
+            updatedAt: new Date(),
+          };
+
+          // Broadcast to order room aliases
+          safeSocketEmit(`order:${activeOrder._id}`, 'delivery:location_update', locPayload);
+          safeSocketEmit(`order:${activeOrder.orderId}`, 'delivery:location_update', locPayload);
+
+          // Broadcast to customer and vendor rooms
+          if (activeOrder.customerId) {
+            safeSocketEmit(`user_${activeOrder.customerId}`, 'delivery:location_update', locPayload);
+            safeSocketEmit(`user:${activeOrder.customerId}`, 'delivery:location_update', locPayload);
+          }
+          if (activeOrder.vendorId) {
+            safeSocketEmit(`vendor_${activeOrder.vendorId}`, 'delivery:location_update', locPayload);
+            safeSocketEmit(`vendor:${activeOrder.vendorId}`, 'delivery:location_update', locPayload);
+          }
+        }
+      } catch (orderUpdateErr) {
+        logger.warn(`Could not sync active order telemetry: ${orderUpdateErr.message}`);
+      }
     }
 
     return res.status(200).json({ success: true, data: rider.currentLocation });
@@ -898,16 +936,28 @@ export const acceptDeliveryOrder = async (req, res) => {
     // Broadcast notifications to store and customer
     const riderAssignedPayload = {
       orderId: order.orderId,
+      orderStatus: 'RIDER_ASSIGNED',
+      riderId: rider.riderId,
       riderName: rider.name,
       riderPhone: rider.phone,
       vehicleNo: rider.vehicleNo,
+      pickupOtp: order.pickupOtp || order.riderDetails?.pickupOtp,
       deliveryOtp,
+      currentLocation: rider.currentLocation,
       message: `Delivery partner ${rider.name} accepted order #${order.orderId}!`,
     };
     safeSocketEmit(`vendor:${order.vendorId}`, 'order:rider_assigned', riderAssignedPayload);
     safeSocketEmit(`vendor_${order.vendorId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', riderAssignedPayload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', riderAssignedPayload);
     safeSocketEmit(`order:${order.orderId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`order:${order._id}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`order:${order.orderId}`, 'order:status_update', riderAssignedPayload);
+    safeSocketEmit(`order:${order._id}`, 'order:status_update', riderAssignedPayload);
     safeSocketEmit(`user_${order.customerId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`user:${order.customerId}`, 'order:rider_assigned', riderAssignedPayload);
+    safeSocketEmit(`user_${order.customerId}`, 'order:status_update', riderAssignedPayload);
+    safeSocketEmit(`user:${order.customerId}`, 'order:status_update', riderAssignedPayload);
 
     logger.info(`[Delivery] Order ${order.orderId} accepted by rider ${rider.name} (${rider.phone})`);
 
@@ -1024,14 +1074,24 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       order.orderStatus = 'ARRIVED_AT_PICKUP';
       await order.save();
 
-      safeSocketEmit(`order:${order.orderId}`, 'order:status_update', {
+      const arrivedPayload = {
         orderId: order.orderId,
         orderStatus: 'ARRIVED_AT_PICKUP',
-      });
-      safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', {
-        orderId: order.orderId,
-        orderStatus: 'ARRIVED_AT_PICKUP',
-      });
+        riderId: rider.riderId,
+        riderName: rider.name,
+        riderPhone: rider.phone,
+        vehicleNo: rider.vehicleNo,
+        pickupOtp: order.pickupOtp || order.riderDetails?.pickupOtp,
+        message: `Rider ${rider.name} has arrived at store! Handover parcel with OTP: ${order.pickupOtp || order.riderDetails?.pickupOtp}`,
+      };
+      safeSocketEmit(`order:${order.orderId}`, 'order:status_update', arrivedPayload);
+      safeSocketEmit(`order:${order._id}`, 'order:status_update', arrivedPayload);
+      safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', arrivedPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', arrivedPayload);
+      safeSocketEmit(`vendor:${order.vendorId}`, 'delivery:rider_arrived_store', arrivedPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'delivery:rider_arrived_store', arrivedPayload);
+      safeSocketEmit(`user:${order.customerId}`, 'order:status_update', arrivedPayload);
+      safeSocketEmit(`user_${order.customerId}`, 'order:status_update', arrivedPayload);
 
       return res.status(200).json({
         success: true,
@@ -1088,20 +1148,29 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       order.riderDetails.pickedUpAt = new Date();
       await order.save();
 
-      safeSocketEmit(`order:${order.orderId}`, 'order:out_for_delivery', {
+      const outPayload = {
         orderId: order.orderId,
         orderStatus: 'OUT_FOR_DELIVERY',
+        riderId: rider.riderId,
+        riderName: rider.name,
+        riderPhone: rider.phone,
+        vehicleNo: rider.vehicleNo,
         pickupProofImage: fileUrl,
-      });
-      safeSocketEmit(`vendor:${order.vendorId}`, 'order:out_for_delivery', {
-        orderId: order.orderId,
-        orderStatus: 'OUT_FOR_DELIVERY',
-        pickupProofImage: fileUrl,
-      });
-      safeSocketEmit(`user_${order.customerId}`, 'order:out_for_delivery', {
-        orderId: order.orderId,
-        orderStatus: 'OUT_FOR_DELIVERY',
-      });
+        currentLocation: rider.currentLocation,
+        message: `Rider ${rider.name} picked up order #${order.orderId} and is out for delivery!`,
+      };
+      safeSocketEmit(`order:${order.orderId}`, 'order:out_for_delivery', outPayload);
+      safeSocketEmit(`order:${order._id}`, 'order:out_for_delivery', outPayload);
+      safeSocketEmit(`order:${order.orderId}`, 'order:status_update', outPayload);
+      safeSocketEmit(`order:${order._id}`, 'order:status_update', outPayload);
+      safeSocketEmit(`vendor:${order.vendorId}`, 'order:out_for_delivery', outPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'order:out_for_delivery', outPayload);
+      safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', outPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', outPayload);
+      safeSocketEmit(`user_${order.customerId}`, 'order:out_for_delivery', outPayload);
+      safeSocketEmit(`user:${order.customerId}`, 'order:out_for_delivery', outPayload);
+      safeSocketEmit(`user_${order.customerId}`, 'order:status_update', outPayload);
+      safeSocketEmit(`user:${order.customerId}`, 'order:status_update', outPayload);
 
       return res.status(200).json({
         success: true,
@@ -1115,10 +1184,22 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       order.orderStatus = 'ARRIVED_AT_CUSTOMER';
       await order.save();
 
-      safeSocketEmit(`order:${order.orderId}`, 'order:status_update', {
+      const arrivedCustomerPayload = {
         orderId: order.orderId,
         orderStatus: 'ARRIVED_AT_CUSTOMER',
-      });
+        riderId: rider.riderId,
+        riderName: rider.name,
+        riderPhone: rider.phone,
+        vehicleNo: rider.vehicleNo,
+        currentLocation: rider.currentLocation,
+        message: `Rider ${rider.name} reached your location! Please share Delivery OTP.`,
+      };
+      safeSocketEmit(`order:${order.orderId}`, 'order:status_update', arrivedCustomerPayload);
+      safeSocketEmit(`order:${order._id}`, 'order:status_update', arrivedCustomerPayload);
+      safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', arrivedCustomerPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', arrivedCustomerPayload);
+      safeSocketEmit(`user_${order.customerId}`, 'order:status_update', arrivedCustomerPayload);
+      safeSocketEmit(`user:${order.customerId}`, 'order:status_update', arrivedCustomerPayload);
 
       return res.status(200).json({
         success: true,
@@ -1265,16 +1346,29 @@ export const updateDeliveryOrderStatus = async (req, res) => {
 
       await rider.save();
 
-      safeSocketEmit(`order:${order.orderId}`, 'order:delivered', {
+      const deliveredPayload = {
         orderId: order.orderId,
         orderStatus: 'DELIVERED',
         totalCashbackPoints: order.totalCashbackPoints,
-      });
+        riderName: rider.name,
+        deliveredAt: new Date(),
+        message: `Order #${order.orderId} delivered successfully!`,
+      };
 
-      safeSocketEmit(`vendor:${order.vendorId}`, 'order:delivered', {
-        orderId: order.orderId,
-        orderStatus: 'DELIVERED',
-      });
+      safeSocketEmit(`order:${order.orderId}`, 'order:delivered', deliveredPayload);
+      safeSocketEmit(`order:${order._id}`, 'order:delivered', deliveredPayload);
+      safeSocketEmit(`order:${order.orderId}`, 'order:status_update', deliveredPayload);
+      safeSocketEmit(`order:${order._id}`, 'order:status_update', deliveredPayload);
+
+      safeSocketEmit(`vendor:${order.vendorId}`, 'order:delivered', deliveredPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'order:delivered', deliveredPayload);
+      safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', deliveredPayload);
+      safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', deliveredPayload);
+
+      safeSocketEmit(`user_${order.customerId}`, 'order:delivered', deliveredPayload);
+      safeSocketEmit(`user:${order.customerId}`, 'order:delivered', deliveredPayload);
+      safeSocketEmit(`user_${order.customerId}`, 'order:status_update', deliveredPayload);
+      safeSocketEmit(`user:${order.customerId}`, 'order:status_update', deliveredPayload);
 
       logger.info(`[Delivery] Order ${order.orderId} DELIVERED successfully by ${rider.name}. Payout ₹${deliveryPayout} added.`);
 

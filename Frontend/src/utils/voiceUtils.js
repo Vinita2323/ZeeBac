@@ -283,6 +283,42 @@ export const playStoreNewOrderAlarm = ({ orderId = '', amount = 0, customerName 
   startStoreOrderContinuousBell({ orderId, amount, customerName });
 };
 
+// Store alert when a delivery rider arrives at the merchant location (Zomato-style partner reached alert)
+export const playRiderArrivedBell = ({ riderName = '', pickupOtp = '' } = {}) => {
+  try {
+    playNotificationChime('success');
+    const msg = riderName
+      ? `Delivery partner ${riderName} has reached your store! Verify pickup OTP ${pickupOtp ? pickupOtp.split('').join(' ') : ''}.`
+      : `Delivery partner reached your store! Verify pickup OTP.`;
+    speakVoice(msg, 350, 'en-IN');
+  } catch (err) {
+    console.warn('Rider arrived bell error:', err);
+  }
+};
+
+// Customer alert when order goes out for delivery
+export const playOrderOutForDeliveryChime = ({ riderName = '' } = {}) => {
+  try {
+    playNotificationChime('incoming');
+    const msg = riderName
+      ? `Your order is picked up by ${riderName} and is on the way!`
+      : `Your order is on the way!`;
+    speakVoice(msg, 350, 'en-IN');
+  } catch (err) {
+    console.warn('Out for delivery chime error:', err);
+  }
+};
+
+// Customer and vendor alert when order is delivered successfully
+export const playOrderDeliveredChime = () => {
+  try {
+    playNotificationChime('success');
+    speakVoice('Order delivered successfully! Enjoy your meal!', 350, 'en-IN');
+  } catch (err) {
+    console.warn('Delivered chime error:', err);
+  }
+};
+
 // Store alert when a delivery rider declines the order
 export const playRiderDeclinedTone = ({ riderName = '', reason = '' } = {}) => {
   try {

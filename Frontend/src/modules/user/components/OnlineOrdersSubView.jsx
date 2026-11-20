@@ -5,7 +5,12 @@ import { OrderAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import useCartStore from '../../../store/useCartStore';
 import { getSocket } from '../../../services/socket';
-import { playNotificationChime } from '../../../utils/voiceUtils';
+import {
+  playNotificationChime,
+  playOrderOutForDeliveryChime,
+  playOrderDeliveredChime,
+} from '../../../utils/voiceUtils';
+import LiveOrderTrackingModal from '../../../components/common/LiveOrderTrackingModal';
 
 export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
   const navigate = useNavigate();
@@ -19,6 +24,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [copyFeedback, setCopyFeedback] = useState(null);
+  const [trackingOrder, setTrackingOrder] = useState(null);
 
   // Feedback Modal State
   const [feedbackModal, setFeedbackModal] = useState({
@@ -138,42 +144,87 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
       if (socket) {
         const handleStatusUpdate = (data) => {
           if (!data?.orderId) return;
+          const updatedStatus = data.orderStatus;
+
           setOrders((prev) =>
-            prev.map((o) =>
-              o.orderId === data.orderId ? { ...o, orderStatus: data.orderStatus, ...data } : o
-            )
+            prev.map((o) => {
+              if (o.orderId === data.orderId || o._id === data.orderId) {
+                const nextOrder = {
+                  ...o,
+                  orderStatus: updatedStatus || o.orderStatus,
+                  riderDetails: {
+                    ...o.riderDetails,
+                    ...(data.riderDetails || {}),
+                    name: data.riderName || o.riderDetails?.name,
+                    phone: data.riderPhone || o.riderDetails?.phone,
+                    vehicleNo: data.vehicleNo || o.riderDetails?.vehicleNo,
+                    deliveryOtp: data.deliveryOtp || o.riderDetails?.deliveryOtp,
+                    currentLocation: data.currentLocation || o.riderDetails?.currentLocation,
+                  },
+                };
+                return nextOrder;
+              }
+              return o;
+            })
           );
+
+          setTrackingOrder((prev) => {
+            if (prev && (prev.orderId === data.orderId || prev._id === data.orderId)) {
+              return {
+                ...prev,
+                orderStatus: updatedStatus || prev.orderStatus,
+                riderDetails: {
+                  ...prev.riderDetails,
+                  ...(data.riderDetails || {}),
+                  name: data.riderName || prev.riderDetails?.name,
+                  phone: data.riderPhone || prev.riderDetails?.phone,
+                  vehicleNo: data.vehicleNo || prev.riderDetails?.vehicleNo,
+                  deliveryOtp: data.deliveryOtp || prev.riderDetails?.deliveryOtp,
+                },
+              };
+            }
+            return prev;
+          });
+
+          if (updatedStatus === 'OUT_FOR_DELIVERY') {
+            playOrderOutForDeliveryChime({ riderName: data.riderName });
+          } else if (updatedStatus === 'DELIVERED') {
+            playOrderDeliveredChime();
+          } else if (updatedStatus === 'ARRIVED_AT_PICKUP' || updatedStatus === 'ARRIVED_AT_CUSTOMER') {
+            playNotificationChime('incoming');
+          }
+        };
+
+        const handleLocationUpdate = (data) => {
+          if (!data?.orderId && !data?.latitude) return;
+          setTrackingOrder((prev) => {
+            if (prev && (prev.orderId === data.orderId || prev._id === data.orderId || !data.orderId)) {
+              return {
+                ...prev,
+                riderDetails: {
+                  ...prev.riderDetails,
+                  currentLocation: {
+                    latitude: Number(data.latitude),
+                    longitude: Number(data.longitude),
+                    heading: Number(data.heading || 0),
+                    speed: Number(data.speed || 0),
+                    updatedAt: new Date(),
+                  },
+                },
+              };
+            }
+            return prev;
+          });
         };
 
         const handleRiderAssigned = (data) => {
           if (!data?.orderId) return;
-          setOrders((prev) =>
-            prev.map((o) =>
-              o.orderId === data.orderId
-                ? {
-                    ...o,
-                    orderStatus: data.orderStatus || 'RIDER_ASSIGNED',
-                    riderDetails: data.rider || data.riderDetails || o.riderDetails,
-                  }
-                : o
-            )
-          );
+          handleStatusUpdate({ ...data, orderStatus: 'RIDER_ASSIGNED' });
         };
 
         const handleOrderDelivered = (data) => {
           if (!data?.orderId) return;
-          setOrders((prev) =>
-            prev.map((o) =>
-              o.orderId === data.orderId
-                ? {
-                    ...o,
-                    orderStatus: 'DELIVERED',
-                    paymentStatus: 'PAID',
-                    cashbackSettled: true,
-                  }
-                : o
-            )
-          );
+          handleStatusUpdate({ ...data, orderStatus: 'DELIVERED', paymentStatus: 'PAID', cashbackSettled: true });
         };
 
         const handleOrderCancelled = (data) => {
@@ -194,6 +245,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
         socket.on('order:status_update', handleStatusUpdate);
         socket.on('order:rider_assigned', handleRiderAssigned);
         socket.on('order:out_for_delivery', handleStatusUpdate);
+        socket.on('delivery:location_update', handleLocationUpdate);
         socket.on('order:delivered', handleOrderDelivered);
         socket.on('order:cancelled', handleOrderCancelled);
 
@@ -201,6 +253,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
           socket.off('order:status_update', handleStatusUpdate);
           socket.off('order:rider_assigned', handleRiderAssigned);
           socket.off('order:out_for_delivery', handleStatusUpdate);
+          socket.off('delivery:location_update', handleLocationUpdate);
           socket.off('order:delivered', handleOrderDelivered);
           socket.off('order:cancelled', handleOrderCancelled);
         };
@@ -459,6 +512,42 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
           </div>
         )}
 
+        {/* ─── LIVE ACTIVE DELIVERY BANNER (MATCHING ZOMATO LIVE TRACKING SCREENSHOT) ─── */}
+        {orders.find((o) => ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(o.orderStatus)) && (() => {
+          const activeOrder = orders.find((o) => ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(o.orderStatus));
+          return (
+            <div
+              onClick={() => setTrackingOrder(activeOrder)}
+              className="mb-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-4 rounded-3xl shadow-lg shadow-emerald-900/15 cursor-pointer hover:shadow-xl transition-all flex items-center justify-between gap-3 animate-reveal"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20 shadow-xs">
+                  <span className="material-symbols-outlined text-[28px] text-white">two_wheeler</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-display font-black text-[14.5px] leading-tight">
+                      Order is on the way! 🛵
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span>
+                  </div>
+                  <p className="text-[11.5px] text-emerald-50 truncate mt-0.5 font-medium">
+                    {activeOrder.vendorId?.storeName || activeOrder.storeName || 'Store'} • Reaching in ~7 mins
+                  </p>
+                  <p className="text-[10px] text-emerald-200 mt-0.5">
+                    Tap to view live GPS map &amp; moving rider
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-3.5 py-2 bg-white text-emerald-800 rounded-xl font-black text-xs shrink-0 flex items-center gap-1 shadow-sm active:scale-95 transition-all">
+                <span>Track Live</span>
+                <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Orders List */}
         {!isLoading && filteredOrders.length > 0 && (
           <div className="space-y-3">
@@ -637,6 +726,25 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                           </a>
                         )}
                       </div>
+                    )}
+
+                    {/* Live GPS Map Trigger Button */}
+                    {['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
+                      <button
+                        type="button"
+                        onClick={() => setTrackingOrder(order)}
+                        className="w-full mt-2.5 py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs flex items-center justify-between shadow-xs active:scale-98 transition-all cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px]">two_wheeler</span>
+                          <span>Track Live Rider on Map</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-extrabold">
+                          <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                          <span>Live GPS</span>
+                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                        </span>
+                      </button>
                     )}
                   </div>
 
@@ -1227,6 +1335,13 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
           </div>
         </div>,
         document.body
+      )}
+      {/* ─── LIVE GPS ORDER & RIDER TRACKING MODAL (MATCHING SCREENSHOT) ─── */}
+      {trackingOrder && (
+        <LiveOrderTrackingModal
+          order={trackingOrder}
+          onClose={() => setTrackingOrder(null)}
+        />
       )}
     </div>
   );

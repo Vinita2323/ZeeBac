@@ -215,13 +215,33 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    pickupCoordinates: {
+      latitude: Number,
+      longitude: Number,
+    },
+    deliveryCoordinates: {
+      latitude: Number,
+      longitude: Number,
+    },
+
     riderDetails: {
+      riderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'DeliveryPartner',
+      },
       name: String,
       phone: String,
       vehicleNo: String,
       pickupOtp: String,
       deliveryOtp: String,
       assignedAt: Date,
+      currentLocation: {
+        latitude: Number,
+        longitude: Number,
+        heading: Number,
+        speed: Number,
+        updatedAt: Date,
+      },
       pickupProofImage: {
         type: String,
         default: null,
