@@ -39,6 +39,42 @@ const orderItemSchema = new mongoose.Schema(
     },
     category: String,
     brandName: String,
+    binCode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    warehouseLocation: {
+      rack: { type: String, default: '' },
+      shelf: { type: String, default: '' },
+      bin: { type: String, default: '' },
+      binCode: { type: String, default: '' },
+    },
+    barcode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    batchNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    expiryDate: {
+      type: String,
+      default: '',
+    },
+    picked: {
+      type: Boolean,
+      default: false,
+    },
+    pickedQuantity: {
+      type: Number,
+      default: 0,
+    },
+    pickedAt: {
+      type: Date,
+    },
   },
   { _id: true }
 );
@@ -249,6 +285,22 @@ const orderSchema = new mongoose.Schema(
       pickedUpAt: Date,
       deliveredAt: Date,
     },
+
+    // ── Dark Store WMS Picking & Packing Details (Zepto / Blinkit Flow) ──
+    toteNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    packingStatus: {
+      type: String,
+      enum: ['PENDING', 'PICKING_IN_PROGRESS', 'PICKED', 'PACKED', 'READY_FOR_PICKUP'],
+      default: 'PENDING',
+      index: true,
+    },
+    pickingStartedAt: Date,
+    pickingCompletedAt: Date,
+    pickingDurationSeconds: Number,
 
     // ── Zomato-style Store Pickup OTP (Generated on order confirmation, verified by rider at store) ──
     pickupOtp: {

@@ -1248,6 +1248,18 @@ export const OrderAPI = {
     const res = await apiClient.post('/orders/vendor/cashback-reserve/claim-upi', { utr, amount });
     return res.data;
   },
+  startPicking: async (orderId, data = {}) => {
+    const res = await apiClient.post(`/orders/${orderId}/start-picking`, data);
+    return res.data;
+  },
+  pickOrderItem: async (orderId, data) => {
+    const res = await apiClient.post(`/orders/${orderId}/pick-item`, data);
+    return res.data;
+  },
+  finishPacking: async (orderId, data = {}) => {
+    const res = await apiClient.post(`/orders/${orderId}/finish-packing`, data);
+    return res.data;
+  },
 };
 
 // ─── B2B (Manufacturer to Wholesaler & Barcode Billing) API ───

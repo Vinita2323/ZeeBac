@@ -16,6 +16,7 @@ import {
   formatOrderTime,
 } from '../../../utils/voiceUtils';
 import LiveOrderTrackingModal from '../../../components/common/LiveOrderTrackingModal';
+import DarkStorePickerModal from '../../../components/vendor/DarkStorePickerModal';
 
 export default function RequestsPage() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export default function RequestsPage() {
   const [expandedOrderIds, setExpandedOrderIds] = useState(new Set());
   const [trackingOrder, setTrackingOrder] = useState(null);
   const [copiedOrderId, setCopiedOrderId] = useState(null);
+  const [pickingModalOrder, setPickingModalOrder] = useState(null);
 
   const toggleOrderExpand = (id) => {
     setExpandedOrderIds((prev) => {
@@ -870,25 +872,78 @@ export default function RequestsPage() {
                     </div>
                   )}
 
-                  {/* Order Items Breakdown with Individual Product Cashback Rates */}
-                  <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-1.5 text-[12px]">
-                    <p className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
-                      Ordered Products ({order.items?.length || 0})
-                    </p>
+                  {/* Order Items Breakdown with WMS Shelf & Bin Locations */}
+                  <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-2 text-[12px]">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+                        Ordered Products ({order.items?.length || 0})
+                      </p>
+                      {order.toteNumber && (
+                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px] text-amber-700">shopping_basket</span>
+                          <span>Tote: {order.toteNumber}</span>
+                        </span>
+                      )}
+                    </div>
                     <div className="divide-y divide-slate-100">
                       {order.items?.map((item, idx) => (
-                        <div key={idx} className="py-1.5 flex justify-between items-center">
-                          <div>
-                            <span className="font-bold text-slate-800">{item.name}</span>
-                            <span className="text-slate-500 ml-1.5">× {item.quantity}</span>
-                            <span className="text-[10px] text-primary font-bold ml-2">
-                              ({item.cashbackPercentage}% = +{item.cashbackPoints} pts)
-                            </span>
+                        <div key={idx} className="py-2 flex items-start sm:items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800">{item.name}</span>
+                              <span className="text-slate-500 ml-1.5 font-mono">× {item.quantity}</span>
+                              {item.picked && (
+                                <span className="text-[9.5px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-200">
+                                  ✓ Picked
+                                </span>
+                              )}
+                              <span className="text-[10px] text-primary font-bold ml-1">
+                                ({item.cashbackPercentage}% = +{item.cashbackPoints} pts)
+                              </span>
+                            </div>
+
+                            {/* WMS Physical Bin Location Pill */}
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono font-black text-purple-900 bg-purple-100/90 border border-purple-300 px-2 py-0.5 rounded-md shadow-2xs">
+                                <span className="material-symbols-outlined text-[13px] text-purple-700">location_on</span>
+                                <span>Bin: {item.binCode || item.warehouseLocation?.binCode || 'C01-S01-B01'}</span>
+                              </span>
+                              {item.barcode && (
+                                <span className="text-[10px] font-mono text-slate-600 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                                  EAN: {item.barcode}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <span className="font-mono font-bold text-slate-900">₹{item.price * item.quantity}</span>
+                          <span className="font-mono font-bold text-slate-900 shrink-0">₹{item.price * item.quantity}</span>
                         </div>
                       ))}
                     </div>
+
+                    {/* Dark Store Picker Station Launcher Button */}
+                    {['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.orderStatus) && (
+                      <div className="pt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setPickingModalOrder(order)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white font-display font-black text-xs flex items-center justify-between shadow-xs active:scale-98 transition-all cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[17px]">shelves</span>
+                            <span>
+                              {order.packingStatus === 'READY_FOR_PICKUP'
+                                ? '✓ Order Picked & Packed (View Station)'
+                                : order.packingStatus === 'PICKING_IN_PROGRESS'
+                                ? 'Continue Picking (In Progress)'
+                                : 'Launch Picker Mode (Dark Store Station)'}
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-mono">
+                            {order.items?.filter((i) => i.picked).length || 0}/{order.items?.length || 0} Picked →
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Delivery Address & Details */}
@@ -1676,6 +1731,20 @@ export default function RequestsPage() {
         <LiveOrderTrackingModal
           order={trackingOrder}
           onClose={() => setTrackingOrder(null)}
+        />
+      )}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* DARK STORE WMS PICKER STATION MODAL (Zepto / Blinkit Flow) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {pickingModalOrder && (
+        <DarkStorePickerModal
+          isOpen={Boolean(pickingModalOrder)}
+          order={pickingModalOrder}
+          onClose={() => setPickingModalOrder(null)}
+          onOrderUpdated={(updated) => {
+            setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? { ...o, ...updated } : o)));
+            setPickingModalOrder((prev) => (prev && prev.orderId === updated.orderId ? { ...prev, ...updated } : prev));
+          }}
         />
       )}
     </div>

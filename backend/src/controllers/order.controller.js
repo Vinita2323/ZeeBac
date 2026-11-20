@@ -15,6 +15,16 @@ import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
 
+const safeSocketEmit = (room, event, data) => {
+  try {
+    const io = getIO();
+    if (io) {
+      if (room) io.to(room).emit(event, data);
+      else io.emit(event, data);
+    }
+  } catch (_) {}
+};
+
 // ─── 1. Create Order (Shopping with Product-Level Cashback & Direct UPI Intent) ───
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -97,6 +107,12 @@ export const createOrder = async (req, res) => {
       totalGrossAmount += lineTotal;
       totalCashbackPoints += lineCashbackPoints;
 
+      // Dark store shelf & bin location from product WMS mapping
+      const rack = dbProd?.warehouseLocation?.rack || (dbProd?.category ? `${dbProd.category[0].toUpperCase()}01` : 'A01');
+      const shelf = dbProd?.warehouseLocation?.shelf || 'S01';
+      const bin = dbProd?.warehouseLocation?.bin || 'B01';
+      const binCode = dbProd?.warehouseLocation?.binCode || `${rack}-${shelf}-${bin}`;
+
       processedItems.push({
         productId: dbProd?._id || (mongoose.Types.ObjectId.isValid(rawId) ? new mongoose.Types.ObjectId(rawId) : undefined),
         name: dbProd?.name || item.name || 'Store Product',
@@ -107,6 +123,18 @@ export const createOrder = async (req, res) => {
         image: dbProd?.image || item.image || null,
         category: dbProd?.category || item.category || 'General',
         brandName: dbProd?.branding?.brandName || item.brandName || null,
+        binCode,
+        warehouseLocation: {
+          rack,
+          shelf,
+          bin,
+          binCode,
+        },
+        barcode: dbProd?.barcode || item.barcode || '',
+        batchNumber: dbProd?.batchNumber || item.batchNumber || '',
+        expiryDate: dbProd?.expiryDate || item.expiryDate || '',
+        picked: false,
+        pickedQuantity: 0,
       });
     }
 
@@ -1020,15 +1048,41 @@ export const getVendorOrders = async (req, res) => {
     const rawOrders = await Order.find(query)
       .populate('customerId', 'name phone location')
       .populate('riderDetails.riderId', 'name phone vehicleNo currentLocation')
+      .populate('items.productId', 'warehouseLocation barcode batchNumber expiryDate')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
 
-    // Ensure every order has a guaranteed pickupOtp and formatted fields
+    // Ensure every order has a guaranteed pickupOtp and formatted fields with WMS locations
     const orders = rawOrders.map((ord) => {
       const obj = ord.toObject ? ord.toObject() : ord;
       if (!obj.pickupOtp) {
         obj.pickupOtp = obj.riderDetails?.pickupOtp || String(obj.orderId || '').replace(/\D/g, '').slice(-4) || '1234';
+      }
+      if (Array.isArray(obj.items)) {
+        obj.items = obj.items.map((item) => {
+          const prod = item.productId && typeof item.productId === 'object' ? item.productId : null;
+          const loc = item.warehouseLocation?.binCode
+            ? item.warehouseLocation
+            : prod?.warehouseLocation?.binCode
+            ? prod.warehouseLocation
+            : {
+                rack: item.category ? `${item.category[0].toUpperCase()}01` : 'A01',
+                shelf: 'S01',
+                bin: 'B01',
+                binCode: `${item.category ? item.category[0].toUpperCase() : 'A'}01-S01-B01`,
+              };
+          return {
+            ...item,
+            binCode: item.binCode || loc.binCode,
+            warehouseLocation: loc,
+            barcode: item.barcode || prod?.barcode || '',
+            batchNumber: item.batchNumber || prod?.batchNumber || '',
+            expiryDate: item.expiryDate || prod?.expiryDate || '',
+            picked: Boolean(item.picked),
+            pickedQuantity: item.pickedQuantity || (item.picked ? item.quantity : 0),
+          };
+        });
       }
       return obj;
     });
@@ -1403,5 +1457,202 @@ export const rateRiderByVendor = async (req, res) => {
   } catch (error) {
     logger.error(`Error in rateRiderByVendor: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server error submitting rider rating' });
+  }
+};
+
+// ─── 14. START ORDER PICKING (Dark Store WMS - Zepto Flow) ───
+export const startOrderPicking = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { toteNumber } = req.body;
+    const vendorId = req.user.id;
+
+    const order = await Order.findOne({
+      $or: [{ orderId }, { _id: mongoose.Types.ObjectId.isValid(orderId) ? orderId : null }],
+      vendorId,
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    order.packingStatus = 'PICKING_IN_PROGRESS';
+    if (!order.pickingStartedAt) {
+      order.pickingStartedAt = new Date();
+    }
+    if (toteNumber) {
+      order.toteNumber = String(toteNumber).trim().toUpperCase();
+    }
+
+    await order.save();
+
+    const payload = {
+      orderId: order.orderId,
+      packingStatus: order.packingStatus,
+      toteNumber: order.toteNumber,
+      pickingStartedAt: order.pickingStartedAt,
+      message: `Picking started for order #${order.orderId}`,
+    };
+
+    safeSocketEmit(`order:${order.orderId}`, 'order:picking_started', payload);
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:picking_started', payload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:picking_started', payload);
+
+    logger.info(`[Dark Store WMS] Picking started for Order #${order.orderId} (Tote: ${order.toteNumber || 'N/A'})`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Picking started',
+      data: { order },
+    });
+  } catch (error) {
+    logger.error(`Error in startOrderPicking: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server error starting pick' });
+  }
+};
+
+// ─── 15. SCAN / CONFIRM PICK ITEM ───
+export const pickOrderItem = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { itemId, barcode, quantity, isManualConfirm } = req.body;
+    const vendorId = req.user.id;
+
+    const order = await Order.findOne({
+      $or: [{ orderId }, { _id: mongoose.Types.ObjectId.isValid(orderId) ? orderId : null }],
+      vendorId,
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const item =
+      order.items.id(itemId) ||
+      order.items.find((i) => String(i._id) === String(itemId) || String(i.productId) === String(itemId));
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Item not found in order' });
+    }
+
+    // Verify barcode if scanned and not manually overridden
+    if (!isManualConfirm && barcode) {
+      const cleanScanned = String(barcode).trim().toLowerCase();
+      const cleanItemBarcode = String(item.barcode || '').trim().toLowerCase();
+      if (cleanItemBarcode && cleanScanned !== cleanItemBarcode) {
+        return res.status(400).json({
+          success: false,
+          message: `Barcode Mismatch! Scanned "${barcode}" does not match item barcode "${item.barcode}" for ${item.name}`,
+        });
+      }
+    }
+
+    item.picked = true;
+    item.pickedQuantity = Number(quantity) || item.quantity;
+    item.pickedAt = new Date();
+
+    // Check if all items in order are now picked
+    const allPicked = order.items.every((i) => i.picked);
+    if (allPicked) {
+      order.packingStatus = 'PICKED';
+    }
+
+    await order.save();
+
+    const payload = {
+      orderId: order.orderId,
+      itemId: item._id,
+      itemName: item.name,
+      picked: item.picked,
+      pickedQuantity: item.pickedQuantity,
+      allPicked,
+      packingStatus: order.packingStatus,
+    };
+
+    safeSocketEmit(`order:${order.orderId}`, 'order:item_picked', payload);
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:item_picked', payload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:item_picked', payload);
+
+    logger.info(
+      `[Dark Store WMS] Picked item "${item.name}" (Qty: ${item.pickedQuantity}) in Order #${order.orderId}. All picked: ${allPicked}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Item "${item.name}" picked successfully`,
+      data: { order, item, allPicked },
+    });
+  } catch (error) {
+    logger.error(`Error in pickOrderItem: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server error picking item' });
+  }
+};
+
+// ─── 16. FINISH PACKING & STAGE FOR HANDOVER ───
+export const finishOrderPacking = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { toteNumber } = req.body;
+    const vendorId = req.user.id;
+
+    const order = await Order.findOne({
+      $or: [{ orderId }, { _id: mongoose.Types.ObjectId.isValid(orderId) ? orderId : null }],
+      vendorId,
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    order.packingStatus = 'READY_FOR_PICKUP';
+    if (['PLACED', 'CONFIRMED', 'PREPARING'].includes(order.orderStatus)) {
+      order.orderStatus = 'READY_FOR_PICKUP';
+    }
+    if (toteNumber) {
+      order.toteNumber = String(toteNumber).trim().toUpperCase();
+    }
+    order.pickingCompletedAt = new Date();
+
+    if (order.pickingStartedAt) {
+      order.pickingDurationSeconds = Math.round(
+        (order.pickingCompletedAt.getTime() - order.pickingStartedAt.getTime()) / 1000
+      );
+    }
+
+    await order.save();
+
+    const payload = {
+      orderId: order.orderId,
+      orderStatus: order.orderStatus,
+      packingStatus: order.packingStatus,
+      toteNumber: order.toteNumber,
+      pickupOtp: order.pickupOtp || order.riderDetails?.pickupOtp,
+      pickingDurationSeconds: order.pickingDurationSeconds,
+      message: `Order #${order.orderId} packed in Tote ${order.toteNumber || 'N/A'} and ready for handover!`,
+    };
+
+    safeSocketEmit(`order:${order.orderId}`, 'order:ready_for_pickup', payload);
+    safeSocketEmit(`order:${order._id}`, 'order:ready_for_pickup', payload);
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:ready_for_pickup', payload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:ready_for_pickup', payload);
+
+    if (order.riderDetails?.riderId) {
+      safeSocketEmit(`rider:${order.riderDetails.riderId}`, 'order:ready_for_pickup', payload);
+      safeSocketEmit(`rider_${order.riderDetails.riderId}`, 'order:ready_for_pickup', payload);
+    }
+
+    logger.info(
+      `[Dark Store WMS] Order #${order.orderId} PACKED & READY FOR HANDOVER. Duration: ${
+        order.pickingDurationSeconds || 0
+      }s`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Order packed and ready for pickup handover!',
+      data: { order },
+    });
+  } catch (error) {
+    logger.error(`Error in finishOrderPacking: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Server error finishing packing' });
   }
 };
