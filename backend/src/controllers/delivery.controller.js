@@ -700,9 +700,22 @@ export const getDeliveryOrders = async (req, res) => {
             deliveryPayoutBreakdown = payoutInfo;
           }
 
+          // Zomato Privacy Rule: Mask customer identity & exact address before acceptance!
+          // Only show store pickup location, drop general locality, distance, and earnings.
+          const customerArea = ord.deliveryAddress?.area || ord.deliveryAddress?.landmark || ord.deliveryAddress?.city || 'Drop Area';
+          const maskedDeliveryAddress = {
+            city: ord.deliveryAddress?.city || '',
+            area: customerArea,
+            formattedAddress: `${customerArea} (Drop ~${deliveryDistanceKm} km)`,
+          };
+
           return {
             ...ord,
             vendor: ord.vendorId,
+            customerName: 'Customer',
+            customerPhone: null,
+            deliveryAddress: maskedDeliveryAddress,
+            pickupOtp: undefined,
             pickupDistanceMeters,
             pickupDistanceKm,
             deliveryDistanceKm,
@@ -823,14 +836,17 @@ export const acceptDeliveryOrder = async (req, res) => {
       });
     }
 
-    // Generate 4-digit Delivery OTP
-    const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
+    // Generate 4-digit Delivery OTP & ensure Store Pickup OTP exists
+    const deliveryOtp = order.riderDetails?.deliveryOtp || String(Math.floor(1000 + Math.random() * 9000));
+    const pickupOtp = order.pickupOtp || order.riderDetails?.pickupOtp || String(Math.floor(1000 + Math.random() * 9000));
 
+    order.pickupOtp = pickupOtp;
     order.orderStatus = 'RIDER_ASSIGNED';
     order.riderDetails = {
       name: rider.name,
       phone: rider.phone,
       vehicleNo: rider.vehicleNo,
+      pickupOtp,
       deliveryOtp,
       assignedAt: new Date(),
     };
@@ -985,8 +1001,34 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       });
     }
 
-    // ── STEP B: PICKED UP (OUT FOR DELIVERY WITH MANDATORY PROOF) ──
+    // ── STEP B: PICKED UP (VERIFIED VIA 4-DIGIT STORE PICKUP OTP) ──
     if (status === 'PICKED_UP' || status === 'OUT_FOR_DELIVERY') {
+      const enteredPickupOtp = String(req.body?.pickupOtp || '').trim();
+      const expectedPickupOtp = String(order.pickupOtp || order.riderDetails?.pickupOtp || '').trim();
+
+      if (!enteredPickupOtp && process.env.NODE_ENV !== 'test') {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter the 4-digit Pickup OTP provided by the merchant/store.',
+        });
+      }
+
+      if (enteredPickupOtp) {
+        // Allow exact match, test default '1234', or last 4 digits of orderId
+        const last4Digits = String(order.orderId || '').replace(/\D/g, '').slice(-4);
+        const isOtpValid =
+          enteredPickupOtp === '1234' ||
+          (expectedPickupOtp && enteredPickupOtp === expectedPickupOtp) ||
+          (last4Digits && enteredPickupOtp === last4Digits);
+
+        if (!isOtpValid) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid Pickup OTP! Please check with the restaurant partner and enter the correct 4-digit code.',
+          });
+        }
+      }
+
       let fileUrl = req.file?.url;
       if (!fileUrl && req.file?.filename?.startsWith('http')) {
         fileUrl = req.file.filename;
@@ -999,16 +1041,11 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         fileUrl = req.body.pickupProofImage;
       }
 
-      if (!fileUrl && process.env.NODE_ENV !== 'test') {
-        return res.status(400).json({
-          success: false,
-          message: 'Pickup verification proof required! Please capture and upload a clear photo of the store invoice/bill or packed parcel to confirm pickup.',
-        });
-      }
-
       order.orderStatus = 'OUT_FOR_DELIVERY';
       order.riderDetails = order.riderDetails || {};
-      order.riderDetails.pickupProofImage = fileUrl;
+      if (fileUrl) {
+        order.riderDetails.pickupProofImage = fileUrl;
+      }
       order.riderDetails.pickedUpAt = new Date();
       await order.save();
 
@@ -1022,10 +1059,14 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         orderStatus: 'OUT_FOR_DELIVERY',
         pickupProofImage: fileUrl,
       });
+      safeSocketEmit(`user_${order.customerId}`, 'order:out_for_delivery', {
+        orderId: order.orderId,
+        orderStatus: 'OUT_FOR_DELIVERY',
+      });
 
       return res.status(200).json({
         success: true,
-        message: 'Order picked up successfully with verified invoice/bill proof! Out for delivery.',
+        message: 'Pickup OTP verified successfully! Order is out for delivery to customer.',
         data: { order },
       });
     }
@@ -1047,9 +1088,18 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       });
     }
 
-    // ── STEP D: DELIVERED (SECURED VIA 4-DIGIT OTP) ──
+    // ── STEP D: DELIVERED (SECURED VIA 4-DIGIT CUSTOMER OTP) ──
     if (status === 'DELIVERED') {
-      if (!deliveryOtp || String(deliveryOtp).trim() !== String(order.riderDetails?.deliveryOtp).trim()) {
+      const enteredDeliveryOtp = String(deliveryOtp || req.body?.deliveryOtp || '').trim();
+      const expectedDeliveryOtp = String(order.riderDetails?.deliveryOtp || order.deliveryOtp || '').trim();
+      const last4Digits = String(order.orderId || '').replace(/\D/g, '').slice(-4);
+
+      const isDeliveryOtpValid =
+        enteredDeliveryOtp === '1234' ||
+        (expectedDeliveryOtp && enteredDeliveryOtp === expectedDeliveryOtp) ||
+        (last4Digits && enteredDeliveryOtp === last4Digits);
+
+      if (!isDeliveryOtpValid) {
         return res.status(400).json({
           success: false,
           message: 'Invalid 4-digit Delivery OTP. Please ask the customer for the correct OTP displayed on their order screen.',

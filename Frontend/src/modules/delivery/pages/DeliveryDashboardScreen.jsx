@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import DeliveryTopBar from '../components/DeliveryTopBar';
-import DeliveryBottomNav from '../components/DeliveryBottomNav';
 import { toast } from 'react-hot-toast';
 import { getSocket } from '../../../services/socket';
-import { playDeliveryOrderAlarm, formatOrderTime } from '../../../utils/voiceUtils';
+import {
+  startRiderOrderContinuousAlarm,
+  stopRiderOrderContinuousAlarm,
+  formatOrderTime,
+} from '../../../utils/voiceUtils';
 
 const formatAddress = (addr) => {
   if (!addr) return '';
@@ -46,6 +49,14 @@ const resolveCustomerAddress = (order) => {
   return 'Corporate House, RNT Marg, Near Regal Square, Indore - 452001';
 };
 
+// Available Shift / Gig Definitions (matching DeliveryGigsScreen)
+const GIG_SLOTS = [
+  { id: 'slot_1', time: '06:00 AM - 11:00 AM', label: 'Morning Breakfast Rush', bonus: '+₹40/hr guarantee' },
+  { id: 'slot_2', time: '11:00 AM - 04:00 PM', label: 'Lunch & Groceries Peak', bonus: 'High Demand' },
+  { id: 'slot_3', time: '04:00 PM - 09:00 PM', label: 'Evening Peak Surge', bonus: '+₹20 extra per order', isHot: true },
+  { id: 'slot_4', time: '09:00 PM - 12:00 AM', label: 'Late Night Express', bonus: '+₹30 extra per order', isHot: true },
+];
+
 export default function DeliveryDashboardScreen() {
   const navigate = useNavigate();
   const rider = useDeliveryStore((state) => state.rider);
@@ -60,48 +71,57 @@ export default function DeliveryDashboardScreen() {
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  // OTP Modal for delivery completion
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [deliveryOtpInput, setDeliveryOtpInput] = useState('');
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  // 4-Digit Pickup OTP & Delivery OTP inputs
+  const [pickupOtpDigits, setPickupOtpDigits] = useState(['', '', '', '']);
+  const [deliveryOtpDigits, setDeliveryOtpDigits] = useState(['', '', '', '']);
+  const [isVerifyingPickupOtp, setIsVerifyingPickupOtp] = useState(false);
+  const [isVerifyingDeliveryOtp, setIsVerifyingDeliveryOtp] = useState(false);
+  const [deliveryCashConfirmed, setDeliveryCashConfirmed] = useState(false);
 
-  // Reject Modal
+  // Checklist of collected items at store
+  const [checkedItems, setCheckedItems] = useState({});
+
+  // Reject / Pass Modal
   const [rejectOrderId, setRejectOrderId] = useState(null);
   const [rejectReason, setRejectReason] = useState('Too far from pickup');
 
-  // Pickup Proof Image Capture
+  // Pickup Proof Photo (Optional)
   const [pickupProofFile, setPickupProofFile] = useState(null);
   const [pickupProofPreview, setPickupProofPreview] = useState(null);
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
-  // Ringing Order Alert banner & Fullscreen Order Prompt (Image 1)
+  // Incoming Order Alert (Zomato New Order Alert Sheet with sound & vibration)
   const [ringingOrderAlert, setRingingOrderAlert] = useState(null);
   const [orderCountdown, setOrderCountdown] = useState(45);
   const [selectedOfferModal, setSelectedOfferModal] = useState(false);
+  const [deliverySuccessModal, setDeliverySuccessModal] = useState(null);
   const knownOrderIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
 
-  // Zomato-style 45s ticking countdown timer for incoming delivery alerts
-  useEffect(() => {
-    if (!ringingOrderAlert) {
-      setOrderCountdown(45);
-      return;
+  // Booked gigs state from localStorage
+  const [bookedGigs, setBookedGigs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zeebac_booked_gigs');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
     }
-    setOrderCountdown(45);
-    const timer = setInterval(() => {
-      setOrderCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setRingingOrderAlert(null);
-          return 45;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  });
 
-    return () => clearInterval(timer);
-  }, [ringingOrderAlert]);
+  // Calculate current active gig slot
+  const currentHour = new Date().getHours();
+  const currentSlotId =
+    currentHour >= 6 && currentHour < 11
+      ? 'slot_1'
+      : currentHour >= 11 && currentHour < 16
+      ? 'slot_2'
+      : currentHour >= 16 && currentHour < 21
+      ? 'slot_3'
+      : 'slot_4';
+  const currentGigSlot = GIG_SLOTS.find((s) => s.id === currentSlotId) || GIG_SLOTS[1];
+  const todayKey = `${new Date().getDate()}_${new Date().getMonth()}`;
+  const isCurrentSlotBooked = Boolean(bookedGigs[`${todayKey}_${currentSlotId}`]);
 
   // Real dashboard stats & payout config
   const [todayStats, setTodayStats] = useState({
@@ -117,11 +137,44 @@ export default function DeliveryDashboardScreen() {
   });
   const [riderDetails, setRiderDetails] = useState(null);
 
-  // Rider location coordinates
-  const [riderCoords, setRiderCoords] = useState({ lat: 26.8467, lng: 80.9462 }); // Default Lucknow
-
-  // Geolocation watcher ref
+  // Rider location coordinates (Default Indore Central)
+  const [riderCoords, setRiderCoords] = useState({ lat: 22.7176, lng: 75.8720 });
   const watchIdRef = useRef(null);
+
+  // OTP Input references
+  const pickupOtpRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+  const deliveryOtpRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+
+  // Zomato 45s countdown timer & continuous loud ringing chime
+  useEffect(() => {
+    if (!ringingOrderAlert) {
+      stopRiderOrderContinuousAlarm();
+      setOrderCountdown(45);
+      return;
+    }
+
+    setOrderCountdown(45);
+    const storeName = ringingOrderAlert.vendor?.storeName || ringingOrderAlert.storeName || 'Store';
+    const payout = ringingOrderAlert.deliveryPayout || ringingOrderAlert.payout || 40;
+    startRiderOrderContinuousAlarm({ storeName, payout });
+
+    const timer = setInterval(() => {
+      setOrderCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          stopRiderOrderContinuousAlarm();
+          setRingingOrderAlert(null);
+          return 45;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+      stopRiderOrderContinuousAlarm();
+    };
+  }, [ringingOrderAlert]);
 
   // Check auth and approval status
   useEffect(() => {
@@ -163,11 +216,7 @@ export default function DeliveryDashboardScreen() {
           );
           if (newlyArrived.length > 0) {
             const latest = newlyArrived[0];
-            const storeName = latest.vendor?.storeName || latest.vendorName || 'Partner Store';
-            const payout = latest.deliveryPayout || 50;
-            playDeliveryOrderAlarm({ storeName, payout });
             setRingingOrderAlert(latest);
-            toast.success(`🔔 New Order Received! +₹${payout} from ${storeName}`, { duration: 6000 });
           }
         }
 
@@ -198,11 +247,7 @@ export default function DeliveryDashboardScreen() {
     const handleNewOrder = (data) => {
       console.log('Realtime delivery order received:', data);
       if (isOnline && !activeOrder) {
-        const storeName = data.storeName || data.order?.vendor?.storeName || 'Partner Store';
-        const payout = data.payout || data.order?.deliveryPayout || 50;
-        playDeliveryOrderAlarm({ storeName, payout });
         setRingingOrderAlert(data.order || data);
-        toast.success(`🔔 New Delivery Order: +₹${payout} from ${storeName}`, { duration: 6000 });
       }
       fetchDashboardData();
     };
@@ -246,7 +291,18 @@ export default function DeliveryDashboardScreen() {
     };
   }, [isOnline]);
 
-  // Toggle availability
+  // 1-Tap Book Current Gig Slot
+  const handleBookCurrentGig = () => {
+    const key = `${todayKey}_${currentSlotId}`;
+    const next = { ...bookedGigs, [key]: true };
+    setBookedGigs(next);
+    try {
+      localStorage.setItem('zeebac_booked_gigs', JSON.stringify(next));
+    } catch {}
+    toast.success(`🎉 Gig Booked: ${currentGigSlot.label} (${currentGigSlot.time})`);
+  };
+
+  // Toggle availability (Online / Offline)
   const handleToggleOnline = async () => {
     if (isOnline && activeOrder) {
       toast.error('You cannot go offline while delivering an active order!');
@@ -255,11 +311,21 @@ export default function DeliveryDashboardScreen() {
 
     setIsTogglingOnline(true);
     const nextStatus = !isOnline;
+
+    // If going online and no gig is booked, auto-book the current open slot
+    if (nextStatus && !isCurrentSlotBooked) {
+      handleBookCurrentGig();
+    }
+
     try {
       const res = await DeliveryAPI.toggleAvailability({ isOnline: nextStatus });
       if (res.success) {
         setOnlineStatus(nextStatus);
-        toast.success(nextStatus ? '🟢 You are now ONLINE & ready to receive orders!' : '⚪ You are now OFFLINE');
+        toast.success(
+          nextStatus
+            ? '🟢 You are now ONLINE! Ready to receive orders.'
+            : '⚪ You are now OFFLINE. Shift ended.'
+        );
         fetchDashboardData();
       }
     } catch (err) {
@@ -269,8 +335,9 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
-  // Accept Order
+  // Accept Order (Stops ringing and starts live delivery journey)
   const handleAcceptOrder = async (orderId) => {
+    stopRiderOrderContinuousAlarm();
     setActionLoadingId(orderId);
     try {
       const res = await DeliveryAPI.acceptOrder(orderId);
@@ -279,6 +346,10 @@ export default function DeliveryDashboardScreen() {
         setActiveOrder(res.data.order);
         setAvailableOrders((prev) => prev.filter((o) => o._id !== orderId));
         setRingingOrderAlert(null);
+        setPickupOtpDigits(['', '', '', '']);
+        setDeliveryOtpDigits(['', '', '', '']);
+        setCheckedItems({});
+        setDeliveryCashConfirmed(false);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not accept order');
@@ -287,9 +358,10 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
-  // Reject Order
+  // Reject / Pass Order
   const handleRejectOrder = async () => {
     if (!rejectOrderId) return;
+    stopRiderOrderContinuousAlarm();
     setActionLoadingId(rejectOrderId);
     try {
       const res = await DeliveryAPI.rejectOrder(rejectOrderId, rejectReason);
@@ -306,36 +378,15 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
-  // Pickup Photo Selection handler
-  const handlePickupPhotoSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file (JPEG, PNG, WebP)');
-      return;
-    }
-    setPickupProofFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setPickupProofPreview(objectUrl);
-  };
-
-  // Update Stepper Status
-  const handleUpdateStatus = async (newStatus, extra = {}) => {
+  // Stepper Status Transition (ARRIVED_AT_PICKUP, ARRIVED_AT_CUSTOMER)
+  const handleUpdateStatus = async (newStatus) => {
     if (!activeOrder) return;
     setActionLoadingId(activeOrder._id);
     try {
-      const dataToSend =
-        extra instanceof FormData
-          ? extra
-          : { status: newStatus, ...extra };
-
-      const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, dataToSend);
+      const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, { status: newStatus });
       if (res.success) {
         toast.success(res.message || 'Status updated');
         setActiveOrder(res.data.order);
-        if (res.data.totalEarnings !== undefined) {
-          updateRider({ totalEarnings: res.data.totalEarnings });
-        }
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update order status');
@@ -344,60 +395,133 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
-  // Confirm Pickup with Mandatory Bill Photo Proof
-  const handleConfirmPickupWithProof = async () => {
-    if (!activeOrder) return;
-    if (!pickupProofFile) {
-      toast.error('Store invoice/bill ya packed bag ki photo attach karna zaroori hai');
+  // Step 2: Confirm Store Pickup via 4-Digit Pickup OTP
+  const handleVerifyPickupOtp = async () => {
+    const enteredOtp = pickupOtpDigits.join('').trim();
+    if (enteredOtp.length !== 4) {
+      toast.error('Please enter the 4-digit Pickup OTP provided by the merchant');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('status', 'PICKED_UP');
-    formData.append('pickupProof', pickupProofFile);
+    setIsVerifyingPickupOtp(true);
+    try {
+      let dataToSend;
+      if (pickupProofFile) {
+        dataToSend = new FormData();
+        dataToSend.append('status', 'PICKED_UP');
+        dataToSend.append('pickupOtp', enteredOtp);
+        dataToSend.append('pickupProof', pickupProofFile);
+      } else {
+        dataToSend = {
+          status: 'PICKED_UP',
+          pickupOtp: enteredOtp,
+        };
+      }
 
-    await handleUpdateStatus('PICKED_UP', formData);
-    setPickupProofFile(null);
-    setPickupProofPreview(null);
+      const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, dataToSend);
+      if (res.success) {
+        toast.success('🎉 Pickup Verified! Now delivering to customer.');
+        setActiveOrder(res.data.order);
+        setPickupProofFile(null);
+        setPickupProofPreview(null);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid Pickup OTP! Ask merchant for 4-digit code.');
+    } finally {
+      setIsVerifyingPickupOtp(false);
+    }
   };
 
-  // Complete Delivery with OTP
-  const handleCompleteDelivery = async (e) => {
-    e.preventDefault();
-    if (!deliveryOtpInput.trim() || isVerifyingOtp || !activeOrder) return;
+  // Step 4: Complete Delivery via 4-Digit Customer Delivery OTP
+  const handleVerifyDeliveryOtp = async (e) => {
+    if (e) e.preventDefault();
+    const enteredOtp = deliveryOtpDigits.join('').trim();
+    if (enteredOtp.length !== 4) {
+      toast.error('Please enter the 4-digit Delivery OTP given by customer');
+      return;
+    }
 
-    setIsVerifyingOtp(true);
+    const isCod =
+      activeOrder?.paymentMethod === 'CASH' ||
+      activeOrder?.paymentMethod === 'COD' ||
+      activeOrder?.paymentStatus === 'PENDING';
+    if (isCod && !deliveryCashConfirmed) {
+      toast.error('Please confirm you have collected cash payment from customer!');
+      return;
+    }
+
+    setIsVerifyingDeliveryOtp(true);
     try {
       const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, {
         status: 'DELIVERED',
-        deliveryOtp: deliveryOtpInput.trim(),
+        deliveryOtp: enteredOtp,
       });
 
       if (res.success) {
-        toast.success(`🎉 Delivery Completed! +₹${res.data.earnedAmount || 50} added to your pocket.`);
-        setShowOtpModal(false);
-        setDeliveryOtpInput('');
+        const earned = res.data.earnedAmount || activeOrder.deliveryPayout || 40;
+        setDeliverySuccessModal({
+          orderId: activeOrder.orderId || activeOrder._id,
+          earnedAmount: earned,
+          customerName: activeOrder.customerName || 'Customer',
+          storeName: activeOrder.storeName || activeOrder.vendor?.storeName || 'Store',
+        });
         setActiveOrder(null);
+        setDeliveryOtpDigits(['', '', '', '']);
+        setPickupOtpDigits(['', '', '', '']);
         if (res.data.totalEarnings !== undefined) {
           updateRider({ totalEarnings: res.data.totalEarnings });
         }
         fetchDashboardData();
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Invalid OTP. Ask the customer for the 4-digit code.');
+      toast.error(err.response?.data?.message || 'Invalid Delivery OTP! Ask customer for correct 4-digit OTP.');
     } finally {
-      setIsVerifyingOtp(false);
+      setIsVerifyingDeliveryOtp(false);
+    }
+  };
+
+  // OTP digit keyboard handler
+  const handleDigitChange = (index, value, digitsArray, setDigitsArray, refsArray) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (!cleaned) {
+      const next = [...digitsArray];
+      next[index] = '';
+      setDigitsArray(next);
+      return;
+    }
+
+    // Support paste of 4 digits
+    if (cleaned.length === 4) {
+      const parts = cleaned.split('').slice(0, 4);
+      setDigitsArray(parts);
+      refsArray[3]?.current?.focus();
+      return;
+    }
+
+    const next = [...digitsArray];
+    next[index] = cleaned.slice(-1);
+    setDigitsArray(next);
+
+    // Auto-advance
+    if (index < 3 && cleaned.length > 0) {
+      refsArray[index + 1]?.current?.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index, e, digitsArray, refsArray) => {
+    if (e.key === 'Backspace' && !digitsArray[index] && index > 0) {
+      refsArray[index - 1]?.current?.focus();
     }
   };
 
   const openMaps = (address, label = '') => {
     const query = encodeURIComponent(`${label ? label + ', ' : ''}${address}`);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${query}`, '_blank');
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f6f8] text-slate-900 pb-20 font-sans relative">
-      {/* ─── Top Header (From Images 5, 6, 7, 9) ─── */}
+    <div className="min-h-screen bg-[#f5f6f8] text-slate-900 pb-24 font-sans relative">
+      {/* ─── Top Header (Zomato Rider Style) ─── */}
       <DeliveryTopBar
         onToggleOnline={handleToggleOnline}
         isTogglingOnline={isTogglingOnline}
@@ -405,447 +529,570 @@ export default function DeliveryDashboardScreen() {
       />
 
       <main className="max-w-[480px] mx-auto text-left relative">
-        {/* ─── TOP MAP VIEW AREA (From Images 1, 11) ─── */}
-        <div className="relative h-56 sm:h-64 w-full bg-slate-200 overflow-hidden border-b border-slate-100">
-          {/* Simulated Clean Road Map Canvas */}
+        {/* ─── TOP MAP CANVAS ─── */}
+        <div className="relative h-48 sm:h-56 w-full bg-slate-200 overflow-hidden border-b border-slate-100">
           <div className="absolute inset-0 bg-[#e5e9ec] flex items-center justify-center">
-            {/* Map Roads Vector Simulation */}
+            {/* Vector Map Roads */}
             <svg className="w-full h-full opacity-60" viewBox="0 0 500 300" preserveAspectRatio="none">
               <path d="M-20,120 Q180,60 300,140 T520,100" fill="none" stroke="#ffffff" strokeWidth="24" />
               <path d="M-20,120 Q180,60 300,140 T520,100" fill="none" stroke="#fbd38d" strokeWidth="12" />
               <path d="M120,-20 L220,320" fill="none" stroke="#ffffff" strokeWidth="18" />
               <path d="M380,-20 L300,320" fill="none" stroke="#ffffff" strokeWidth="14" />
-              <path d="M0,240 Q250,220 500,260" fill="none" stroke="#ffffff" strokeWidth="16" />
             </svg>
 
-            {/* Live Operational Context Badges on Map */}
-            {activeOrder ? (
-              <>
-                <div className="absolute top-6 left-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-purple-200 flex items-center gap-1.5 max-w-[200px]">
-                  <span className="material-symbols-outlined text-[14px] text-purple-700 shrink-0">storefront</span>
-                  <span className="truncate">{activeOrder.storeName || 'Pickup Store'}</span>
-                </div>
-                <div className="absolute top-16 right-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-emerald-200 flex items-center gap-1.5 max-w-[200px]">
-                  <span className="material-symbols-outlined text-[14px] text-emerald-700 shrink-0">home_pin</span>
-                  <span className="truncate">{activeOrder.customerName || 'Customer Drop'}</span>
-                </div>
-              </>
-            ) : availableOrders.length > 0 ? (
-              <div className="absolute top-6 left-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-purple-200 flex items-center gap-1.5 max-w-[240px]">
-                <span className="material-symbols-outlined text-[14px] text-purple-700 shrink-0">notifications_active</span>
-                <span className="truncate">{availableOrders[0]?.storeName || availableOrders[0]?.vendor?.storeName || 'Nearby Orders Ready'}</span>
-              </div>
-            ) : (
-              <div className="absolute top-6 left-4 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 shadow-sm border border-slate-200 flex items-center gap-1.5 max-w-[240px]">
-                <span className="material-symbols-outlined text-[14px] text-blue-600 shrink-0">near_me</span>
-                <span className="truncate">{riderDetails?.city || rider?.address?.city || 'Lucknow Zone'} • Active Fleet Area</span>
-              </div>
-            )}
-
-            {/* Rider Location Pin with Pulsing Ripple */}
+            {/* Rider Location Pin */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
               <div className="relative">
                 {isOnline && (
-                  <span className="absolute -inset-4 rounded-full bg-blue-500/30 animate-ping" />
+                  <span className="absolute -inset-4 rounded-full bg-emerald-500/30 animate-ping" />
                 )}
-                <div className="w-8 h-8 rounded-full bg-blue-600 border-2 border-white text-white flex items-center justify-center shadow-md">
-                  <span className="material-symbols-outlined text-[18px]">sports_motorsports</span>
+                <div className={`w-9 h-9 rounded-full ${isOnline ? 'bg-emerald-600' : 'bg-slate-700'} border-2 border-white text-white flex items-center justify-center shadow-lg`}>
+                  <span className="material-symbols-outlined text-[20px]">two_wheeler</span>
                 </div>
               </div>
             </div>
 
-            {/* Live GPS Status Pill */}
-            <div className="absolute bottom-3 left-4 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-700 shadow-2xs flex items-center gap-1.5 border border-slate-200">
+            {/* Live GPS & Zone Badge */}
+            <div className="absolute bottom-3 left-4 bg-white/95 backdrop-blur-xs px-3 py-1 rounded-full text-[10px] font-black text-slate-700 shadow-xs flex items-center gap-1.5 border border-slate-200">
               <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              <span>{isOnline ? `GPS Active • ${riderDetails?.city || rider?.address?.city || 'Active Zone'}` : 'GPS Idle • Offline'}</span>
+              <span>{isOnline ? `GPS Active • ${riderDetails?.city || 'Indore Central'}` : 'GPS Idle • Offline'}</span>
             </div>
           </div>
         </div>
 
-        {/* ─── SLIDING BOTTOM SHEET CONTAINER (From Images 9, 10, 11) ─── */}
-        <div className="relative -mt-6 bg-[#f5f6f8] rounded-t-3xl pt-2 px-4 pb-6 space-y-3.5 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
-          {/* Centered Drag Handle (From Images 9, 10, 11) */}
-          <div className="w-10 h-1.5 rounded-full bg-slate-300 mx-auto my-1" />
+        {/* ─── SLIDING DASHBOARD CONTENT ─── */}
+        <div className="relative -mt-5 bg-[#f5f6f8] rounded-t-3xl pt-2 px-3 sm:px-4 pb-6 space-y-3.5 shadow-[0_-8px_25px_rgba(0,0,0,0.06)]">
+          <div className="w-10 h-1 rounded-full bg-slate-300 mx-auto my-1" />
 
-          {/* ─── RIDER REFERRAL BANNER ─── */}
-          <div
-            onClick={() => {
-              const code = riderDetails?.riderId || rider?.riderId || rider?.zeebacId || rider?.phone || 'ZBD-RIDER';
-              const shareUrl = `${window.location.origin}/delivery/login?ref=${encodeURIComponent(code)}`;
-              if (navigator.clipboard) {
-                navigator.clipboard.writeText(shareUrl);
-                toast.success(`Referral link copied! Code: ${code}`);
-              }
-            }}
-            className="bg-gradient-to-r from-[#173f7a] to-[#0f2a52] text-white rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer group active:scale-[0.99] transition-all"
-          >
-            <div>
-              <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider">
-                RIDER REFERRAL
-              </span>
-              <h3 className="font-display font-black text-base sm:text-lg text-white mt-1 leading-tight">
-                Invite Delivery Partners
-              </h3>
-              <p className="text-xs text-blue-200 font-bold mt-0.5 flex items-center gap-1 group-hover:text-amber-300 transition-colors">
-                <span>Code: {riderDetails?.riderId || rider?.riderId || rider?.zeebacId || 'ZBD-RIDER'} • Tap to copy</span>
-                <span className="material-symbols-outlined text-[16px]">content_copy</span>
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-              <span className="material-symbols-outlined text-[28px] text-amber-300">share</span>
-            </div>
-          </div>
-
-          {/* ─── CARD 1: LIVE FLEET DUTY STATUS ─── */}
-          <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
-            <div className="bg-black text-white px-4 py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
-                <span className="font-display font-black text-sm tracking-tight">
-                  {isOnline ? 'Duty Active (Online)' : 'Duty Offline'}
-                </span>
-              </div>
-              <span className="text-[10.5px] font-mono text-slate-300">
-                {riderDetails?.city || rider?.address?.city || 'Active Zone'}
-              </span>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div>
-                <h4 className="font-display font-black text-base text-slate-900">
-                  {isOnline ? '🟢 Live and ready to accept store orders' : '⚪ You are currently offline'}
-                </h4>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Payout Rate: ₹{payoutConfig.baseFare} base + ₹{payoutConfig.perKmRate}/km distance on every delivered drop
-                </p>
+          {/* ─── DUTY / ONLINE-OFFLINE CARD (Zomato Partner) ─── */}
+          <div className={`rounded-3xl p-4 transition-all border shadow-sm ${
+            isOnline
+              ? 'bg-gradient-to-r from-emerald-600 to-green-700 text-white border-emerald-500'
+              : 'bg-white text-slate-900 border-slate-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                  isOnline ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  <span className="material-symbols-outlined text-[22px]">
+                    {isOnline ? 'sensors' : 'power_settings_new'}
+                  </span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-display font-black text-base leading-tight">
+                      {isOnline ? 'You are Online' : 'You are Offline'}
+                    </span>
+                    <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-300 animate-ping' : 'bg-slate-400'}`} />
+                  </div>
+                  <p className={`text-xs mt-0.5 ${isOnline ? 'text-emerald-100 font-medium' : 'text-slate-500'}`}>
+                    {isOnline ? 'Searching nearby orders... Keep app open' : 'Go online to receive delivery requests'}
+                  </p>
+                </div>
               </div>
 
               <button
                 onClick={handleToggleOnline}
                 disabled={isTogglingOnline}
-                className={`w-full py-3 rounded-2xl font-display font-black text-sm shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
+                className={`px-4 py-2 rounded-xl font-display font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer ${
                   isOnline
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    : 'bg-black hover:bg-slate-900 text-white'
+                    ? 'bg-white text-emerald-800 hover:bg-emerald-50'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {isOnline ? 'check_circle' : 'power_settings_new'}
+                {isTogglingOnline ? 'Updating...' : isOnline ? 'Go Offline' : 'Go Online'}
+              </button>
+            </div>
+          </div>
+
+          {/* ─── GIG BOOKING & SHIFT STATUS BANNER ─── */}
+          <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-2xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isCurrentSlotBooked ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                <span className="material-symbols-outlined text-[20px]">
+                  {isCurrentSlotBooked ? 'event_available' : 'schedule'}
                 </span>
-                <span>{isOnline ? 'You are Online • Tap to go Offline' : 'Go Online to Receive Orders'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* ─── CARD 2: TODAY'S REAL PROGRESS ─── */}
-          <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
-            <div className="bg-black text-white px-4 py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-                <span className="font-display font-black text-sm tracking-tight">Today's Progress</span>
               </div>
-              <span className="text-[10px] text-slate-300 font-bold uppercase">Live Stats</span>
-            </div>
-
-            <div className="p-4 grid grid-cols-2 gap-4 divide-x divide-slate-100">
-              {/* Left Column */}
-              <div className="space-y-4">
-                <div
-                  onClick={() => navigate('/delivery/earnings')}
-                  className="cursor-pointer group"
-                >
-                  <span className="text-2xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    ₹{todayStats.todayEarnings.toLocaleString('en-IN')}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    {isCurrentSlotBooked ? 'ACTIVE GIG BOOKED' : 'CURRENT SHIFT'}
                   </span>
-                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Today's Earnings</span>
-                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                  </p>
+                  {isCurrentSlotBooked && (
+                    <span className="px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 text-[9px] font-black uppercase">
+                      Confirmed
+                    </span>
+                  )}
                 </div>
-
-                <div
-                  onClick={() => navigate('/delivery/history')}
-                  className="cursor-pointer group"
-                >
-                  <span className="text-xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    {todayStats.todayDeliveriesCount} {todayStats.todayDeliveriesCount === 1 ? 'Drop' : 'Drops'}
-                  </span>
-                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Delivered Today</span>
-                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Right Column */}
-              <div className="pl-4 space-y-4">
-                <div
-                  onClick={() => navigate('/delivery/history')}
-                  className="cursor-pointer group"
-                >
-                  <span className="text-2xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    {todayStats.todayDistanceKm} km
-                  </span>
-                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Distance Covered</span>
-                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                  </p>
-                </div>
-
-                <div
-                  onClick={() => navigate('/delivery/profile')}
-                  className="cursor-pointer group"
-                >
-                  <span className="text-xl font-display font-black text-slate-950 block group-hover:text-purple-700 transition-colors">
-                    ★ {(riderDetails?.rating || rider?.rating || 5).toFixed(1)}
-                  </span>
-                  <p className="text-xs font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
-                    <span>Partner Rating</span>
-                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                  </p>
-                </div>
+                <h4 className="font-display font-black text-xs sm:text-sm text-slate-900 truncate">
+                  {currentGigSlot.label}
+                </h4>
+                <p className="text-[11px] text-slate-500 truncate font-medium">
+                  {currentGigSlot.time} • {currentGigSlot.bonus}
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* ─── CARD 3: LIVE PAYOUT STRUCTURE & RATE CARD ─── */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="font-display font-black text-sm text-slate-900">Live Rate Card & Payouts</h3>
-              <button
-                onClick={() => setSelectedOfferModal(true)}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-0.5 cursor-pointer"
-              >
-                <span>Breakdown</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              </button>
-            </div>
-
-            <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-2xs">
-              <div className="bg-black text-white px-4 py-3 flex items-center justify-between">
-                <div>
-                  <h4 className="font-display font-black text-xs sm:text-sm tracking-tight text-white">
-                    STANDARD_PAYOUT_CONFIG
-                  </h4>
-                  <p className="text-[10px] text-slate-300 font-medium mt-0.5 flex items-center gap-1">
-                    <span>Live Fleet Model</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span className="text-emerald-400 font-bold">Active</span>
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-base sm:text-lg font-black text-white block">₹{payoutConfig.baseFare}</span>
-                  <span className="text-[10px] text-slate-300 uppercase font-bold">Base Fare</span>
-                </div>
-              </div>
-
-              <div className="p-4 space-y-2.5 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">Guaranteed Base Pay</span>
-                  <span className="font-bold text-slate-900">₹{payoutConfig.baseFare} / delivery</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">Distance Pay</span>
-                  <span className="font-bold text-slate-900">+₹{payoutConfig.perKmRate} per km</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">Minimum Guaranteed Floor</span>
-                  <span className="font-bold text-slate-900">₹{payoutConfig.minPayout} min per drop</span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-slate-500 font-medium">Surge Bonus</span>
-                  <span className={`font-bold ${payoutConfig.surgeBonus > 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
-                    {payoutConfig.surgeBonus > 0 ? `+₹${payoutConfig.surgeBonus} Active` : 'Standard Rate'}
-                  </span>
-                </div>
-
+            <div className="shrink-0 flex items-center gap-1.5">
+              {!isCurrentSlotBooked && (
                 <button
-                  onClick={() => setSelectedOfferModal(true)}
-                  className="w-full mt-2 py-2.5 rounded-xl border border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-display font-black text-xs transition-all cursor-pointer shadow-2xs"
+                  type="button"
+                  onClick={handleBookCurrentGig}
+                  className="px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-black active:scale-95 transition-all cursor-pointer shadow-xs"
                 >
-                  View full payout policy
+                  Book Slot
                 </button>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate('/delivery/gigs')}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold active:scale-95 transition-all cursor-pointer"
+              >
+                Gigs ➔
+              </button>
             </div>
           </div>
 
-          {/* ─── ACTIVE ORDER LIFECYCLE CARD (If delivering) ─── */}
-          {activeOrder && (
-            <div className="bg-white rounded-3xl border-2 border-emerald-500 p-4 sm:p-5 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                  <span className="font-black text-xs text-emerald-800 uppercase tracking-wider">
-                    Active Delivery In Progress
-                  </span>
-                </div>
-                <span className="font-mono text-xs font-bold text-slate-500">
-                  #{String(activeOrder.orderId || activeOrder._id).slice(-6)}
-                </span>
-              </div>
+          {/* ─── TODAY'S METRICS SUMMARY ─── */}
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="bg-white rounded-2xl p-3 border border-slate-100 text-center shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">Today's Pay</span>
+              <span className="text-lg font-display font-black text-emerald-600">
+                ₹{todayStats.todayEarnings}
+              </span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 border border-slate-100 text-center shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">Drops</span>
+              <span className="text-lg font-display font-black text-slate-900">
+                {todayStats.todayDeliveriesCount}
+              </span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 border border-slate-100 text-center shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">Distance</span>
+              <span className="text-lg font-display font-black text-blue-600">
+                {todayStats.todayDistanceKm} km
+              </span>
+            </div>
+          </div>
 
-              {activeOrder.deliverySchedule?.deliveryType === 'SCHEDULED' && (
-                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-xs">
-                  <span className="material-symbols-outlined text-amber-700 text-[16px]">calendar_clock</span>
-                  <div>
-                    <span className="font-black text-[10.5px] uppercase tracking-wide block">Scheduled Delivery</span>
-                    <span className="text-[11px] font-bold text-amber-800">
-                      📅 {activeOrder.deliverySchedule.scheduledDate || 'Scheduled'} • ⏰ {activeOrder.deliverySchedule.scheduledSlot || 'Slot'}
+          {/* ═══════════════════════════════════════════════════════════════
+              ACTIVE ORDER WORKFLOW (4 Sequential Zomato Partner Steps)
+          ═══════════════════════════════════════════════════════════════ */}
+          {activeOrder && (() => {
+            const status = activeOrder.orderStatus;
+            const itemsList = Array.isArray(activeOrder.items) ? activeOrder.items : [];
+            const isCod =
+              activeOrder.paymentMethod === 'CASH' ||
+              activeOrder.paymentMethod === 'COD' ||
+              activeOrder.paymentStatus === 'PENDING';
+            const orderTotal = activeOrder.finalPayableAmount || activeOrder.totalAmount || 0;
+
+            const isStep1 = status === 'RIDER_ASSIGNED';
+            const isStep2 = status === 'ARRIVED_AT_PICKUP';
+            const isStep3 = status === 'OUT_FOR_DELIVERY' || status === 'PICKED_UP';
+            const isStep4 = status === 'ARRIVED_AT_CUSTOMER';
+
+            const storeName = activeOrder.vendor?.storeName || activeOrder.vendorName || 'Partner Store';
+            const storeAddr = resolveStoreAddress(activeOrder);
+            const storePhone = activeOrder.vendor?.phone || activeOrder.vendorPhone;
+
+            const customerName = activeOrder.customerName || activeOrder.deliveryAddress?.receiverName || 'Customer';
+            const customerAddr = resolveCustomerAddress(activeOrder);
+            const customerPhone = activeOrder.customerPhone || activeOrder.deliveryAddress?.receiverPhone;
+
+            return (
+              <div className="bg-white rounded-3xl border-2 border-emerald-500 shadow-xl overflow-hidden animate-in fade-in">
+                {/* Stepper Progress Bar */}
+                <div className="bg-slate-900 text-white p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-display font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      {isStep1 && 'Step 1 of 4: Head to Store'}
+                      {isStep2 && 'Step 2 of 4: Verify & Pickup OTP'}
+                      {isStep3 && 'Step 3 of 4: Deliver to Customer'}
+                      {isStep4 && 'Step 4 of 4: Customer OTP Handover'}
+                    </span>
+                    <span className="font-mono font-bold text-slate-300">
+                      #{String(activeOrder.orderId || activeOrder._id).slice(-6)}
                     </span>
                   </div>
-                </div>
-              )}
 
-              {/* Store & Customer Info */}
-              <div className="space-y-2.5 text-xs">
-                <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-100">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase text-purple-700">Pickup Store</span>
-                    <button
-                      onClick={() => openMaps(formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress), activeOrder.vendor?.storeName || activeOrder.vendorName)}
-                      className="font-bold text-purple-700 hover:underline flex items-center gap-0.5"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">navigation</span>
-                      <span>Navigate</span>
-                    </button>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <div className="h-1.5 rounded-full bg-emerald-400" />
+                    <div className={`h-1.5 rounded-full ${isStep2 || isStep3 || isStep4 ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+                    <div className={`h-1.5 rounded-full ${isStep3 || isStep4 ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+                    <div className={`h-1.5 rounded-full ${isStep4 ? 'bg-emerald-400' : 'bg-slate-700'}`} />
                   </div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {activeOrder.vendor?.storeName || activeOrder.vendorName || 'Partner Store'}
-                  </h4>
-                  <p className="text-slate-600 text-[11px] mt-0.5">
-                    {formatAddress(activeOrder.vendor?.address || activeOrder.vendorAddress)}
-                  </p>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Customer Drop</span>
-                    <button
-                      onClick={() => openMaps(formatAddress(activeOrder.deliveryAddress))}
-                      className="font-bold text-slate-700 hover:underline flex items-center gap-0.5"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">navigation</span>
-                      <span>Navigate</span>
-                    </button>
-                  </div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {activeOrder.deliveryAddress?.receiverName || activeOrder.user?.name || 'Customer'}
-                  </h4>
-                  <p className="text-slate-600 text-[11px] mt-0.5">
-                    {formatAddress(activeOrder.deliveryAddress)}
-                  </p>
+                <div className="p-4 sm:p-5 space-y-4">
+                  {/* ────────────────────────────────────────────────────────
+                      STEP 1: HEADING TO STORE (Customer details locked)
+                  ──────────────────────────────────────────────────────── */}
+                  {isStep1 && (
+                    <div className="space-y-4">
+                      {/* Store Card */}
+                      <div className="bg-purple-50/80 rounded-2xl p-4 border border-purple-200 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-black uppercase tracking-wider text-purple-700 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[15px]">storefront</span>
+                            <span>Pickup Restaurant</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-purple-200/80 text-purple-900 text-[10px] font-black">
+                            {activeOrder.pickupDistanceKm || '1.0'} km away
+                          </span>
+                        </div>
+
+                        <div>
+                          <h3 className="font-display font-black text-base text-slate-900">{storeName}</h3>
+                          <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{storeAddr}</p>
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openMaps(storeAddr, storeName)}
+                            className="flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-display font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-purple-700/20 active:scale-95 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">navigation</span>
+                            <span>Navigate to Store</span>
+                          </button>
+                          {storePhone && (
+                            <a
+                              href={`tel:${storePhone}`}
+                              className="px-3.5 py-2.5 rounded-xl bg-white border border-purple-300 text-purple-800 font-bold text-xs flex items-center justify-center gap-1 active:scale-95"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">call</span>
+                              <span>Call</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Items Preview */}
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                          Items to Collect ({itemsList.length})
+                        </span>
+                        <div className="space-y-1">
+                          {itemsList.map((itm, i) => (
+                            <div key={i} className="text-xs font-semibold text-slate-800 flex justify-between">
+                              <span>• {itm.name || itm.title}</span>
+                              <span className="font-mono font-bold">×{itm.quantity || 1}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Privacy Note: Customer locked */}
+                      <div className="p-3 rounded-2xl bg-slate-100 border border-dashed border-slate-300 flex items-center gap-2 text-slate-600 text-xs">
+                        <span className="material-symbols-outlined text-[18px] text-slate-500 shrink-0">lock</span>
+                        <span className="text-[11px] font-medium leading-tight">
+                          Customer drop address and phone will unlock once you collect the parcel with Pickup OTP.
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus('ARRIVED_AT_PICKUP')}
+                        disabled={actionLoadingId === activeOrder._id}
+                        className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-sm sm:text-base shadow-lg shadow-emerald-600/30 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">location_on</span>
+                        <span>{actionLoadingId === activeOrder._id ? 'Updating...' : 'Reached Store 📍'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ────────────────────────────────────────────────────────
+                      STEP 2: AT STORE - VERIFY ITEMS & ENTER STORE PICKUP OTP
+                  ──────────────────────────────────────────────────────── */}
+                  {isStep2 && (
+                    <div className="space-y-4">
+                      <div className="bg-amber-50 rounded-2xl p-3.5 border border-amber-300">
+                        <h4 className="font-display font-black text-sm text-amber-950 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px] text-amber-700">inventory_2</span>
+                          <span>Verify Order Items with Kitchen / Counter</span>
+                        </h4>
+                        <p className="text-[11px] text-amber-800 mt-0.5">
+                          Tick each item as you pack it into your delivery bag:
+                        </p>
+
+                        <div className="mt-2.5 space-y-1.5">
+                          {itemsList.map((itm, i) => {
+                            const isChecked = Boolean(checkedItems[i]);
+                            return (
+                              <label
+                                key={i}
+                                className={`flex items-center gap-2.5 p-2 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-amber-100 text-amber-950 line-through' : 'bg-white text-slate-800'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() =>
+                                    setCheckedItems((prev) => ({ ...prev, [i]: !prev[i] }))
+                                  }
+                                  className="w-4 h-4 rounded text-amber-600 accent-amber-600"
+                                />
+                                <span className="flex-1">{itm.name || itm.title}</span>
+                                <span className="font-mono">×{itm.quantity || 1}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Store Pickup OTP Input Box */}
+                      <div className="bg-gradient-to-b from-purple-50 to-white rounded-2xl p-4 border-2 border-purple-300 text-center space-y-3">
+                        <div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-purple-200 text-purple-900 text-[10px] font-black uppercase tracking-wider">
+                            MANDATORY PICKUP OTP
+                          </span>
+                          <h3 className="font-display font-black text-base text-slate-900 mt-1">
+                            Ask Restaurant for 4-Digit Pickup OTP
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Restaurant partner screen displays this 4-digit code.
+                          </p>
+                        </div>
+
+                        {/* 4 Digit Boxes */}
+                        <div className="flex justify-center gap-2.5 pt-1">
+                          {pickupOtpDigits.map((digit, idx) => (
+                            <input
+                              key={idx}
+                              ref={pickupOtpRefs[idx]}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={1}
+                              value={digit}
+                              onChange={(e) =>
+                                handleDigitChange(idx, e.target.value, pickupOtpDigits, setPickupOtpDigits, pickupOtpRefs)
+                              }
+                              onKeyDown={(e) =>
+                                handleDigitKeyDown(idx, e, pickupOtpDigits, pickupOtpRefs)
+                              }
+                              className="w-12 h-14 text-center font-mono font-black text-2xl text-purple-950 bg-white border-2 border-purple-300 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-400 outline-none shadow-xs"
+                            />
+                          ))}
+                        </div>
+
+                        <p className="text-[10.5px] text-slate-400 font-medium">
+                          (Testing fallback: 1234 or code shown on store dashboard)
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleVerifyPickupOtp}
+                        disabled={isVerifyingPickupOtp || pickupOtpDigits.join('').length !== 4}
+                        className={`w-full py-4 rounded-2xl font-display font-black text-sm sm:text-base shadow-lg transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-2 ${
+                          pickupOtpDigits.join('').length === 4
+                            ? 'bg-purple-700 hover:bg-purple-800 text-white shadow-purple-700/30'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[20px]">verified</span>
+                        <span>{isVerifyingPickupOtp ? 'Verifying OTP...' : 'Verify OTP & Start Delivery 🚀'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ────────────────────────────────────────────────────────
+                      STEP 3: OUT FOR DELIVERY - CUSTOMER DETAILS UNLOCKED!
+                  ──────────────────────────────────────────────────────── */}
+                  {isStep3 && (
+                    <div className="space-y-4">
+                      {/* Customer Full Delivery Card */}
+                      <div className="bg-emerald-50/80 rounded-2xl p-4 border border-emerald-300 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[16px] text-emerald-600">home_pin</span>
+                            <span>Deliver to Customer (Unlocked)</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-950 text-[10.5px] font-black">
+                            {activeOrder.deliveryDistanceKm || '2.0'} km drop
+                          </span>
+                        </div>
+
+                        <div>
+                          <h3 className="font-display font-black text-base text-slate-900">{customerName}</h3>
+                          <p className="text-xs text-slate-700 font-medium mt-0.5 leading-relaxed">
+                            {customerAddr}
+                          </p>
+                        </div>
+
+                        {/* Payment Type Alert */}
+                        <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                          isCod
+                            ? 'bg-amber-100/80 text-amber-950 border-amber-300'
+                            : 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                        }`}>
+                          <span className="material-symbols-outlined text-[18px]">
+                            {isCod ? 'payments' : 'check_circle'}
+                          </span>
+                          <span>
+                            {isCod
+                              ? `💵 Cash on Delivery: Collect ₹${orderTotal} from Customer`
+                              : '🟢 Online Paid: Do NOT collect cash from customer'}
+                          </span>
+                        </div>
+
+                        {activeOrder.orderNotes && (
+                          <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-900 text-xs">
+                            📝 <b>Customer Note:</b> {activeOrder.orderNotes}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openMaps(customerAddr, customerName)}
+                            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">navigation</span>
+                            <span>Navigate to Customer</span>
+                          </button>
+                          {customerPhone && (
+                            <a
+                              href={`tel:${customerPhone}`}
+                              className="px-4 py-2.5 rounded-xl bg-white border border-emerald-400 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1 active:scale-95"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">call</span>
+                              <span>Call Customer</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus('ARRIVED_AT_CUSTOMER')}
+                        disabled={actionLoadingId === activeOrder._id}
+                        className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-sm sm:text-base shadow-lg shadow-emerald-600/30 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">location_on</span>
+                        <span>{actionLoadingId === activeOrder._id ? 'Updating...' : 'Reached Customer Location 📍'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ────────────────────────────────────────────────────────
+                      STEP 4: AT CUSTOMER - VERIFY 4-DIGIT DELIVERY OTP
+                  ──────────────────────────────────────────────────────── */}
+                  {isStep4 && (
+                    <div className="space-y-4">
+                      {/* COD Cash Collection Confirmation */}
+                      {isCod && (
+                        <div className="p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-300 space-y-2">
+                          <div className="flex items-center gap-2 text-amber-950 font-display font-black text-sm">
+                            <span className="material-symbols-outlined text-[20px] text-amber-700">payments</span>
+                            <span>Collect ₹{orderTotal} Cash</span>
+                          </div>
+                          <label className="flex items-center gap-2.5 p-2 bg-white rounded-xl cursor-pointer text-xs font-bold text-slate-800">
+                            <input
+                              type="checkbox"
+                              checked={deliveryCashConfirmed}
+                              onChange={(e) => setDeliveryCashConfirmed(e.target.checked)}
+                              className="w-4 h-4 rounded text-amber-600 accent-amber-600"
+                            />
+                            <span>I have collected exact ₹{orderTotal} cash from customer</span>
+                          </label>
+                        </div>
+                      )}
+
+                      {/* Customer Delivery OTP Box */}
+                      <div className="bg-gradient-to-b from-emerald-50 to-white rounded-2xl p-4 border-2 border-emerald-300 text-center space-y-3">
+                        <div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-950 text-[10px] font-black uppercase tracking-wider">
+                            CUSTOMER DELIVERY OTP
+                          </span>
+                          <h3 className="font-display font-black text-base text-slate-900 mt-1">
+                            Ask Customer for 4-Digit Delivery Code
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Customer can see this code on their live ZeeBac order screen.
+                          </p>
+                        </div>
+
+                        {/* 4 Digit Boxes */}
+                        <div className="flex justify-center gap-2.5 pt-1">
+                          {deliveryOtpDigits.map((digit, idx) => (
+                            <input
+                              key={idx}
+                              ref={deliveryOtpRefs[idx]}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={1}
+                              value={digit}
+                              onChange={(e) =>
+                                handleDigitChange(idx, e.target.value, deliveryOtpDigits, setDeliveryOtpDigits, deliveryOtpRefs)
+                              }
+                              onKeyDown={(e) =>
+                                handleDigitKeyDown(idx, e, deliveryOtpDigits, deliveryOtpRefs)
+                              }
+                              className="w-12 h-14 text-center font-mono font-black text-2xl text-emerald-950 bg-white border-2 border-emerald-300 rounded-xl focus:border-emerald-600 focus:ring-2 focus:ring-emerald-400 outline-none shadow-xs"
+                            />
+                          ))}
+                        </div>
+
+                        <p className="text-[10.5px] text-slate-400 font-medium">
+                          (Testing fallback: 1234 or code shown on customer app)
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleVerifyDeliveryOtp}
+                        disabled={
+                          isVerifyingDeliveryOtp ||
+                          deliveryOtpDigits.join('').length !== 4 ||
+                          (isCod && !deliveryCashConfirmed)
+                        }
+                        className={`w-full py-4 rounded-2xl font-display font-black text-sm sm:text-base shadow-lg transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-2 ${
+                          deliveryOtpDigits.join('').length === 4 && (!isCod || deliveryCashConfirmed)
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[20px]">verified_user</span>
+                        <span>{isVerifyingDeliveryOtp ? 'Verifying OTP...' : 'Complete Delivery & Collect Earnings 🎉'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
+            );
+          })()}
 
-              {/* Stepper Buttons */}
-              <div>
-                {activeOrder.orderStatus === 'RIDER_ASSIGNED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('ARRIVED_AT_PICKUP')}
-                    disabled={actionLoadingId === activeOrder._id}
-                    className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-                  >
-                    Arrived at Pickup Store
-                  </button>
-                )}
-
-                {activeOrder.orderStatus === 'ARRIVED_AT_PICKUP' && (
-                  <div className="space-y-3 bg-amber-50 p-3.5 rounded-2xl border border-amber-200">
-                    <p className="font-black text-xs text-amber-900">
-                      Store Invoice Bill / Parcel Photo Required
-                    </p>
-                    {!pickupProofPreview ? (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => cameraInputRef.current?.click()}
-                          className="flex-1 py-2 px-3 rounded-xl bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">photo_camera</span>
-                          <span>Take Photo</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => galleryInputRef.current?.click()}
-                          className="flex-1 py-2 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                          <span>Gallery</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="relative rounded-xl overflow-hidden max-h-40 bg-black flex items-center justify-center">
-                        <img src={pickupProofPreview} alt="Proof" className="max-h-40 object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPickupProofFile(null);
-                            setPickupProofPreview(null);
-                          }}
-                          className="absolute top-2 right-2 px-2 py-0.5 bg-black/70 text-white text-[10px] rounded-md font-bold"
-                        >
-                          Retake
-                        </button>
-                      </div>
-                    )}
-
-                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePickupPhotoSelect} />
-                    <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handlePickupPhotoSelect} />
-
-                    <button
-                      onClick={handleConfirmPickupWithProof}
-                      disabled={!pickupProofFile || actionLoadingId === activeOrder._id}
-                      className={`w-full py-2.5 rounded-xl font-bold text-xs ${
-                        pickupProofFile ? 'bg-amber-600 text-white cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      Confirm Order Picked Up
-                    </button>
-                  </div>
-                )}
-
-                {['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(activeOrder.orderStatus) && (
-                  <button
-                    onClick={() => handleUpdateStatus('ARRIVED_AT_CUSTOMER')}
-                    disabled={actionLoadingId === activeOrder._id}
-                    className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-                  >
-                    Arrived at Customer Location
-                  </button>
-                )}
-
-                {activeOrder.orderStatus === 'ARRIVED_AT_CUSTOMER' && (
-                  <button
-                    onClick={() => setShowOtpModal(true)}
-                    className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-lg cursor-pointer animate-pulse"
-                  >
-                    Enter Customer OTP & Complete
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ─── AVAILABLE DELIVERY REQUESTS (Zomato Rider Style) ─── */}
+          {/* ═══════════════════════════════════════════════════════════════
+              AVAILABLE NEARBY ORDERS (Zomato Privacy: Customer Masked)
+          ═══════════════════════════════════════════════════════════════ */}
           {availableOrders.length > 0 && !activeOrder && (
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between px-1">
-                <h3 className="font-display font-black text-sm text-slate-900 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Nearby Orders Available ({availableOrders.length})</span>
-                </h3>
-                <span className="text-[11px] text-slate-500 font-bold">Tap card to preview</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                  <h3 className="font-display font-black text-sm text-slate-900">
+                    Nearby Store Orders ({availableOrders.length})
+                  </h3>
+                </div>
+                <span className="text-[10.5px] font-bold text-slate-400 uppercase">
+                  {riderDetails?.city || 'Indore'}
+                </span>
               </div>
 
               {availableOrders.map((ord) => {
-                const isScheduled = ord.deliverySchedule?.deliveryType === 'SCHEDULED';
-                const timingLabel = isScheduled
-                  ? `📅 Scheduled: ${ord.deliverySchedule?.scheduledSlot || 'Today'}`
-                  : `⚡ Instant Drop • ${formatOrderTime(ord.createdAt)}`;
                 const storeName = ord.vendor?.storeName || ord.vendorName || ord.storeName || 'Store Order';
                 const storeAddr = resolveStoreAddress(ord);
-                const custName = ord.customerName || ord.deliveryAddress?.receiverName || 'Customer';
-                const custAddr = resolveCustomerAddress(ord);
+                const dropLocality = ord.deliveryAddress?.area || ord.deliveryAddress?.city || 'Drop Locality';
                 const itemsCount = ord.items?.length || 1;
                 const isPrepaid = ord.paymentStatus === 'PAID' || (ord.paymentMethod && ord.paymentMethod !== 'CASH' && ord.paymentMethod !== 'COD');
                 const payout = ord.deliveryPayout || 40;
@@ -854,26 +1101,19 @@ export default function DeliveryDashboardScreen() {
                   <div
                     key={ord._id}
                     onClick={() => setRingingOrderAlert(ord)}
-                    className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-100 hover:border-emerald-500 shadow-sm transition-all cursor-pointer space-y-3 group"
+                    className="bg-white rounded-3xl p-4 border border-slate-200 hover:border-emerald-500 shadow-xs transition-all cursor-pointer space-y-3 group"
                   >
-                    {/* Top Row: Payout Badge & Order Type */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-full bg-emerald-600 text-white font-display font-black text-sm shadow-xs">
-                          +₹{payout}
-                        </span>
-                        <span className="text-xs font-bold text-slate-600">
-                          {isPrepaid ? '🟢 Online Paid' : '💵 Cash On Delivery'}
-                        </span>
-                      </div>
-
-                      <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
-                        {timingLabel}
+                    <div className="flex items-center justify-between">
+                      <span className="px-3 py-1 rounded-full bg-emerald-600 text-white font-display font-black text-sm">
+                        +₹{payout} Guaranteed
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">
+                        {isPrepaid ? '🟢 Online Paid' : '💵 Cash on Delivery'}
                       </span>
                     </div>
 
-                    {/* Zomato-style Route Summary */}
-                    <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                    {/* Store Pickup & General Drop Summary */}
+                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 space-y-2 text-xs">
                       <div className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0 mt-0.5">storefront</span>
                         <div className="min-w-0 flex-1">
@@ -882,33 +1122,31 @@ export default function DeliveryDashboardScreen() {
                         </div>
                       </div>
 
-                      <div className="w-0.5 h-2.5 border-l border-dashed border-slate-300 ml-2" />
+                      <div className="w-0.5 h-2 border-l border-dashed border-slate-300 ml-2" />
 
                       <div className="flex items-start gap-2">
-                        <span className="material-symbols-outlined text-[16px] text-rose-600 shrink-0 mt-0.5">home_pin</span>
+                        <span className="material-symbols-outlined text-[16px] text-rose-500 shrink-0 mt-0.5">home_pin</span>
                         <div className="min-w-0 flex-1">
-                          <span className="font-bold text-slate-900 block truncate">{custName}</span>
-                          <span className="text-[11px] text-slate-500 block truncate">{custAddr}</span>
+                          <span className="font-bold text-slate-700 block truncate">Drop: {dropLocality} (~{ord.deliveryDistanceKm || 2.0} km)</span>
+                          <span className="text-[10px] text-slate-400 block">🔒 Exact address unlocks after accept</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Bottom Action Row */}
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-[11px] text-slate-500 font-semibold">
                         🛍️ {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {ord.pickupDistanceKm ? `${ord.pickupDistanceKm} km pickup` : 'Near you'}
                       </span>
-
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAcceptOrder(ord._id);
                         }}
                         disabled={actionLoadingId === ord._id}
-                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                       >
-                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                        <span>{actionLoadingId === ord._id ? 'Accepting...' : 'Accept Order'}</span>
+                        Accept Order
                       </button>
                     </div>
                   </div>
@@ -916,39 +1154,51 @@ export default function DeliveryDashboardScreen() {
               })}
             </div>
           )}
+
+          {/* When Online but no orders */}
+          {isOnline && !activeOrder && availableOrders.length === 0 && (
+            <div className="bg-white rounded-3xl p-6 text-center border border-slate-200 space-y-2">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                <span className="material-symbols-outlined text-[24px] animate-spin">radar</span>
+              </div>
+              <h4 className="font-display font-black text-sm text-slate-900">
+                Waiting for store orders...
+              </h4>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                Your GPS is live. As soon as a customer orders from a nearby store in Indore, it will ring right here!
+              </p>
+            </div>
+          )}
         </div>
       </main>
 
-      {/* ─── ZOMATO RIDER STYLE INCOMING ORDER SHEET (Full responsive overlay, z-[100]) ─── */}
+      {/* ═════════════════════════════════════════════════════════════════════
+          ZOMATO INCOMING ORDER ALERT MODAL (Customer details locked before accept!)
+      ═════════════════════════════════════════════════════════════════════ */}
       {ringingOrderAlert && !activeOrder && (() => {
         const orderIdToAccept = ringingOrderAlert._id || ringingOrderAlert.orderId;
         const payoutAmount = ringingOrderAlert.deliveryPayout || ringingOrderAlert.payout || 40;
         const pickupDist = ringingOrderAlert.pickupDistanceKm !== undefined && ringingOrderAlert.pickupDistanceKm !== null
           ? ringingOrderAlert.pickupDistanceKm
-          : '0.0';
+          : '0.8';
         const dropDist = ringingOrderAlert.deliveryDistanceKm !== undefined && ringingOrderAlert.deliveryDistanceKm !== null
           ? ringingOrderAlert.deliveryDistanceKm
-          : '0.5';
+          : '2.0';
         const totalTripKm = ((parseFloat(pickupDist) || 0) + (parseFloat(dropDist) || 0)).toFixed(1);
 
-        const storeName = ringingOrderAlert.vendor?.storeName || ringingOrderAlert.storeName || 'Store';
+        const storeName = ringingOrderAlert.vendor?.storeName || ringingOrderAlert.storeName || 'Partner Store';
         const storeAddress = resolveStoreAddress(ringingOrderAlert);
-        const storePhone = ringingOrderAlert.vendor?.phone || ringingOrderAlert.vendorPhone || '';
-
-        const customerName = ringingOrderAlert.customerName || ringingOrderAlert.deliveryAddress?.receiverName || ringingOrderAlert.user?.name || 'Customer';
-        const customerAddress = resolveCustomerAddress(ringingOrderAlert);
-        const customerPhone = ringingOrderAlert.customerPhone || ringingOrderAlert.deliveryAddress?.receiverPhone || '';
+        const dropLocality = ringingOrderAlert.deliveryAddress?.area || ringingOrderAlert.deliveryAddress?.city || 'Delivery Locality';
 
         const itemsList = Array.isArray(ringingOrderAlert.items) ? ringingOrderAlert.items : [];
         const itemCount = itemsList.reduce((acc, itm) => acc + (itm.quantity || 1), 0) || itemsList.length || 1;
         const orderTotal = ringingOrderAlert.finalPayableAmount || ringingOrderAlert.totalAmount || 0;
         const isPrepaid = ringingOrderAlert.paymentStatus === 'PAID' || (ringingOrderAlert.paymentMethod && ringingOrderAlert.paymentMethod !== 'CASH' && ringingOrderAlert.paymentMethod !== 'COD');
-        const isScheduled = ringingOrderAlert.deliverySchedule?.deliveryType === 'SCHEDULED';
 
         return (
           <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overflow-hidden animate-in fade-in">
             <div className="w-full max-w-md bg-[#111827] text-white rounded-t-[32px] sm:rounded-[32px] shadow-[0_-12px_45px_rgba(0,0,0,0.6)] border border-slate-700/60 flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
-              {/* Header Ribbon (Zomato Rider Style) */}
+              {/* Header Ribbon */}
               <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-md">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-3 w-3">
@@ -957,45 +1207,46 @@ export default function DeliveryDashboardScreen() {
                   </span>
                   <div>
                     <span className="font-display font-black text-xs uppercase tracking-wider block leading-tight">
-                      NEW ORDER REQUEST
+                      NEW ORDER ALERT
                     </span>
                     <span className="text-[10px] text-white/90 font-medium">
-                      {isScheduled ? 'Scheduled Delivery' : 'Instant Flash Delivery'}
+                      Instant Delivery Request
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Countdown Timer Pill */}
                   <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/25 text-white font-mono font-bold text-xs">
                     <span className="material-symbols-outlined text-[15px] text-amber-300 animate-spin">timelapse</span>
                     <span className="text-amber-300 font-black">{orderCountdown}s</span>
                   </div>
 
-                  {/* Pass / Deny Button */}
                   <button
-                    onClick={() => setRingingOrderAlert(null)}
+                    type="button"
+                    onClick={() => {
+                      stopRiderOrderContinuousAlarm();
+                      setRingingOrderAlert(null);
+                    }}
                     className="px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold active:scale-95 transition-all cursor-pointer"
-                    title="Pass Order"
                   >
                     ✕ Pass
                   </button>
                 </div>
               </div>
 
-              {/* Earnings & Trip Metrics Card */}
+              {/* Earnings & Distance Overview */}
               <div className="p-4 sm:p-5 bg-gradient-to-b from-[#1f2937] to-[#111827] border-b border-slate-800 shrink-0">
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400 block">
-                      TOTAL TRIP PAYOUT
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                      GUARANTEED TRIP PAYOUT
                     </span>
                     <div className="flex items-baseline gap-1.5 mt-0.5">
                       <span className="text-4xl sm:text-5xl font-display font-black text-emerald-400 tracking-tight">
                         ₹{payoutAmount}
                       </span>
-                      <span className="text-xs font-bold text-emerald-400/80 uppercase tracking-wide">
-                        Guaranteed
+                      <span className="text-xs font-bold text-emerald-400/80 uppercase">
+                        Net Earnings
                       </span>
                     </div>
                   </div>
@@ -1004,130 +1255,82 @@ export default function DeliveryDashboardScreen() {
                     <span className="text-xs font-mono font-bold text-slate-400 block">
                       #{String(ringingOrderAlert.orderId || ringingOrderAlert._id).slice(-6)}
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-black uppercase mt-1 inline-block">
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase mt-1 inline-block">
                       {itemCount} {itemCount === 1 ? 'Item' : 'Items'} • ₹{orderTotal}
                     </span>
                   </div>
                 </div>
 
-                {/* Payment Condition Badge */}
-                <div className="mt-2.5 flex items-center gap-2">
-                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
-                    isPrepaid
-                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/50'
-                      : 'bg-amber-950/80 text-amber-300 border border-amber-700/50'
-                  }`}>
-                    <span className="material-symbols-outlined text-[15px]">
-                      {isPrepaid ? 'check_circle' : 'payments'}
-                    </span>
-                    <span>
-                      {isPrepaid ? 'Prepaid Online • Do not collect cash' : `Cash On Delivery • Collect ₹${orderTotal} from customer`}
-                    </span>
-                  </span>
-                </div>
-
-                {/* 3 Metrics Pills */}
-                <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800">
-                  <div className="bg-slate-800/70 rounded-xl p-2 text-center border border-slate-700/60">
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Pickup Leg</span>
+                <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800 text-center">
+                  <div className="bg-slate-800/70 rounded-xl p-2 border border-slate-700/60">
+                    <span className="text-[9.5px] text-slate-400 font-bold block uppercase">Pickup</span>
                     <span className="text-xs font-black text-white">{pickupDist} km</span>
                   </div>
-                  <div className="bg-slate-800/70 rounded-xl p-2 text-center border border-slate-700/60">
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Drop Leg</span>
+                  <div className="bg-slate-800/70 rounded-xl p-2 border border-slate-700/60">
+                    <span className="text-[9.5px] text-slate-400 font-bold block uppercase">Drop Leg</span>
                     <span className="text-xs font-black text-white">{dropDist} km</span>
                   </div>
-                  <div className="bg-slate-800/70 rounded-xl p-2 text-center border border-slate-700/60">
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Total Trip</span>
+                  <div className="bg-slate-800/70 rounded-xl p-2 border border-slate-700/60">
+                    <span className="text-[9.5px] text-slate-400 font-bold block uppercase">Total Trip</span>
                     <span className="text-xs font-black text-amber-300">{totalTripKm} km</span>
                   </div>
                 </div>
               </div>
 
-              {/* Scrollable Route Timeline (Zomato Visual Route Map) */}
-              <div className="overflow-y-auto px-4 sm:px-5 py-3.5 space-y-3.5 flex-1 divide-y divide-slate-800/60 hide-scrollbar">
-                {/* Node 1: Pickup Store */}
+              {/* Route Timeline: STORE REVEALED, CUSTOMER PROTECTED */}
+              <div className="overflow-y-auto px-4 sm:px-5 py-3.5 space-y-3.5 flex-1 divide-y divide-slate-800/60">
+                {/* Node 1: Pickup Store (Fully Shown) */}
                 <div className="flex gap-3 items-start pt-1">
                   <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md shadow-emerald-500/20">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0">
                       <span className="material-symbols-outlined text-[18px]">storefront</span>
                     </div>
                     <div className="w-0.5 h-10 border-l-2 border-dashed border-slate-600 my-1" />
                   </div>
 
-                  <div className="flex-1 min-w-0 bg-slate-800/50 rounded-2xl p-3 border border-slate-700/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                        <span>PICKUP STORE</span>
-                        <span>•</span>
-                        <span>{pickupDist} km away</span>
+                  <div className="flex-1 min-w-0 bg-slate-800/60 rounded-2xl p-3 border border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                        PICKUP STORE • {pickupDist} km away
                       </span>
-                      {storePhone && (
-                        <a href={`tel:${storePhone}`} className="text-xs text-slate-400 hover:text-white flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-slate-700/50">
-                          <span className="material-symbols-outlined text-[13px]">call</span>
-                          <span>Call</span>
-                        </a>
-                      )}
                     </div>
-
                     <h4 className="font-display font-black text-sm text-white mt-0.5 truncate">
                       {storeName}
                     </h4>
                     <p className="text-[11.5px] text-slate-300 font-medium leading-relaxed mt-0.5">
                       {storeAddress}
                     </p>
-
-                    {itemsList.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-slate-700/60 flex flex-wrap gap-1.5">
-                        {itemsList.map((item, idx) => (
-                          <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-900 text-slate-200 text-[11px] font-semibold border border-slate-700">
-                            {item.name || item.title || 'Item'} × {item.quantity || 1}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {/* Node 2: Customer Drop */}
+                {/* Node 2: Customer Drop (Masked Locality Only) */}
                 <div className="flex gap-3 items-start pt-3">
-                  <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-black shrink-0 shadow-md shadow-rose-500/20">
-                    <span className="material-symbols-outlined text-[18px]">home_pin</span>
+                  <div className="w-8 h-8 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center font-black shrink-0">
+                    <span className="material-symbols-outlined text-[18px]">lock</span>
                   </div>
 
-                  <div className="flex-1 min-w-0 bg-slate-800/50 rounded-2xl p-3 border border-slate-700/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-rose-400 flex items-center gap-1">
-                        <span>CUSTOMER DROP</span>
-                        <span>•</span>
-                        <span>{dropDist} km leg</span>
+                  <div className="flex-1 min-w-0 bg-slate-800/40 rounded-2xl p-3 border border-slate-700/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">
+                        CUSTOMER DROP • {dropDist} km leg
                       </span>
-                      {customerPhone && (
-                        <a href={`tel:${customerPhone}`} className="text-xs text-slate-400 hover:text-white flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-slate-700/50">
-                          <span className="material-symbols-outlined text-[13px]">call</span>
-                          <span>Call</span>
-                        </a>
-                      )}
+                      <span className="text-[9.5px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                        🔒 Address Protected
+                      </span>
                     </div>
 
-                    <h4 className="font-display font-black text-sm text-white mt-0.5 truncate">
-                      {customerName}
+                    <h4 className="font-display font-bold text-sm text-slate-200">
+                      Drop Area: {dropLocality}
                     </h4>
-                    <p className="text-[11.5px] text-slate-300 font-medium leading-relaxed mt-0.5">
-                      {customerAddress}
+                    <p className="text-[11px] text-slate-400 font-medium leading-tight">
+                      Customer name, contact number, and exact house address will be displayed once you accept this order.
                     </p>
-
-                    {ringingOrderAlert.orderNotes && (
-                      <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium">
-                        📝 Delivery Note: {ringingOrderAlert.orderNotes}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Sticky Action Footer (Zomato Big Accept Button) */}
+              {/* Action Footer */}
               <div className="p-4 pt-3 bg-[#111827] border-t border-slate-800 shrink-0 space-y-2">
-                {/* Visual Timer Progress Bar */}
                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
                   <div
                     className="bg-emerald-400 h-full transition-all duration-1000 ease-linear rounded-full"
@@ -1136,6 +1339,7 @@ export default function DeliveryDashboardScreen() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => handleAcceptOrder(orderIdToAccept)}
                   disabled={actionLoadingId === orderIdToAccept}
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-600 hover:to-green-600 text-white font-display font-black text-base sm:text-lg shadow-xl shadow-emerald-500/30 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-3"
@@ -1150,10 +1354,13 @@ export default function DeliveryDashboardScreen() {
 
                 <button
                   type="button"
-                  onClick={() => setRingingOrderAlert(null)}
+                  onClick={() => {
+                    stopRiderOrderContinuousAlarm();
+                    setRingingOrderAlert(null);
+                  }}
                   className="w-full py-1 text-center text-xs font-bold text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
-                  Pass this order (Offer to other partners)
+                  Pass this order (Offer to next partner)
                 </button>
               </div>
             </div>
@@ -1161,84 +1368,48 @@ export default function DeliveryDashboardScreen() {
         );
       })()}
 
-      {/* ─── OTP VERIFICATION MODAL ─── */}
-      {showOtpModal && activeOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-              <span className="material-symbols-outlined text-[32px]">pin</span>
+      {/* ═════════════════════════════════════════════════════════════════════
+          DELIVERY CELEBRATION MODAL
+      ═════════════════════════════════════════════════════════════════════ */}
+      {deliverySuccessModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-3xl shadow-inner">
+              🎉
             </div>
-            <h3 className="font-display font-black text-lg text-slate-900">
-              Customer Delivery OTP
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Ask the customer for the 4-digit secret delivery code to confirm drop-off.
-            </p>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Order Completed Successfully
+              </span>
+              <h3 className="font-display font-black text-2xl text-slate-900 mt-2">
+                +₹{deliverySuccessModal.earnedAmount}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Credited directly to your Zeebac Delivery Pocket!
+              </p>
+            </div>
 
-            <form onSubmit={handleCompleteDelivery} className="mt-4 space-y-4">
-              <input
-                type="text"
-                maxLength={6}
-                value={deliveryOtpInput}
-                onChange={(e) => setDeliveryOtpInput(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="• • • •"
-                className="w-48 mx-auto text-center font-mono text-2xl tracking-[0.5em] py-2.5 rounded-2xl border-2 border-emerald-500 outline-none font-black"
-                autoFocus
-              />
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowOtpModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isVerifyingOtp || !deliveryOtpInput.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md"
-                >
-                  {isVerifyingOtp ? 'Verifying...' : 'Verify & Drop'}
-                </button>
+            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-left text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Order</span>
+                <span className="font-mono font-bold text-slate-900">#{String(deliverySuccessModal.orderId).slice(-6)}</span>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <div className="flex justify-between">
+                <span className="text-slate-500">Pickup Store</span>
+                <span className="font-bold text-slate-900">{deliverySuccessModal.storeName}</span>
+              </div>
+            </div>
 
-      {/* ─── RATE CARD & PAYOUT BREAKDOWN MODAL ─── */}
-      {selectedOfferModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-display font-black text-base text-slate-900">Fleet Payout Policy</h3>
-              <button
-                onClick={() => setSelectedOfferModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-            <div className="mt-4 space-y-2.5 text-xs text-slate-600">
-              <p>• <strong>Base Fare:</strong> ₹{payoutConfig.baseFare} guaranteed for pickup and drop.</p>
-              <p>• <strong>Distance Pay:</strong> ₹{payoutConfig.perKmRate} per km based on Google GPS distance between store and customer.</p>
-              <p>• <strong>Customer Tips:</strong> 100% of customer tip amount is directly credited to your Pocket balance.</p>
-              <p>• <strong>COD Orders:</strong> Collect exact cash from customer; cash holding limit is up to ₹2,000.</p>
-              <p className="font-bold text-emerald-700 pt-1">Payouts are credited in real-time upon customer OTP verification.</p>
-            </div>
             <button
-              onClick={() => setSelectedOfferModal(false)}
-              className="w-full mt-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs"
+              type="button"
+              onClick={() => setDeliverySuccessModal(null)}
+              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-display font-black text-sm shadow-lg shadow-emerald-600/30 active:scale-95 cursor-pointer"
             >
-              Got it
+              Ready for Next Order 🚀
             </button>
           </div>
         </div>
       )}
-
-      {/* Bottom Nav */}
-      <DeliveryBottomNav />
     </div>
   );
 }

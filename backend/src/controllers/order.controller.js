@@ -223,9 +223,10 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // ── Generate Order ID & Delivery OTP ──
+    // ── Generate Order ID, Delivery OTP & Pickup OTP ──
     const orderId = `ZBC-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
     const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const pickupOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
     // ── Direct UPI Intent Setup ──
     const payeeVpa = vendor.bankDetails?.upiId || process.env.MERCHANT_UPI_ID || process.env.ADMIN_UPI_ID || 'zeebac@upi';
@@ -328,8 +329,10 @@ export const createOrder = async (req, res) => {
           upiUri,
         },
         orderStatus: initialOrderStatus,
+        pickupOtp,
         riderDetails: {
           deliveryOtp,
+          pickupOtp,
         },
         deliveryDistanceKm: payoutBreakdown.distanceKm,
         deliveryPayout: payoutBreakdown.totalPayout,
@@ -467,7 +470,11 @@ export const verifyOrderUpiPayment = async (req, res) => {
     const { orderId } = req.params;
     const { utr } = req.body;
 
-    const order = await Order.findOne({ orderId });
+    const order = await Order.findOne(
+      mongoose.isValidObjectId(orderId)
+        ? { $or: [{ _id: orderId }, { orderId }] }
+        : { orderId }
+    );
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -666,7 +673,11 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid order status' });
     }
 
-    const order = await Order.findOne({ orderId });
+    const order = await Order.findOne(
+      mongoose.isValidObjectId(orderId)
+        ? { $or: [{ _id: orderId }, { orderId }] }
+        : { orderId }
+    );
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
     // Ensure authorized vendor or admin
@@ -1273,7 +1284,11 @@ export const rateRiderByVendor = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
     }
 
-    const order = await Order.findOne({ orderId });
+    const order = await Order.findOne(
+      mongoose.isValidObjectId(orderId)
+        ? { $or: [{ _id: orderId }, { orderId }] }
+        : { orderId }
+    );
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }

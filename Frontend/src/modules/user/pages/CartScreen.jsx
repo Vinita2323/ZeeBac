@@ -449,7 +449,6 @@ export default function CartScreen() {
           ...prev,
           orderStatus: data.orderStatus,
         }));
-        playNotificationChime('incoming');
       }
     };
 
@@ -460,8 +459,6 @@ export default function CartScreen() {
           orderStatus: data.orderStatus || 'RIDER_ASSIGNED',
           riderDetails: data.rider,
         }));
-        playNotificationChime('incoming');
-        speakVoice(`Rider ${data.rider?.name || ''} has been assigned for your order.`);
       }
     };
 
@@ -475,8 +472,6 @@ export default function CartScreen() {
         if (updateBalance && data.cashbackEarned) {
           updateBalance(Math.round((walletBalance + Number(data.cashbackEarned || 0)) * 100) / 100);
         }
-        playNotificationChime('incoming');
-        speakVoice(`Congratulations! Order delivered. ${data.cashbackEarned} Zeebac Points credited.`);
       }
     };
 
@@ -491,8 +486,6 @@ export default function CartScreen() {
         if (data.pointsRefunded && data.refundedPoints && updateBalance) {
           updateBalance(Math.round((walletBalance + Number(data.refundedPoints || 0)) * 100) / 100);
         }
-        playNotificationChime('incoming');
-        speakVoice(`Your order has been cancelled by the store. Reason: ${data.cancellationReason || 'Store unavailable'}.`);
       }
     };
 
@@ -824,10 +817,6 @@ export default function CartScreen() {
         clearCart();
         setActiveOrder(order);
         setIsProcessing(false);
-        playNotificationChime('incoming');
-        speakVoice(
-          `Order placed successfully with Cash on Delivery. Please pay ₹${order.finalPayableAmount} at doorstep upon delivery.`
-        );
         return;
       }
 
@@ -836,8 +825,6 @@ export default function CartScreen() {
         clearCart();
         setActiveOrder(order);
         setIsProcessing(false);
-        playNotificationChime('incoming');
-        speakVoice('Order placed successfully. Your delivery will be prepared shortly.');
         return;
       }
 
@@ -845,8 +832,6 @@ export default function CartScreen() {
       clearCart();
       setActiveOrder(order);
       setIsProcessing(false);
-      playNotificationChime('incoming');
-      speakVoice('Order placed successfully using Zeebac Points. Delivery rider will be assigned soon.');
     } catch (err) {
       console.error('Order checkout error', err);
       alert(err.response?.data?.message || 'Unable to process order right now. Please try again.');
@@ -868,8 +853,6 @@ export default function CartScreen() {
     try {
       const res = await OrderAPI.verifyOrderUpi(upiIntentData.orderId, cleanUtr);
       if (res.success && res.data?.order) {
-        playNotificationChime('incoming');
-        speakVoice('UPI Payment confirmed! Merchant is preparing your order.');
         clearCart();
         setActiveOrder(res.data.order);
         setUpiIntentData(null);
@@ -893,8 +876,6 @@ export default function CartScreen() {
     try {
       const res = await OrderAPI.verifyOrderUpi(upiIntentData.orderId, dummyUtr);
       if (res.success && res.data?.order) {
-        playNotificationChime('incoming');
-        speakVoice('Dummy UPI payment confirmed! Order placed successfully for testing.');
         clearCart();
         setActiveOrder(res.data.order);
         setUpiIntentData(null);

@@ -154,43 +154,133 @@ export const playDeliveryOrderAlarm = ({ storeName = '', payout = 0 } = {}) => {
   }
 };
 
+// Rider incoming order continuous alarm sound & vibration
+let riderAlarmInterval = null;
+
+export const startRiderOrderContinuousAlarm = ({ storeName = '', payout = 0 } = {}) => {
+  stopRiderOrderContinuousAlarm();
+  playDeliveryOrderAlarm({ storeName, payout });
+
+  riderAlarmInterval = setInterval(() => {
+    try {
+      const ctx = getAudioContext();
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        const now = ctx.currentTime;
+        [0, 0.22, 0.44].forEach((offset) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(880, now + offset);
+          osc.frequency.exponentialRampToValueAtTime(1318.51, now + offset + 0.12);
+          gain.gain.setValueAtTime(0.35, now + offset);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.18);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.18);
+        });
+      }
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate([250, 150, 250]);
+      }
+    } catch (_) {}
+  }, 2600);
+};
+
+export const stopRiderOrderContinuousAlarm = () => {
+  if (riderAlarmInterval) {
+    clearInterval(riderAlarmInterval);
+    riderAlarmInterval = null;
+  }
+};
+
 // Store incoming order soundbox alarm chime & English announcement
-export const playStoreNewOrderAlarm = ({ orderId = '', amount = 0, customerName = '' } = {}) => {
+let storeBellInterval = null;
+
+export const playStoreNewOrderBell = () => {
   try {
     const ctx = getAudioContext();
     if (ctx) {
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
       const now = ctx.currentTime;
-      // Loud energetic double chime (Paytm/Zomato merchant soundbox style)
-      [0, 0.18, 0.45, 0.63].forEach((offset, idx) => {
+      // High-volume piercing acoustic restaurant order bell (Zomato/Swiggy Merchant Bell)
+      // Rapid dual chime sequence (880Hz, 1174Hz, 1568Hz)
+      const burstNotes = [
+        { time: 0, freq: 880, dur: 0.22, vol: 0.85 },
+        { time: 0.12, freq: 1174.66, dur: 0.25, vol: 0.9 },
+        { time: 0.28, freq: 1568, dur: 0.35, vol: 0.95 },
+        { time: 0.65, freq: 880, dur: 0.22, vol: 0.85 },
+        { time: 0.77, freq: 1174.66, dur: 0.25, vol: 0.9 },
+        { time: 0.93, freq: 1568, dur: 0.45, vol: 1.0 },
+      ];
+
+      burstNotes.forEach(({ time, freq, dur, vol }) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
 
-        osc.type = 'triangle';
-        const freq = idx % 2 === 0 ? 659.25 : 880.0; // E5, A5
-        osc.frequency.setValueAtTime(freq, now + offset);
-        gain.gain.setValueAtTime(0.4, now + offset);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.16);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + time);
 
-        osc.start(now + offset);
-        osc.stop(now + offset + 0.16);
+        // Harmonic overtone for realistic bell resonance
+        const overtone = ctx.createOscillator();
+        const otGain = ctx.createGain();
+        overtone.connect(otGain);
+        otGain.connect(ctx.destination);
+        overtone.type = 'triangle';
+        overtone.frequency.setValueAtTime(freq * 1.5, now + time);
+
+        gain.gain.setValueAtTime(vol, now + time);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + time + dur);
+        otGain.gain.setValueAtTime(vol * 0.35, now + time);
+        otGain.gain.exponentialRampToValueAtTime(0.001, now + time + dur);
+
+        osc.start(now + time);
+        osc.stop(now + time + dur);
+        overtone.start(now + time);
+        overtone.stop(now + time + dur);
       });
     }
 
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-      navigator.vibrate([250, 100, 250, 100, 400]);
+      navigator.vibrate([350, 150, 350, 150, 500]);
     }
-
-    const shortId = String(orderId).slice(-4);
-    const numAmt = Math.round(Number(amount) || 0);
-    const voiceText = numAmt > 0
-      ? `New order received! Order number ${shortId}, amount rupees ${numAmt}!`
-      : `New order received! Order number ${shortId}!`;
-    speakVoice(voiceText, 800, 'en-IN');
   } catch (err) {
-    console.warn('Store new order alarm error:', err);
+    console.warn('Store order bell error:', err);
   }
+};
+
+export const startStoreOrderContinuousBell = ({ orderId = '', amount = 0, customerName = '' } = {}) => {
+  stopStoreOrderContinuousBell();
+  playStoreNewOrderBell();
+
+  const shortId = String(orderId).slice(-4);
+  const numAmt = Math.round(Number(amount) || 0);
+  const voiceText = numAmt > 0
+    ? `New order received! Amount rupees ${numAmt}!`
+    : `New order received! Order number ${shortId}!`;
+  speakVoice(voiceText, 800, 'en-IN');
+
+  storeBellInterval = setInterval(() => {
+    playStoreNewOrderBell();
+  }, 2800);
+};
+
+export const stopStoreOrderContinuousBell = () => {
+  if (storeBellInterval) {
+    clearInterval(storeBellInterval);
+    storeBellInterval = null;
+  }
+};
+
+export const playStoreNewOrderAlarm = ({ orderId = '', amount = 0, customerName = '' } = {}) => {
+  startStoreOrderContinuousBell({ orderId, amount, customerName });
 };
 
 // Store alert when a delivery rider declines the order

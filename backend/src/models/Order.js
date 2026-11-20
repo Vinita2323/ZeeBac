@@ -219,6 +219,7 @@ const orderSchema = new mongoose.Schema(
       name: String,
       phone: String,
       vehicleNo: String,
+      pickupOtp: String,
       deliveryOtp: String,
       assignedAt: Date,
       pickupProofImage: {
@@ -227,6 +228,12 @@ const orderSchema = new mongoose.Schema(
       },
       pickedUpAt: Date,
       deliveredAt: Date,
+    },
+
+    // ── Zomato-style Store Pickup OTP (Generated on order confirmation, verified by rider at store) ──
+    pickupOtp: {
+      type: String,
+      default: () => Math.floor(1000 + Math.random() * 9000).toString(),
     },
 
     // ── Rider Rejection Audit History ──

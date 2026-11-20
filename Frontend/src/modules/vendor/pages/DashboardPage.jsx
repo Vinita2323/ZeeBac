@@ -1148,6 +1148,22 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* Store Pickup OTP (Zomato Partner Handover Code) */}
+                  {(order.orderStatus === 'CONFIRMED' || order.orderStatus === 'PREPARING' || order.orderStatus === 'READY_FOR_PICKUP' || order.orderStatus === 'RIDER_ASSIGNED') && (
+                    <div className="bg-amber-50/80 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px] text-amber-700">key</span>
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-700">Store Pickup OTP: </span>
+                          <span className="text-sm font-mono font-black text-amber-950 bg-amber-200/70 px-2 py-0.5 rounded-lg tracking-wider">
+                            {order.pickupOtp || order.riderDetails?.pickupOtp || String(order.orderId).slice(-4)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-800">Share with rider on pickup</span>
+                    </div>
+                  )}
+
                   {/* Out for delivery / Rider info badge */}
                   {(order.orderStatus === 'OUT_FOR_DELIVERY' || order.orderStatus === 'RIDER_ASSIGNED') && (
                     <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[11px]">

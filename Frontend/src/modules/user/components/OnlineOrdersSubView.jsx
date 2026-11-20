@@ -143,7 +143,6 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
               o.orderId === data.orderId ? { ...o, orderStatus: data.orderStatus, ...data } : o
             )
           );
-          playNotificationChime('incoming');
         };
 
         const handleRiderAssigned = (data) => {
@@ -159,7 +158,6 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                 : o
             )
           );
-          playNotificationChime('incoming');
         };
 
         const handleOrderDelivered = (data) => {
@@ -176,7 +174,6 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                 : o
             )
           );
-          playNotificationChime('incoming');
         };
 
         const handleOrderCancelled = (data) => {
