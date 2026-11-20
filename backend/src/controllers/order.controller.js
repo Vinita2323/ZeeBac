@@ -11,6 +11,11 @@ import Review from '../models/Review.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
 import { calculateDeliveryPayout, estimateDistanceKm } from '../utils/deliveryPayout.util.js';
 import { creditWallet, debitWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
+import {
+  getVendorRedemptionCapacity,
+  recordCashbackIssuance,
+  recordCashbackRedemption,
+} from '../utils/cashbackSettlement.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
@@ -173,11 +178,30 @@ export const createOrder = async (req, res) => {
     // Total gross bill amount (itemTotal + deliveryCharge + packagingCharge + taxAmount + tipAmount)
     const totalBillAmount = Math.round((itemTotal + safeDelivery + safePackaging + safeTax + tipAmount) * 100) / 100;
 
+    // ── Smart Cashback & Settlement Redemption Capacity Check ──
+    const vendorCapacity = getVendorRedemptionCapacity(vendor);
+
     // ── Handle Customer Zeebac Points Redemption (1 Point = ₹1) ──
     const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
     const availablePoints = customerWallet ? Math.max(0, customerWallet.balance || 0) : 0;
 
     let pointsToRedeem = Math.max(0, Number(redeemPoints) || 0);
+
+    // If customer attempted redemption but merchant capacity is exhausted
+    if (pointsToRedeem > 0 && vendorCapacity.remainingCapacity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer can't redeem points / Reason: Redemption limit reached for this store",
+        reason: 'Redemption limit reached',
+        remainingCapacity: 0,
+        totalCapacity: vendorCapacity.totalCapacity,
+      });
+    }
+
+    // Cap redemption to vendor remaining capacity, user balance, and total bill
+    if (pointsToRedeem > vendorCapacity.remainingCapacity) {
+      pointsToRedeem = vendorCapacity.remainingCapacity;
+    }
     if (pointsToRedeem > availablePoints) {
       pointsToRedeem = availablePoints;
     }
@@ -187,6 +211,15 @@ export const createOrder = async (req, res) => {
     pointsToRedeem = Math.round(pointsToRedeem * 100) / 100;
 
     const finalPayableAmount = Math.max(0, Math.round((totalBillAmount - pointsToRedeem) * 100) / 100);
+
+    // ── Calculate Cashback Strictly on Actual Eligible Paid Amount (NEVER on redeemed points!) ──
+    const paidRatio = totalBillAmount > 0 ? (finalPayableAmount / totalBillAmount) : 0;
+    totalCashbackPoints = Math.round(totalCashbackPoints * paidRatio * 100) / 100;
+
+    // Adjust each item's cashback points pro-rata by actual cash/online paid portion
+    processedItems.forEach((it) => {
+      it.cashbackPoints = Math.round(it.cashbackPoints * paidRatio * 100) / 100;
+    });
 
     // ── Format delivery address safely as a string (prevents Mongoose CastError on object) ──
     let resolvedDeliveryAddress = 'Customer Address';
@@ -280,7 +313,7 @@ export const createOrder = async (req, res) => {
 
     let createdOrder;
     const executeOrderCreation = async (activeSession) => {
-      // If customer redeemed Zeebac points, debit atomically
+      // If customer redeemed Zeebac points, debit atomically and record in Merchant Ledger
       if (pointsToRedeem > 0) {
         await debitWallet({
           session: activeSession,
@@ -289,6 +322,17 @@ export const createOrder = async (req, res) => {
           amount: pointsToRedeem,
           category: 'purchase',
           description: `Used ${pointsToRedeem} Zeebac Points for Order ${orderId}`,
+        });
+
+        await recordCashbackRedemption({
+          vendorId: vendor._id,
+          amount: pointsToRedeem,
+          customer,
+          orderId,
+          paymentMethod: 'Points',
+          referenceType: 'Order',
+          notes: `Customer redeemed ${pointsToRedeem} points on Order ${orderId}`,
+          session: activeSession,
         });
       }
 
@@ -771,6 +815,21 @@ export const updateOrderStatus = async (req, res) => {
             referenceType: 'Order',
             allowNegativeBalance: true, // Guarantees customer always receives promised cashback even if vendor pool dips
           });
+
+          // C) Record Cashback Issuance in Smart Settlement Ledger
+          if (vendor) {
+            await recordCashbackIssuance({
+              vendorId: vendor._id,
+              amount: order.totalCashbackPoints,
+              customer,
+              orderId: order.orderId,
+              paymentMethod: order.paymentMethod,
+              eligiblePaidAmount: order.finalPayableAmount,
+              referenceId: order._id,
+              referenceType: 'Order',
+              session,
+            });
+          }
 
           order.cashbackSettled = true;
           order.settledAt = new Date();

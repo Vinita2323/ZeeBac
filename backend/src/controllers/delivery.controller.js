@@ -7,6 +7,7 @@ import User from '../models/User.js';
 import DeliveryPayoutConfig from '../models/DeliveryPayoutConfig.js';
 import { calculateDeliveryPayout } from '../utils/deliveryPayout.util.js';
 import { creditWallet, debitWallet } from '../utils/wallet.util.js';
+import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
 import logger from '../utils/logger.js';
 import { getIO } from '../socket/index.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
@@ -1262,6 +1263,17 @@ export const updateDeliveryOrderStatus = async (req, res) => {
             referenceId: order._id,
             referenceType: 'Order',
             allowNegativeBalance: true,
+          });
+
+          await recordCashbackIssuance({
+            vendorId: vendor._id,
+            amount: order.totalCashbackPoints,
+            customer,
+            orderId: order.orderId,
+            paymentMethod: order.paymentMethod,
+            eligiblePaidAmount: order.finalPayableAmount,
+            referenceId: order._id,
+            referenceType: 'Order',
           });
         }
 

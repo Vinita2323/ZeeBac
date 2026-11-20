@@ -696,6 +696,10 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/wallet');
     return res.data;
   },
+  getSmartCashbackSettlement: async (page = 1, limit = 30) => {
+    const res = await apiClient.get(`/vendor/cashback-settlement?page=${page}&limit=${limit}`);
+    return res.data;
+  },
   getPendingRequests: async () => {
     const res = await apiClient.get('/vendor/requests/pending');
     return res.data;

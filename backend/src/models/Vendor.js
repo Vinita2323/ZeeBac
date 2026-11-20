@@ -199,6 +199,23 @@ const vendorSchema = new mongoose.Schema(
     // a negative or >100% rate with nothing stopping it from being applied
     // to real transactions.
     cashbackRate: { type: Number, min: 0, max: 100 },
+
+    // ── Smart Cashback & Settlement Ledger Fields ──
+    cashbackIssued: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    cashbackRedeemed: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    additionalRedemptionLimit: {
+      type: Number,
+      default: 1000,
+      min: 0,
+    },
     deliverySettings: {
       deliveryCharge: { type: Number, default: 30, min: 0 },
       freeDeliveryAbove: { type: Number, default: 499, min: 0 },

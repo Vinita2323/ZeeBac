@@ -28,6 +28,7 @@ import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
 import { getStoreVisibilityQuery, getVendorSubscriptionState } from '../utils/subscription.util.js';
+import { getVendorRedemptionCapacity } from '../utils/cashbackSettlement.util.js';
 import {
   assertWithinDailyRequestLimit,
   assertNoRecentDuplicateRequest,
@@ -244,7 +245,7 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages isStoreOpen description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings');
+      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages isStoreOpen description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings cashbackIssued cashbackRedeemed additionalRedemptionLimit');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
@@ -260,6 +261,9 @@ export const lookupVendorById = async (req, res) => {
     vendorObj.cashbackBlocked = subState.cashbackBlocked;
     vendorObj.cashbackBlockedReason = subState.cashbackBlockedReason;
     vendorObj.subscriptionState = subState;
+
+    // Attach Smart Cashback Redemption Capacity & Limits
+    vendorObj.redemptionCapacity = getVendorRedemptionCapacity(vendor);
 
     const totalReviews = vendor.stats?.totalReviews || 0;
     const avgRating = vendor.stats?.avgRating || 0;

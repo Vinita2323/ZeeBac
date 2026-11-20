@@ -17,6 +17,7 @@ import {
 } from '../../../utils/voiceUtils';
 import LiveOrderTrackingModal from '../../../components/common/LiveOrderTrackingModal';
 import DarkStorePickerModal from '../../../components/vendor/DarkStorePickerModal';
+import { formatDisplayAddress } from '../../../utils/addressUtils';
 
 export default function RequestsPage() {
   const navigate = useNavigate();
@@ -950,7 +951,7 @@ export default function RequestsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-slate-600">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="material-symbols-outlined text-primary text-[17px] shrink-0">location_on</span>
-                      <span className="truncate max-w-xs">{order.deliveryAddress || 'Store Pickup'}</span>
+                      <span className="truncate max-w-xs">{formatDisplayAddress(order.deliveryAddress, 'Store Pickup')}</span>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 flex-wrap">

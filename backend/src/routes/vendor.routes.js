@@ -16,6 +16,7 @@ import {
   logPurchase,
   getVendorTransactions,
   getVendorWallet,
+  getSmartCashbackSettlement,
   createRazorpayOrder,
   verifyRazorpayPayment,
   getVendorCustomers,
@@ -140,6 +141,7 @@ router.get('/customers/:phone', requireApprovedVendor, lookupCustomerByPhone);
 router.post('/transactions/log', requireApprovedVendor, logPurchase);
 router.get('/transactions', requireApprovedVendor, getVendorTransactions);
 router.get('/wallet', requireApprovedVendor, getVendorWallet);
+router.get('/cashback-settlement', requireApprovedVendor, getSmartCashbackSettlement);
 router.post('/wallet/create-order', requireApprovedVendor, createRazorpayOrder);
 router.post('/wallet/verify-payment', requireApprovedVendor, verifyRazorpayPayment);
 router.post('/wallet/withdraw', requireApprovedVendor, requestWithdrawal);

@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getSocket } from '../../services/socket';
+import { formatDisplayAddress } from '../../utils/addressUtils';
 
 // Fix Leaflet's default marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -323,7 +324,7 @@ export default function LiveOrderTrackingModal({ order, onClose }) {
               <Popup>
                 <div className="text-xs font-sans text-center">
                   <strong>Delivery Destination</strong>
-                  <p className="text-[10px] text-slate-500">{currentOrder.deliveryAddress || 'Your Location'}</p>
+                  <p className="text-[10px] text-slate-500">{formatDisplayAddress(currentOrder.deliveryAddress, 'Your Location')}</p>
                 </div>
               </Popup>
             </Marker>

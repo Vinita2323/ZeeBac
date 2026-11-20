@@ -32,6 +32,12 @@ import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentEr
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } from '../utils/qr.util.js';
+import CashbackSettlement from '../models/CashbackSettlement.js';
+import {
+  getVendorRedemptionCapacity,
+  recordCashbackIssuance,
+  recordCashbackRedemption,
+} from '../utils/cashbackSettlement.util.js';
 import { getIO } from '../socket/socket.js';
 
 const safeSocketEmit = (room, event, data) => {
@@ -1880,6 +1886,7 @@ export const logPurchase = async (req, res) => {
       paymentMethod = 'Cash', 
       billNumber,
       cashbackPercent: customCashbackPercent,
+      redeemPoints = 0,
     } = req.body;
 
     const parsedAmount = Number(amount);
@@ -1917,10 +1924,39 @@ export const logPurchase = async (req, res) => {
       });
     }
 
+    // ── Smart Cashback Redemption Capacity Check ──
+    const vendorCapacity = getVendorRedemptionCapacity(vendor);
+    const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
+    const availableCustomerPoints = customerWallet ? Math.max(0, customerWallet.balance || 0) : 0;
+
+    let pointsToRedeem = Math.max(0, Number(redeemPoints) || 0);
+
+    if (pointsToRedeem > 0 && vendorCapacity.remainingCapacity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer can't redeem points / Reason: Redemption limit reached for this store",
+        reason: 'Redemption limit reached',
+        remainingCapacity: 0,
+        totalCapacity: vendorCapacity.totalCapacity,
+      });
+    }
+
+    if (pointsToRedeem > vendorCapacity.remainingCapacity) {
+      pointsToRedeem = vendorCapacity.remainingCapacity;
+    }
+    if (pointsToRedeem > availableCustomerPoints) {
+      pointsToRedeem = availableCustomerPoints;
+    }
+    if (pointsToRedeem > parsedAmount) {
+      pointsToRedeem = parsedAmount;
+    }
+    pointsToRedeem = Math.round(pointsToRedeem * 100) / 100;
+
+    const actualPaidAmount = Math.max(0, Math.round((parsedAmount - pointsToRedeem) * 100) / 100);
+
+    // ── Calculate Cashback Strictly on Actual Eligible Paid Amount (NEVER on redeemed points!) ──
     const effectiveCashbackPercent = Number(customCashbackPercent) > 0 ? Number(customCashbackPercent) : (vendor.cashbackRate || 5);
-    const cashbackAmount = calculateCashback(parsedAmount, effectiveCashbackPercent);
-    const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-    const generatedBillNo = billNumber || `BILL-${Date.now().toString().slice(-6)}`;
+    const paidRatio = parsedAmount > 0 ? (actualPaidAmount / parsedAmount) : 0;
 
     const sanitizedItems = (Array.isArray(items) ? items : []).map((i) => ({
       productId: (i.productId && mongoose.Types.ObjectId.isValid(i.productId)) ? i.productId : null,
@@ -1930,6 +1966,25 @@ export const logPurchase = async (req, res) => {
       total: Math.max(0, Number(i.total || (Number(i.price || i.rate || 0) * Math.max(1, Number(i.quantity || 1))))),
       cashbackPercentage: Number(i.cashbackPercentage || effectiveCashbackPercent || 0),
     }));
+
+    let computedCashback = 0;
+    let hasItemSpecificCashback = false;
+    for (const it of sanitizedItems) {
+      if (it.cashbackPercentage && it.cashbackPercentage > 0) {
+        const itemPaid = it.total * paidRatio;
+        computedCashback += Math.round((itemPaid * (it.cashbackPercentage / 100)) * 100) / 100;
+        hasItemSpecificCashback = true;
+      }
+    }
+
+    const cashbackAmount = actualPaidAmount <= 0
+      ? 0
+      : (hasItemSpecificCashback && computedCashback > 0
+          ? Math.round(computedCashback * 100) / 100
+          : calculateCashback(actualPaidAmount, effectiveCashbackPercent));
+
+    const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const generatedBillNo = billNumber || `BILL-${Date.now().toString().slice(-6)}`;
 
     let tx;
     let referralAward = null;
@@ -1969,6 +2024,8 @@ export const logPurchase = async (req, res) => {
         type: 'pos_bill',
         initiatedBy: 'vendor',
         amount: parsedAmount,
+        totalPaid: actualPaidAmount,
+        pointsRedeemed: pointsToRedeem,
         cashbackPercent: effectiveCashbackPercent,
         cashbackAmount,
         paymentMethod: paymentMethod || 'Cash',
@@ -1979,31 +2036,71 @@ export const logPurchase = async (req, res) => {
       }], createOptions);
       tx = created[0];
 
-      // 3. Debit Vendor Wallet
-      await debitWallet({
-        session: activeSession,
-        ownerId: vendor._id,
-        ownerType: 'Vendor',
-        amount: cashbackAmount,
-        category: 'cashback',
-        description: `Cashback given to ${customer.name} (Bill #${generatedBillNo})`,
-        referenceId: tx._id,
-        referenceType: 'Transaction',
-        allowNegativeBalance: true,
-      });
+      // 3. If Customer redeemed Zeebac Points, debit customer & record in Merchant Ledger
+      if (pointsToRedeem > 0) {
+        await debitWallet({
+          session: activeSession,
+          ownerId: customer._id,
+          ownerType: 'User',
+          amount: pointsToRedeem,
+          category: 'purchase',
+          description: `Used ${pointsToRedeem} points for Bill #${generatedBillNo}`,
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+        });
 
-      // 4. Credit Customer Wallet instantly
-      await creditWallet({
-        session: activeSession,
-        ownerId: customer._id,
-        ownerType: 'User',
-        ownerZeebacId: customer.zeebacId,
-        amount: cashbackAmount,
-        category: 'cashback',
-        description: `Cashback from ${vendor.storeName} (Bill #${generatedBillNo})`,
-        referenceId: tx._id,
-        referenceType: 'Transaction',
-      });
+        await recordCashbackRedemption({
+          vendorId: vendor._id,
+          amount: pointsToRedeem,
+          customer,
+          billNumber: generatedBillNo,
+          paymentMethod: 'Points',
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+          notes: `Customer redeemed ${pointsToRedeem} points on POS Bill #${generatedBillNo}`,
+          session: activeSession,
+        });
+      }
+
+      // 4. If Cashback was earned on net paid amount, credit customer, debit vendor & record in Merchant Ledger
+      if (cashbackAmount > 0) {
+        await debitWallet({
+          session: activeSession,
+          ownerId: vendor._id,
+          ownerType: 'Vendor',
+          amount: cashbackAmount,
+          category: 'cashback',
+          description: `Cashback given to ${customer.name} (Bill #${generatedBillNo})`,
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+          allowNegativeBalance: true,
+        });
+
+        await creditWallet({
+          session: activeSession,
+          ownerId: customer._id,
+          ownerType: 'User',
+          ownerZeebacId: customer.zeebacId,
+          amount: cashbackAmount,
+          category: 'cashback',
+          description: `Cashback from ${vendor.storeName} (Bill #${generatedBillNo})`,
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+        });
+
+        await recordCashbackIssuance({
+          vendorId: vendor._id,
+          amount: cashbackAmount,
+          customer,
+          billNumber: generatedBillNo,
+          paymentMethod,
+          eligiblePaidAmount: actualPaidAmount,
+          cashbackPercentage: effectiveCashbackPercent,
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+          session: activeSession,
+        });
+      }
 
       // 5. Claim first purchase referral bonus safely
       try {
@@ -2125,6 +2222,7 @@ export const getVendorTransactions = async (req, res) => {
 export const getVendorWallet = async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
     const wallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
     
     // Get recent ledger
@@ -2135,12 +2233,14 @@ export const getVendorWallet = async (req, res) => {
     const phone = vendor.businessContactNumber || vendor.phone || '';
     const maskedPhone = phone ? `${phone.slice(0, 2)}******${phone.slice(-2)}` : '';
 
+    // Smart Settlement metrics
+    const smartSettlementCapacity = getVendorRedemptionCapacity(vendor);
+    const recentSettlements = await CashbackSettlement.find({ vendorId: vendor._id })
+      .sort({ createdAt: -1 })
+      .limit(20);
+
     // Calculate total customer cashback distributed by this store
-    const cashbackAgg = await Transaction.aggregate([
-      { $match: { vendorId: vendor._id, status: 'Approved' } },
-      { $group: { _id: null, totalCashbackGiven: { $sum: '$cashbackAmount' } } }
-    ]);
-    const totalCashbackGiven = cashbackAgg[0]?.totalCashbackGiven || 0;
+    const totalCashbackGiven = smartSettlementCapacity.cashbackIssued;
 
     res.status(200).json({
       success: true,
@@ -2150,10 +2250,62 @@ export const getVendorWallet = async (req, res) => {
         bankDetails: vendor.bankDetails || {},
         phone: maskedPhone,
         totalCashbackGiven,
+        smartSettlement: {
+          ...smartSettlementCapacity,
+          settlementSummary: smartSettlementCapacity.netSettlementBalance > 0
+            ? `Merchant owes ₹${smartSettlementCapacity.netSettlementBalance} to Zeebac`
+            : smartSettlementCapacity.netSettlementBalance < 0
+            ? `Zeebac owes ₹${Math.abs(smartSettlementCapacity.netSettlementBalance)} to Merchant`
+            : `All settlements cleared. Zero balance due.`,
+          recentSettlements,
+        },
       },
     });
   } catch (error) {
     logger.error(`Error in getVendorWallet: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// 4b. Get Standalone Smart Cashback Settlement Ledger
+export const getSmartCashbackSettlement = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const capacity = getVendorRedemptionCapacity(vendor);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
+    const skip = (page - 1) * limit;
+
+    const [settlements, totalCount] = await Promise.all([
+      CashbackSettlement.find({ vendorId: vendor._id })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      CashbackSettlement.countDocuments({ vendorId: vendor._id }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...capacity,
+        settlementSummary: capacity.netSettlementBalance > 0
+          ? `Merchant owes ₹${capacity.netSettlementBalance} to Zeebac`
+          : capacity.netSettlementBalance < 0
+          ? `Zeebac owes ₹${Math.abs(capacity.netSettlementBalance)} to Merchant`
+          : `All settlements cleared. Zero balance due.`,
+        settlements,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+        },
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getSmartCashbackSettlement: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 };

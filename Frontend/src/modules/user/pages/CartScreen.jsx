@@ -378,10 +378,15 @@ export default function CartScreen() {
   // Gross total bill before points redemption
   const grossBillTotal = Math.round((itemTotal + deliveryFee + packagingFee + taxAmount + safeTip) * 100) / 100;
 
-  // Points redemption (1 Point = ₹1)
+  // Smart Cashback Redemption Capacity Check for effectiveVendor
+  const vendorCapacity = effectiveVendor?.redemptionCapacity;
+  const storeRemainingCapacity = vendorCapacity ? Number(vendorCapacity.remainingCapacity) : 1000;
+  const canStoreRedeem = vendorCapacity ? (storeRemainingCapacity > 0) : true;
+
+  // Points redemption (1 Point = ₹1) capped to store remaining redemption limit
   const [usePoints, setUsePoints] = useState(false);
-  const maxRedeemablePoints = Math.round(Math.min(walletBalance, grossBillTotal) * 100) / 100;
-  const pointsRedeemed = usePoints ? maxRedeemablePoints : 0;
+  const maxRedeemablePoints = Math.max(0, Math.round(Math.min(walletBalance, grossBillTotal, storeRemainingCapacity) * 100) / 100);
+  const pointsRedeemed = (usePoints && canStoreRedeem) ? maxRedeemablePoints : 0;
   const finalPayableAmount = Math.max(0, Math.round((grossBillTotal - pointsRedeemed) * 100) / 100);
 
   // Checkout states
@@ -1821,7 +1826,7 @@ export default function CartScreen() {
         )}
 
         {/* ── STEP 4: ZEEBAC POINTS REDEMPTION (1 POINT = ₹1) ── */}
-        <div className="bg-white rounded-2xl p-4 border border-purple-100 shadow-2xs space-y-2">
+        <div className="bg-white rounded-2xl p-4 border border-purple-100 shadow-2xs space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-purple-100 text-primary flex items-center justify-center">
@@ -1830,27 +1835,48 @@ export default function CartScreen() {
               <div>
                 <p className="font-black text-[13px] text-slate-900">Use Zeebac Points</p>
                 <p className="text-[11px] text-slate-500">
-                  Available: <strong className="text-primary">{formatCurrency(walletBalance)} Points</strong> (Value: ₹{formatCurrency(walletBalance)})
+                  Wallet: <strong className="text-primary">{formatCurrency(walletBalance)} Points</strong> (₹{formatCurrency(walletBalance)})
                 </p>
               </div>
             </div>
 
             <button
-              disabled={walletBalance <= 0}
+              disabled={walletBalance <= 0 || !canStoreRedeem}
               onClick={() => setUsePoints(!usePoints)}
               className={`px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all cursor-pointer ${
-                walletBalance <= 0
+                walletBalance <= 0 || !canStoreRedeem
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   : usePoints
                   ? 'btn-primary-gradient text-white shadow-xs'
                   : 'bg-purple-50 text-primary hover:bg-purple-100'
               }`}
             >
-              {usePoints ? 'Points Applied ✓' : 'Apply Points'}
+              {!canStoreRedeem ? 'Limit Reached' : usePoints ? 'Points Applied ✓' : 'Apply Points'}
             </button>
           </div>
 
-          {usePoints && (
+          {/* Store Redemption Limit Status */}
+          {canStoreRedeem ? (
+            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-purple-50/50 border border-purple-100/60 text-[11px]">
+              <span className="text-slate-600 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px] text-purple-700">storefront</span>
+                <span>Store Redemption Capacity:</span>
+              </span>
+              <span className="font-mono font-bold text-purple-900">
+                ₹{formatCurrency(storeRemainingCapacity)} available
+              </span>
+            </div>
+          ) : (
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] flex items-start gap-2">
+              <span className="material-symbols-outlined text-[17px] text-amber-600 shrink-0 mt-0.5">warning</span>
+              <div>
+                <p className="font-bold text-[12px]">Customer can't redeem points</p>
+                <p className="text-[11px] text-amber-800 font-medium">Reason: Redemption limit reached for this store.</p>
+              </div>
+            </div>
+          )}
+
+          {usePoints && canStoreRedeem && (
             <div className="bg-purple-50/70 p-2.5 rounded-xl border border-purple-100 text-[11.5px] text-slate-700 flex justify-between items-center">
               <span>Redeemed for Purchase (1 Pt = ₹1):</span>
               <span className="font-black text-primary font-mono">-₹{formatCurrency(pointsRedeemed)}</span>

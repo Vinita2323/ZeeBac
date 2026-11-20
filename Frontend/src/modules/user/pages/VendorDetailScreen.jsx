@@ -675,6 +675,25 @@ export default function VendorDetailScreen() {
                 {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
               </span>
             </button>
+
+            {/* Store Points Redemption Capacity Indicator */}
+            {vendor.redemptionCapacity && (
+              <div className="mt-2 px-2.5 py-1.5 rounded-xl bg-purple-50/70 border border-purple-100 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1 text-slate-700">
+                  <span className="material-symbols-outlined text-purple-700 text-[14px]">stars</span>
+                  <span className="font-semibold">Redemption:</span>
+                </div>
+                {vendor.redemptionCapacity.canRedeemPoints ? (
+                  <span className="font-mono font-bold text-purple-900 bg-purple-100/80 px-1.5 py-0.2 rounded">
+                    ₹{vendor.redemptionCapacity.remainingCapacity} Limit
+                  </span>
+                ) : (
+                  <span className="font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded text-[10px]">
+                    Limit Reached
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
