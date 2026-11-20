@@ -628,6 +628,18 @@ export const VendorAPI = {
     const res = await apiClient.delete(`/vendor/products/${id}`);
     return res.data;
   },
+  checkExpiryAlerts: async () => {
+    const res = await apiClient.post('/vendor/products/check-expiry-alerts');
+    return res.data;
+  },
+  discardExpiredStock: async (id) => {
+    const res = await apiClient.post(`/vendor/products/${id}/discard-expired`);
+    return res.data;
+  },
+  applyClearanceDiscount: async (id, data) => {
+    const res = await apiClient.post(`/vendor/products/${id}/clearance-discount`, data);
+    return res.data;
+  },
   // Storefront Media
   getMedia: async () => {
     const res = await apiClient.get('/vendor/media');

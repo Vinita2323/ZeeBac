@@ -48,6 +48,9 @@ import {
   fileVendorGST,
   getVendorGSTFilingHistory,
   toggleStoreStatus,
+  checkVendorExpiryAlertsEndpoint,
+  discardExpiredProductStock,
+  applyProductClearanceDiscount,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -115,6 +118,11 @@ router.route('/products/:id')
     updateProduct
   )
   .delete(requireApprovedVendor, deleteProduct);
+
+// Expiry Alert, Clearance Discount & Expired Stock Write-off Routes
+router.post('/products/check-expiry-alerts', requireApprovedVendor, checkVendorExpiryAlertsEndpoint);
+router.post('/products/:id/discard-expired', requireApprovedVendor, discardExpiredProductStock);
+router.post('/products/:id/clearance-discount', requireApprovedVendor, applyProductClearanceDiscount);
 
 // Subscription Routes (Phase 6) — available to all authenticated vendors
 router.get('/subscription/plans', getVendorSubscriptionPlans);

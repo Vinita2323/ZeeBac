@@ -15,7 +15,7 @@ const notificationSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['approval', 'credit', 'referral', 'system', 'promotion', 'VENDOR_KYC', 'FRAUD_ALERT', 'SUPPORT_TICKET', 'PAYOUT_REQUEST', 'HIGH_VALUE_REQUEST'],
+      enum: ['approval', 'credit', 'referral', 'system', 'promotion', 'VENDOR_KYC', 'FRAUD_ALERT', 'SUPPORT_TICKET', 'PAYOUT_REQUEST', 'HIGH_VALUE_REQUEST', 'INVENTORY_EXPIRY_ALERT'],
     },
     title: {
       type: String,
@@ -34,7 +34,7 @@ const notificationSchema = new mongoose.Schema(
     },
     referenceType: {
       type: String,
-      enum: ['transaction', 'cashback_request', 'vendor', 'referral', 'conversation', null],
+      enum: ['transaction', 'cashback_request', 'vendor', 'referral', 'conversation', 'product', null],
     },
     isRead: {
       type: Boolean,

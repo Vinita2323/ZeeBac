@@ -17,6 +17,7 @@ import OtpVerification from '../models/OtpVerification.js';
 import AdminUser from '../models/AdminUser.js';
 import B2BInvoice from '../models/B2BInvoice.js';
 import Order from '../models/Order.js';
+import Notification from '../models/Notification.js';
 import GstFiling from '../models/GstFiling.js';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
@@ -1310,14 +1311,188 @@ export const deleteVendorCategory = async (req, res) => {
   }
 };
 
+// Scan vendor products for expiring/expired stock and create alerts if needed
+export const checkVendorProductExpiry = async (vendorId, productsList = null) => {
+  try {
+    const products = productsList || (await Product.find({ vendorId, isActive: true, stock: { $gt: 0 } }));
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const expired = [];
+    const nearExpiry = [];
+
+    for (const p of products) {
+      if (!p.expiryDate) continue;
+      const expDate = new Date(p.expiryDate);
+      if (isNaN(expDate.getTime())) continue;
+      expDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        expired.push({ product: p, diffDays, expDate });
+      } else if (diffDays <= 30) {
+        nearExpiry.push({ product: p, diffDays, expDate });
+      }
+    }
+
+    if (expired.length === 0 && nearExpiry.length === 0) {
+      return { expiredCount: 0, nearExpiryCount: 0 };
+    }
+
+    // Check if an alert was already triggered within the last 20 hours to prevent duplicate spam
+    const oneDayAgo = new Date(Date.now() - 20 * 60 * 60 * 1000);
+    const existingNotif = await Notification.findOne({
+      recipientId: vendorId,
+      recipientType: 'vendor',
+      type: 'INVENTORY_EXPIRY_ALERT',
+      createdAt: { $gte: oneDayAgo },
+    });
+
+    if (!existingNotif) {
+      const title =
+        expired.length > 0
+          ? `⛔ Inventory Alert: ${expired.length} Product(s) Expired!`
+          : `⚠️ Expiry Warning: ${nearExpiry.length} Product(s) Expiring Soon!`;
+
+      const sampleNames = [...expired, ...nearExpiry]
+        .slice(0, 2)
+        .map((x) => x.product.name)
+        .join(', ');
+
+      const message =
+        expired.length > 0
+          ? `You have ${expired.length} expired product(s) (including ${sampleNames}) and ${nearExpiry.length} near expiry. Remove expired items or apply clearance sale discounts.`
+          : `You have ${nearExpiry.length} product(s) expiring within 30 days (including ${sampleNames}). Review inventory to apply promotional discounts before expiry.`;
+
+      await sendNotification({
+        recipientId: vendorId,
+        recipientType: 'vendor',
+        type: 'INVENTORY_EXPIRY_ALERT',
+        title,
+        message,
+        icon: 'event_busy',
+        referenceType: 'product',
+        data: {
+          expiredCount: expired.length,
+          nearExpiryCount: nearExpiry.length,
+          atRiskItems: [...expired, ...nearExpiry].slice(0, 5).map((x) => ({
+            id: x.product._id,
+            name: x.product.name,
+            batchNumber: x.product.batchNumber,
+            expiryDate: x.product.expiryDate,
+            diffDays: x.diffDays,
+            stock: x.product.stock,
+          })),
+        },
+      });
+
+      logger.info(`[Vendor Inventory] Created INVENTORY_EXPIRY_ALERT for vendor ${vendorId}: ${expired.length} expired, ${nearExpiry.length} near expiry`);
+    }
+
+    return { expiredCount: expired.length, nearExpiryCount: nearExpiry.length, expired, nearExpiry };
+  } catch (err) {
+    logger.warn(`[Vendor Inventory] checkVendorProductExpiry error: ${err.message}`);
+    return { expiredCount: 0, nearExpiryCount: 0 };
+  }
+};
+
 // Get all products for the vendor
 export const getProducts = async (req, res) => {
   try {
     const products = await Product.find({ vendorId: req.user.id }).sort({ createdAt: -1 });
+    // Asynchronously scan and dispatch expiry alert notifications if needed without blocking HTTP response
+    checkVendorProductExpiry(req.user.id, products).catch((err) =>
+      logger.warn(`Async checkVendorProductExpiry error: ${err.message}`)
+    );
     res.status(200).json({ success: true, data: products });
   } catch (error) {
     logger.error(`Error in vendor getProducts: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// Check and trigger expiry alert notifications on demand
+export const checkVendorExpiryAlertsEndpoint = async (req, res) => {
+  try {
+    const result = await checkVendorProductExpiry(req.user.id);
+    return res.status(200).json({
+      success: true,
+      message: 'Expiry alert scan completed.',
+      data: result,
+    });
+  } catch (error) {
+    logger.error(`checkVendorExpiryAlertsEndpoint error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error checking expiry alerts' });
+  }
+};
+
+// Discard / write-off expired stock
+export const discardExpiredProductStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const vendorId = req.user.id;
+    const product = await Product.findOne({ _id: id, vendorId });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const previousStock = product.stock || 0;
+    product.stock = 0;
+    await product.save();
+
+    logger.info(`[Vendor Inventory] Vendor ${vendorId} discarded expired stock for "${product.name}" (${previousStock} units written off).`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully written off ${previousStock} expired units of "${product.name}".`,
+      data: { product, discardedUnits: previousStock },
+    });
+  } catch (error) {
+    logger.error(`discardExpiredProductStock error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error discarding stock' });
+  }
+};
+
+// Apply clearance discount for near-expiry products
+export const applyProductClearanceDiscount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { discountPrice, clearanceDiscountPercent } = req.body;
+    const vendorId = req.user.id;
+
+    const product = await Product.findOne({ _id: id, vendorId });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const regularPrice = Number(product.price) || 0;
+    let newDiscountPrice = Number(discountPrice);
+
+    if (clearanceDiscountPercent && regularPrice > 0) {
+      const pct = Math.max(1, Math.min(99, Number(clearanceDiscountPercent)));
+      newDiscountPrice = Math.round(regularPrice * (1 - pct / 100));
+    }
+
+    if (isNaN(newDiscountPrice) || newDiscountPrice <= 0 || newDiscountPrice >= regularPrice) {
+      return res.status(400).json({
+        success: false,
+        message: `Clearance discount price must be less than regular price (₹${regularPrice})`,
+      });
+    }
+
+    product.discountPrice = newDiscountPrice;
+    await product.save();
+
+    logger.info(`[Vendor Inventory] Applied clearance price ₹${newDiscountPrice} to product "${product.name}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Clearance price ₹${newDiscountPrice} applied to "${product.name}"!`,
+      data: { product },
+    });
+  } catch (error) {
+    logger.error(`applyProductClearanceDiscount error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error applying discount' });
   }
 };
 
