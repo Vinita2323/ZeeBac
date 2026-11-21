@@ -21,6 +21,12 @@ import {
   withdrawDeliveryEarnings,
   depositDeliveryCash,
   adminSettleRiderCash,
+  getDeliveryZones,
+  updateRiderWorkingZone,
+  getRiderGigs,
+  bookRiderGig,
+  cancelRiderGig,
+  checkInRiderGig,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -41,6 +47,14 @@ router.get('/profile', getDeliveryProfile);
 router.patch('/profile', updateDeliveryProfile);
 router.patch('/availability', toggleAvailability);
 router.patch('/location', updateDeliveryLocation);
+
+// Zone & Gigs Endpoints
+router.get('/zones', getDeliveryZones);
+router.put('/zone', updateRiderWorkingZone);
+router.get('/gigs', getRiderGigs);
+router.post('/gigs/book', bookRiderGig);
+router.post('/gigs/:gigId/cancel', cancelRiderGig);
+router.post('/gigs/:gigId/check-in', checkInRiderGig);
 
 router.get('/orders', getDeliveryOrders);
 router.post('/orders/:id/accept', acceptDeliveryOrder);

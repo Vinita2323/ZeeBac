@@ -147,6 +147,44 @@ export default function DeliveryDashboardScreen() {
   const [depositAmount, setDepositAmount] = useState('');
   const [depositUtr, setDepositUtr] = useState('');
 
+  // Working Area & Zone State
+  const [showZoneModal, setShowZoneModal] = useState(false);
+  const [zonesList, setZonesList] = useState([]);
+  const [selectedCity, setSelectedCity] = useState('Lucknow');
+  const [isUpdatingZone, setIsUpdatingZone] = useState(false);
+
+  const fetchZones = async (city) => {
+    try {
+      const res = await DeliveryAPI.getZones({ city: city || selectedCity });
+      if (res.success && res.data) {
+        setZonesList(res.data.zones || []);
+        if (res.data.currentCity) setSelectedCity(res.data.currentCity);
+      }
+    } catch (err) {
+      console.error('Error fetching zones', err);
+    }
+  };
+
+  const handleSelectZone = async (zone) => {
+    setIsUpdatingZone(true);
+    try {
+      const res = await DeliveryAPI.updateWorkingZone({
+        zoneName: zone.name,
+        zoneId: zone._id || zone.zoneId,
+        city: selectedCity,
+      });
+      if (res.success) {
+        toast.success(`📍 Working zone set to ${zone.name} (${zone.demandBadge || zone.demandLevel})`);
+        setShowZoneModal(false);
+        fetchDashboardData();
+      }
+    } catch (err) {
+      toast.error('Failed to change zone');
+    } finally {
+      setIsUpdatingZone(false);
+    }
+  };
+
   // Rider location coordinates (Default Indore Central)
   const [riderCoords, setRiderCoords] = useState({ lat: 22.7176, lng: 75.8720 });
   const watchIdRef = useRef(null);
@@ -638,10 +676,25 @@ export default function DeliveryDashboardScreen() {
               </div>
             </div>
 
+            {/* Working Area / Zone Selector Chip */}
+            <button
+              onClick={() => {
+                fetchZones(riderDetails?.workingCity || riderDetails?.city || selectedCity);
+                setShowZoneModal(true);
+              }}
+              className="absolute top-3 right-3 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-full text-[11px] font-black text-slate-800 shadow-md flex items-center gap-1.5 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer active:scale-95 z-10"
+              title="Change Delivery Zone"
+            >
+              <span className="material-symbols-outlined text-[15px] text-emerald-600">near_me</span>
+              <span>{riderDetails?.workingZone || 'Gomti Nagar'}</span>
+              <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.2 rounded font-black">🔥</span>
+              <span className="material-symbols-outlined text-[14px] text-slate-400">expand_more</span>
+            </button>
+
             {/* Live GPS & Zone Badge */}
             <div className="absolute bottom-3 left-4 bg-white/95 backdrop-blur-xs px-3 py-1 rounded-full text-[10px] font-black text-slate-700 shadow-xs flex items-center gap-1.5 border border-slate-200">
               <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              <span>{isOnline ? `GPS Active • ${riderDetails?.city || 'Indore Central'}` : 'GPS Idle • Offline'}</span>
+              <span>{isOnline ? `GPS Active • ${riderDetails?.workingZone || riderDetails?.city || 'Gomti Nagar'}` : 'GPS Idle • Offline'}</span>
             </div>
           </div>
         </div>
@@ -1749,6 +1802,122 @@ export default function DeliveryDashboardScreen() {
                 </span>
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── WORKING AREA / ZONE SELECTOR MODAL ─── */}
+      {showZoneModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom duration-200 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                  Delivery Zone & Demand Clusters
+                </span>
+                <h3 className="font-display font-black text-base text-slate-900 mt-1">
+                  Choose Your Working Area
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowZoneModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* City Selector Tabs */}
+            <div className="flex gap-2 pt-3 shrink-0">
+              {['Lucknow', 'Indore'].map((cityName) => (
+                <button
+                  key={cityName}
+                  onClick={() => {
+                    setSelectedCity(cityName);
+                    fetchZones(cityName);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    selectedCity.toLowerCase() === cityName.toLowerCase()
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  📍 {cityName}
+                </button>
+              ))}
+            </div>
+
+            {/* Zones List */}
+            <div className="mt-3 space-y-2.5 overflow-y-auto pr-1 flex-1">
+              {zonesList.length === 0 ? (
+                <p className="text-center text-xs text-slate-400 py-6">Loading zones...</p>
+              ) : (
+                zonesList.map((zone) => {
+                  const isCurrent =
+                    (riderDetails?.workingZone || '').toLowerCase() === zone.name.toLowerCase();
+
+                  return (
+                    <div
+                      key={zone.zoneId || zone._id}
+                      onClick={() => handleSelectZone(zone)}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                        isCurrent
+                          ? 'bg-emerald-50/80 border-emerald-400 shadow-2xs ring-1 ring-emerald-400'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex-1 pr-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-display font-black text-xs text-slate-900">
+                            {zone.name}
+                          </h4>
+                          {zone.surgeBonus > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">
+                              +₹{zone.surgeBonus} Surge
+                            </span>
+                          )}
+                          {isCurrent && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-black uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[10px] text-emerald-700 font-bold mt-0.5">
+                          {zone.demandBadge || zone.demandLevel || 'High Demand 🔥'}
+                        </p>
+
+                        {zone.localities?.length > 0 && (
+                          <p className="text-[10px] text-slate-400 font-medium mt-1 line-clamp-1">
+                            {zone.localities.join(', ')}
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        disabled={isUpdatingZone}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                          isCurrent
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-900 hover:text-white'
+                        }`}
+                      >
+                        {isCurrent ? 'Selected ✓' : 'Select'}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-4 pt-2 border-t border-slate-100 shrink-0">
+              <button
+                onClick={() => setShowZoneModal(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

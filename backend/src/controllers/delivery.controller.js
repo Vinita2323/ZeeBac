@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import DeliveryPartner from '../models/DeliveryPartner.js';
+import DeliveryZone from '../models/DeliveryZone.js';
 import Order from '../models/Order.js';
 import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
@@ -847,7 +848,10 @@ export const getDeliveryOrders = async (req, res) => {
           name: rider.name,
           phone: rider.phone,
           riderId: rider.riderId || rider.zeebacId || ('ZBD-' + (rider._id || '').toString().slice(-6).toUpperCase()),
-          city: rider.address?.city || rider.city || 'Lucknow',
+          city: rider.workingCity || rider.address?.city || rider.city || 'Lucknow',
+          workingCity: rider.workingCity || rider.address?.city || rider.city || 'Lucknow',
+          workingZone: rider.workingZone || 'Gomti Nagar',
+          workingZoneId: rider.workingZoneId || null,
           vehicleType: rider.vehicleType || 'Bike',
           vehicleNo: rider.vehicleNo || '',
         },
@@ -2345,5 +2349,354 @@ export const adminSettleRiderCash = async (req, res) => {
   } catch (error) {
     logger.error(`[adminSettleRiderCash] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server error clearing rider cash' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 30. GET DELIVERY ZONES & ACTIVE CLUSTERS
+// ─────────────────────────────────────────────────────────────
+export const getDeliveryZones = async (req, res) => {
+  try {
+    const rider = await DeliveryPartner.findById(req.user.id);
+    const city = req.query.city || rider?.workingCity || rider?.address?.city || 'Lucknow';
+
+    await DeliveryZone.seedDefaultZonesIfEmpty();
+
+    let zones = await DeliveryZone.find({
+      city: new RegExp(`^${city}$`, 'i'),
+      isActive: true,
+    }).lean();
+
+    if (!zones.length) {
+      zones = await DeliveryZone.find({ isActive: true }).lean();
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        zones,
+        currentCity: city,
+        currentZone: rider?.workingZone || (zones[0] ? zones[0].name : 'Gomti Nagar'),
+        workingZoneId: rider?.workingZoneId || null,
+        preferredZones: rider?.preferredZones || [],
+      },
+    });
+  } catch (error) {
+    logger.error(`[getDeliveryZones] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error fetching delivery zones' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 31. UPDATE RIDER WORKING ZONE & CITY
+// ─────────────────────────────────────────────────────────────
+export const updateRiderWorkingZone = async (req, res) => {
+  try {
+    const { zoneName, zoneId, city, preferredZones } = req.body;
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    if (!zoneName && !zoneId) {
+      return res.status(400).json({ success: false, message: 'Zone name or ID is required' });
+    }
+
+    let targetZone = null;
+    if (zoneId) {
+      targetZone = await DeliveryZone.findOne({
+        $or: [{ _id: mongoose.isValidObjectId(zoneId) ? zoneId : null }, { zoneId }],
+      });
+    }
+    if (!targetZone && zoneName) {
+      targetZone = await DeliveryZone.findOne({ name: new RegExp(`^${zoneName}$`, 'i') });
+    }
+
+    const assignedZoneName = targetZone ? targetZone.name : zoneName;
+    const assignedCity = city || (targetZone ? targetZone.city : (rider.workingCity || 'Lucknow'));
+
+    rider.workingZone = assignedZoneName;
+    rider.workingCity = assignedCity;
+    if (targetZone) {
+      rider.workingZoneId = targetZone._id;
+    }
+    if (Array.isArray(preferredZones)) {
+      rider.preferredZones = preferredZones;
+    }
+
+    await rider.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Working area updated to ${assignedZoneName}, ${assignedCity}`,
+      data: {
+        workingZone: rider.workingZone,
+        workingZoneId: rider.workingZoneId,
+        workingCity: rider.workingCity,
+        preferredZones: rider.preferredZones,
+      },
+    });
+  } catch (error) {
+    logger.error(`[updateRiderWorkingZone] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error updating working zone' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 32. GET RIDER GIG SLOTS & BOOKINGS
+// ─────────────────────────────────────────────────────────────
+export const getRiderGigs = async (req, res) => {
+  try {
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    await DeliveryZone.seedDefaultZonesIfEmpty();
+
+    const zoneName = req.query.zoneName || rider.workingZone || 'Gomti Nagar';
+    let zone = await DeliveryZone.findOne({
+      $or: [{ name: new RegExp(`^${zoneName}$`, 'i') }, { zoneId: zoneName }],
+      isActive: true,
+    }).lean();
+
+    if (!zone) {
+      zone = await DeliveryZone.findOne({ isActive: true }).lean();
+    }
+
+    const slots = zone?.availableSlots?.length
+      ? zone.availableSlots
+      : [
+          { slotId: 'slot_1', timeRange: '06:00 AM - 11:00 AM', label: 'Morning Breakfast Rush', surgeBonus: 40, incentiveBadge: '+₹40/hr guarantee', isHot: false, maxCapacity: 50 },
+          { slotId: 'slot_2', timeRange: '11:00 AM - 04:00 PM', label: 'Lunch & Groceries Peak', surgeBonus: 0, incentiveBadge: 'High Demand', isHot: false, maxCapacity: 60 },
+          { slotId: 'slot_3', timeRange: '04:00 PM - 09:00 PM', label: 'Evening Peak Surge', surgeBonus: 20, incentiveBadge: '+₹20 extra per order', isHot: true, maxCapacity: 80 },
+          { slotId: 'slot_4', timeRange: '09:00 PM - 12:00 AM', label: 'Late Night Express', surgeBonus: 30, incentiveBadge: '+₹30 extra per order', isHot: true, maxCapacity: 40 },
+        ];
+
+    // Generate next 7 days list
+    const days = [];
+    const now = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      const dateStr = d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+      days.push({
+        date: dateStr,
+        dateNum: d.getDate(),
+        dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' }),
+        fullDateFormatted: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        isToday: i === 0,
+      });
+    }
+
+    const activeBookedGigs = (rider.bookedGigs || []).filter((g) => g.status !== 'CANCELLED');
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        zone: zone?.name || rider.workingZone,
+        city: zone?.city || rider.workingCity,
+        days,
+        slots,
+        bookedGigs: activeBookedGigs,
+      },
+    });
+  } catch (error) {
+    logger.error(`[getRiderGigs] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error fetching gigs' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 33. BOOK RIDER GIG SLOT
+// ─────────────────────────────────────────────────────────────
+export const bookRiderGig = async (req, res) => {
+  try {
+    const { date, slotId, zoneName, zoneId } = req.body;
+    if (!date || !slotId) {
+      return res.status(400).json({ success: false, message: 'Date and slotId are required' });
+    }
+
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    // Security Gate: Only approved riders can book gigs
+    if (rider.applicationStatus !== 'APPROVED') {
+      return res.status(403).json({
+        success: false,
+        message: `Only approved delivery partners can book gigs. Current status: ${rider.applicationStatus}`,
+      });
+    }
+
+    // Check if slot already booked for this date and not cancelled
+    const existingGig = (rider.bookedGigs || []).find(
+      (g) => g.date === date && g.slotId === slotId && ['BOOKED', 'CHECKED_IN'].includes(g.status)
+    );
+    if (existingGig) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already booked this slot for this date.',
+        data: existingGig,
+      });
+    }
+
+    await DeliveryZone.seedDefaultZonesIfEmpty();
+
+    const targetZoneName = zoneName || rider.workingZone || 'Gomti Nagar';
+    let zone = await DeliveryZone.findOne({
+      $or: [{ name: new RegExp(`^${targetZoneName}$`, 'i') }, { zoneId: targetZoneName }],
+      isActive: true,
+    }).lean();
+
+    if (!zone) {
+      zone = await DeliveryZone.findOne({ isActive: true }).lean();
+    }
+
+    const slotConfig = zone?.availableSlots?.find((s) => s.slotId === slotId) || {
+      slotId,
+      timeRange: 'Peak Hours',
+      label: 'Flexible Shift',
+      surgeBonus: 20,
+    };
+
+    const newGig = {
+      gigId: `GIG-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      date,
+      slotId,
+      timeRange: slotConfig.timeRange || 'Flexible Hours',
+      label: slotConfig.label || 'Standard Shift',
+      zone: zone?.name || targetZoneName,
+      zoneId: zone?.zoneId || zoneId || '',
+      surgeBonus: Number(slotConfig.surgeBonus || 0),
+      status: 'BOOKED',
+      bookedAt: new Date(),
+    };
+
+    if (!rider.bookedGigs) {
+      rider.bookedGigs = [];
+    }
+    rider.bookedGigs.push(newGig);
+    await rider.save();
+
+    return res.status(201).json({
+      success: true,
+      message: `🎉 Gig slot successfully booked for ${date} (${newGig.timeRange})!`,
+      data: newGig,
+    });
+  } catch (error) {
+    logger.error(`[bookRiderGig] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error booking gig' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 34. CANCEL RIDER GIG SLOT
+// ─────────────────────────────────────────────────────────────
+export const cancelRiderGig = async (req, res) => {
+  try {
+    const { gigId } = req.params;
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    const gig = (rider.bookedGigs || []).find((g) => g.gigId === gigId);
+    if (!gig) {
+      return res.status(404).json({ success: false, message: 'Gig booking not found' });
+    }
+
+    if (gig.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, message: 'Gig is already cancelled' });
+    }
+
+    if (gig.status === 'COMPLETED') {
+      return res.status(400).json({ success: false, message: 'Completed gigs cannot be cancelled' });
+    }
+
+    gig.status = 'CANCELLED';
+    gig.cancelledAt = new Date();
+    await rider.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Gig slot cancelled successfully',
+      data: gig,
+    });
+  } catch (error) {
+    logger.error(`[cancelRiderGig] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error cancelling gig' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 35. CHECK-IN TO RIDER GIG (ACTIVATES ONLINE SHIFT)
+// ─────────────────────────────────────────────────────────────
+export const checkInRiderGig = async (req, res) => {
+  try {
+    const { gigId } = req.params;
+    const rider = await DeliveryPartner.findById(req.user.id);
+    if (!rider) {
+      return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+    }
+
+    const gig = (rider.bookedGigs || []).find((g) => g.gigId === gigId);
+    if (!gig) {
+      return res.status(404).json({ success: false, message: 'Gig booking not found' });
+    }
+
+    if (gig.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, message: 'Cannot check into a cancelled gig' });
+    }
+
+    // Cash-In-Hand Limit check
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+    const effectiveLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+    const cashInHand = Number(rider.cashInHand || 0);
+
+    if (cashInHand >= effectiveLimit) {
+      return res.status(403).json({
+        success: false,
+        code: 'CASH_LIMIT_EXCEEDED',
+        cashInHand,
+        maxCashLimit: effectiveLimit,
+        message: `Cannot check-in! Your Cash-in-Hand is ₹${cashInHand}, which reaches or exceeds ₹${effectiveLimit}. Please deposit cash first.`,
+      });
+    }
+
+    gig.status = 'CHECKED_IN';
+    gig.checkedInAt = new Date();
+
+    // Turn rider online & available immediately
+    rider.isOnline = true;
+    rider.status = rider.activeOrderId ? 'BUSY' : 'AVAILABLE';
+    if (gig.zone) {
+      rider.workingZone = gig.zone;
+    }
+
+    await rider.save();
+
+    safeSocketEmit(`rider_${rider._id}`, 'delivery:gig_checked_in', {
+      gigId: gig.gigId,
+      timeRange: gig.timeRange,
+      zone: gig.zone,
+    });
+
+    return res.status(200).json({
+      success: true,
+      isOnline: rider.isOnline,
+      status: rider.status,
+      message: `🚀 Checked-in successfully for ${gig.timeRange} in ${gig.zone}! You are now ONLINE & ready to receive orders.`,
+      data: {
+        gig,
+        isOnline: rider.isOnline,
+        status: rider.status,
+        workingZone: rider.workingZone,
+      },
+    });
+  } catch (error) {
+    logger.error(`[checkInRiderGig] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error checking in to gig' });
   }
 };

@@ -139,6 +139,52 @@ const deliveryPartnerSchema = new mongoose.Schema(
       default: 'OFFLINE',
       index: true,
     },
+
+    // ── Working Area, Clusters & Shift Gigs ──
+    workingCity: {
+      type: String,
+      default: 'Lucknow',
+      trim: true,
+      index: true,
+    },
+    workingZone: {
+      type: String,
+      default: 'Gomti Nagar',
+      trim: true,
+      index: true,
+    },
+    workingZoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DeliveryZone',
+      default: null,
+    },
+    preferredZones: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    bookedGigs: [
+      {
+        gigId: { type: String, required: true },
+        date: { type: String, required: true }, // 'YYYY-MM-DD'
+        slotId: { type: String, required: true },
+        timeRange: { type: String, required: true },
+        label: { type: String, required: true },
+        zone: { type: String, required: true },
+        zoneId: { type: String },
+        surgeBonus: { type: Number, default: 0 },
+        status: {
+          type: String,
+          enum: ['BOOKED', 'CHECKED_IN', 'COMPLETED', 'CANCELLED'],
+          default: 'BOOKED',
+        },
+        bookedAt: { type: Date, default: Date.now },
+        checkedInAt: { type: Date },
+        completedAt: { type: Date },
+        cancelledAt: { type: Date },
+      },
+    ],
     currentLocation: {
       latitude: Number,
       longitude: Number,

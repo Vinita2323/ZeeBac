@@ -1407,6 +1407,30 @@ export const DeliveryAPI = {
     const res = await apiClient.post('/delivery/deposit-cash', data);
     return res.data;
   },
+  getZones: async (params) => {
+    const res = await apiClient.get('/delivery/zones', { params });
+    return res.data;
+  },
+  updateWorkingZone: async (data) => {
+    const res = await apiClient.put('/delivery/zone', data);
+    return res.data;
+  },
+  getGigs: async (params) => {
+    const res = await apiClient.get('/delivery/gigs', { params });
+    return res.data;
+  },
+  bookGig: async (data) => {
+    const res = await apiClient.post('/delivery/gigs/book', data);
+    return res.data;
+  },
+  cancelGig: async (gigId) => {
+    const res = await apiClient.post(`/delivery/gigs/${gigId}/cancel`);
+    return res.data;
+  },
+  checkInGig: async (gigId) => {
+    const res = await apiClient.post(`/delivery/gigs/${gigId}/check-in`);
+    return res.data;
+  },
 };
 
 // ── Dark Store / Warehouse Putaway Service ──
