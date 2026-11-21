@@ -137,9 +137,20 @@ export const getStoreVisibilityQuery = (additionalQuery = {}) => {
 
   const { $or: additionalOr, ...restQuery } = additionalQuery;
 
+  // Customers only see retailers (Manufacturer, Wholesaler & Distributor are excluded from customer-facing store discovery)
+  const isExplicitBusinessType = additionalQuery.businessType !== undefined;
+  const retailerOnlyFilter = isExplicitBusinessType
+    ? {}
+    : {
+        businessType: {
+          $nin: ['Manufacturer', 'Wholesaler', 'Distributor', 'manufacturer', 'wholesaler', 'distributor'],
+        },
+      };
+
   if (additionalOr && Array.isArray(additionalOr) && additionalOr.length > 0) {
     return {
       ...restQuery,
+      ...retailerOnlyFilter,
       status: 'Verified',
       $and: [
         { $or: additionalOr },
@@ -150,6 +161,7 @@ export const getStoreVisibilityQuery = (additionalQuery = {}) => {
 
   return {
     ...additionalQuery,
+    ...retailerOnlyFilter,
     status: 'Verified',
     $or: subConditions,
   };

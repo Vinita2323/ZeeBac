@@ -126,6 +126,54 @@ export const searchB2BBuyers = async (req, res) => {
 };
 
 /**
+ * 2b. Search Manufacturers & Wholesalers for retail merchants looking to buy stock online
+ * @route GET /api/b2b/suppliers/search
+ */
+export const searchB2BSuppliers = async (req, res) => {
+  try {
+    const merchantId = req.user?.id;
+    const { query, businessType } = req.query;
+
+    const filter = {
+      status: 'Verified',
+      businessType: { $in: ['Manufacturer', 'Wholesaler', 'Distributor', 'manufacturer', 'wholesaler', 'distributor'] },
+    };
+    if (merchantId) {
+      filter._id = { $ne: merchantId };
+    }
+
+    if (businessType && businessType.trim() && businessType !== 'all') {
+      filter.businessType = new RegExp(`^${businessType.trim()}$`, 'i');
+    }
+
+    if (query && query.trim()) {
+      const q = query.trim();
+      filter.$or = [
+        { zeebacId: { $regex: q, $options: 'i' } },
+        { phone: { $regex: q, $options: 'i' } },
+        { storeName: { $regex: q, $options: 'i' } },
+        { ownerName: { $regex: q, $options: 'i' } },
+        { category: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    const suppliers = await Vendor.find(filter)
+      .select('zeebacId storeName ownerName phone email businessType category address city storeLogo')
+      .limit(40)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: suppliers.length,
+      data: suppliers,
+    });
+  } catch (error) {
+    logger.error(`[searchB2BSuppliers] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error searching suppliers' });
+  }
+};
+
+/**
  * 3. Create B2B Invoice with Barcode / Scanned Items & Direct UPI Intent
  * @route POST /api/b2b/invoices
  */

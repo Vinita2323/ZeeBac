@@ -3,6 +3,7 @@ import { protect, requireRole } from '../middlewares/auth.middleware.js';
 import {
   searchB2BProducts,
   searchB2BBuyers,
+  searchB2BSuppliers,
   createB2BInvoice,
   verifyAndTransferB2BStock,
   getSellerInvoices,
@@ -29,6 +30,7 @@ router.get('/products/search', searchB2BProducts);
 
 // Wholesaler, Distributor & Buyer lookup
 router.get('/buyers/search', searchB2BBuyers);
+router.get('/suppliers/search', searchB2BSuppliers);
 
 // Dashboard overview
 router.get('/dashboard-stats', getManufacturerDashboardStats);

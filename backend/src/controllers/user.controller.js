@@ -29,6 +29,7 @@ import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmoun
 import { haversineDistanceMeters } from '../utils/geo.util.js';
 import { getStoreVisibilityQuery, getVendorSubscriptionState } from '../utils/subscription.util.js';
 import { getVendorRedemptionCapacity } from '../utils/cashbackSettlement.util.js';
+import { isManufacturerOrWholesaler } from '../utils/vendorApplication.util.js';
 import {
   assertWithinDailyRequestLimit,
   assertNoRecentDuplicateRequest,
@@ -204,8 +205,11 @@ export const updateLinkedAccount = async (req, res) => {
 // telling the user to type the ID manually.
 export const lookupVendorById = async (req, res) => {
   try {
-    const { query } = req.params; // ZBV-1234, phone number, or a scanned QR token
-    const raw = query.trim();
+    const rawParam = req.params?.query || req.params?.id || req.params?.vendorId || '';
+    const raw = String(rawParam).trim();
+    if (!raw) {
+      return res.status(400).json({ success: false, message: 'Vendor ID or phone number is required' });
+    }
 
     let vendorFilter;
     if (raw.toLowerCase().startsWith('upi://') || raw.includes('tr=') || raw.includes('pa=')) {
@@ -245,10 +249,18 @@ export const lookupVendorById = async (req, res) => {
     }
 
     const vendor = await Vendor.findOne(vendorFilter)
-      .select('zeebacId storeName category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages isStoreOpen description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings cashbackIssued cashbackRedeemed additionalRedemptionLimit');
+      .select('zeebacId storeName businessType category subCategory customCategories cashbackRate phone address storeLogo profilePic storeCoverImage storeImages isStoreOpen description operatingHours businessHours stats socialLinks subscription shopType location deliverySettings cashbackIssued cashbackRedeemed additionalRedemptionLimit');
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'No verified vendor found with this ID or phone.' });
+    }
+
+    if (isManufacturerOrWholesaler(vendor.businessType)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This store is a wholesale supplier accessible only to registered retail merchants.',
+        isWholesaleOnly: true,
+      });
     }
 
     const vendorWallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });

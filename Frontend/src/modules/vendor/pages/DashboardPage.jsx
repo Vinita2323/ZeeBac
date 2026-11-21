@@ -407,6 +407,11 @@ export default function DashboardPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span>Active</span>
               </span>
+              {isB2B && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                  {businessType === 'Manufacturer' ? '🏭 Manufacturer' : '📦 Wholesaler'}
+                </span>
+              )}
             </div>
             <p className="text-[11.5px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
               <span className="material-symbols-outlined text-[14px] text-slate-400">location_on</span>

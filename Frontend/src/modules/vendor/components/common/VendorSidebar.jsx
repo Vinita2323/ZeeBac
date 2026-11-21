@@ -9,6 +9,11 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const { t } = useLanguageStore();
 
+  const isWholesaleMerchant = ['manufacturer', 'wholesaler', 'distributor'].includes(
+    String(currentUser?.businessType || '').trim().toLowerCase()
+  );
+  const isManufacturer = String(currentUser?.businessType || '').trim().toLowerCase() === 'manufacturer';
+
   const handleLogout = (e) => {
     if (e) e.stopPropagation();
     useAuthStore.getState().logout('vendor');
@@ -33,9 +38,20 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Products', icon: 'grid_view', path: '/vendor/products' },
     { label: 'Inventory', icon: 'inventory_2', path: '/vendor/inventory' },
     { label: 'Putaway (Dark Store)', icon: 'shelves', path: '/vendor/putaway', badge: 'WMS' },
-    { label: 'Billing POS', icon: 'point_of_sale', path: '/vendor/billing', badge: 'POS Bill', isHighlight: true },
+    {
+      label: isWholesaleMerchant ? 'Wholesale POS' : 'Retail POS',
+      icon: 'point_of_sale',
+      path: '/vendor/billing',
+      badge: isWholesaleMerchant ? 'B2B Trade' : 'POS Bill',
+      isHighlight: true,
+    },
     { label: 'GST & Tax', icon: 'bar_chart', path: '/vendor/gst', badge: 'Auto File' },
-    { label: 'Orders & Requests', icon: 'receipt_long', path: '/vendor/orders', badge: 'Live' },
+    {
+      label: isWholesaleMerchant ? 'Purchase Orders' : 'Orders & Requests',
+      icon: 'receipt_long',
+      path: '/vendor/orders',
+      badge: isWholesaleMerchant ? 'B2B' : 'Live',
+    },
     { label: 'Merchant Payment', icon: 'swap_horiz', path: '/vendor/merchant-payment', badge: 'B2B' },
     { label: 'Subscription', icon: 'card_membership', path: '/vendor/subscription' },
     { label: 'Transactions', icon: 'sync_alt', path: '/vendor/transactions' },
@@ -44,7 +60,12 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Chat', icon: 'chat', path: '/vendor/chat' },
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },
     { label: 'Passbook', icon: 'receipt_long', path: '/vendor/passbook' },
-    { label: 'Customers', icon: 'groups', path: '/vendor/customers' },
+    {
+      label: isWholesaleMerchant ? 'Retailer Network' : 'Customers',
+      icon: 'groups',
+      path: '/vendor/customers',
+      badge: isWholesaleMerchant ? 'Buyers' : undefined,
+    },
     { label: 'Storefront', icon: 'storefront', path: '/vendor/storefront' },
     { label: 'Profile', icon: 'person', path: '/vendor/profile' },
     { label: 'Ratings', icon: 'star_rate', path: '/vendor/ratings' },
@@ -69,8 +90,14 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
             onClick={() => navigate('/vendor')}
           />
           {!isCollapsed && (
-            <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap">
-              Vendor
+            <span className={`ml-2 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap ${
+              isManufacturer
+                ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                : isWholesaleMerchant
+                ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                : 'bg-primary/10 text-primary'
+            }`}>
+              {isManufacturer ? 'Manufacturer' : isWholesaleMerchant ? 'Wholesaler' : 'Retailer'}
             </span>
           )}
         </div>

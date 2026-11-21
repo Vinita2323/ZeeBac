@@ -16,6 +16,7 @@ import {
   recordCashbackIssuance,
   recordCashbackRedemption,
 } from '../utils/cashbackSettlement.util.js';
+import { isManufacturerOrWholesaler } from '../utils/vendorApplication.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
@@ -70,6 +71,15 @@ export const createOrder = async (req, res) => {
     let vendor = await Vendor.findOne(vendorQuery);
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    // Direct customer orders are strictly restricted to retailers (B2C)
+    // Manufacturers & Wholesalers exclusively fulfill B2B purchase orders from retail merchants
+    if (isManufacturerOrWholesaler(vendor.businessType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Direct customer orders are not accepted by Manufacturers or Wholesalers. This store only supplies to registered retail merchants.',
+      });
     }
 
     // ── Build line items with individual product cashback percentages ──

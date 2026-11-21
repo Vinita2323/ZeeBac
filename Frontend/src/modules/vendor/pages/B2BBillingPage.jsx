@@ -27,19 +27,40 @@ const getFormattedAddress = (addr) => {
 
 export default function B2BBillingPage() {
   const currentVendor = useAuthStore((s) => s.currentUser) || {};
-  const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs = ['retail', 'wholesale', 'invoices', 'ledger'];
-  const tabFromQuery = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(
-    validTabs.includes(tabFromQuery) ? tabFromQuery : 'retail'
+  const isWholesaleMerchant = ['manufacturer', 'wholesaler', 'distributor'].includes(
+    String(currentVendor?.businessType || '').trim().toLowerCase()
   );
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabs = isWholesaleMerchant
+    ? ['wholesale', 'invoices', 'ledger']
+    : ['retail', 'invoices', 'ledger'];
+
+  const tabFromQuery = searchParams.get('tab');
+  const initialTab = isWholesaleMerchant
+    ? (tabFromQuery === 'invoices' || tabFromQuery === 'ledger' ? tabFromQuery : 'wholesale')
+    : (tabFromQuery === 'invoices' || tabFromQuery === 'ledger' ? tabFromQuery : 'retail');
+
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam);
+    if (isWholesaleMerchant) {
+      if (tabParam === 'retail') {
+        setActiveTab('wholesale');
+        setSearchParams({ tab: 'wholesale' }, { replace: true });
+      } else if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
+        setActiveTab(tabParam);
+      }
+    } else {
+      if (tabParam === 'wholesale') {
+        setActiveTab('retail');
+        setSearchParams({ tab: 'retail' }, { replace: true });
+      } else if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
+        setActiveTab(tabParam);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, isWholesaleMerchant]);
 
   const handleTabSelect = (tab) => {
     setActiveTab(tab);
@@ -958,10 +979,10 @@ export default function B2BBillingPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-display font-black text-[16px] sm:text-[18px] text-slate-900 leading-tight">
-                  Zeebac Billing POS
+                  {isWholesaleMerchant ? 'Zeebac Wholesale POS' : 'Zeebac Retail POS'}
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-50 text-purple-700 border border-purple-200">
-                  {activeTab === 'retail' ? 'B2C Counter POS' : activeTab === 'wholesale' ? 'B2B Trade' : activeTab === 'ledger' ? 'Stock Putaway & Audit' : 'History'}
+                  {activeTab === 'retail' ? 'B2C Counter POS' : activeTab === 'wholesale' ? 'B2B Wholesale' : activeTab === 'ledger' ? 'Stock Putaway & Audit' : 'Invoices'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium">
@@ -969,32 +990,38 @@ export default function B2BBillingPage() {
                   ? 'Cashier Billing • Instant Customer Wallet Cashback Points'
                   : activeTab === 'ledger'
                   ? 'Putaway & Stock Movement Audit Trail • Realtime Inward/Outward Log'
-                  : 'Supply Chain Trade • Automatic Retailer Stock Import'}
+                  : activeTab === 'wholesale'
+                  ? 'Wholesale B2B Supply Chain Billing • Instant Stock Transfer to Retailer'
+                  : 'Trade Invoices & Billing History'}
               </p>
             </div>
           </div>
 
           {/* Mode Navigation Tabs */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto hide-scrollbar">
-            <button
-              onClick={() => handleTabSelect('retail')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'retail' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
-              <span>Retail POS (B2C)</span>
-            </button>
+            {!isWholesaleMerchant && (
+              <button
+                onClick={() => handleTabSelect('retail')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'retail' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
+                <span>Retail POS (B2C)</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => handleTabSelect('wholesale')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'wholesale' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">local_shipping</span>
-              <span>Wholesale (B2B)</span>
-            </button>
+            {isWholesaleMerchant && (
+              <button
+                onClick={() => handleTabSelect('wholesale')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'wholesale' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                <span>Wholesale POS (B2B)</span>
+              </button>
+            )}
 
             <button
               onClick={() => handleTabSelect('invoices')}

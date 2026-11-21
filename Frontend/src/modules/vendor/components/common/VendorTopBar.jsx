@@ -50,7 +50,7 @@ export default function VendorTopBar() {
   return (
     <>
       <header className="sticky top-0 z-30 bg-white px-3.5 sm:px-5 py-2.5 flex items-center justify-between border-b border-slate-100 shadow-[0_1px_4px_rgba(0,0,0,0.03)]">
-        {/* Left: Proper Zeebac Logo */}
+        {/* Left: Proper Zeebac Logo + Role Badge */}
         <div className="flex items-center gap-2">
           <img 
             alt="Zeebac Logo" 
@@ -58,6 +58,22 @@ export default function VendorTopBar() {
             src="/Logo (6).png"
             onClick={() => navigate('/vendor')}
           />
+          {currentUser?.businessType === 'Manufacturer' ? (
+            <span className="hidden xs:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
+              <span>🏭</span>
+              <span>Manufacturer Hub</span>
+            </span>
+          ) : (currentUser?.businessType === 'Wholesaler' || currentUser?.businessType === 'Distributor') ? (
+            <span className="hidden xs:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+              <span>📦</span>
+              <span>Wholesale Hub</span>
+            </span>
+          ) : (
+            <span className="hidden xs:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+              <span>🏪</span>
+              <span>Retail Store</span>
+            </span>
+          )}
         </div>
 
         {/* Right Section */}
