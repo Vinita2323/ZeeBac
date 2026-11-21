@@ -302,11 +302,27 @@ export const generateReceiptPDF = (bill) => {
 
   // Grand Total
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(20, 20, 20);
-  doc.text('Grand Total:', 6, y);
+  doc.text(Number(bill.pointsRedeemed) > 0 ? 'Gross Total:' : 'Grand Total:', 6, y);
   doc.text(`₹${Number(bill.amount || 0).toFixed(0)}`, 74, y, { align: 'right' });
   y += 4;
+
+  if (Number(bill.pointsRedeemed) > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(5, 150, 105);
+    doc.text('Points Redeemed:', 6, y);
+    doc.text(`-₹${Number(bill.pointsRedeemed).toFixed(0)}`, 74, y, { align: 'right' });
+    y += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(20, 20, 20);
+    doc.text('Net Paid:', 6, y);
+    doc.text(`₹${Number(bill.totalPaid !== undefined ? bill.totalPaid : (bill.amount - bill.pointsRedeemed)).toFixed(0)}`, 74, y, { align: 'right' });
+    y += 4;
+  }
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);

@@ -1879,7 +1879,26 @@ export const lookupCustomerByPhone = async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
-    res.status(200).json({ success: true, data: user });
+
+    const customerWallet = await Wallet.findOne({ ownerId: user._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
+    const vendor = await Vendor.findById(req.user?.id);
+    const vendorCapacity = getVendorRedemptionCapacity(vendor);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        zeebacId: user.zeebacId,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        walletPoints: customerWallet ? Math.max(0, customerWallet.balance || 0) : 0,
+        canRedeemPoints: vendorCapacity.canRedeemPoints,
+        merchantRemainingCapacity: vendorCapacity.remainingCapacity,
+        merchantTotalCapacity: vendorCapacity.totalCapacity,
+      },
+    });
   } catch (error) {
     logger.error(`Error in lookupCustomerByPhone: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });

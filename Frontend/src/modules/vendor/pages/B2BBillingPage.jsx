@@ -54,6 +54,10 @@ export default function B2BBillingPage() {
   const [verifiedCustomer, setVerifiedCustomer] = useState(null);
   const [customerError, setCustomerError] = useState('');
 
+  // Customer Points Redemption state
+  const [isRedeemingPoints, setIsRedeemingPoints] = useState(false);
+  const [pointsToRedeemInput, setPointsToRedeemInput] = useState('');
+
   const [retailBarcode, setRetailBarcode] = useState('');
   const [isLookingUpRetailProduct, setIsLookingUpRetailProduct] = useState(false);
   const [retailItems, setRetailItems] = useState([]);
@@ -479,8 +483,26 @@ export default function B2BBillingPage() {
   // Retail Calculations
   const retailSubtotal = Math.round(retailItems.reduce((acc, i) => acc + i.total, 0) * 100) / 100;
   const retailTotalUnits = retailItems.reduce((acc, i) => acc + i.quantity, 0);
+
+  // Customer Points Redemption & Payable Calculation
+  const customerWalletPoints = Number(verifiedCustomer?.walletPoints) || 0;
+  const storeRemainingCapacity = verifiedCustomer?.merchantRemainingCapacity !== undefined
+    ? Number(verifiedCustomer.merchantRemainingCapacity)
+    : 1000;
+  const maxRedeemablePoints = verifiedCustomer
+    ? Math.min(customerWalletPoints, storeRemainingCapacity, retailSubtotal)
+    : 0;
+
+  const pointsRedeemedNumber = (isRedeemingPoints && verifiedCustomer)
+    ? Math.min(Math.max(0, Number(pointsToRedeemInput) || 0), maxRedeemablePoints)
+    : 0;
+
+  const finalPayableSubtotal = Math.max(0, Math.round((retailSubtotal - pointsRedeemedNumber) * 100) / 100);
+
+  // Cashback calculated strictly on actual eligible paid amount (never on redeemed points)
+  const paidRatio = retailSubtotal > 0 ? (finalPayableSubtotal / retailSubtotal) : 0;
   const retailTotalCashback = Math.round(
-    retailItems.reduce((acc, i) => acc + (i.total * (i.cashbackPercentage || 5)) / 100, 0) * 100
+    retailItems.reduce((acc, i) => acc + (i.total * paidRatio * (i.cashbackPercentage || 5)) / 100, 0) * 100
   ) / 100;
 
   // Proceed to Payment Modal Trigger
@@ -489,7 +511,7 @@ export default function B2BBillingPage() {
       toast.error('Please add at least one item to proceed');
       return;
     }
-    setReceivedCash(String(retailSubtotal));
+    setReceivedCash(String(finalPayableSubtotal));
     setManualUtrInput('');
     setShowManualUtrInput(false);
     autoCompletedRef.current = false;
@@ -507,7 +529,9 @@ export default function B2BBillingPage() {
     try {
       const generatedBillNo = `BILL-${Date.now().toString().slice(-6)}`;
       const payload = {
-        amount: retailSubtotal,
+        amount: finalPayableSubtotal,
+        grossAmount: retailSubtotal,
+        pointsRedeemed: pointsRedeemedNumber,
         items: retailItems,
         customerZeebacId: verifiedCustomer?.zeebacId || (customerQuery.trim().toUpperCase().startsWith('ZBC') ? customerQuery.trim().toUpperCase() : undefined),
         customerPhone: verifiedCustomer?.phone || customerQuery.trim() || undefined,
@@ -525,7 +549,7 @@ export default function B2BBillingPage() {
       console.warn('Failed to create POS Bill Intent, falling back to static UPI QR', err);
       const upiId = currentVendor?.upiId || currentVendor?.bankDetails?.upiId || 'zeebac@upi';
       const storeName = currentVendor?.storeName || currentVendor?.ownerName || 'Zeebac Store';
-      const uri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(storeName)}&am=${retailSubtotal}&cu=INR&tn=Zeebac%20POS%20Bill`;
+      const uri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(storeName)}&am=${finalPayableSubtotal}&cu=INR&tn=Zeebac%20POS%20Bill`;
       QRCode.toDataURL(uri, { width: 220, margin: 1 })
         .then((url) => setRetailUpiQr(url))
         .catch((e) => console.warn('Could not generate UPI QR', e));
@@ -663,6 +687,7 @@ export default function B2BBillingPage() {
         customerZeebacId: verifiedCustomer?.zeebacId || customerQuery.trim().toUpperCase() || undefined,
         customerPhone: verifiedCustomer?.phone || customerQuery.trim() || undefined,
         amount: retailSubtotal,
+        redeemPoints: pointsRedeemedNumber,
         items: retailItems,
         paymentMethod: retailPaymentMethod,
         billNumber: generatedBillNo,
@@ -684,6 +709,9 @@ export default function B2BBillingPage() {
           vendorAddress: getFormattedAddress(currentVendor?.address),
           vendorPhone: currentVendor?.phone || '',
           billNumber: generatedBillNo,
+          amount: retailSubtotal,
+          pointsRedeemed: pointsRedeemedNumber,
+          totalPaid: finalPayableSubtotal,
           cashbackCredited: finalTxn.cashbackAmount || retailTotalCashback,
           date: new Date().toLocaleString(),
           paymentMethod: retailPaymentMethod,
@@ -701,6 +729,8 @@ export default function B2BBillingPage() {
         setRetailItems([]);
         setVerifiedCustomer(null);
         setCustomerQuery('');
+        setIsRedeemingPoints(false);
+        setPointsToRedeemInput('');
       } else {
         toast.error(res.message || 'Failed to generate bill');
       }
@@ -2346,36 +2376,140 @@ export default function B2BBillingPage() {
               >
                 {/* Customer Information (Compact Confirmation - Avoids duplicate input if already verified) */}
                 {verifiedCustomer ? (
-                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between text-left animate-reveal">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                        {verifiedCustomer.name ? verifiedCustomer.name.charAt(0).toUpperCase() : 'C'}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-bold text-[13px] text-slate-900 truncate">
-                            {verifiedCustomer.name}
-                          </p>
-                          <span className="material-symbols-outlined text-[15px] text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
-                            verified
-                          </span>
+                  <>
+                    <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between text-left animate-reveal">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          {verifiedCustomer.name ? verifiedCustomer.name.charAt(0).toUpperCase() : 'C'}
                         </div>
-                        <p className="text-[11px] text-slate-600 font-mono truncate">
-                          ID: <strong className="text-purple-700">{verifiedCustomer.zeebacId}</strong> • {verifiedCustomer.phone}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold text-[13px] text-slate-900 truncate">
+                              {verifiedCustomer.name}
+                            </p>
+                            <span className="material-symbols-outlined text-[15px] text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+                              verified
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 font-mono truncate">
+                            ID: <strong className="text-purple-700">{verifiedCustomer.zeebacId}</strong> • {verifiedCustomer.phone}
+                          </p>
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerifiedCustomer(null);
+                          setCustomerQuery('');
+                          setIsRedeemingPoints(false);
+                          setPointsToRedeemInput('');
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-red-500 font-semibold cursor-pointer shrink-0 ml-2"
+                      >
+                        Change
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVerifiedCustomer(null);
-                        setCustomerQuery('');
-                      }}
-                      className="text-[11px] text-slate-400 hover:text-red-500 font-semibold cursor-pointer shrink-0 ml-2"
-                    >
-                      Change
-                    </button>
-                  </div>
+
+                    {/* Customer Cashback Points Redemption Section */}
+                    <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-3.5 space-y-2.5 animate-reveal">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-amber-500 text-[20px]">stars</span>
+                          <div>
+                            <p className="font-bold text-xs text-purple-950">Customer Zeebac Points</p>
+                            <p className="text-[10.5px] text-purple-700">
+                              Available in {verifiedCustomer.name}'s wallet: <strong className="font-black text-amber-600">₹{customerWalletPoints} Points</strong>
+                            </p>
+                          </div>
+                        </div>
+                        {customerWalletPoints > 0 && maxRedeemablePoints > 0 && (
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white px-2.5 py-1 rounded-xl border border-purple-200 shadow-2xs">
+                            <input
+                              type="checkbox"
+                              checked={isRedeemingPoints}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setIsRedeemingPoints(checked);
+                                if (checked) {
+                                  setPointsToRedeemInput(String(maxRedeemablePoints));
+                                  setReceivedCash(String(Math.max(0, Math.round((retailSubtotal - maxRedeemablePoints) * 100) / 100)));
+                                } else {
+                                  setPointsToRedeemInput('0');
+                                  setReceivedCash(String(retailSubtotal));
+                                }
+                              }}
+                              className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                            />
+                            <span className="text-xs font-bold text-purple-900">Redeem Points</span>
+                          </label>
+                        )}
+                      </div>
+
+                      {/* If merchant redemption capacity reached */}
+                      {storeRemainingCapacity <= 0 ? (
+                        <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-[11px] text-red-700 font-medium flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0">block</span>
+                          <span>Customer can't redeem points / Reason: Store redemption limit reached</span>
+                        </div>
+                      ) : customerWalletPoints <= 0 ? (
+                        <p className="text-[10.5px] text-slate-500 italic">
+                          Customer has 0 points. Decided cashback on this bill will be credited upon payment.
+                        </p>
+                      ) : null}
+
+                      {/* When points redemption is toggled ON */}
+                      {isRedeemingPoints && maxRedeemablePoints > 0 && (
+                        <div className="pt-2 border-t border-purple-200/60 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <label className="text-[10px] font-bold text-purple-900 uppercase tracking-wider block mb-1">
+                                Points to Redeem (1 Point = ₹1)
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                max={maxRedeemablePoints}
+                                value={pointsToRedeemInput}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setPointsToRedeemInput(val);
+                                  const num = Math.min(Math.max(0, Number(val) || 0), maxRedeemablePoints);
+                                  setReceivedCash(String(Math.max(0, Math.round((retailSubtotal - num) * 100) / 100)));
+                                }}
+                                className="w-full h-9 px-3 bg-white border border-purple-300 rounded-xl text-xs font-mono font-bold text-purple-950 focus:outline-none focus:border-purple-600"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPointsToRedeemInput(String(maxRedeemablePoints));
+                                setReceivedCash(String(Math.max(0, Math.round((retailSubtotal - maxRedeemablePoints) * 100) / 100)));
+                              }}
+                              className="h-9 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold cursor-pointer active:scale-95 transition-all self-end shadow-xs"
+                            >
+                              Redeem Max (₹{maxRedeemablePoints})
+                            </button>
+                          </div>
+
+                          {/* Bill Breakdown with Points Discount */}
+                          <div className="bg-white/95 border border-purple-100 rounded-xl p-2.5 text-xs space-y-1">
+                            <div className="flex justify-between text-slate-600">
+                              <span>Original Bill:</span>
+                              <span>₹{retailSubtotal}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-700 font-bold">
+                              <span>Points Redeemed (Discount):</span>
+                              <span>-₹{pointsRedeemedNumber}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-900 font-black pt-1 border-t border-slate-100 text-[13px]">
+                              <span>Net Payable by Customer:</span>
+                              <span className="text-purple-700">₹{finalPayableSubtotal}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
                     <div className="flex items-center justify-between">
@@ -2460,7 +2594,12 @@ export default function B2BBillingPage() {
                         💵 Cash Tender Calculator
                       </span>
                       <span className="text-[11px] font-mono font-bold text-emerald-700">
-                        Bill: ₹{retailSubtotal}
+                        Net Payable: ₹{finalPayableSubtotal}
+                        {pointsRedeemedNumber > 0 && (
+                          <span className="text-[10px] text-slate-500 line-through ml-1.5 font-normal">
+                            ₹{retailSubtotal}
+                          </span>
+                        )}
                       </span>
                     </div>
 
@@ -2468,8 +2607,8 @@ export default function B2BBillingPage() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[10.5px] font-bold text-slate-500 mr-1">Tender:</span>
                       {[
-                        retailSubtotal,
-                        ...[100, 200, 500, 1000, 2000].filter((val) => val > retailSubtotal).slice(0, 3),
+                        finalPayableSubtotal,
+                        ...[100, 200, 500, 1000, 2000].filter((val) => val > finalPayableSubtotal).slice(0, 3),
                       ].map((val, idx) => (
                         <button
                           key={idx}
@@ -2506,13 +2645,13 @@ export default function B2BBillingPage() {
                           Change to Return
                         </label>
                         <div className="h-10 px-3 bg-white border border-slate-200 rounded-xl flex items-center justify-end font-mono font-black text-[15px]">
-                          {Number(receivedCash) >= retailSubtotal ? (
+                          {Number(receivedCash) >= finalPayableSubtotal ? (
                             <span className="text-emerald-700">
-                              ₹{Math.max(0, Math.round((Number(receivedCash) - retailSubtotal) * 100) / 100)}
+                              ₹{Math.max(0, Math.round((Number(receivedCash) - finalPayableSubtotal) * 100) / 100)}
                             </span>
                           ) : (
                             <span className="text-amber-600 text-[12px]">
-                              Due: ₹{Math.round((retailSubtotal - (Number(receivedCash) || 0)) * 100) / 100}
+                              Due: ₹{Math.round((finalPayableSubtotal - (Number(receivedCash) || 0)) * 100) / 100}
                             </span>
                           )}
                         </div>
@@ -2528,7 +2667,12 @@ export default function B2BBillingPage() {
                       <div>
                         <p className="font-bold text-[12.5px] text-purple-950">Scan &amp; Pay via UPI / Zeebac App</p>
                         <p className="text-[11px] text-purple-700 font-mono">
-                          Payable: <strong className="text-[13px]">₹{retailSubtotal}</strong>
+                          Payable: <strong className="text-[13px]">₹{finalPayableSubtotal}</strong>
+                          {pointsRedeemedNumber > 0 && (
+                            <span className="ml-1 text-[10px] text-emerald-700 font-bold">
+                              (-₹{pointsRedeemedNumber} pts)
+                            </span>
+                          )}
                           {posBillIntent?.billCode && (
                             <span className="ml-1.5 text-[10px] text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded font-bold">
                               #{posBillIntent.billCode}
@@ -2621,7 +2765,7 @@ export default function B2BBillingPage() {
                     </div>
                     <p className="text-[12px] text-slate-600 leading-relaxed">
                       Swipe, insert, or tap the customer’s Debit / Credit Card on your merchant card machine for{' '}
-                      <strong className="text-indigo-950 font-mono">₹{retailSubtotal}</strong>. Once payment approval receipt is printed on your card machine, click confirm below.
+                      <strong className="text-indigo-950 font-mono">₹{finalPayableSubtotal}</strong>. Once payment approval receipt is printed on your card machine, click confirm below.
                     </p>
                   </div>
                 )}
@@ -2670,7 +2814,7 @@ export default function B2BBillingPage() {
                     ) : (
                       <>
                         <span className="material-symbols-outlined text-[18px]">payments</span>
-                        <span>Confirm Cash Received (₹{retailSubtotal})</span>
+                        <span>Confirm Cash Received (₹{finalPayableSubtotal})</span>
                       </>
                     )}
                   </button>
@@ -2686,7 +2830,7 @@ export default function B2BBillingPage() {
                     ) : (
                       <>
                         <span className="material-symbols-outlined text-[18px]">credit_card</span>
-                        <span>Confirm Card Swipe Done (₹{retailSubtotal})</span>
+                        <span>Confirm Card Swipe Done (₹{finalPayableSubtotal})</span>
                       </>
                     )}
                   </button>
@@ -2786,9 +2930,19 @@ export default function B2BBillingPage() {
 
                 {/* Total & Cashback summary */}
                 <div className="space-y-1 pt-1 text-[11px]">
-                  <div className="flex justify-between font-bold text-[13px] text-slate-900 pt-1 border-t border-slate-200">
-                    <span>Grand Total:</span>
+                  <div className="flex justify-between text-slate-700 text-[12px] pt-1 border-t border-slate-200">
+                    <span>Gross Bill Amount:</span>
                     <span>₹{(completedRetailBill || receiptToView).amount}</span>
+                  </div>
+                  {Number((completedRetailBill || receiptToView).pointsRedeemed) > 0 && (
+                    <div className="flex justify-between font-bold text-emerald-700 text-[12px]">
+                      <span>Zeebac Points Redeemed:</span>
+                      <span>-₹{(completedRetailBill || receiptToView).pointsRedeemed}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-black text-[13.5px] text-slate-900 pt-0.5 border-t border-slate-100">
+                    <span>Net Paid Amount:</span>
+                    <span className="text-purple-700">₹{(completedRetailBill || receiptToView).totalPaid ?? ((completedRetailBill || receiptToView).amount - ((completedRetailBill || receiptToView).pointsRedeemed || 0))}</span>
                   </div>
                   <div className="flex justify-between text-slate-500 text-[10.5px]">
                     <span>GST (Statutory Included):</span>

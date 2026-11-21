@@ -12,6 +12,7 @@ import {
   payPosBillIntent,
   autoConfirmPosBillUtr,
 } from './pos.controller.js';
+import { logPurchase } from './vendor.controller.js';
 
 beforeAll(connectTestDb, 60000);
 afterAll(disconnectTestDb, 60000);
@@ -240,5 +241,78 @@ describe('POS Auto Billing & Customer Instant Payment Flows', () => {
     // Customer should have received 5% of 400 = 20 cashback: 50 + 20 = 70
     const updatedWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
     expect(updatedWallet.balance).toBe(70);
+  });
+
+  it('5. logPurchase successfully redeems customer points on offline bill & calculates cashback only on net paid', async () => {
+    const vendor = await Vendor.create({
+      zeebacId: 'ZBV-REDEEM01',
+      ownerName: 'Vendor Redeem',
+      storeName: 'Redeem Store',
+      phone: '9800000014',
+      email: 'redeemstore@test.com',
+      password: 'hash',
+      cashbackRate: 10,
+      subscription: { status: 'ACTIVE', expiresAt: new Date(Date.now() + 86400000) },
+      additionalRedemptionLimit: 1000,
+      cashbackIssued: 500,
+      cashbackRedeemed: 0,
+    });
+
+    // Seed vendor wallet with ₹500
+    await Wallet.create({
+      ownerId: vendor._id,
+      ownerType: 'Vendor',
+      ownerZeebacId: vendor.zeebacId,
+      balance: 500,
+    });
+
+    const customer = await User.create({
+      zeebacId: 'ZBC-5266',
+      name: 'Shiv',
+      phone: '9335825081',
+      email: 'shiv@test.com',
+      password: 'hash',
+    });
+
+    // Seed customer with 50 points
+    await Wallet.create({
+      ownerId: customer._id,
+      ownerType: 'User',
+      ownerZeebacId: customer.zeebacId,
+      balance: 50,
+    });
+
+    const req = {
+      user: { id: vendor._id },
+      body: {
+        customerZeebacId: 'ZBC-5266',
+        amount: 250,
+        redeemPoints: 50,
+        paymentMethod: 'Cash',
+        billNumber: 'BILL-RED01',
+        items: [{ name: 'Grocery Item', quantity: 1, price: 250, total: 250, cashbackPercentage: 10 }],
+      },
+    };
+    const res = mockRes();
+
+    await logPurchase(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    const tx = res.body.data;
+    expect(tx.amount).toBe(250);
+    expect(tx.pointsRedeemed).toBe(50);
+    expect(tx.totalPaid).toBe(200);
+    // Cashback 10% on ₹200 net paid = ₹20 (not on 250!)
+    expect(tx.cashbackAmount).toBe(20);
+
+    // Customer wallet: 50 initial - 50 redeemed + 20 cashback = 20
+    const custWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
+    expect(custWallet.balance).toBe(20);
+
+    // Vendor cashbackRedeemed increased by 50
+    const updatedVendor = await Vendor.findById(vendor._id);
+    expect(updatedVendor.cashbackRedeemed).toBe(50);
   });
 });
