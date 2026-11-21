@@ -178,6 +178,10 @@ const vendorSchema = new mongoose.Schema(
       isVerified: { type: Boolean, default: false },
       verifiedAt: Date,
     },
+    upiId: {
+      type: String,
+      trim: true,
+    },
     documents: {
       aadhaarPan: documentFieldSchema,
       gstCertificate: documentFieldSchema,

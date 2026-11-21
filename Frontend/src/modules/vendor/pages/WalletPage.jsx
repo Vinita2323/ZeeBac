@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../../store/useAuthStore';
 import { VendorAPI, OrderAPI } from '../../../services/api';
-import QRCode from 'qrcode';
 import VendorPayLaterModal from '../components/VendorPayLaterModal';
-import { verifyBiometricCredential } from '../../../utils/biometric.util';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import useLanguageStore from '../../../store/useLanguageStore';
+
 export default function WalletPage() {
   const navigate = useNavigate();
   const { t } = useLanguageStore();
@@ -16,64 +15,55 @@ export default function WalletPage() {
 
   const [wallet, setWallet] = useState(null);
   const [totalCashbackGiven, setTotalCashbackGiven] = useState(0);
-  const [bankDetails, setBankDetails] = useState(null);
-  const [maskedPhone, setMaskedPhone] = useState('');
+  const [savedUpiId, setSavedUpiId] = useState('');
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [showBankModal, setShowBankModal] = useState(false);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [showClaimSuccessModal, setShowClaimSuccessModal] = useState(false);
   const [showPayLaterModal, setShowPayLaterModal] = useState(false);
-  const [addAmount, setAmount] = useState(''); // Used for both add and withdraw
-  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Direct UPI Intent Top-up State for Cashback Reserve
-  const [upiTopupData, setUpiTopupData] = useState(null);
-  const [topupUtr, setTopupUtr] = useState('');
-  const [isVerifyingTopup, setIsVerifyingTopup] = useState(false);
+  // Form states
+  const [purchaseAmount, setPurchaseAmount] = useState('');
+  const [claimPoints, setClaimPoints] = useState('');
+  const [claimUpiId, setClaimUpiId] = useState('');
+  const [newUpiInput, setNewUpiInput] = useState('');
+  const [claimReceipt, setClaimReceipt] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [upiError, setUpiError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
+
+  // Direct UPI Intent Purchase State
+  const [upiPurchaseData, setUpiPurchaseData] = useState(null);
+  const [purchaseUtr, setPurchaseUtr] = useState('');
+  const [isVerifyingUtr, setIsVerifyingUtr] = useState(false);
   const [copyVpaSuccess, setCopyVpaSuccess] = useState(false);
 
-  // Bank Form & OTP State
-  const [bankForm, setBankForm] = useState({
-    accountHolderName: '',
-    bankName: '',
-    accountNumber: '',
-    confirmAccountNumber: '',
-    ifscCode: '',
-    upiId: '',
-  });
-  const [bankOtp, setBankOtp] = useState('');
-  const [bankStep, setBankStep] = useState('FORM'); // 'FORM' | 'OTP'
-  const [bankError, setBankError] = useState('');
-  const [bankSuccess, setBankSuccess] = useState('');
-  const [isBankLoading, setIsBankLoading] = useState(false);
-  const [resendCountdown, setResendCountdown] = useState(0);
   const [smartSettlement, setSmartSettlement] = useState(null);
+
   const fetchWallet = async () => {
     try {
       const res = await VendorAPI.getWallet();
-      if (res.success) {
+      if (res.success && res.data) {
         setWallet(res.data.wallet);
-        if (res.data.bankDetails) {
-          setBankDetails(res.data.bankDetails);
-        }
-        if (res.data.phone) {
-          setMaskedPhone(res.data.phone);
-        }
+        const upi = res.data.upiId || res.data.bankDetails?.upiId || '';
+        setSavedUpiId(upi);
+        setClaimUpiId(upi);
         if (res.data.smartSettlement) {
           setSmartSettlement(res.data.smartSettlement);
         }
         updateBalance(res.data.wallet.balance);
 
-        const formattedLedger = res.data.ledger.map((act) => ({
+        const formattedLedger = (res.data.ledger || []).map((act) => ({
           id: act._id,
           title: act.description || act.category,
-          type: act.type, // 'credit' or 'debit'
-          amount: `${act.type === 'credit' ? '+' : '-'}₹${act.amount.toLocaleString()}`,
+          type: act.type,
+          amount: `${act.type === 'credit' ? '+' : '-'}${Number(act.amount || 0).toLocaleString()} Pts`,
           status: 'Completed',
-          date: new Date(act.timestamp).toLocaleDateString(),
+          date: new Date(act.timestamp || act.createdAt).toLocaleDateString(),
           utr: act.adminTransactionId || null,
         }));
         setActivities(formattedLedger);
@@ -89,419 +79,252 @@ export default function WalletPage() {
     fetchWallet();
   }, []);
 
-  // Timer countdown for resend OTP
-  useEffect(() => {
-    let timer;
-    if (resendCountdown > 0) {
-      timer = setInterval(() => {
-        setResendCountdown((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [resendCountdown]);
+  const totalPoints = wallet ? (wallet.balance || 0) : (globalBalance || 0);
+  const redeemedPoints = wallet?.redeemedPoints || 0;
+  const purchasedPoints = wallet?.purchasedPoints !== undefined
+    ? wallet.purchasedPoints
+    : Math.max(0, totalPoints - redeemedPoints);
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
-  const handleConfirmAddFunds = async () => {
-    if (!addAmount || Number(addAmount) <= 0) return;
+  // ─── PURCHASE ZEEBAC POINTS VIA DIRECT UPI INTENT ───
+  const handleGeneratePurchaseIntent = async () => {
+    const pts = Number(purchaseAmount);
+    if (!pts || pts <= 0) return;
     setIsProcessing(true);
 
     try {
-      const res = await OrderAPI.createVendorCashbackReserveUpiIntent(Number(addAmount));
+      const res = await OrderAPI.createVendorCashbackReserveUpiIntent(pts);
       if (!res.success) {
-        alert(res.message || 'Failed to generate UPI Intent');
-        setIsProcessing(false);
+        alert(res.message || 'Failed to generate UPI payment intent');
         return;
       }
-
-      let qrDataUrl = '';
-      try {
-        qrDataUrl = await QRCode.toDataURL(res.data.upiUri, {
-          margin: 1,
-          width: 240,
-          color: { dark: '#1e1b4b', light: '#ffffff' },
-        });
-      } catch (e) {
-        console.warn('QR code generation fallback', e);
-      }
-
-      setUpiTopupData({
-        ...res.data,
-        qrDataUrl,
-      });
-
-      // Mobile auto-intent
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (isMobile && res.data.upiUri) {
-        window.location.href = res.data.upiUri;
-      }
+      setUpiPurchaseData(res.data);
+      setPurchaseUtr('');
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Error creating UPI Topup Intent');
+      alert(err.response?.data?.message || 'Error generating UPI payment intent');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleClaimUpiTopup = async () => {
-    if (!topupUtr.trim() || isVerifyingTopup) return;
-    const cleanUtr = topupUtr.trim();
-    if (!/^\d{12}$/.test(cleanUtr)) {
+  const handleVerifyPurchaseUtr = async () => {
+    const cleanUtr = (purchaseUtr || '').trim();
+    if (!cleanUtr || cleanUtr.length !== 12 || !/^\d{12}$/.test(cleanUtr)) {
       alert('Please enter a valid 12-digit UPI Reference ID (UTR)');
       return;
     }
 
-    setIsVerifyingTopup(true);
+    setIsVerifyingUtr(true);
     try {
-      const res = await OrderAPI.claimVendorCashbackReserveUpi(cleanUtr, upiTopupData.amount);
+      const res = await OrderAPI.claimVendorCashbackReserveUpi(cleanUtr, upiPurchaseData.amount);
       if (res.success) {
-        alert(res.message || 'Prepaid Cashback Reserve Pool topped up successfully!');
-        setUpiTopupData(null);
-        setShowAddModal(false);
-        setAmount('');
-        setTopupUtr('');
-        fetchWallet();
+        setShowPurchaseModal(false);
+        setUpiPurchaseData(null);
+        setPurchaseAmount('');
+        setPurchaseUtr('');
+        setActionSuccess(`🎉 ${upiPurchaseData.amount} Zeebac Points purchased and added to your wallet!`);
+        setTimeout(() => setActionSuccess(''), 6000);
+        await fetchWallet();
       } else {
-        alert(res.message || 'Verification failed');
+        alert(res.message || 'Verification failed. Please re-check UTR.');
       }
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Error verifying UPI reference');
+      alert(err.response?.data?.message || 'Failed to verify UTR. Check if already used.');
     } finally {
-      setIsVerifyingTopup(false);
+      setIsVerifyingUtr(false);
     }
   };
 
-  const [showWithdrawSuccessModal, setShowWithdrawSuccessModal] = useState(false);
-  const [withdrawalReceipt, setWithdrawalReceipt] = useState(null);
-
-  const withdrawNum = Number(addAmount) || 0;
-  const withdrawFeePercent = 2;
-  const withdrawalFixedFee = 5;
-  const withdrawPlatformFeeAmount = Math.round(((withdrawNum * withdrawFeePercent) / 100) * 100) / 100;
-  const withdrawFeeAmount = withdrawNum > 0 ? Math.round((withdrawalFixedFee + withdrawPlatformFeeAmount) * 100) / 100 : 0;
-  const withdrawBaseFee = Math.round((withdrawFeeAmount / 1.18) * 100) / 100;
-  const withdrawGstAmount = Math.round((withdrawFeeAmount - withdrawBaseFee) * 100) / 100;
-  const withdrawNetPayout = Math.max(0, Math.round((withdrawNum - withdrawFeeAmount) * 100) / 100);
-
-  // Biometric & PIN Security States
-  const isSecurityProtected = false;
-  const [showSecurityModal, setShowSecurityModal] = useState(false);
-  const [authMode, setAuthMode] = useState('biometric'); // 'biometric' | 'pin'
-  const [authPin, setAuthPin] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [isVerifyingSecurity, setIsVerifyingSecurity] = useState(false);
-
-  const triggerBiometricPrompt = async () => {
-    setIsVerifyingSecurity(true);
-    setAuthError('');
-    try {
-      const bioRes = await verifyBiometricCredential(currentUser?.security?.biometricCredentialId);
-      if (bioRes.success) {
-        setShowSecurityModal(false);
-        await executeWithdrawal();
-      } else {
-        setAuthError(bioRes.error || 'Biometric validation failed. Use your PIN.');
-      }
-    } catch (err) {
-      console.error(err);
-      setAuthError('Biometric verification failed. Please enter your PIN.');
-    } finally {
-      setIsVerifyingSecurity(false);
-    }
-  };
-
-  const handleVerifyPinAndWithdraw = async (e) => {
+  // ─── CLAIM PURCHASED POINTS TO UPI ───
+  const handleClaimPoints = async (e) => {
     if (e) e.preventDefault();
-    if (!authPin) return;
-
-    setIsVerifyingSecurity(true);
-    setAuthError('');
-    try {
-      const res = await VendorAPI.verifySecurityPin(authPin);
-      if (res.success) {
-        setShowSecurityModal(false);
-        setAuthPin('');
-        await executeWithdrawal();
-      } else {
-        setAuthError(res.message || 'Incorrect Security PIN.');
-      }
-    } catch (err) {
-      setAuthError(err.response?.data?.message || err.message || 'Incorrect PIN.');
-    } finally {
-      setIsVerifyingSecurity(false);
+    const pts = Number(claimPoints);
+    if (!pts || pts <= 0) {
+      alert('Please enter valid points to claim');
+      return;
     }
-  };
 
-  const executeWithdrawal = async () => {
+    if (pts > purchasedPoints) {
+      alert(`Aap maximum ${purchasedPoints} purchased points hi claim kar sakte hain. Customer redeemed points claim nahi kiye ja sakte.`);
+      return;
+    }
+
+    const upiTarget = (claimUpiId || savedUpiId || '').trim();
+    if (!upiTarget || !upiTarget.includes('@')) {
+      alert('Please enter a valid UPI ID (e.g. yourname@upi) to claim points.');
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const res = await VendorAPI.requestWithdrawal(Number(addAmount));
+      const res = await VendorAPI.requestWithdrawal(pts, upiTarget);
       if (res.success) {
-        setWithdrawalReceipt({
-          grossAmount: Number(addAmount),
-          withdrawalFee: res.data?.withdrawalFee ?? withdrawalFixedFee,
-          platformFee: res.data?.platformFee ?? withdrawPlatformFeeAmount,
-          gstAmount: res.data?.gstAmount ?? withdrawGstAmount,
-          feeAmount: res.data?.feeAmount ?? withdrawFeeAmount,
-          netPayout: res.data?.netPayout ?? withdrawNetPayout,
-          bankName: bankDetails?.bankName,
-          accountNumber: bankDetails?.accountNumber,
-          accountHolderName: bankDetails?.accountHolderName,
-          ifscCode: bankDetails?.ifscCode,
-          referenceId: res.data?._id || `WTH-${Date.now()}`,
+        setClaimReceipt({
+          points: pts,
+          upiId: upiTarget,
+          netPayout: pts,
+          referenceId: res.data?._id || `CLM-${Date.now()}`,
           createdAt: new Date(),
         });
-        setWallet(prev => prev ? ({ ...prev, balance: Math.max(0, (prev.balance || 0) - Number(addAmount)) }) : prev);
-        setShowWithdrawModal(false);
-        setAmount('');
-        setShowWithdrawSuccessModal(true);
-        fetchWallet();
+        setSavedUpiId(upiTarget);
+        setShowClaimModal(false);
+        setClaimPoints('');
+        setShowClaimSuccessModal(true);
+        await fetchWallet();
       } else {
-        alert(res.message || 'Failed to submit withdrawal');
+        alert(res.message || 'Failed to claim points');
       }
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Error submitting withdrawal request');
+      alert(err.response?.data?.message || 'Error processing points claim');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleConfirmWithdraw = async () => {
-    if (!addAmount || Number(addAmount) <= 0) return;
-    if (Number(addAmount) > (wallet?.balance || 0)) {
-      alert('Insufficient wallet balance');
-      return;
-    }
-    if (!bankDetails?.accountNumber || !bankDetails?.ifscCode) {
-      alert('Please link your bank account first before requesting a withdrawal.');
-      return;
-    }
-
-    await executeWithdrawal();
-  };
-
-  // ─── Bank Account Management Handlers ───
-  const handleOpenBankModal = () => {
-    setBankForm({
-      accountHolderName: bankDetails?.accountHolderName || currentUser.ownerName || currentUser.storeName || '',
-      bankName: bankDetails?.bankName || '',
-      accountNumber: bankDetails?.accountNumber || '',
-      confirmAccountNumber: bankDetails?.accountNumber || '',
-      ifscCode: bankDetails?.ifscCode || '',
-      upiId: bankDetails?.upiId || '',
-    });
-    setBankOtp('');
-    setBankStep('FORM');
-    setBankError('');
-    setShowBankModal(true);
-  };
-
-  const handleSendBankOtp = async (e) => {
-    e?.preventDefault();
-    setBankError('');
-
-    // Client-side validations
-    if (!bankForm.accountHolderName.trim()) {
-      setBankError('Please enter Account Holder Name');
-      return;
-    }
-    if (!bankForm.bankName.trim()) {
-      setBankError('Please enter Bank Name');
-      return;
-    }
-    const cleanAcc = bankForm.accountNumber.trim();
-    if (!cleanAcc || cleanAcc.length < 9 || cleanAcc.length > 18 || !/^\d+$/.test(cleanAcc)) {
-      setBankError('Please enter a valid Account Number (9 to 18 digits)');
-      return;
-    }
-    if (cleanAcc !== bankForm.confirmAccountNumber.trim()) {
-      setBankError('Account numbers do not match. Please re-check.');
-      return;
-    }
-    const cleanIfsc = bankForm.ifscCode.trim().toUpperCase();
-    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-    if (!cleanIfsc || !ifscRegex.test(cleanIfsc)) {
-      setBankError('Please enter a valid 11-character IFSC Code (e.g. HDFC0000123)');
+  // ─── QUICK UPDATE UPI ID ───
+  const handleSaveUpiId = async (e) => {
+    e.preventDefault();
+    const cleanUpi = (newUpiInput || '').trim();
+    if (!cleanUpi || !cleanUpi.includes('@')) {
+      setUpiError('Please enter a valid UPI ID (e.g. mobile@upi or name@bank)');
       return;
     }
 
-    setIsBankLoading(true);
+    setIsProcessing(true);
+    setUpiError('');
     try {
-      const res = await VendorAPI.sendBankOtp();
+      const res = await VendorAPI.updateUpiId(cleanUpi);
       if (res.success) {
-        if (res.maskedPhone) {
-          setMaskedPhone(res.maskedPhone);
-        }
-        setBankStep('OTP');
-        setResendCountdown(30);
+        setSavedUpiId(cleanUpi);
+        setClaimUpiId(cleanUpi);
+        setShowUpiModal(false);
+        setActionSuccess(`🎉 Payout UPI ID updated to ${cleanUpi}`);
+        setTimeout(() => setActionSuccess(''), 5000);
       } else {
-        setBankError(res.message || 'Failed to send verification OTP.');
+        setUpiError(res.message || 'Failed to update UPI ID');
       }
     } catch (err) {
-      setBankError(err.response?.data?.message || 'Failed to send verification code. Please try again.');
+      setUpiError(err.response?.data?.message || 'Error updating UPI ID');
     } finally {
-      setIsBankLoading(false);
+      setIsProcessing(false);
     }
   };
-
-  const handleResendOtp = async () => {
-    if (resendCountdown > 0 || isBankLoading) return;
-    setIsBankLoading(true);
-    setBankError('');
-    try {
-      const res = await VendorAPI.sendBankOtp();
-      if (res.success) {
-        setResendCountdown(30);
-      } else {
-        setBankError(res.message || 'Failed to resend OTP.');
-      }
-    } catch (err) {
-      setBankError(err.response?.data?.message || 'Failed to resend OTP.');
-    } finally {
-      setIsBankLoading(false);
-    }
-  };
-
-  const handleVerifyBankOtp = async (e) => {
-    e?.preventDefault();
-    if (!bankOtp.trim() || bankOtp.trim().length < 4) {
-      setBankError('Please enter the 4-digit verification code');
-      return;
-    }
-
-    setIsBankLoading(true);
-    setBankError('');
-    try {
-      const payload = {
-        accountHolderName: bankForm.accountHolderName.trim(),
-        bankName: bankForm.bankName.trim(),
-        accountNumber: bankForm.accountNumber.trim(),
-        ifscCode: bankForm.ifscCode.trim().toUpperCase(),
-        upiId: bankForm.upiId.trim(),
-        otp: bankOtp.trim(),
-      };
-      const res = await VendorAPI.verifyAndSaveBankAccount(payload);
-      if (res.success) {
-        setBankDetails(res.data.bankDetails);
-        setBankSuccess('🎉 Bank account verified and linked successfully!');
-        setShowBankModal(false);
-        setTimeout(() => setBankSuccess(''), 5000);
-      } else {
-        setBankError(res.message || 'Failed to verify bank account.');
-      }
-    } catch (err) {
-      setBankError(err.response?.data?.message || 'Invalid or expired OTP. Please try again.');
-    } finally {
-      setIsBankLoading(false);
-    }
-  };
-
-  const displayBalance = wallet ? wallet.balance : globalBalance;
-  const totalEarned = wallet ? wallet.totalEarned : 0;
-  const totalWithdrawn = wallet ? wallet.totalWithdrawn : 0;
 
   return (
     <>
       <div className="animate-reveal text-left pb-20">
         {/* Mobile Header */}
-        <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">
+        <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-xs mb-3 sm:mb-4">
           <button
             onClick={() => safeNavigateBack(navigate, '/vendor')}
             className="w-10 h-10 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined text-primary">arrow_back</span>
           </button>
-          <span className="font-display text-title-md text-primary font-bold ml-1">{t('Wallet & Payouts')}</span>
+          <span className="font-display text-title-md text-primary font-bold ml-1">Zeebac Points Wallet</span>
         </header>
 
         {/* Success Alert Banner */}
-        {bankSuccess && (
+        {actionSuccess && (
           <div className="p-4 mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 animate-reveal">
             <span className="material-symbols-outlined text-emerald-600 text-[24px]">verified</span>
-            <div className="flex-1 text-[13.5px] font-semibold">{bankSuccess}</div>
+            <div className="flex-1 text-[13.5px] font-semibold">{actionSuccess}</div>
           </div>
         )}
 
         <div className="space-y-6 pt-2 pb-6">
           {/* Main Top Cards Section */}
           <div className="grid md:grid-cols-2 gap-4 max-w-4xl">
-            {/* Balance Card — physical card style */}
+            {/* Balance Card — Points Wallet (Points Only, No Rupees!) */}
             <div className="space-y-3">
-              <div className="relative overflow-hidden rounded-3xl p-5 text-white shadow-md bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] min-h-[170px] flex flex-col justify-between">
+              <div className="relative overflow-hidden rounded-3xl p-5 text-white shadow-md bg-gradient-to-br from-[#2a007a] via-[#3700a1] to-[#5113d7] min-h-[190px] flex flex-col justify-between">
                 <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl -mt-10 -mr-10 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/20 rounded-full blur-xl -mb-10 -ml-10 pointer-events-none" />
 
                 {/* Card Header */}
                 <div className="relative z-10 flex justify-between items-start">
                   <div className="flex items-center gap-1.5 opacity-90">
-                    <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-                    <span className="text-[11px] font-bold tracking-wider uppercase">{t('Prepaid Cashback Reserve Pool')}</span>
+                    <span className="material-symbols-outlined text-[16px]">stars</span>
+                    <span className="text-[11px] font-bold tracking-wider uppercase">ZEEBAC POINTS WALLET</span>
                   </div>
                   <span className="material-symbols-outlined text-[18px] opacity-60">shield_lock</span>
                 </div>
 
-                {/* Balance Amount */}
+                {/* Points Balance Amount */}
                 <div className="relative z-10 my-2">
-                  <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">{t('Advance Zeebac Balance')}</p>
-                  <h2 className="text-[30px] font-display font-black leading-none tracking-tight mt-0.5">
-                    {loading ? '...' : `₹${displayBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  </h2>
+                  <p className="text-[11px] uppercase tracking-wider text-purple-200 font-bold">Total Zeebac Points</p>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <h2 className="text-[34px] font-display font-black leading-none tracking-tight">
+                      {loading ? '...' : Math.floor(totalPoints).toLocaleString('en-IN')}
+                    </h2>
+                    <span className="text-sm font-extrabold text-purple-200 uppercase tracking-wider">Points</span>
+                  </div>
                   <p className="text-[10px] text-purple-200/90 mt-1">
-                    Customer orders deliver hone par decided cashback points automatic yahan se deduct hote hain.
+                    Purchased points customer shopping cashback ke liye use hote hain aur merchant unhe kabhi bhi UPI par claim kar sakta hai.
                   </p>
                 </div>
 
-                {/* Lifetime Distributed Cashback Indicator */}
-                {totalCashbackGiven > 0 && (
-                  <div className="relative z-10 mt-1 pt-2 border-t border-white/15 flex items-center justify-between text-[11px]">
-                    <span className="text-purple-200 flex items-center gap-1 font-medium">
-                      <span className="material-symbols-outlined text-[14px] text-amber-300">stars</span>
-                      <span>{t('Total Customer Cashback Distributed')}:</span>
-                    </span>
-                    <span className="font-bold font-mono text-white">
-                      ₹{totalCashbackGiven.toLocaleString('en-IN')}
-                    </span>
+                {/* Points Breakdown: Purchased (Claimable) vs Redeemed (Non-claimable) */}
+                <div className="relative z-10 mt-1 pt-2 border-t border-white/15 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-white/10 rounded-xl px-2.5 py-1.5 backdrop-blur-xs">
+                    <p className="text-[9.5px] uppercase tracking-wider text-emerald-300 font-black flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Purchased (Claimable)
+                    </p>
+                    <p className="text-[14px] font-mono font-black text-white mt-0.5">
+                      {Math.floor(purchasedPoints).toLocaleString('en-IN')} Pts
+                    </p>
                   </div>
-                )}
+
+                  <div className="bg-white/10 rounded-xl px-2.5 py-1.5 backdrop-blur-xs">
+                    <p className="text-[9.5px] uppercase tracking-wider text-amber-300 font-black flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      Redeemed (Non-claimable)
+                    </p>
+                    <p className="text-[14px] font-mono font-black text-white mt-0.5">
+                      {Math.floor(redeemedPoints).toLocaleString('en-IN')} Pts
+                    </p>
+                  </div>
+                </div>
 
                 {/* Card Footer */}
-                <div className="relative z-10 flex justify-between items-end opacity-80 pt-1">
-                  <div className="text-[10px] tracking-widest font-mono">**** **** 9921</div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider">{currentUser?.storeName || 'Vendor Store'}</div>
+                <div className="relative z-10 flex justify-between items-end opacity-80 pt-1 text-[10px]">
+                  <div className="tracking-wider font-mono">UPI: {savedUpiId || 'Not set'}</div>
+                  <div className="font-bold uppercase tracking-wider">{currentUser?.storeName || 'Vendor Store'}</div>
                 </div>
               </div>
 
-              {/* Quick Actions */}
+              {/* Quick Actions: Purchase Points | Claim Points | Passbook */}
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 <button
-                  onClick={() => setShowAddModal(true)}
+                  onClick={() => {
+                    setPurchaseAmount('');
+                    setUpiPurchaseData(null);
+                    setShowPurchaseModal(true);
+                  }}
                   className="py-2.5 px-1 sm:px-2 bg-primary text-white rounded-xl font-bold active:scale-[0.97] transition-all shadow-md shadow-primary/20 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  {t('Top-up Reserve')}
+                  <span className="material-symbols-outlined text-[18px]">shopping_cart</span>
+                  Purchase Points
                 </button>
 
                 <button
-                  onClick={() => setShowWithdrawModal(true)}
-                  className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
+                  onClick={() => {
+                    setClaimPoints('');
+                    setClaimUpiId(savedUpiId);
+                    setShowClaimModal(true);
+                  }}
+                  className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-xs hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                  {t('Withdraw')}
+                  <span className="material-symbols-outlined text-[18px]">payments</span>
+                  Claim Points
                 </button>
 
                 <button
                   onClick={() => navigate('/vendor/passbook')}
-                  className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-sm hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
+                  className="py-2.5 px-1 sm:px-2 bg-white text-primary rounded-xl font-bold active:scale-[0.97] transition-all border border-outline-variant/10 shadow-xs hover:bg-purple-50/50 flex flex-col items-center justify-center gap-0.5 text-[10.5px] sm:text-[11px] cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">receipt_long</span>
                   {t('Passbook')}
@@ -509,64 +332,62 @@ export default function WalletPage() {
               </div>
             </div>
 
-            {/* Linked Bank Account Card */}
-            <div className="bg-white rounded-3xl p-5 border border-outline-variant/15 shadow-sm flex flex-col justify-between space-y-4">
+            {/* Payout UPI ID Card (No traditional bank account details) */}
+            <div className="bg-white rounded-3xl p-5 border border-outline-variant/15 shadow-xs flex flex-col justify-between space-y-4">
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[20px]">account_balance</span>
+                      <span className="material-symbols-outlined text-[20px]">qr_code_2</span>
                     </div>
                     <div>
-                      <h4 className="text-[14px] font-bold text-gray-900">{t('Payout Bank Account')}</h4>
-                      <p className="text-[11px] text-gray-500">{t('Withdrawal money is transferred here')}</p>
+                      <h4 className="text-[14px] font-bold text-gray-900">Payout UPI ID</h4>
+                      <p className="text-[11px] text-gray-500">Purchased points direct aapki UPI ID par claim hote hain</p>
                     </div>
                   </div>
-                  {bankDetails?.accountNumber ? (
+                  {savedUpiId ? (
                     <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-green-100 text-green-700 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                      {t('Verified')}
+                      Active
                     </span>
                   ) : (
                     <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[13px]">warning</span>
-                      {t('Not Linked')}
+                      Not Linked
                     </span>
                   )}
                 </div>
 
-                {bankDetails?.accountNumber ? (
+                {savedUpiId ? (
                   <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 space-y-2 text-[12.5px]">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">{t('Bank Name')}:</span>
-                      <span className="font-bold text-gray-900">{bankDetails.bankName}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">{t('Account Number')}:</span>
-                      <span className="font-mono font-black text-gray-900">
-                        •••• •••• {bankDetails.accountNumber.slice(-4)}
+                      <span className="text-gray-500 font-medium">Claim Mode:</span>
+                      <span className="font-bold text-emerald-700 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[15px]">bolt</span>
+                        Instant UPI Transfer
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">{t('IFSC Code')}:</span>
-                      <span className="font-mono font-bold text-purple-700">{bankDetails.ifscCode}</span>
+                      <span className="text-gray-500 font-medium">Registered UPI ID:</span>
+                      <span className="font-mono font-black text-purple-800 text-[14px]">
+                        {savedUpiId}
+                      </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">{t('Account Holder Name')}:</span>
-                      <span className="font-bold text-gray-800">{bankDetails.accountHolderName}</span>
+                    <div className="pt-2 border-t border-gray-200/60 text-[11px] text-gray-500 space-y-0.5">
+                      <p className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[13px]">verified</span>
+                        Claimable Purchased Points: {Math.floor(purchasedPoints).toLocaleString('en-IN')} Pts
+                      </p>
+                      <p className="text-amber-700 font-medium">
+                        • Customer redeemed points ({Math.floor(redeemedPoints).toLocaleString('en-IN')} Pts) claim nahi ho sakte.
+                      </p>
                     </div>
-                    {bankDetails.upiId && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-500 font-medium">{t('UPI ID')}:</span>
-                        <span className="font-mono text-gray-700">{bankDetails.upiId}</span>
-                      </div>
-                    )}
                   </div>
                 ) : (
-                  <div className="py-4 px-3 bg-purple-50/50 rounded-2xl border border-dashed border-purple-200 text-center space-y-1">
-                    <p className="text-[13px] font-bold text-purple-900">{t('No Bank Account Linked')}</p>
+                  <div className="py-5 px-3 bg-purple-50/50 rounded-2xl border border-dashed border-purple-200 text-center space-y-1">
+                    <p className="text-[13px] font-bold text-purple-900">No UPI ID Linked</p>
                     <p className="text-[11.5px] text-gray-500 max-w-[280px] mx-auto">
-                      {t('Link your bank account with mobile OTP verification to securely withdraw your earnings.')}
+                      Points claim karne ke liye apni UPI ID (e.g. mobile@upi ya name@bank) yahan add karein.
                     </p>
                   </div>
                 )}
@@ -574,19 +395,22 @@ export default function WalletPage() {
 
               <button
                 type="button"
-                onClick={handleOpenBankModal}
-                className="w-full py-2.5 px-4 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                onClick={() => {
+                  setNewUpiInput(savedUpiId || '');
+                  setUpiError('');
+                  setShowUpiModal(true);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <span className="material-symbols-outlined text-[18px]">
-                  {bankDetails?.accountNumber ? 'edit' : 'add_circle'}
+                  {savedUpiId ? 'edit' : 'add_circle'}
                 </span>
-                <span>{bankDetails?.accountNumber ? t('Update Bank Account') : t('Add Bank Account')}</span>
+                <span>{savedUpiId ? 'Change Payout UPI ID' : 'Add Payout UPI ID'}</span>
               </button>
             </div>
           </div>
 
-
-          {/* Vendor Shop & Pay Later Banner (Upto ₹25,000 Credit Limit) */}
+          {/* Vendor Shop & Pay Later Banner */}
           <div 
             onClick={() => setShowPayLaterModal(true)}
             className="bg-gradient-to-r from-slate-950 via-purple-950 to-indigo-950 text-white rounded-2xl p-3 sm:p-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] border border-indigo-900/50 max-w-4xl"
@@ -609,31 +433,6 @@ export default function WalletPage() {
                 <span className="whitespace-nowrap">{t('Check Limit')}</span>
                 <span className="material-symbols-outlined text-[12px] sm:text-[14px]">arrow_forward</span>
               </div>
-            </div>
-          </div>
-
-          {/* Stats Row - Compact */}
-          <div className="grid grid-cols-2 gap-3 max-w-4xl">
-            <div className="bg-white rounded-2xl p-3 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">{t('Earnings')}</span>
-                <div className="w-5.5 h-5.5 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[12px]">trending_up</span>
-                </div>
-              </div>
-              <p className="text-[16px] font-black text-on-surface leading-none tracking-tight">₹{totalEarned.toLocaleString()}</p>
-              <p className="text-[9px] font-medium text-on-surface-variant mt-1">{t('All Time')}</p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-3 border border-outline-variant/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-on-surface-variant font-bold text-[9px] uppercase tracking-wider">{t('Cashback Sent')}</span>
-                <div className="w-5.5 h-5.5 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[12px]">redeem</span>
-                </div>
-              </div>
-              <p className="text-[16px] font-black text-on-surface leading-none tracking-tight">₹{totalWithdrawn.toLocaleString()}</p>
-              <p className="text-[9px] font-medium text-on-surface-variant mt-1">{t('All Time')}</p>
             </div>
           </div>
 
@@ -687,7 +486,7 @@ export default function WalletPage() {
                   <span className="material-symbols-outlined text-[17px] text-purple-700">send_money</span>
                 </div>
                 <p className="text-[20px] font-black font-mono text-purple-950">
-                  ₹{(smartSettlement?.cashbackIssued || 0).toLocaleString('en-IN')}
+                  {(smartSettlement?.cashbackIssued || 0).toLocaleString('en-IN')} Pts
                 </p>
                 <p className="text-[10px] text-purple-700/80 mt-0.5">Given to customers on shopping</p>
               </div>
@@ -699,117 +498,41 @@ export default function WalletPage() {
                   <span className="material-symbols-outlined text-[17px] text-indigo-700">shopping_bag</span>
                 </div>
                 <p className="text-[20px] font-black font-mono text-indigo-950">
-                  ₹{(smartSettlement?.cashbackRedeemed || 0).toLocaleString('en-IN')}
+                  {(smartSettlement?.cashbackRedeemed || 0).toLocaleString('en-IN')} Pts
                 </p>
-                <p className="text-[10px] text-indigo-700/80 mt-0.5">Points accepted at your store</p>
+                <p className="text-[10px] text-indigo-700/80 mt-0.5">Points used at your store</p>
               </div>
 
-              {/* 3. Available Redemption Capacity */}
-              <div className="bg-blue-50/60 rounded-2xl p-3.5 border border-blue-100">
-                <div className="flex items-center justify-between text-blue-900 mb-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Available Capacity</span>
-                  <span className="material-symbols-outlined text-[17px] text-blue-700">speed</span>
+              {/* 3. Total Redemption Capacity */}
+              <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-100">
+                <div className="flex items-center justify-between text-emerald-900 mb-1">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Total Capacity</span>
+                  <span className="material-symbols-outlined text-[17px] text-emerald-700">verified</span>
                 </div>
-                <p className="text-[20px] font-black font-mono text-blue-950">
-                  ₹{(smartSettlement?.remainingCapacity ?? 1000).toLocaleString('en-IN')}
+                <p className="text-[20px] font-black font-mono text-emerald-950">
+                  {(smartSettlement?.totalCapacity || 1000).toLocaleString('en-IN')} Pts
                 </p>
-                <p className="text-[10px] text-blue-700/80 mt-0.5">
-                  of ₹{(smartSettlement?.totalCapacity ?? 1000).toLocaleString('en-IN')} total limit
-                </p>
+                <p className="text-[10px] text-emerald-700/80 mt-0.5">Issued + 1,000 Admin Limit</p>
               </div>
 
-              {/* 4. Net Settlement Balance */}
+              {/* 4. Remaining Capacity */}
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200">
-                <div className="flex items-center justify-between text-slate-700 mb-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Net Balance</span>
-                  <span className="material-symbols-outlined text-[17px] text-slate-600">account_balance</span>
+                <div className="flex items-center justify-between text-slate-800 mb-1">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Remaining Limit</span>
+                  <span className="material-symbols-outlined text-[17px] text-slate-600">lock_open</span>
                 </div>
-                <p className={`text-[20px] font-black font-mono ${
-                  (smartSettlement?.netSettlementBalance || 0) > 0 ? 'text-amber-700' : (smartSettlement?.netSettlementBalance || 0) < 0 ? 'text-emerald-700' : 'text-slate-800'
-                }`}>
-                  {(smartSettlement?.netSettlementBalance || 0) >= 0 ? '+' : '-'}₹{Math.abs(smartSettlement?.netSettlementBalance || 0).toLocaleString('en-IN')}
+                <p className="text-[20px] font-black font-mono text-slate-900">
+                  {(smartSettlement?.remainingCapacity || 0).toLocaleString('en-IN')} Pts
                 </p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Issued - Redeemed</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Customer can redeem till 0</p>
               </div>
             </div>
-
-            {/* Redemption Capacity Progress Bar */}
-            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-bold">
-                <span className="text-slate-600">Redemption Capacity Utilization</span>
-                <span className="text-slate-900 font-mono">
-                  ₹{smartSettlement?.cashbackRedeemed || 0} used / ₹{smartSettlement?.totalCapacity ?? 1000} total
-                </span>
-              </div>
-              <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, (((smartSettlement?.cashbackRedeemed || 0) / (smartSettlement?.totalCapacity || 1000)) * 100)))}%`
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-500">
-                <span>0%</span>
-                <span className="font-semibold text-purple-700">
-                  {Math.round((((smartSettlement?.cashbackRedeemed || 0) / (smartSettlement?.totalCapacity || 1000)) * 100))}% Capacity Consumed
-                </span>
-                <span>100% (Limit)</span>
-              </div>
-            </div>
-
-            {/* Recent Settlement Transactions */}
-            {smartSettlement?.recentSettlements && smartSettlement.recentSettlements.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-600">
-                    Recent Cashback Settlements
-                  </h4>
-                  <span className="text-[11px] text-slate-400">
-                    {smartSettlement.recentSettlements.length} recent entries
-                  </span>
-                </div>
-                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                  {smartSettlement.recentSettlements.map((item) => (
-                    <div
-                      key={item._id}
-                      className="p-2.5 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200/70 flex items-center justify-between text-[11.5px] transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[12px] font-black ${
-                          item.type === 'ISSUED' ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700'
-                        }`}>
-                          {item.type === 'ISSUED' ? '↑' : '↓'}
-                        </span>
-                        <div>
-                          <p className="font-bold text-slate-900 leading-tight">
-                            {item.type === 'ISSUED' ? 'Cashback Points Issued' : 'Cashback Points Redeemed'}
-                            {item.customerName ? ` • ${item.customerName}` : ''}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {item.billNumber || item.orderId || 'Order'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-mono font-black ${item.type === 'ISSUED' ? 'text-purple-700' : 'text-indigo-700'}`}>
-                          {item.type === 'ISSUED' ? `+₹${item.amount}` : `-₹${item.amount}`}
-                        </p>
-                        <p className="text-[9.5px] text-slate-400 font-mono">
-                          Net: ₹{item.netBalanceAfter || 0}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Wallet Activity */}
           <div className="space-y-3 max-w-4xl">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-[18px] font-extrabold text-on-surface">{t('Recent Activity')}</h3>
+              <h3 className="font-display text-[18px] font-extrabold text-on-surface">Recent Points Activity</h3>
               <button onClick={() => navigate('/vendor/passbook')} className="text-[14px] text-primary font-medium hover:underline cursor-pointer">
                 {t('See All')}
               </button>
@@ -819,7 +542,7 @@ export default function WalletPage() {
               {loading ? (
                 <div className="py-6 text-center text-on-surface-variant">Loading...</div>
               ) : activities.length === 0 ? (
-                <div className="py-6 text-center text-on-surface-variant text-[13px]">No wallet activity yet.</div>
+                <div className="py-6 text-center text-on-surface-variant text-[13px]">No points activity yet.</div>
               ) : (
                 activities.map((act, index) => (
                   <div
@@ -833,8 +556,6 @@ export default function WalletPage() {
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
                           act.type === 'credit'
                             ? 'bg-green-50'
-                            : act.type === 'cashout'
-                            ? 'bg-primary/5'
                             : 'bg-red-50'
                         }`}
                       >
@@ -842,12 +563,10 @@ export default function WalletPage() {
                           className={`material-symbols-outlined text-[20px] ${
                             act.type === 'credit'
                               ? 'text-green-600'
-                              : act.type === 'cashout'
-                              ? 'text-primary'
                               : 'text-red-600'
                           }`}
                         >
-                          {act.type === 'credit' ? 'arrow_downward' : act.type === 'cashout' ? 'account_balance' : 'arrow_upward'}
+                          {act.type === 'credit' ? 'arrow_downward' : 'arrow_upward'}
                         </span>
                       </div>
                       <div>
@@ -855,7 +574,7 @@ export default function WalletPage() {
                         <p className="text-[10px] text-on-surface-variant mt-0.5">{act.date}</p>
                         {act.utr && (
                           <p className="text-[11px] font-bold text-primary/70 bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                            UTR: {act.utr}
+                            Ref: {act.utr}
                           </p>
                         )}
                       </div>
@@ -874,59 +593,73 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* ─── ADD FUNDS / TOP-UP RESERVE MODAL (DIRECT UPI INTENT) ─── */}
-      {showAddModal && (
+      {/* ─── 1. PURCHASE ZEEBAC POINTS MODAL (DIRECT UPI INTENT) ─── */}
+      {showPurchaseModal && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { if (!isProcessing && !isVerifyingTopup) { setShowAddModal(false); setUpiTopupData(null); } }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { if (!isProcessing && !isVerifyingUtr) { setShowPurchaseModal(false); setUpiPurchaseData(null); } }} />
           <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto text-left">
             <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
               <div>
-                <h3 className="font-display text-[18px] font-black text-on-surface">Top-up Cashback Reserve</h3>
-                <p className="text-[11px] text-gray-500">Direct UPI Intent • Advance Zeebac Balance</p>
+                <h3 className="font-display text-[18px] font-black text-on-surface">Purchase Zeebac Points</h3>
+                <p className="text-[11px] text-gray-500">1 Point = ₹1 • Instant Activation via Direct UPI</p>
               </div>
               <button
-                onClick={() => { if (!isProcessing && !isVerifyingTopup) { setShowAddModal(false); setUpiTopupData(null); } }}
+                onClick={() => { if (!isProcessing && !isVerifyingUtr) { setShowPurchaseModal(false); setUpiPurchaseData(null); } }}
                 className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors active:scale-95 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            {!upiTopupData ? (
-              <div className="space-y-5">
+            {!upiPurchaseData ? (
+              <div className="space-y-4">
                 <div className="bg-purple-50 p-3 rounded-2xl border border-purple-100 text-[11.5px] text-purple-900 leading-snug">
-                  Advance amount Zeebac account me jama rahega. Jaise hi customer purchase deliver hoga, decided cashback points automatic transfer honge.
+                  Purchased points aapke wallet me add honge jise aap customer shopping cashback ke liye use kar sakte hain ya kabhi bhi apni UPI ID par claim kar sakte hain.
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Enter Amount')}</label>
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Enter Points to Purchase</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[24px] font-black text-primary">₹</span>
                     <input
                       type="number"
-                      value={addAmount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      value={purchaseAmount}
+                      onChange={(e) => setPurchaseAmount(e.target.value)}
                       placeholder="0"
+                      min="1"
                       disabled={isProcessing}
-                      className="w-full pl-11 pr-4 py-3.5 bg-surface-container-low border-2 border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[24px] font-black text-primary placeholder-primary/30 disabled:opacity-50"
+                      className="w-full px-4 py-3 bg-surface-container-low border-2 border-transparent focus:border-primary focus:bg-white rounded-2xl outline-none transition-all text-[24px] font-black text-primary placeholder-primary/30 disabled:opacity-50"
                     />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold uppercase tracking-wider text-purple-600 bg-purple-100 px-2 py-1 rounded-md">
+                      Points
+                    </span>
                   </div>
+                  {Number(purchaseAmount) > 0 && (
+                    <p className="text-[11.5px] text-emerald-700 font-bold">
+                      Payable Amount: ₹{Number(purchaseAmount).toLocaleString('en-IN')} (1 Point = ₹1.00)
+                    </p>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Quick Select')}</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button onClick={() => setAmount('1000')} className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[13px] text-on-surface transition-colors cursor-pointer">+ ₹1,000</button>
-                    <button onClick={() => setAmount('2500')} className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[13px] text-on-surface transition-colors cursor-pointer">+ ₹2,500</button>
-                    <button onClick={() => setAmount('5000')} className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[13px] text-on-surface transition-colors cursor-pointer">+ ₹5,000</button>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Quick Select</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[500, 1000, 2500, 5000].map((pts) => (
+                      <button
+                        key={pts}
+                        onClick={() => setPurchaseAmount(String(pts))}
+                        className="py-2 rounded-xl border border-outline-variant/20 hover:border-primary hover:bg-primary/5 font-bold text-[12px] text-on-surface transition-colors cursor-pointer"
+                      >
+                        +{pts} Pts
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <button
-                  onClick={handleConfirmAddFunds}
-                  disabled={!addAmount || isProcessing}
+                  onClick={handleGeneratePurchaseIntent}
+                  disabled={!purchaseAmount || Number(purchaseAmount) <= 0 || isProcessing}
                   className={`w-full py-3.5 rounded-xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    addAmount && !isProcessing
+                    purchaseAmount && !isProcessing
                       ? 'bg-primary text-white shadow-lg shadow-primary/30 active:scale-[0.98]'
                       : 'bg-surface-container-high text-on-surface-variant/50'
                   }`}
@@ -937,47 +670,26 @@ export default function WalletPage() {
                       <span>Generating Direct UPI Intent...</span>
                     </>
                   ) : (
-                    <>Pay ₹{addAmount || '0'} via Direct UPI Intent</>
+                    <>Pay ₹{purchaseAmount || '0'} for {purchaseAmount || '0'} Points</>
                   )}
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="bg-purple-50 p-3 rounded-2xl text-center border border-purple-100">
-                  <p className="text-[10.5px] uppercase tracking-wider font-extrabold text-purple-900">Deposit Amount</p>
-                  <p className="font-display font-black text-[24px] text-primary">₹{upiTopupData.amount}</p>
-                  <p className="text-[11px] text-slate-600">To: {upiTopupData.payeeName}</p>
+                  <p className="text-[10.5px] uppercase tracking-wider font-extrabold text-purple-900">Purchase Amount</p>
+                  <p className="font-display font-black text-[24px] text-primary">₹{upiPurchaseData.amount} ({upiPurchaseData.amount} Points)</p>
+                  <p className="text-[11px] text-slate-600">To: {upiPurchaseData.payeeName}</p>
                 </div>
 
                 {/* Direct App Button */}
                 <a
-                  href={upiTopupData.upiUri}
+                  href={upiPurchaseData.upiUri}
                   className="w-full py-3 px-4 rounded-xl btn-primary-gradient text-white font-bold text-[13px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 text-center cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">open_in_new</span>
                   <span>Open in UPI App (GPay / PhonePe / Paytm)</span>
                 </a>
-
-                {/* Dynamic QR Code */}
-                {upiTopupData.qrDataUrl && (
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center space-y-1.5">
-                    <img src={upiTopupData.qrDataUrl} alt="UPI QR" className="w-36 h-36 mx-auto rounded-lg bg-white p-1 border border-slate-200" />
-                    <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-700">
-                      <span>UPI ID:</span>
-                      <span className="font-mono font-bold text-slate-900">{upiTopupData.payeeVpa}</span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(upiTopupData.payeeVpa);
-                          setCopyVpaSuccess(true);
-                          setTimeout(() => setCopyVpaSuccess(false), 2000);
-                        }}
-                        className="text-primary hover:underline font-bold text-[10.5px]"
-                      >
-                        {copyVpaSuccess ? 'Copied!' : 'Copy'}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* 12-digit UTR submit */}
                 <div className="space-y-1.5 pt-2 border-t border-gray-100">
@@ -986,17 +698,17 @@ export default function WalletPage() {
                     <input
                       type="text"
                       maxLength={12}
-                      value={topupUtr}
-                      onChange={(e) => setTopupUtr(e.target.value.replace(/\D/g, ''))}
+                      value={purchaseUtr}
+                      onChange={(e) => setPurchaseUtr(e.target.value.replace(/\D/g, ''))}
                       placeholder="e.g. 523412349876"
                       className="flex-1 h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-[12px] text-gray-900 focus:bg-white outline-none"
                     />
                     <button
-                      onClick={handleClaimUpiTopup}
-                      disabled={isVerifyingTopup}
-                      className="px-4 h-10 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shrink-0 cursor-pointer shadow-xs"
+                      onClick={handleVerifyPurchaseUtr}
+                      disabled={isVerifyingUtr || purchaseUtr.length !== 12}
+                      className="px-4 h-10 rounded-xl btn-primary-gradient text-white font-bold text-[12px] shrink-0 cursor-pointer shadow-xs disabled:opacity-50"
                     >
-                      {isVerifyingTopup ? 'Verifying...' : 'Verify & Add'}
+                      {isVerifyingUtr ? 'Verifying...' : 'Verify & Credit'}
                     </button>
                   </div>
                 </div>
@@ -1006,499 +718,244 @@ export default function WalletPage() {
         </div>
       )}
 
-      {/* ─── WITHDRAW FUNDS MODAL ─── */}
-      {showWithdrawModal && (
+      {/* ─── 2. CLAIM PURCHASED POINTS TO UPI MODAL ─── */}
+      {showClaimModal && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowWithdrawModal(false)} />
-          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-[22px] font-black text-on-surface">{t('Withdraw Funds')}</h3>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowClaimModal(false)} />
+          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto text-left">
+            <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-display text-[18px] font-black text-on-surface">Claim Zeebac Points</h3>
+                <p className="text-[11px] text-gray-500">Direct UPI Transfer • 1 Point = ₹1</p>
+              </div>
               <button
-                onClick={() => !isProcessing && setShowWithdrawModal(false)}
+                onClick={() => !isProcessing && setShowClaimModal(false)}
                 className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors active:scale-95 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-5">
-              <div className="bg-surface-container-low p-4 rounded-2xl flex justify-between items-center">
-                <span className="text-[12px] font-bold text-on-surface-variant">{t('Available Balance')}</span>
-                <span className="text-[18px] font-black text-primary">₹{(wallet?.balance || 0).toLocaleString()}</span>
+            <form onSubmit={handleClaimPoints} className="space-y-4">
+              {/* Points Eligibility Notice */}
+              <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-2xl space-y-2">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="font-bold text-emerald-900">Claimable Purchased Points:</span>
+                  <span className="font-mono font-black text-emerald-700 text-sm">{Math.floor(purchasedPoints)} Points</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="font-medium text-slate-500">Customer Redeemed Points:</span>
+                  <span className="font-mono font-bold text-slate-600">{Math.floor(redeemedPoints)} Points</span>
+                </div>
+                <p className="text-[10px] text-emerald-800 font-medium pt-1 border-t border-emerald-200/60 leading-snug">
+                  ⚠️ Note: Sirf aapke dwara purchase kiye gaye points hi UPI par claim honge. Customers dwara redeem kiye gaye points claim nahi honge.
+                </p>
               </div>
 
-              {/* Bank Account Destination */}
-              {bankDetails?.accountNumber ? (
-                <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl space-y-2.5 text-left">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                      {t('Destination Bank Account')}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-200/70 text-emerald-900 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">verified</span> {t('Verified')}
-                    </span>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="material-symbols-outlined text-[20px]">account_balance</span>
-                    </div>
-                    <div className="space-y-0.5">
-                      <p className="text-[13.5px] font-bold text-gray-900 leading-snug">
-                        {bankDetails.accountHolderName || 'Account Holder'}
-                      </p>
-                      <p className="text-[12px] font-medium text-gray-700">
-                        {bankDetails.bankName}
-                      </p>
-                      <div className="flex items-center gap-2 text-[11.5px] font-mono text-gray-600">
-                        <span>A/C: •••• {bankDetails.accountNumber.slice(-4)}</span>
-                        <span>·</span>
-                        <span>IFSC: {bankDetails.ifscCode}</span>
-                      </div>
-                      {bankDetails.upiId && (
-                        <p className="text-[11px] font-mono text-gray-500">
-                          UPI: {bankDetails.upiId}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-emerald-200/60 flex items-center gap-1.5 text-[11px] text-emerald-800 font-medium">
-                    <span className="material-symbols-outlined text-[14px]">info</span>
-                    <span>{t('Transferred to linked bank')}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left space-y-2.5">
-                  <div className="flex items-center gap-2 text-amber-800 font-bold text-[13px]">
-                    <span className="material-symbols-outlined text-[18px] text-amber-600">warning</span>
-                    <span>{t('Bank Account Required')}</span>
-                  </div>
-                  <p className="text-[11.5px] text-amber-700">
-                    {t('You must link and verify your bank account with otp before requesting a withdrawal.')}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowWithdrawModal(false);
-                      handleOpenBankModal();
-                    }}
-                    className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-[12px] transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                    {t('Link Bank Account Now')}
-                  </button>
-                </div>
-              )}
-
-              {/* Amount Input */}
-              <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">{t('Withdraw Amount')}</label>
+              {/* Destination UPI ID Field */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">
+                  Transfer to UPI ID:
+                </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[24px] font-black text-primary">₹</span>
+                  <span className="absolute left-3 top-2.5 text-purple-700 material-symbols-outlined text-[18px]">
+                    account_balance_wallet
+                  </span>
                   <input
-                    type="number"
-                    value={addAmount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    disabled={!bankDetails?.accountNumber || isProcessing}
-                    className="w-full bg-surface-container-low border border-outline-variant/20 rounded-2xl py-3.5 pl-12 pr-4 text-[22px] font-black text-on-surface outline-none focus:border-primary focus:bg-white transition-all placeholder:text-outline-variant/30 disabled:opacity-50"
+                    type="text"
+                    required
+                    value={claimUpiId}
+                    onChange={(e) => setClaimUpiId(e.target.value.trim())}
+                    placeholder="e.g. mobile@upi or name@okaxis"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs font-bold text-slate-900 focus:bg-white outline-none"
                   />
                 </div>
               </div>
 
-              {/* Live Fee & GST Breakdown Card */}
-              {withdrawNum > 0 && (
-                <div className="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/80 border border-purple-200/80 rounded-2xl p-4 text-left space-y-2.5 shadow-sm">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-purple-100">
-                    <span className="flex items-center gap-1 text-purple-900">
-                      <span className="material-symbols-outlined text-[15px] text-purple-600">receipt_long</span>
-                      {t('Payout Breakdown')}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-[13px] text-gray-700">
-                    <span>{t('Withdrawal Amount:')}</span>
-                    <span className="font-bold text-gray-900 font-mono">₹{withdrawNum.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-[13px] text-gray-700">
-                    <span>{t('Withdrawal Fee:')}</span>
-                    <span className="font-bold text-rose-600 font-mono">-₹{withdrawalFixedFee.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-[13px] text-gray-700">
-                    <span>{t('Platform Fee (2%):')}</span>
-                    <span className="font-bold text-rose-600 font-mono">-₹{withdrawPlatformFeeAmount.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-[13px] text-rose-600 font-bold pt-1 border-t border-purple-100">
-                    <span>{t('Total Fee Deduction:')}</span>
-                    <span className="font-mono font-bold">-₹{withdrawFeeAmount.toFixed(2)}</span>
-                  </div>
-
-                  <div className="pt-2 border-t border-purple-200 flex justify-between items-center">
-                    <div>
-                      <span className="text-[13px] font-black text-gray-900 block leading-tight">{t('Net Bank Payout:')}</span>
-                      <span className="text-[10.5px] text-emerald-600 font-bold">{t('Transferred to linked bank')}</span>
-                    </div>
-                    <span className="font-display font-black text-[22px] text-emerald-600 font-mono">
-                      ₹{withdrawNetPayout.toFixed(2)}
-                    </span>
-                  </div>
+              {/* Points to Claim */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-[11px]">
+                  <label className="font-bold text-gray-700 uppercase tracking-wider">Points to Claim:</label>
+                  {purchasedPoints > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setClaimPoints(String(Math.floor(purchasedPoints)))}
+                      className="text-purple-700 font-bold hover:underline cursor-pointer"
+                    >
+                      Claim All ({Math.floor(purchasedPoints)} Pts)
+                    </button>
+                  )}
                 </div>
-              )}
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    max={purchasedPoints}
+                    required
+                    value={claimPoints}
+                    onChange={(e) => setClaimPoints(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-[22px] font-black text-on-surface outline-none focus:border-primary focus:bg-white transition-all placeholder:text-outline-variant/30"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold uppercase tracking-wider text-purple-600 bg-purple-100 px-2 py-1 rounded-md">
+                    Points
+                  </span>
+                </div>
 
-              <div className="text-[11px] text-on-surface-variant/70 text-center">
-                {t('Withdrawals are reviewed by Admin and credited to your verified bank account within 24-48 business hours.')}
+                {Number(claimPoints) > purchasedPoints && (
+                  <p className="text-[11px] text-rose-600 font-bold">
+                    ⚠️ Aap maximum {purchasedPoints} purchased points hi claim kar sakte hain. Customer redeemed points claim nahi ho sakte.
+                  </p>
+                )}
+
+                {Number(claimPoints) > 0 && Number(claimPoints) <= purchasedPoints && (
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[12px] flex justify-between items-center">
+                    <span className="text-slate-600 font-medium">Net UPI Payout:</span>
+                    <span className="font-mono font-black text-emerald-600 text-sm">
+                      ₹{Number(claimPoints).toLocaleString('en-IN')}.00
+                    </span>
+                  </div>
+                )}
               </div>
 
               <button
-                onClick={handleConfirmWithdraw}
-                disabled={!addAmount || isProcessing || Number(addAmount) > (wallet?.balance || 0) || !bankDetails?.accountNumber}
-                className={`w-full py-3.5 rounded-2xl font-bold text-[14.5px] transition-all flex items-center justify-center gap-2 cursor-pointer
-                  ${
-                    !addAmount || isProcessing || Number(addAmount) > (wallet?.balance || 0) || !bankDetails?.accountNumber
-                      ? 'bg-surface-container text-on-surface/40 cursor-not-allowed'
-                      : 'bg-primary text-white hover:shadow-lg active:scale-[0.98]'
-                  }`}
+                type="submit"
+                disabled={!claimPoints || Number(claimPoints) <= 0 || Number(claimPoints) > purchasedPoints || !claimUpiId || isProcessing}
+                className="w-full py-3.5 rounded-xl font-bold text-[14px] bg-primary text-white shadow-md transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isProcessing ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {t('Processing...')}
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Processing Claim...</span>
                   </>
                 ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                    {t('Withdraw Net')} ₹{withdrawNetPayout > 0 ? withdrawNetPayout.toFixed(2) : '0.00'}
-                  </>
+                  <>Claim {claimPoints || '0'} Points to UPI</>
                 )}
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* ─── WITHDRAWAL SUCCESS RECEIPT MODAL ─── */}
-      {showWithdrawSuccessModal && withdrawalReceipt && (
+      {/* ─── 3. CLAIM SUCCESS RECEIPT MODAL ─── */}
+      {showClaimSuccessModal && claimReceipt && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWithdrawSuccessModal(false)} />
-          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-5 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp text-center space-y-4 max-h-[90dvh] overflow-y-auto">
-            {/* Header Icon */}
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowClaimSuccessModal(false)} />
+          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col items-center text-center space-y-4 animate-slideUp">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
               <span className="material-symbols-outlined text-[36px]">check_circle</span>
             </div>
 
             <div>
-              <h3 className="font-display text-[20px] font-black text-gray-900">
-                {t('Withdrawal Submitted!')}
+              <h3 className="font-display text-[22px] font-black text-gray-900 leading-tight">
+                Points Claim Submitted!
               </h3>
               <p className="text-[12.5px] text-gray-500 mt-1">
-                {t('Your request has been received and will be processed to your bank within 24-48 business hours.')}
+                Aapke {claimReceipt.points} Zeebac Points direct aapki UPI ID par transfer kar diye gaye hain.
               </p>
             </div>
 
             {/* Receipt Card */}
-            <div className="bg-[#fcfaff] border border-purple-100 rounded-2xl p-4 text-left space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-purple-100 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                <span>{t('Transaction Receipt')}</span>
-                <span className="font-mono text-purple-700">{withdrawalReceipt.referenceId?.toString().slice(-8)}</span>
+            <div className="w-full bg-[#fcfaff] border border-purple-100 rounded-2xl p-4 text-left space-y-2.5 text-[12.5px]">
+              <div className="flex justify-between items-center pb-2 border-b border-purple-100 text-[11px] font-bold text-gray-400 uppercase">
+                <span>Receipt Ref</span>
+                <span className="font-mono text-purple-700">{claimReceipt.referenceId?.toString().slice(-8)}</span>
               </div>
-
-              <div className="space-y-1.5 text-[12.5px]">
-                <div className="flex justify-between text-gray-600">
-                  <span>{t('Gross Withdrawal:')}</span>
-                  <span className="font-bold text-gray-900 font-mono">₹{withdrawalReceipt.grossAmount.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between text-gray-600">
-                  <span>{t('Withdrawal Fee:')}</span>
-                  <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.withdrawalFee ?? 5).toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between text-gray-600">
-                  <span>{t('Platform Fee (2%):')}</span>
-                  <span className="font-mono text-gray-800 font-semibold">₹{(withdrawalReceipt.platformFee ?? 0).toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-purple-100">
-                  <span>{t('Total Fee Deduction:')}</span>
-                  <span className="font-mono">-₹{withdrawalReceipt.feeAmount.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between items-center pt-2 border-t border-purple-200">
-                  <span className="font-black text-gray-900 text-[13.5px]">{t('Net Bank Transfer:')}</span>
-                  <span className="font-black font-mono text-[18px] text-emerald-600">
-                    ₹{withdrawalReceipt.netPayout.toFixed(2)}
-                  </span>
-                </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Points Claimed:</span>
+                <span className="font-bold text-gray-900 font-mono">{claimReceipt.points} Points</span>
               </div>
-
-              {/* Destination Bank Snapshot */}
-              <div className="bg-white rounded-xl p-2.5 border border-purple-100/80 text-[11.5px] space-y-1 mt-2">
-                <div className="flex items-center gap-1.5 text-purple-900 font-bold">
-                  <span className="material-symbols-outlined text-[15px] text-purple-600">account_balance</span>
-                  <span>{t('Destination Account')}</span>
-                </div>
-                <div className="text-gray-600 pl-5">
-                  <p className="font-semibold text-gray-800">{withdrawalReceipt.bankName || t('Verified Bank')}</p>
-                  <p className="font-mono text-[11px] text-gray-500">
-                    A/C: •••• {withdrawalReceipt.accountNumber ? withdrawalReceipt.accountNumber.slice(-4) : '****'} • IFSC: {withdrawalReceipt.ifscCode || 'N/A'}
-                  </p>
-                </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Payout Mode:</span>
+                <span className="font-bold text-purple-700">Instant UPI Transfer</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Destination UPI:</span>
+                <span className="font-mono font-bold text-gray-900">{claimReceipt.upiId}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-purple-200">
+                <span className="font-black text-gray-900 text-sm">Net Transfer Amount:</span>
+                <span className="font-black font-mono text-[18px] text-emerald-600">₹{claimReceipt.netPayout}.00</span>
               </div>
             </div>
 
             <button
-              onClick={() => setShowWithdrawSuccessModal(false)}
-              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-[14.5px] transition-all shadow-md active:scale-[0.98] cursor-pointer"
+              onClick={() => setShowClaimSuccessModal(false)}
+              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-[14px] transition-all shadow-md active:scale-[0.98] cursor-pointer"
             >
-              {t('Done & Return to Wallet')}
+              Done & Return to Wallet
             </button>
           </div>
         </div>
       )}
 
-      {/* ─── ADD / UPDATE BANK ACCOUNT MODAL WITH OTP VERIFICATION ─── */}
-      {showBankModal && (
+      {/* ─── 4. EDIT / ADD PAYOUT UPI ID MODAL ─── */}
+      {showUpiModal && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isBankLoading && setShowBankModal(false)} />
-          <div className="relative bg-white w-full max-w-[440px] rounded-3xl p-4 sm:p-6 shadow-2xl z-10 flex flex-col animate-slideUp max-h-[90dvh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100 mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">account_balance</span>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowUpiModal(false)} />
+          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-5 shadow-2xl z-10 flex flex-col animate-slideUp text-left space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
                 </div>
-                <div>
-                  <h3 className="font-display text-[18px] font-black text-gray-900">
-                    {bankStep === 'FORM' ? (bankDetails?.accountNumber ? t('Update Bank Account') : t('Link Bank Account')) : t('Verify Mobile OTP')}
-                  </h3>
-                  <p className="text-[11.5px] text-gray-500">
-                    {bankStep === 'FORM' ? t('Secure bank details for withdrawal payouts') : t('Two-step security verification')}
-                  </p>
-                </div>
+                <h3 className="font-display text-[16px] font-black text-gray-900">
+                  {savedUpiId ? 'Update Payout UPI ID' : 'Add Payout UPI ID'}
+                </h3>
               </div>
               <button
-                onClick={() => !isBankLoading && setShowBankModal(false)}
-                disabled={isBankLoading}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors cursor-pointer disabled:opacity-50"
+                onClick={() => !isProcessing && setShowUpiModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
 
-            {/* Error Message */}
-            {bankError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[12px] font-medium flex items-start gap-2">
-                <span className="material-symbols-outlined text-[18px] text-red-500 shrink-0">error</span>
-                <span>{bankError}</span>
+            {upiError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[12px] font-medium">
+                {upiError}
               </div>
             )}
 
-            {/* STEP 1: Bank Details Form */}
-            {bankStep === 'FORM' && (
-              <form onSubmit={handleSendBankOtp} className="space-y-3.5 text-left">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    {t('Account Holder Name *')}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={bankForm.accountHolderName}
-                    onChange={(e) => setBankForm({ ...bankForm, accountHolderName: e.target.value })}
-                    placeholder="e.g. Ramesh Kumar Sharma"
-                    className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] font-medium focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
-                  />
-                </div>
+            <form onSubmit={handleSaveUpiId} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+                  Enter Your UPI ID:
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={newUpiInput}
+                  onChange={(e) => setNewUpiInput(e.target.value.trim())}
+                  placeholder="e.g. 9876543210@upi or name@okaxis"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold text-slate-900 focus:bg-white outline-none"
+                />
+                <p className="text-[10.5px] text-gray-400 mt-1">
+                  Jab aap Zeebac points claim karenge, paise direct isi UPI ID par credit honge.
+                </p>
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    {t('Bank Name *')}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={bankForm.bankName}
-                    onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
-                    placeholder="e.g. State Bank of India, HDFC Bank, ICICI"
-                    className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] font-medium focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      {t('Account Number *')}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={bankForm.accountNumber}
-                      onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value.replace(/\D/g, '') })}
-                      placeholder="9-18 digits"
-                      maxLength={18}
-                      className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] font-mono focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      {t('Confirm Account *')}
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={bankForm.confirmAccountNumber}
-                      onChange={(e) => setBankForm({ ...bankForm, confirmAccountNumber: e.target.value.replace(/\D/g, '') })}
-                      placeholder="Re-enter number"
-                      maxLength={18}
-                      className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] font-mono focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      {t('IFSC Code *')}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={bankForm.ifscCode}
-                      onChange={(e) => setBankForm({ ...bankForm, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
-                      placeholder="e.g. SBIN0001234"
-                      maxLength={11}
-                      className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] font-mono uppercase focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      {t('UPI ID (Optional)')}
-                    </label>
-                    <input
-                      type="text"
-                      value={bankForm.upiId}
-                      onChange={(e) => setBankForm({ ...bankForm, upiId: e.target.value })}
-                      placeholder="name@upi"
-                      className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] font-medium focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
-                    />
-                  </div>
-                </div>
-
-                {/* Security notice */}
-                <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 flex items-start gap-2.5 text-[11.5px] text-purple-900">
-                  <span className="material-symbols-outlined text-[18px] text-purple-600 shrink-0 mt-0.5">verified_user</span>
-                  <span>
-                    {t('To protect your payouts, a 4-digit verification code will be sent to your registered mobile number')}{' '}
-                    <strong>{maskedPhone || t('registered phone')}</strong>.
-                  </span>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isBankLoading}
-                    className="w-full py-3 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 active:scale-[0.98] text-white font-bold text-[14px] transition-all shadow-md shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {isBankLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>{t('Sending OTP...')}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>{t('Continue to OTP Verification')}</span>
-                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* STEP 2: OTP Verification Form */}
-            {bankStep === 'OTP' && (
-              <form onSubmit={handleVerifyBankOtp} className="space-y-4 text-left">
-                <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 text-center space-y-1">
-                  <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 mx-auto flex items-center justify-center mb-2">
-                    <span className="material-symbols-outlined text-[20px]">sms</span>
-                  </div>
-                  <p className="text-[13px] font-bold text-gray-900">{t('Enter Verification Code')}</p>
-                  <p className="text-[12px] text-gray-600">
-                    {t('We sent a 4-digit code to')}{' '}
-                    <strong className="text-purple-700">{maskedPhone || t('your registered number')}</strong>
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 text-center">
-                    {t('4-Digit OTP')}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    maxLength={4}
-                    value={bankOtp}
-                    onChange={(e) => setBankOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="• • • •"
-                    className="w-48 mx-auto block h-14 text-center rounded-2xl border-2 border-purple-300 text-[26px] font-black tracking-[12px] text-purple-900 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-[12px] px-1 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBankStep('FORM');
-                      setBankError('');
-                    }}
-                    className="text-gray-500 hover:text-gray-800 font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                    {t('Edit Bank Details')}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={resendCountdown > 0 || isBankLoading}
-                    className="text-purple-700 font-bold hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer"
-                  >
-                    {resendCountdown > 0 ? `${t('Resend code in')} ${resendCountdown}s` : t('Resend Code')}
-                  </button>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isBankLoading || bankOtp.length < 4}
-                    className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-[14px] transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {isBankLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>{t('Verifying OTP & Saving...')}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[18px]">verified</span>
-                        <span>{t('Verify & Link Account')}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUpiModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessing || !newUpiInput.trim() || !newUpiInput.includes('@')}
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-white font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer"
+                >
+                  {isProcessing ? 'Saving...' : 'Save UPI ID'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-      
 
       {/* Vendor Pay Later Modal */}
       <VendorPayLaterModal

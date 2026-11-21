@@ -20,6 +20,16 @@ const walletSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    purchasedPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    redeemedPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     totalEarned: {
       type: Number,
       default: 0,

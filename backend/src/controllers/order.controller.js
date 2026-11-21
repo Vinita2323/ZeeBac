@@ -1232,20 +1232,28 @@ export const claimVendorCashbackReserveUpi = async (req, res) => {
         ownerZeebacId: vendor.zeebacId,
         amount: depositAmount,
         category: 'reserve_topup',
-        description: `Prepaid Cashback Reserve Top-up via UPI Intent (UTR: ${cleanUtr})`,
+        description: `Zeebac Points Purchase via UPI Intent (UTR: ${cleanUtr})`,
         gateway: {
           gatewayName: 'None',
           utr: cleanUtr,
         },
       });
+
+      // Explicitly credit purchased points
+      updatedWallet.purchasedPoints = (updatedWallet.purchasedPoints || 0) + depositAmount;
+      await updatedWallet.save({ session });
     });
 
-    logger.info(`[Cashback Reserve] Vendor ${vendor.zeebacId} topped up ₹${depositAmount} via UTR ${cleanUtr}`);
+    logger.info(`[Zeebac Points Purchase] Vendor ${vendor.zeebacId} purchased ${depositAmount} points via UTR ${cleanUtr}`);
 
     res.status(200).json({
       success: true,
-      message: `₹${depositAmount} added to your Prepaid Cashback Reserve Pool successfully!`,
-      data: { balance: updatedWallet.balance },
+      message: `🎉 ${depositAmount} Zeebac Points purchased and added to your wallet successfully!`,
+      data: {
+        balance: updatedWallet.balance,
+        purchasedPoints: updatedWallet.purchasedPoints,
+        redeemedPoints: updatedWallet.redeemedPoints || 0,
+      },
     });
   } catch (error) {
     logger.error(`claimVendorCashbackReserveUpi error: ${error.message}`);

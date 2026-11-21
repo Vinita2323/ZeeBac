@@ -52,6 +52,7 @@ import {
   checkVendorExpiryAlertsEndpoint,
   discardExpiredProductStock,
   applyProductClearanceDiscount,
+  updateVendorUpiId,
   UPLOAD_FIELDS as APPLICATION_UPLOAD_FIELDS,
 } from '../controllers/vendor.controller.js';
 import { getVendorReviews, replyToReview } from '../controllers/review.controller.js';
@@ -145,6 +146,7 @@ router.get('/cashback-settlement', requireApprovedVendor, getSmartCashbackSettle
 router.post('/wallet/create-order', requireApprovedVendor, createRazorpayOrder);
 router.post('/wallet/verify-payment', requireApprovedVendor, verifyRazorpayPayment);
 router.post('/wallet/withdraw', requireApprovedVendor, requestWithdrawal);
+router.put('/upi-id', requireApprovedVendor, updateVendorUpiId);
 
 // Merchant-to-Merchant (B2B) Payments & Cashback
 router.get('/merchant-payment/search', requireApprovedVendor, searchLimiter, searchMerchantForPayment);

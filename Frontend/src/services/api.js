@@ -754,7 +754,15 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/customers/list');
     return res.data;
   },
-  requestWithdrawal: async (amount) => { const res = await apiClient.post('/vendor/wallet/withdraw', { amount }); return res.data; },
+  requestWithdrawal: async (amount, upiId) => {
+    const payload = typeof amount === 'object' ? amount : { amount, upiId };
+    const res = await apiClient.post('/vendor/wallet/withdraw', payload);
+    return res.data;
+  },
+  updateUpiId: async (upiId) => {
+    const res = await apiClient.put('/vendor/upi-id', { upiId });
+    return res.data;
+  },
   // Security: PIN & Biometrics
   setupSecurityPin: async (pin, currentPin = null) => {
     const res = await apiClient.post('/vendor/security/setup-pin', { pin, currentPin });

@@ -939,10 +939,44 @@ export const requestWithdrawal = async (req, res) => {
 
     let wallet = await getOrCreateWallet(vendor._id, 'Vendor', vendor.zeebacId);
 
-    if (!vendor.bankDetails?.accountNumber || !vendor.bankDetails?.ifscCode) {
+    // Support direct UPI claim without bank account
+    const { upiId } = req.body;
+    const targetUpiId = (upiId || vendor.bankDetails?.upiId || vendor.upiId || '').trim();
+    const isUpiClaim = Boolean(targetUpiId || !vendor.bankDetails?.accountNumber);
+
+    if (isUpiClaim && !targetUpiId) {
       return res.status(400).json({
         success: false,
-        message: 'Please link and verify your bank account before requesting a withdrawal.',
+        message: 'Please provide a valid UPI ID (e.g. yourname@upi) to claim points.',
+      });
+    }
+
+    if (!isUpiClaim && (!vendor.bankDetails?.accountNumber || !vendor.bankDetails?.ifscCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid UPI ID to claim points directly to your UPI account.',
+      });
+    }
+
+    // Save newly provided UPI ID to vendor profile
+    if (targetUpiId && (!vendor.bankDetails?.upiId || vendor.bankDetails.upiId !== targetUpiId)) {
+      if (!vendor.bankDetails) vendor.bankDetails = {};
+      vendor.bankDetails.upiId = targetUpiId;
+      vendor.upiId = targetUpiId;
+      await vendor.save();
+    }
+
+    // CRITICAL USER REQUIREMENT:
+    // "Aur sirf purchased points hi claim honge. Redeem points claim nhi honge"
+    let effectivePurchasedPoints = wallet.purchasedPoints;
+    if (effectivePurchasedPoints === undefined || effectivePurchasedPoints === null) {
+      effectivePurchasedPoints = Math.max(0, (wallet.balance || 0) - (wallet.redeemedPoints || 0));
+    }
+
+    if (amount > effectivePurchasedPoints) {
+      return res.status(400).json({
+        success: false,
+        message: `Aap sirf purchased points claim kar sakte hain. Aapke claimable purchased points: ${effectivePurchasedPoints} Points hain. Customer redeemed points (${wallet.redeemedPoints || 0} Points) claim nahi ho sakte.`,
       });
     }
 
@@ -971,9 +1005,9 @@ export const requestWithdrawal = async (req, res) => {
     }
 
     const config = (await RewardConfig.findOne()) || {};
-    const withdrawalFixedFee = config.withdrawalFixedFee !== undefined ? Number(config.withdrawalFixedFee) : 5;
-    const commissionPercent = config.vendorWithdrawalCommissionPercent ?? 2;
-    const gstPercent = config.withdrawalGstPercent ?? 18;
+    const withdrawalFixedFee = isUpiClaim ? 0 : (config.withdrawalFixedFee !== undefined ? Number(config.withdrawalFixedFee) : 5);
+    const commissionPercent = isUpiClaim ? 0 : (config.vendorWithdrawalCommissionPercent ?? 2);
+    const gstPercent = isUpiClaim ? 0 : (config.withdrawalGstPercent ?? 18);
 
     const platformFee = Math.round(((amount * commissionPercent) / 100) * 100) / 100;
     const withdrawalFee = withdrawalFixedFee;
@@ -982,19 +1016,24 @@ export const requestWithdrawal = async (req, res) => {
     const gstAmount = Math.round((feeAmount - baseFee) * 100) / 100;
     const netPayout = Math.max(0, Math.round((amount - feeAmount) * 100) / 100);
 
-    // Snapshot the verified bank details at the time of withdrawal
+    // Snapshot the verified bank/UPI details at the time of withdrawal
     const bankSnapshot = {
       accountHolderName: vendor.bankDetails?.accountHolderName || vendor.ownerName || vendor.storeName || '',
-      bankName: vendor.bankDetails?.bankName || '',
+      bankName: isUpiClaim ? 'UPI Instant Transfer' : (vendor.bankDetails?.bankName || ''),
       accountNumber: vendor.bankDetails?.accountNumber || '',
       ifscCode: vendor.bankDetails?.ifscCode || '',
-      upiId: vendor.bankDetails?.upiId || '',
-      isVerified: Boolean(vendor.bankDetails?.isVerified),
+      upiId: targetUpiId,
+      payoutMethod: isUpiClaim ? 'UPI' : 'BANK_TRANSFER',
+      isVerified: Boolean(vendor.bankDetails?.isVerified || targetUpiId),
       verifiedAt: vendor.bankDetails?.verifiedAt || new Date(),
     };
 
     const maskedAcc = bankSnapshot.accountNumber ? `•••• ${bankSnapshot.accountNumber.slice(-4)}` : '';
-    const destDesc = bankSnapshot.bankName ? `Withdrawal to ${bankSnapshot.bankName} (${maskedAcc})` : 'Withdrawal request initiated';
+    const destDesc = isUpiClaim
+      ? `Claimed ${amount} Zeebac Points to UPI (${targetUpiId})`
+      : bankSnapshot.bankName
+      ? `Withdrawal to ${bankSnapshot.bankName} (${maskedAcc})`
+      : 'Withdrawal request initiated';
 
     // Deterministic key for this vendor+amount within a 10s bucket — backed
     // by a unique index, this is what actually closes the race the
@@ -1010,7 +1049,12 @@ export const requestWithdrawal = async (req, res) => {
       await session.withTransaction(async () => {
         const updatedWallet = await Wallet.findOneAndUpdate(
           { _id: wallet._id, balance: { $gte: amount } },
-          { $inc: { balance: -amount } },
+          {
+            $inc: {
+              balance: -amount,
+              purchasedPoints: -amount,
+            },
+          },
           { returnDocument: 'after', session, runValidators: true }
         );
         if (!updatedWallet) {
@@ -2242,10 +2286,28 @@ export const getVendorWallet = async (req, res) => {
     // Calculate total customer cashback distributed by this store
     const totalCashbackGiven = smartSettlementCapacity.cashbackIssued;
 
+    // Calculate purchased vs redeemed points breakdown
+    let purchasedPoints = wallet.purchasedPoints;
+    let redeemedPoints = wallet.redeemedPoints || 0;
+    if (purchasedPoints === undefined || purchasedPoints === null) {
+      purchasedPoints = Math.max(0, (wallet.balance || 0) - redeemedPoints);
+      wallet.purchasedPoints = purchasedPoints;
+      await wallet.save();
+    }
+
+    const upiId = vendor.bankDetails?.upiId || vendor.upiId || '';
+
     res.status(200).json({
       success: true,
       data: {
-        wallet,
+        wallet: {
+          ...wallet.toObject(),
+          purchasedPoints,
+          redeemedPoints,
+        },
+        purchasedPoints,
+        redeemedPoints,
+        upiId,
         ledger,
         bankDetails: vendor.bankDetails || {},
         phone: maskedPhone,
@@ -4541,5 +4603,33 @@ export const toggleStoreStatus = async (req, res) => {
   } catch (error) {
     logger.error(`Error in toggleStoreStatus: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server error updating store status' });
+  }
+};
+
+// ─── Update Vendor Payout UPI ID (Points Claim) ───
+export const updateVendorUpiId = async (req, res) => {
+  try {
+    const { upiId } = req.body;
+    const cleanUpi = (upiId || '').trim();
+    if (!cleanUpi || !cleanUpi.includes('@')) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid UPI ID (e.g. mobile@upi or name@okaxis)' });
+    }
+
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    if (!vendor.bankDetails) vendor.bankDetails = {};
+    vendor.bankDetails.upiId = cleanUpi;
+    vendor.upiId = cleanUpi;
+    await vendor.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `UPI ID updated to ${cleanUpi}`,
+      data: { upiId: cleanUpi },
+    });
+  } catch (error) {
+    logger.error(`updateVendorUpiId error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error updating UPI ID' });
   }
 };
