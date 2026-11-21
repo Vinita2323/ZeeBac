@@ -340,6 +340,38 @@ describe('ZEEBAC – SMART CASHBACK & SETTLEMENT SYSTEM SUITE', () => {
     expect(data.remainingCapacity).toBe(545);
     expect(data.canRedeemPoints).toBe(true);
     expect(data.settlements.length).toBeGreaterThan(0);
+    expect(data.rangeStats).toBeDefined();
+    expect(data.rangeStats.totalCount).toBeGreaterThan(0);
+  });
+
+  it('7b. getSmartCashbackSettlement filters entries by date range and type', async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const reqFiltered = {
+      user: { id: vendor._id.toString() },
+      query: {
+        page: 1,
+        limit: 10,
+        startDate: today,
+        endDate: today,
+        type: 'ISSUED',
+      },
+    };
+
+    let responseData;
+    const res = {
+      status: () => ({
+        json: (data) => { responseData = data; },
+      }),
+    };
+
+    await getSmartCashbackSettlement(reqFiltered, res);
+    expect(responseData.success).toBe(true);
+    expect(responseData.data.settlements).toBeDefined();
+    // All returned settlements must be of type 'ISSUED'
+    for (const item of responseData.data.settlements) {
+      expect(item.type).toBe('ISSUED');
+    }
+    expect(responseData.data.rangeStats.rangeIssued).toBeGreaterThanOrEqual(0);
   });
 
   it('8. POS Billing (logPurchase) calculates cashback on net paid amount and updates ledger', async () => {

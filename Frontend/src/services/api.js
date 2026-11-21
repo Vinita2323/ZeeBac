@@ -696,8 +696,22 @@ export const VendorAPI = {
     const res = await apiClient.get('/vendor/wallet');
     return res.data;
   },
-  getSmartCashbackSettlement: async (page = 1, limit = 30) => {
-    const res = await apiClient.get(`/vendor/cashback-settlement?page=${page}&limit=${limit}`);
+  getSmartCashbackSettlement: async (params = {}) => {
+    let query = '';
+    if (typeof params === 'object') {
+      const sp = new URLSearchParams();
+      if (params.page) sp.set('page', params.page);
+      if (params.limit) sp.set('limit', params.limit);
+      if (params.startDate) sp.set('startDate', params.startDate);
+      if (params.endDate) sp.set('endDate', params.endDate);
+      if (params.type && params.type !== 'ALL') sp.set('type', params.type);
+      if (params.search) sp.set('search', params.search);
+      const str = sp.toString();
+      query = str ? `?${str}` : '';
+    } else {
+      query = `?page=${params}&limit=30`;
+    }
+    const res = await apiClient.get(`/vendor/cashback-settlement${query}`);
     return res.data;
   },
   getPendingRequests: async () => {

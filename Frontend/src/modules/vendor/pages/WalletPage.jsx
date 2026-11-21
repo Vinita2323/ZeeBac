@@ -499,6 +499,19 @@ export default function WalletPage() {
                 <p className="text-[10px] text-slate-500 mt-0.5">Customer can redeem till 0</p>
               </div>
             </div>
+
+            {/* View Date-wise Cashback History & Details Link */}
+            <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <span className="text-[11.5px] text-slate-500 font-medium">Detailed date-wise breakdown of issued & redeemed cashback</span>
+              <button
+                type="button"
+                onClick={() => navigate('/vendor/passbook?tab=cashback')}
+                className="text-[12px] font-bold text-primary hover:text-purple-800 flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span>View Date-Wise Cashback History & Filters</span>
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </button>
+            </div>
           </div>
 
           {/* Wallet Activity */}

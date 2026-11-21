@@ -105,6 +105,78 @@ export const generatePassbookPDF = (ledgerEntries, vendorName, dateRangeLabel) =
   doc.save(`ZeeBac_Passbook_${new Date().getTime()}.pdf`);
 };
 
+// Generate Smart Cashback Settlement Passbook PDF
+export const generateCashbackPassbookPDF = (settlements, vendorName, dateRangeLabel, stats = {}) => {
+  const doc = new jsPDF();
+
+  // Header
+  doc.setFontSize(20);
+  doc.setTextColor(66, 0, 147); // Primary purple
+  doc.text('ZeeBac - Cashback & Settlement Passbook', 14, 20);
+
+  doc.setFontSize(10);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Store: ${vendorName || 'Vendor Store'}`, 14, 28);
+  doc.text(`Period: ${dateRangeLabel || 'All Time'}`, 14, 34);
+  doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 14, 40);
+
+  // Period Summary Box
+  if (stats && (stats.rangeIssued !== undefined || stats.rangeRedeemed !== undefined)) {
+    doc.setFillColor(245, 243, 255);
+    doc.roundedRect(14, 45, 182, 16, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(66, 0, 147);
+    doc.text(
+      `Period Summary: Issued: +${(stats.rangeIssued || 0).toLocaleString()} Pts  |  Redeemed: -${(stats.rangeRedeemed || 0).toLocaleString()} Pts  |  Net: ${(stats.rangeNet || 0).toLocaleString()} Pts  |  Total Entries: ${stats.totalCount || settlements.length}`,
+      18,
+      55
+    );
+  }
+
+  const tableData = settlements.map((item) => {
+    const isIssued = item.type === 'ISSUED';
+    const pointsStr = isIssued ? `+${item.amount} Pts` : `-${item.amount} Pts`;
+    const customer = item.customerName ? `${item.customerName} (${item.customerZeebacId || ''})` : (item.customerZeebacId || '-');
+    const ref = item.billNumber || item.orderId || (item.referenceId ? String(item.referenceId).substring(0, 8) : '-');
+    const billAmt = item.eligiblePaidAmount ? `₹${item.eligiblePaidAmount}` : '-';
+    const rate = item.cashbackPercentage ? `${item.cashbackPercentage}%` : '-';
+
+    return [
+      new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+      isIssued ? 'Cashback Issued' : (item.type === 'REDEEMED' ? 'Cashback Redeemed' : item.type),
+      customer,
+      ref,
+      billAmt,
+      rate,
+      pointsStr,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: stats && (stats.rangeIssued !== undefined) ? 66 : 48,
+    head: [['Date & Time', 'Type', 'Customer', 'Bill / Order #', 'Bill Paid', 'Rate', 'Points']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [66, 0, 147] },
+    styles: { fontSize: 8.5, cellPadding: 3 },
+    columnStyles: {
+      6: { halign: 'right', fontStyle: 'bold' },
+    },
+    didParseCell: function (data) {
+      if (data.section === 'body' && data.column.index === 6) {
+        if (String(data.cell.raw).startsWith('+')) {
+          data.cell.styles.textColor = [0, 128, 0];
+        } else {
+          data.cell.styles.textColor = [220, 53, 69];
+        }
+      }
+    },
+  });
+
+  doc.save(`ZeeBac_Cashback_Passbook_${Date.now()}.pdf`);
+};
+
 // Generate Retail Thermal / POS Receipt PDF (Matching Zeebac Store Receipt)
 export const generateReceiptPDF = (bill) => {
   if (!bill) return;

@@ -2340,13 +2340,70 @@ export const getSmartCashbackSettlement = async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
     const skip = (page - 1) * limit;
 
-    const [settlements, totalCount] = await Promise.all([
-      CashbackSettlement.find({ vendorId: vendor._id })
+    const { startDate, endDate, type, search } = req.query;
+    const query = { vendorId: vendor._id };
+
+    if (type && type !== 'ALL') {
+      query.type = type;
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        if (!isNaN(start.getTime())) {
+          if (!String(startDate).includes('T')) {
+            start.setHours(0, 0, 0, 0);
+          }
+          query.createdAt.$gte = start;
+        }
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        if (!isNaN(end.getTime())) {
+          if (!String(endDate).includes('T')) {
+            end.setHours(23, 59, 59, 999);
+          }
+          query.createdAt.$lte = end;
+        }
+      }
+    }
+
+    if (search && search.trim()) {
+      const s = search.trim();
+      query.$or = [
+        { customerName: { $regex: s, $options: 'i' } },
+        { customerZeebacId: { $regex: s, $options: 'i' } },
+        { orderId: { $regex: s, $options: 'i' } },
+        { billNumber: { $regex: s, $options: 'i' } },
+      ];
+    }
+
+    const [settlements, totalCount, rangeTotals] = await Promise.all([
+      CashbackSettlement.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      CashbackSettlement.countDocuments({ vendorId: vendor._id }),
+      CashbackSettlement.countDocuments(query),
+      CashbackSettlement.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: '$type',
+            totalAmount: { $sum: '$amount' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
     ]);
+
+    let rangeIssued = 0;
+    let rangeRedeemed = 0;
+    for (const item of rangeTotals) {
+      if (item._id === 'ISSUED') rangeIssued = item.totalAmount;
+      if (item._id === 'REDEEMED') rangeRedeemed = item.totalAmount;
+    }
+    const rangeNet = rangeIssued - rangeRedeemed;
 
     res.status(200).json({
       success: true,
@@ -2358,6 +2415,12 @@ export const getSmartCashbackSettlement = async (req, res) => {
           ? `Zeebac owes ₹${Math.abs(capacity.netSettlementBalance)} to Merchant`
           : `All settlements cleared. Zero balance due.`,
         settlements,
+        rangeStats: {
+          rangeIssued,
+          rangeRedeemed,
+          rangeNet,
+          totalCount,
+        },
         pagination: {
           page,
           limit,
