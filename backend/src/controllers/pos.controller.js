@@ -11,7 +11,7 @@ import { getVendorSubscriptionState } from '../utils/subscription.util.js';
 import { cleanIndianPhoneNumber } from '../utils/phone.util.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
-import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
+import { recordCashbackIssuance, getVendorSettlementSummary } from '../utils/cashbackSettlement.util.js';
 import { getIO } from '../socket/socket.js';
 
 const safeSocketEmit = (room, event, data) => {
@@ -588,6 +588,18 @@ export const createPosBillIntent = async (req, res) => {
     const billCode = (customBillNo || `BILL-${Date.now().toString().slice(-6)}`).toUpperCase().trim();
     const cashbackRate = vendor.cashbackRate || 10;
     const cashbackAmount = Math.round(parsedAmount * (cashbackRate / 100) * 100) / 100;
+
+    // ── Smart Cashback Issuance Limit Check ──
+    const vendorSettlement = getVendorSettlementSummary(vendor);
+    if (cashbackAmount > 0 && vendorSettlement.remainingIssuanceCapacity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cashback issuance limit reached for this store (0 Pts remaining). Please settle net dues or purchase Zeebac points to continue issuing cashback.',
+        reason: 'Issuance limit reached',
+        remainingIssuanceCapacity: 0,
+        totalIssuanceCapacity: vendorSettlement.totalIssuanceCapacity,
+      });
+    }
 
     let posBill = await PosBill.findOne({ billCode, vendor: vendor._id });
     if (!posBill) {

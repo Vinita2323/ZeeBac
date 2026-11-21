@@ -35,6 +35,8 @@ import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } f
 import CashbackSettlement from '../models/CashbackSettlement.js';
 import {
   getVendorRedemptionCapacity,
+  getVendorIssuanceCapacity,
+  getVendorSettlementSummary,
   recordCashbackIssuance,
   recordCashbackRedemption,
 } from '../utils/cashbackSettlement.util.js';
@@ -1882,7 +1884,7 @@ export const lookupCustomerByPhone = async (req, res) => {
 
     const customerWallet = await Wallet.findOne({ ownerId: user._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
     const vendor = await Vendor.findById(req.user?.id);
-    const vendorCapacity = getVendorRedemptionCapacity(vendor);
+    const vendorCapacity = getVendorSettlementSummary(vendor);
 
     res.status(200).json({
       success: true,
@@ -1897,6 +1899,9 @@ export const lookupCustomerByPhone = async (req, res) => {
         canRedeemPoints: vendorCapacity.canRedeemPoints,
         merchantRemainingCapacity: vendorCapacity.remainingCapacity,
         merchantTotalCapacity: vendorCapacity.totalCapacity,
+        canIssueCashback: vendorCapacity.canIssueCashback,
+        merchantRemainingIssuanceCapacity: vendorCapacity.remainingIssuanceCapacity,
+        merchantTotalIssuanceCapacity: vendorCapacity.totalIssuanceCapacity,
       },
     });
   } catch (error) {
@@ -2045,6 +2050,30 @@ export const logPurchase = async (req, res) => {
       : (hasItemSpecificCashback && computedCashback > 0
           ? Math.round(computedCashback * 100) / 100
           : calculateCashback(actualPaidAmount, effectiveCashbackPercent));
+
+    // ── Smart Cashback Issuance Limit Check ──
+    // Any points redeemed by customer on this bill immediately increase the merchant's reimbursable capacity
+    const effectiveIssuanceCapacity = Math.round(((vendorCapacity.remainingIssuanceCapacity || 0) + pointsToRedeem) * 100) / 100;
+
+    if (cashbackAmount > 0 && effectiveIssuanceCapacity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cashback issuance limit reached for this store (0 Pts remaining). Please settle net dues or purchase Zeebac points to continue issuing cashback.',
+        reason: 'Issuance limit reached',
+        remainingIssuanceCapacity: 0,
+        totalIssuanceCapacity: vendorCapacity.totalIssuanceCapacity || 1000,
+      });
+    }
+
+    if (cashbackAmount > 0 && cashbackAmount > effectiveIssuanceCapacity) {
+      return res.status(400).json({
+        success: false,
+        message: `Cashback issuance limit exceeded (Remaining limit: ₹${effectiveIssuanceCapacity}, required: ₹${cashbackAmount}). Please settle net dues or purchase Zeebac points.`,
+        reason: 'Issuance limit exceeded',
+        remainingIssuanceCapacity: effectiveIssuanceCapacity,
+        totalIssuanceCapacity: vendorCapacity.totalIssuanceCapacity || 1000,
+      });
+    }
 
     const transactionId = `TX-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const generatedBillNo = billNumber || `BILL-${Date.now().toString().slice(-6)}`;

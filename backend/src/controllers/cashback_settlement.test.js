@@ -9,6 +9,8 @@ import Wallet from '../models/Wallet.js';
 import CashbackSettlement from '../models/CashbackSettlement.js';
 import {
   getVendorRedemptionCapacity,
+  getVendorIssuanceCapacity,
+  getVendorSettlementSummary,
   recordCashbackIssuance,
   recordCashbackRedemption,
 } from '../utils/cashbackSettlement.util.js';
@@ -417,5 +419,108 @@ describe('ZEEBAC – SMART CASHBACK & SETTLEMENT SYSTEM SUITE', () => {
     });
     expect(posIssuance).toBeDefined();
     expect(posIssuance.amount).toBe(18);
+  });
+
+  it('9. Calculates 1,000-point Issuance Limit alongside 1,000-point Redemption Limit', () => {
+    // A fresh merchant with 0 issued and 0 redeemed
+    const fresh = getVendorSettlementSummary({
+      cashbackIssued: 0,
+      cashbackRedeemed: 0,
+      initialIssuanceLimit: 1000,
+      additionalRedemptionLimit: 1000,
+    });
+
+    expect(fresh.initialIssuanceLimit).toBe(1000);
+    expect(fresh.totalIssuanceCapacity).toBe(1000);
+    expect(fresh.remainingIssuanceCapacity).toBe(1000);
+    expect(fresh.canIssueCashback).toBe(true);
+
+    expect(fresh.additionalRedemptionLimit).toBe(1000);
+    expect(fresh.totalRedemptionCapacity).toBe(1000);
+    expect(fresh.remainingRedemptionCapacity).toBe(1000);
+    expect(fresh.canRedeemPoints).toBe(true);
+    expect(fresh.netSettlementBalance).toBe(0);
+
+    // Merchant who has issued 800 and redeemed 300
+    const active = getVendorSettlementSummary({
+      cashbackIssued: 800,
+      cashbackRedeemed: 300,
+      initialIssuanceLimit: 1000,
+      additionalRedemptionLimit: 1000,
+    });
+
+    // Total issuance capacity = 1000 (base) + 300 (redeemed) = 1300
+    // Remaining issuance = 1300 - 800 = 500
+    expect(active.totalIssuanceCapacity).toBe(1300);
+    expect(active.remainingIssuanceCapacity).toBe(500);
+    expect(active.canIssueCashback).toBe(true);
+
+    // Total redemption capacity = 800 (issued) + 1000 (buffer) = 1800
+    // Remaining redemption = 1800 - 300 = 1500
+    expect(active.totalRedemptionCapacity).toBe(1800);
+    expect(active.remainingRedemptionCapacity).toBe(1500);
+    expect(active.netSettlementBalance).toBe(500); // Merchant owes Zeebac ₹500
+
+    // Merchant who has completely exhausted 1,000-point issuance limit
+    const exhaustedIssuance = getVendorSettlementSummary({
+      cashbackIssued: 1000,
+      cashbackRedeemed: 0,
+      initialIssuanceLimit: 1000,
+      additionalRedemptionLimit: 1000,
+    });
+    expect(exhaustedIssuance.remainingIssuanceCapacity).toBe(0);
+    expect(exhaustedIssuance.canIssueCashback).toBe(false);
+  });
+
+  it('10. logPurchase blocks cashback issuance when merchant reaches 1,000-point issuance limit', async () => {
+    // Create a merchant who has exhausted their 1,000-point issuance credit
+    const exhaustedVendor = await Vendor.create({
+      zeebacId: 'ZBC-STORE-EXHAUSTED',
+      storeName: 'Exhausted Limit Store',
+      ownerName: 'Amit Shah',
+      phone: '9777711223',
+      applicationStatus: 'APPROVED',
+      isStoreOpen: true,
+      city: 'Delhi',
+      cashbackRate: 10,
+      cashbackIssued: 1000, // Entire 1,000 limit used
+      cashbackRedeemed: 0,
+      initialIssuanceLimit: 1000,
+      additionalRedemptionLimit: 1000,
+      subscription: {
+        planType: 'Monthly',
+        status: 'ACTIVE',
+        expiresAt: new Date(Date.now() + 30 * 86400000),
+      },
+    });
+
+    const req = {
+      user: { id: exhaustedVendor._id.toString() },
+      body: {
+        customerZeebacId: customer.zeebacId,
+        amount: 500,
+        redeemPoints: 0,
+        paymentMethod: 'Cash',
+        billNumber: 'POS-EXHAUSTED-01',
+        cashbackPercent: 10,
+      },
+    };
+
+    let responseStatus;
+    let responseData;
+    const res = {
+      status: (code) => {
+        responseStatus = code;
+        return {
+          json: (data) => { responseData = data; },
+        };
+      },
+    };
+
+    await logPurchase(req, res);
+    expect(responseStatus).toBe(400);
+    expect(responseData.success).toBe(false);
+    expect(responseData.reason).toBe('Issuance limit reached');
+    expect(responseData.remainingIssuanceCapacity).toBe(0);
   });
 });

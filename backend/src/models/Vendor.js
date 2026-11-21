@@ -220,6 +220,11 @@ const vendorSchema = new mongoose.Schema(
       default: 1000,
       min: 0,
     },
+    initialIssuanceLimit: {
+      type: Number,
+      default: 1000,
+      min: 0,
+    },
     deliverySettings: {
       deliveryCharge: { type: Number, default: 30, min: 0 },
       freeDeliveryAbove: { type: Number, default: 499, min: 0 },

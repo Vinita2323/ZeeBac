@@ -221,6 +221,15 @@ export const createOrder = async (req, res) => {
       it.cashbackPoints = Math.round(it.cashbackPoints * paidRatio * 100) / 100;
     });
 
+    // ── Smart Cashback Issuance Capacity Cap ──
+    const effectiveIssuanceCapacity = Math.round(((vendorCapacity.remainingIssuanceCapacity || 0) + pointsToRedeem) * 100) / 100;
+    if (totalCashbackPoints > effectiveIssuanceCapacity) {
+      totalCashbackPoints = Math.max(0, effectiveIssuanceCapacity);
+      processedItems.forEach((it) => {
+        it.cashbackPoints = Math.min(it.cashbackPoints, totalCashbackPoints);
+      });
+    }
+
     // ── Format delivery address safely as a string (prevents Mongoose CastError on object) ──
     let resolvedDeliveryAddress = 'Customer Address';
     if (typeof deliveryAddress === 'string' && deliveryAddress.trim()) {

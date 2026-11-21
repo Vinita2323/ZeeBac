@@ -411,108 +411,206 @@ export default function WalletPage() {
           {/* ══════════════════════════════════════════════════════════════ */}
           {/* ─── ZEEBAC SMART CASHBACK & SETTLEMENT SYSTEM LEDGER ───────── */}
           {/* ══════════════════════════════════════════════════════════════ */}
-          <div className="bg-white rounded-3xl p-5 border border-purple-200/80 shadow-md shadow-purple-900/5 max-w-4xl space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-700 to-indigo-800 text-white flex items-center justify-center shadow-xs">
-                  <span className="material-symbols-outlined text-[22px]">swap_horizontal_circle</span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-display font-black text-[16px] text-slate-900">Smart Cashback & Settlement Ledger</h3>
-                    <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Automatic</span>
+          {(() => {
+            const totalIssuanceCap = smartSettlement?.totalIssuanceCapacity || 1000;
+            const remainingIssuanceCap = smartSettlement?.remainingIssuanceCapacity ?? 1000;
+            const usedIssuance = smartSettlement?.cashbackIssued || 0;
+            const issuancePercent = Math.min(100, Math.max(0, Math.round((usedIssuance / (totalIssuanceCap || 1)) * 100)));
+
+            const totalRedemptionCap = smartSettlement?.totalRedemptionCapacity || smartSettlement?.totalCapacity || 1000;
+            const remainingRedemptionCap = smartSettlement?.remainingRedemptionCapacity ?? smartSettlement?.remainingCapacity ?? 1000;
+            const usedRedemption = smartSettlement?.cashbackRedeemed || 0;
+            const redemptionPercent = Math.min(100, Math.max(0, Math.round((usedRedemption / (totalRedemptionCap || 1)) * 100)));
+
+            const netBalance = smartSettlement?.netSettlementBalance || 0;
+
+            return (
+              <div className="bg-white rounded-3xl p-5 border border-purple-200/80 shadow-md shadow-purple-900/5 max-w-4xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-700 to-indigo-800 text-white flex items-center justify-center shadow-xs">
+                      <span className="material-symbols-outlined text-[22px]">swap_horizontal_circle</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display font-black text-[16px] text-slate-900">Smart Cashback & Settlement Ledger</h3>
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Automatic</span>
+                      </div>
+                      <p className="text-[11.5px] text-slate-500">
+                        1,000 Pts Issuance Limit (Cashback Dena) • 1,000 Pts Redemption Limit (Cashback Accept Karna) • Net = Issued - Redeemed
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11.5px] text-slate-500">
-                    Redemption Capacity = Issued + ₹1,000 Additional Limit • Net Balance = Issued - Redeemed
-                  </p>
+
+                  {/* Settlement Status Pill */}
+                  <div>
+                    {smartSettlement?.settlementStatus === 'MERCHANT_OWES_ZEEBAC' ? (
+                      <span className="px-3 py-1.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        <span>Merchant owes Zeebac: ₹{smartSettlement.netSettlementBalance}</span>
+                      </span>
+                    ) : smartSettlement?.settlementStatus === 'ZEEBAC_OWES_MERCHANT' ? (
+                      <span className="px-3 py-1.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>Zeebac owes Merchant: ₹{Math.abs(smartSettlement.netSettlementBalance)}</span>
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1.5 rounded-full text-[11px] font-black bg-blue-100 text-blue-900 border border-blue-200 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>Settled / No Dues</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Twin Capacity Control Cards (Issuance Limit & Redemption Limit) ── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* CARD 1: ISSUANCE CAPACITY (CASHBACK DENA) */}
+                  <div className="bg-gradient-to-br from-purple-50/70 via-purple-50/30 to-indigo-50/40 rounded-2xl p-4 border border-purple-200/90 shadow-xs relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[19px] text-purple-700">outbound</span>
+                        <span className="text-[11px] font-black uppercase tracking-wider text-purple-950">Cashback Issuance Limit</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        remainingIssuanceCap > 0 ? 'bg-purple-100 text-purple-800' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {remainingIssuanceCap > 0 ? 'Can Issue' : 'Limit Reached'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between mt-1">
+                      <div>
+                        <span className="text-[11px] text-purple-700/80 font-medium block">Available to Issue:</span>
+                        <p className="text-[22px] font-black font-mono text-purple-950">
+                          {remainingIssuanceCap.toLocaleString('en-IN')} <span className="text-[13px] font-semibold">Pts</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 block">Total Limit</span>
+                        <span className="text-[14px] font-black font-mono text-slate-700">
+                          {totalIssuanceCap.toLocaleString('en-IN')} Pts
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Utilization Progress Bar */}
+                    <div className="mt-3 space-y-1">
+                      <div className="flex items-center justify-between text-[10.5px]">
+                        <span className="text-slate-500 font-medium">₹{usedIssuance.toLocaleString('en-IN')} issued to customers</span>
+                        <span className="font-bold text-purple-900">{issuancePercent}% used</span>
+                      </div>
+                      <div className="w-full h-2 bg-purple-100/80 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            issuancePercent >= 90 ? 'bg-red-500' : issuancePercent >= 70 ? 'bg-amber-500' : 'bg-purple-600'
+                          }`}
+                          style={{ width: `${issuancePercent}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-purple-700/70 pt-0.5">
+                        Base 1,000 Pts + ₹{usedRedemption.toLocaleString('en-IN')} Redeemed Credit
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: REDEMPTION CAPACITY (POINTS ACCEPT KARNA) */}
+                  <div className="bg-gradient-to-br from-indigo-50/70 via-indigo-50/30 to-blue-50/40 rounded-2xl p-4 border border-indigo-200/90 shadow-xs relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[19px] text-indigo-700">loyalty</span>
+                        <span className="text-[11px] font-black uppercase tracking-wider text-indigo-950">Cashback Redemption Limit</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        remainingRedemptionCap > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {remainingRedemptionCap > 0 ? 'Can Accept' : 'Limit Reached'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between mt-1">
+                      <div>
+                        <span className="text-[11px] text-indigo-700/80 font-medium block">Available to Accept:</span>
+                        <p className="text-[22px] font-black font-mono text-indigo-950">
+                          {remainingRedemptionCap.toLocaleString('en-IN')} <span className="text-[13px] font-semibold">Pts</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 block">Total Capacity</span>
+                        <span className="text-[14px] font-black font-mono text-slate-700">
+                          {totalRedemptionCap.toLocaleString('en-IN')} Pts
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Utilization Progress Bar */}
+                    <div className="mt-3 space-y-1">
+                      <div className="flex items-center justify-between text-[10.5px]">
+                        <span className="text-slate-500 font-medium">₹{usedRedemption.toLocaleString('en-IN')} points accepted</span>
+                        <span className="font-bold text-indigo-900">{redemptionPercent}% used</span>
+                      </div>
+                      <div className="w-full h-2 bg-indigo-100/80 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            redemptionPercent >= 90 ? 'bg-red-500' : redemptionPercent >= 70 ? 'bg-amber-500' : 'bg-indigo-600'
+                          }`}
+                          style={{ width: `${redemptionPercent}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-indigo-700/70 pt-0.5">
+                        ₹{usedIssuance.toLocaleString('en-IN')} Issued + 1,000 Pts Additional Limit
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── 3 Summary Metric Badges ── */}
+                <div className="grid grid-cols-3 gap-2.5 pt-1">
+                  {/* Cashback Issued */}
+                  <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Cashback Issued</span>
+                    <p className="text-[17px] font-black font-mono text-slate-900 mt-0.5">
+                      ₹{usedIssuance.toLocaleString('en-IN')}
+                    </p>
+                    <span className="text-[9.5px] text-slate-400">Total Given</span>
+                  </div>
+
+                  {/* Cashback Redeemed */}
+                  <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Cashback Redeemed</span>
+                    <p className="text-[17px] font-black font-mono text-slate-900 mt-0.5">
+                      ₹{usedRedemption.toLocaleString('en-IN')}
+                    </p>
+                    <span className="text-[9.5px] text-slate-400">Total Accepted</span>
+                  </div>
+
+                  {/* Net Balance */}
+                  <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Net Balance</span>
+                    <p className={`text-[17px] font-black font-mono mt-0.5 ${
+                      netBalance > 0 ? 'text-amber-700' : netBalance < 0 ? 'text-emerald-700' : 'text-slate-900'
+                    }`}>
+                      {netBalance >= 0 ? `+₹${netBalance.toLocaleString('en-IN')}` : `-₹${Math.abs(netBalance).toLocaleString('en-IN')}`}
+                    </p>
+                    <span className="text-[9.5px] text-slate-400">Issued - Redeemed</span>
+                  </div>
+                </div>
+
+                {/* View Date-wise Cashback History & Details Link */}
+                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <span className="text-[11.5px] text-slate-500 font-medium">Detailed date-wise breakdown of issued & redeemed cashback</span>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/vendor/passbook?tab=cashback')}
+                    className="text-[12px] font-bold text-primary hover:text-purple-800 flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span>View Date-Wise Cashback History & Filters</span>
+                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Settlement Status Pill */}
-              <div>
-                {smartSettlement?.settlementStatus === 'MERCHANT_OWES_ZEEBAC' ? (
-                  <span className="px-3 py-1.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                    <span>Merchant owes Zeebac: ₹{smartSettlement.netSettlementBalance}</span>
-                  </span>
-                ) : smartSettlement?.settlementStatus === 'ZEEBAC_OWES_MERCHANT' ? (
-                  <span className="px-3 py-1.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Zeebac owes Merchant: ₹{Math.abs(smartSettlement.netSettlementBalance)}</span>
-                  </span>
-                ) : (
-                  <span className="px-3 py-1.5 rounded-full text-[11px] font-black bg-blue-100 text-blue-900 border border-blue-200 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span>Settled / No Dues</span>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* 4 Core Settlement Metrics */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {/* 1. Cashback Issued */}
-              <div className="bg-purple-50/60 rounded-2xl p-3.5 border border-purple-100">
-                <div className="flex items-center justify-between text-purple-900 mb-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Cashback Issued</span>
-                  <span className="material-symbols-outlined text-[17px] text-purple-700">send_money</span>
-                </div>
-                <p className="text-[20px] font-black font-mono text-purple-950">
-                  {(smartSettlement?.cashbackIssued || 0).toLocaleString('en-IN')} Pts
-                </p>
-                <p className="text-[10px] text-purple-700/80 mt-0.5">Given to customers on shopping</p>
-              </div>
-
-              {/* 2. Cashback Redeemed */}
-              <div className="bg-indigo-50/60 rounded-2xl p-3.5 border border-indigo-100">
-                <div className="flex items-center justify-between text-indigo-900 mb-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Cashback Redeemed</span>
-                  <span className="material-symbols-outlined text-[17px] text-indigo-700">shopping_bag</span>
-                </div>
-                <p className="text-[20px] font-black font-mono text-indigo-950">
-                  {(smartSettlement?.cashbackRedeemed || 0).toLocaleString('en-IN')} Pts
-                </p>
-                <p className="text-[10px] text-indigo-700/80 mt-0.5">Points used at your store</p>
-              </div>
-
-              {/* 3. Total Redemption Capacity */}
-              <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-100">
-                <div className="flex items-center justify-between text-emerald-900 mb-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Total Capacity</span>
-                  <span className="material-symbols-outlined text-[17px] text-emerald-700">verified</span>
-                </div>
-                <p className="text-[20px] font-black font-mono text-emerald-950">
-                  {(smartSettlement?.totalCapacity || 1000).toLocaleString('en-IN')} Pts
-                </p>
-                <p className="text-[10px] text-emerald-700/80 mt-0.5">Issued + 1,000 Admin Limit</p>
-              </div>
-
-              {/* 4. Remaining Capacity */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200">
-                <div className="flex items-center justify-between text-slate-800 mb-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider">Remaining Limit</span>
-                  <span className="material-symbols-outlined text-[17px] text-slate-600">lock_open</span>
-                </div>
-                <p className="text-[20px] font-black font-mono text-slate-900">
-                  {(smartSettlement?.remainingCapacity || 0).toLocaleString('en-IN')} Pts
-                </p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Customer can redeem till 0</p>
-              </div>
-            </div>
-
-            {/* View Date-wise Cashback History & Details Link */}
-            <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <span className="text-[11.5px] text-slate-500 font-medium">Detailed date-wise breakdown of issued & redeemed cashback</span>
-              <button
-                type="button"
-                onClick={() => navigate('/vendor/passbook?tab=cashback')}
-                className="text-[12px] font-bold text-primary hover:text-purple-800 flex items-center gap-1 cursor-pointer transition-colors"
-              >
-                <span>View Date-Wise Cashback History & Filters</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              </button>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Wallet Activity */}
           <div className="space-y-3 max-w-4xl">
