@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { generateReceiptPDF } from '../../../utils/exportUtils';
 
 export default function TransactionSuccessScreen() {
   const navigate = useNavigate();
@@ -39,6 +40,26 @@ export default function TransactionSuccessScreen() {
 
   const handleHome = () => {
     navigate('/home');
+  };
+
+  const handleDownloadInvoice = () => {
+    const receiptData = {
+      vendorStoreName: details.vendorName || 'Zeebac Partner Store',
+      vendorZeebacId: details.vendorZeebacId || 'ZBV-STORE',
+      vendorPhone: details.vendorPhone || '',
+      vendorAddress: details.vendorAddress || 'Verified Merchant Store',
+      billNumber: details.billNumber || transactionId,
+      date: `${dateStr} • ${timeStr}`,
+      customerName: details.customerName || 'Valued Customer',
+      customerZeebacId: details.customerZeebacId || 'ZBC-USER',
+      paymentMethod: details.paymentMethod || 'UPI / Zeebac App',
+      items: (Array.isArray(details.items) && details.items.length > 0) ? details.items : [
+        { name: 'Store Purchase', quantity: 1, price: Number(details.billAmount || details.amount), total: Number(details.billAmount || details.amount) }
+      ],
+      amount: Number(details.billAmount || details.amount),
+      cashbackCredited: Number(typeof details.cashback === 'number' ? details.cashback : parseFloat(details.cashback) || 0),
+    };
+    generateReceiptPDF(receiptData);
   };
 
   return (
@@ -118,14 +139,35 @@ export default function TransactionSuccessScreen() {
           </div>
         </div>
 
-        {/* Home Redirect */}
-        <button 
-          onClick={handleHome}
-          className="w-full h-14 btn-primary-gradient text-white rounded-xl font-title-md flex items-center justify-center gap-sm shadow-lg active:scale-95 transition-transform duration-100 cursor-pointer"
-        >
-          <span className="material-symbols-outlined">dashboard</span>
-          Back to Dashboard
-        </button>
+        {/* Action Buttons: Download Bill, View Invoices & Home */}
+        <div className="space-y-2.5 pt-2 font-sans">
+          <button 
+            type="button"
+            onClick={handleDownloadInvoice}
+            className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">download</span>
+            Download Official Bill Receipt (PDF)
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => navigate('/bills')}
+            className="w-full h-11 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-purple-200 active:scale-95 transition-all cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[19px]">receipt_long</span>
+            View in My Store Invoices
+          </button>
+
+          <button 
+            type="button"
+            onClick={handleHome}
+            className="w-full h-12 btn-primary-gradient text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform duration-100 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">home</span>
+            Back to Dashboard
+          </button>
+        </div>
       </main>
 
       <style>{`

@@ -11,6 +11,19 @@ import { getVendorSubscriptionState } from '../utils/subscription.util.js';
 import { cleanIndianPhoneNumber } from '../utils/phone.util.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
+import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
+import { getIO } from '../socket/socket.js';
+
+const safeSocketEmit = (room, event, data) => {
+  try {
+    const io = getIO();
+    if (io) {
+      io.to(room).emit(event, data);
+    }
+  } catch (err) {
+    logger.warn(`[POS Socket] Could not emit ${event} to ${room}: ${err.message}`);
+  }
+};
 
 /**
  * Generate a unique POS Bill Code (e.g. ZEEBAC-89214)
@@ -509,14 +522,524 @@ export const claimPosBill = async (req, res) => {
 export const getPosBillStatus = async (req, res) => {
   try {
     const { billCode } = req.params;
-    const posBill = await PosBill.findOne({ billCode: billCode.toUpperCase().trim() }).populate('vendor', 'storeName cashbackRate category');
+    const cleanCode = (billCode || '').toUpperCase().trim();
+    const posBill = await PosBill.findOne({ billCode: cleanCode })
+      .populate('vendor', 'storeName ownerName phone address zeebacId logo storeLogo gstNumber cashbackRate category upiId bankDetails')
+      .populate('claimedBy', 'name phone zeebacId');
 
     if (!posBill) {
       return res.status(404).json({ success: false, message: 'POS Bill Code not found' });
     }
 
-    res.status(200).json({ success: true, data: posBill });
+    let transaction = null;
+    if (posBill.status === 'CLAIMED' && posBill.transaction) {
+      transaction = await Transaction.findById(posBill.transaction).lean();
+    }
+
+    res.status(200).json({
+      success: true,
+      paid: posBill.status === 'CLAIMED',
+      status: posBill.status,
+      data: {
+        billCode: posBill.billCode,
+        amount: posBill.amount,
+        cashbackRate: posBill.cashbackRate,
+        cashbackAmount: posBill.cashbackAmount,
+        status: posBill.status,
+        claimedAt: posBill.claimedAt,
+        items: posBill.items || [],
+        customerPhone: posBill.customerPhone,
+        customerZeebacId: posBill.customerZeebacId,
+        customerName: posBill.customerName || posBill.claimedBy?.name,
+        vendor: posBill.vendor,
+        transaction,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 4. Vendor POS Billing Intent Creation (Dynamic UPI / Zeebac App Barcode)
+ */
+export const createPosBillIntent = async (req, res) => {
+  try {
+    const vendorId = req.user?.id || req.vendor?._id;
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    const {
+      amount,
+      items = [],
+      customerPhone,
+      customerZeebacId,
+      customerName,
+      billNumber: customBillNo,
+    } = req.body;
+
+    const parsedAmount = Math.round(Number(amount) * 100) / 100;
+    if (!parsedAmount || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid bill amount is required' });
+    }
+
+    const billCode = (customBillNo || `BILL-${Date.now().toString().slice(-6)}`).toUpperCase().trim();
+    const cashbackRate = vendor.cashbackRate || 10;
+    const cashbackAmount = Math.round(parsedAmount * (cashbackRate / 100) * 100) / 100;
+
+    let posBill = await PosBill.findOne({ billCode, vendor: vendor._id });
+    if (!posBill) {
+      posBill = new PosBill({
+        billCode,
+        vendor: vendor._id,
+        vendorZeebacId: vendor.zeebacId,
+        amount: parsedAmount,
+        cashbackRate,
+        cashbackAmount,
+        customerPhone: customerPhone ? String(customerPhone).trim() : null,
+        customerZeebacId: customerZeebacId ? String(customerZeebacId).trim().toUpperCase() : null,
+        customerName: customerName ? String(customerName).trim() : null,
+        items,
+        status: 'UNCLAIMED',
+        paymentMethod: 'UPI',
+        invoiceNumber: billCode,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      });
+    } else {
+      posBill.amount = parsedAmount;
+      posBill.cashbackRate = cashbackRate;
+      posBill.cashbackAmount = cashbackAmount;
+      posBill.items = items;
+      if (customerPhone) posBill.customerPhone = String(customerPhone).trim();
+      if (customerZeebacId) posBill.customerZeebacId = String(customerZeebacId).trim().toUpperCase();
+      if (customerName) posBill.customerName = String(customerName).trim();
+      posBill.status = 'UNCLAIMED';
+    }
+
+    await posBill.save();
+
+    const upiId = vendor.bankDetails?.upiId || vendor.upiId || 'zeebac@upi';
+    const storeName = vendor.storeName || vendor.ownerName || 'Zeebac Store';
+    const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(storeName)}&am=${parsedAmount.toFixed(2)}&cu=INR&tr=${encodeURIComponent(billCode)}&tn=${encodeURIComponent(`Zeebac POS Bill ${billCode}`)}`;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        billCode,
+        billNumber: billCode,
+        amount: parsedAmount,
+        cashbackRate,
+        cashbackAmount,
+        items,
+        vendorStoreName: vendor.storeName,
+        vendorZeebacId: vendor.zeebacId,
+        upiId,
+        upiUri,
+        qrPayload: upiUri,
+        status: 'AWAITING_PAYMENT',
+      },
+    });
+  } catch (error) {
+    logger.error(`[createPosBillIntent] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 5. Customer Pay POS Bill Intent (via Zeebac App Wallet or UPI)
+ * Automatically marks the bill as PAID, creates Transaction, credits customer cashback,
+ * and notifies the merchant screen via Socket in real time!
+ */
+export const payPosBillIntent = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const customerId = req.user?.id;
+    const customer = await User.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer user not found' });
+    }
+
+    const { billCode, paymentMethod = 'Wallet', utr = null } = req.body;
+    const cleanCode = (billCode || '').toUpperCase().trim();
+
+    const posBill = await PosBill.findOne({ billCode: cleanCode }).populate('vendor');
+    if (!posBill) {
+      return res.status(404).json({ success: false, message: 'POS Bill Code not found' });
+    }
+
+    if (posBill.status === 'CLAIMED') {
+      const existingTx = await Transaction.findById(posBill.transaction);
+      return res.status(200).json({
+        success: true,
+        message: 'This POS Bill has already been paid!',
+        alreadyPaid: true,
+        transaction: existingTx,
+      });
+    }
+
+    const vendor = posBill.vendor;
+    const billAmount = posBill.amount;
+    const cashbackRate = posBill.cashbackRate || vendor?.cashbackRate || 10;
+    const cashbackEarned = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
+
+    let createdTx = null;
+
+    const executePayment = async (activeSession) => {
+      const sessOpt = activeSession ? { session: activeSession } : {};
+
+      // 1. If paymentMethod is Wallet, deduct customer wallet
+      if (paymentMethod === 'Wallet') {
+        const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' }, null, sessOpt);
+        if (!customerWallet || (customerWallet.balance || 0) < billAmount) {
+          throw new Error(`Insufficient wallet balance. Required: ₹${billAmount}, Available: ₹${customerWallet?.balance || 0}`);
+        }
+
+        await debitWallet({
+          session: activeSession,
+          ownerId: customer._id,
+          ownerType: 'User',
+          ownerZeebacId: customer.zeebacId,
+          amount: billAmount,
+          category: 'cashout',
+          description: `Paid for bill ${posBill.billCode} at ${vendor.storeName}`,
+          referenceId: posBill._id,
+        });
+      }
+
+      // 2. Credit cashback to customer wallet
+      if (cashbackEarned > 0) {
+        await creditWallet({
+          session: activeSession,
+          ownerId: customer._id,
+          ownerType: 'User',
+          ownerZeebacId: customer.zeebacId,
+          amount: cashbackEarned,
+          category: 'cashback',
+          description: `Cashback earned (${cashbackRate}%) on POS bill ${posBill.billCode} at ${vendor.storeName}`,
+          referenceId: posBill._id,
+        });
+      }
+
+      // 3. Record Cashback Issuance in Smart Cashback & Settlement Ledger
+      try {
+        await recordCashbackIssuance({
+          vendorId: vendor._id,
+          amount: cashbackEarned,
+          customer,
+          orderId: posBill.billCode,
+          billNumber: posBill.billCode,
+          paymentMethod,
+          eligiblePaidAmount: billAmount,
+          cashbackPercentage: cashbackRate,
+          referenceId: posBill._id,
+          referenceType: 'Order',
+          notes: `POS Bill ${posBill.billCode} paid via ${paymentMethod}`,
+          session: activeSession,
+        });
+      } catch (issuanceErr) {
+        logger.warn(`[payPosBillIntent] Settlement issuance warning: ${issuanceErr.message}`);
+      }
+
+      // 4. Create Transaction Record
+      const transactionId = `TX-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const vendorAddr = typeof vendor.address === 'object'
+        ? [vendor.address?.fullAddress || vendor.address?.street, vendor.address?.city, vendor.address?.state].filter(Boolean).join(', ')
+        : (vendor.address || 'Verified Merchant Store');
+
+      const txDocs = await Transaction.create(
+        [
+          {
+            transactionId,
+            customerId: customer._id,
+            customerZeebacId: customer.zeebacId,
+            customerName: customer.name || 'Valued Customer',
+            customerPhone: customer.phone,
+            vendorId: vendor._id,
+            vendorZeebacId: vendor.zeebacId,
+            vendorName: vendor.storeName,
+            vendorPhone: vendor.phone,
+            vendorAddress: vendorAddr,
+            vendorCategory: vendor.category || 'Retail',
+            type: 'pos_bill',
+            initiatedBy: 'customer',
+            amount: billAmount,
+            cashbackPercent: cashbackRate,
+            cashbackAmount: cashbackEarned,
+            paymentMethod,
+            status: 'Approved',
+            source: 'vendor_pos_billing',
+            billNumber: posBill.billCode,
+            items: posBill.items && posBill.items.length > 0 ? posBill.items : [
+              {
+                name: `${vendor.category || 'Retail'} Store Purchase`,
+                quantity: 1,
+                price: billAmount,
+                total: billAmount,
+                cashbackPercentage: cashbackRate,
+              },
+            ],
+            gateway: utr ? { gatewayName: 'UPI', utr } : undefined,
+          },
+        ],
+        sessOpt
+      );
+
+      createdTx = txDocs[0];
+
+      // 5. Update PosBill
+      posBill.status = 'CLAIMED';
+      posBill.claimedBy = customer._id;
+      posBill.claimedAt = new Date();
+      posBill.transaction = createdTx._id;
+      posBill.cashbackAmount = cashbackEarned;
+      posBill.customerPhone = customer.phone;
+      posBill.customerZeebacId = customer.zeebacId;
+      posBill.customerName = customer.name;
+      posBill.paymentMethod = paymentMethod;
+      posBill.claimMode = 'SCAN';
+      await posBill.save(sessOpt);
+    };
+
+    try {
+      await session.withTransaction(async () => {
+        await executePayment(session);
+      });
+    } catch (txErr) {
+      if (txErr.message?.includes('replica set') || txErr.message?.includes('Transaction numbers')) {
+        logger.warn(`[payPosBillIntent] Non-transactional fallback: ${txErr.message}`);
+        await executePayment(null);
+      } else {
+        throw txErr;
+      }
+    }
+
+    // 6. Real-time Socket Event to Vendor Room & Bill Room!
+    const socketPayload = {
+      billCode: posBill.billCode,
+      billNumber: posBill.billCode,
+      transactionId: createdTx.transactionId,
+      amount: billAmount,
+      cashbackAmount: cashbackEarned,
+      customerName: customer.name || 'Customer',
+      customerZeebacId: customer.zeebacId,
+      customerPhone: customer.phone,
+      paymentMethod,
+      items: posBill.items,
+      transaction: createdTx,
+    };
+
+    safeSocketEmit(`vendor:${vendor._id}`, 'pos_bill:paid', socketPayload);
+    safeSocketEmit(`pos_bill:${posBill.billCode}`, 'pos_bill:paid', socketPayload);
+    safeSocketEmit(`user:${customer._id}`, 'wallet:updated', {
+      transactionId: createdTx.transactionId,
+      amount: billAmount,
+      cashbackEarned,
+      newWalletBalance: (await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' }))?.balance || 0,
+    });
+
+    // In-app Notification to customer
+    try {
+      await sendNotification({
+        recipientId: customer._id,
+        recipientType: 'customer',
+        type: 'cashback_credited',
+        title: '🎉 Bill Paid & Cashback Credited!',
+        message: `₹${cashbackEarned} cashback points credited on bill ${posBill.billCode} at ${vendor.storeName}`,
+        referenceId: createdTx._id,
+        referenceType: 'Transaction',
+        data: { transactionId: createdTx.transactionId, billNumber: posBill.billCode },
+      });
+    } catch (_) {}
+
+    const updatedCustWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
+
+    return res.status(200).json({
+      success: true,
+      message: `🎉 Payment successful! ₹${cashbackEarned} cashback points credited to your wallet!`,
+      data: {
+        billNumber: posBill.billCode,
+        amount: billAmount,
+        cashbackEarned,
+        newWalletBalance: updatedCustWallet?.balance || 0,
+        transaction: createdTx,
+        vendorName: vendor.storeName,
+        transactionId: createdTx.transactionId,
+      },
+    });
+  } catch (error) {
+    logger.error(`[payPosBillIntent] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message || 'Payment failed' });
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * 6. Auto-Confirm POS Bill via 12-digit UPI UTR
+ * Used when customer scans and pays via external UPI (GPay/PhonePe)
+ */
+export const autoConfirmPosBillUtr = async (req, res) => {
+  try {
+    const { billCode, utr } = req.body;
+    const cleanCode = (billCode || '').toUpperCase().trim();
+    const cleanUtr = String(utr || '').replace(/\D/g, '').trim();
+
+    if (!cleanUtr || cleanUtr.length !== 12) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid 12-digit UPI Reference ID (UTR)' });
+    }
+
+    const posBill = await PosBill.findOne({ billCode: cleanCode }).populate('vendor');
+    if (!posBill) {
+      return res.status(404).json({ success: false, message: 'POS Bill not found' });
+    }
+
+    if (posBill.status === 'CLAIMED') {
+      const existingTx = await Transaction.findById(posBill.transaction);
+      return res.status(200).json({
+        success: true,
+        message: 'This bill is already confirmed!',
+        alreadyPaid: true,
+        transaction: existingTx,
+      });
+    }
+
+    // Lookup customer by customerPhone or customerZeebacId if linked
+    let customer = null;
+    if (posBill.customerPhone) {
+      customer = await User.findOne({
+        $or: [{ phone: posBill.customerPhone }, { phone: `+91${posBill.customerPhone}` }],
+      });
+    }
+    if (!customer && posBill.customerZeebacId) {
+      customer = await User.findOne({ zeebacId: posBill.customerZeebacId });
+    }
+
+    const vendor = posBill.vendor;
+    const billAmount = posBill.amount;
+    const cashbackRate = posBill.cashbackRate || vendor?.cashbackRate || 10;
+    const cashbackEarned = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
+
+    // Credit customer if registered
+    if (customer && cashbackEarned > 0) {
+      await creditWallet({
+        ownerId: customer._id,
+        ownerType: 'User',
+        ownerZeebacId: customer.zeebacId,
+        amount: cashbackEarned,
+        category: 'cashback',
+        description: `Cashback earned (${cashbackRate}%) on POS bill ${posBill.billCode} via UPI`,
+        referenceId: posBill._id,
+      });
+
+      try {
+        await recordCashbackIssuance({
+          vendorId: vendor._id,
+          amount: cashbackEarned,
+          customer,
+          orderId: posBill.billCode,
+          billNumber: posBill.billCode,
+          paymentMethod: 'UPI',
+          eligiblePaidAmount: billAmount,
+          cashbackPercentage: cashbackRate,
+          referenceId: posBill._id,
+          referenceType: 'Order',
+          notes: `POS Bill ${posBill.billCode} paid via UPI UTR ${cleanUtr}`,
+        });
+      } catch (_) {}
+    }
+
+    // Create Transaction Record
+    const transactionId = `TX-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    const vendorAddr = typeof vendor.address === 'object'
+      ? [vendor.address?.fullAddress || vendor.address?.street, vendor.address?.city, vendor.address?.state].filter(Boolean).join(', ')
+      : (vendor.address || 'Verified Merchant Store');
+
+    const createdTx = await Transaction.create({
+      transactionId,
+      customerId: customer ? customer._id : undefined,
+      customerZeebacId: customer ? customer.zeebacId : posBill.customerZeebacId,
+      customerName: customer ? customer.name : (posBill.customerName || 'Customer'),
+      customerPhone: customer ? customer.phone : posBill.customerPhone,
+      vendorId: vendor._id,
+      vendorZeebacId: vendor.zeebacId,
+      vendorName: vendor.storeName,
+      vendorPhone: vendor.phone,
+      vendorAddress: vendorAddr,
+      vendorCategory: vendor.category || 'Retail',
+      type: 'pos_bill',
+      initiatedBy: 'vendor',
+      amount: billAmount,
+      cashbackPercent: cashbackRate,
+      cashbackAmount: customer ? cashbackEarned : 0,
+      paymentMethod: 'UPI',
+      status: 'Approved',
+      source: 'vendor_pos_billing',
+      billNumber: posBill.billCode,
+      items: posBill.items && posBill.items.length > 0 ? posBill.items : [
+        {
+          name: `${vendor.category || 'Retail'} Store Purchase`,
+          quantity: 1,
+          price: billAmount,
+          total: billAmount,
+          cashbackPercentage: cashbackRate,
+        },
+      ],
+      gateway: { gatewayName: 'UPI', utr: cleanUtr },
+    });
+
+    posBill.status = 'CLAIMED';
+    if (customer) posBill.claimedBy = customer._id;
+    posBill.claimedAt = new Date();
+    posBill.transaction = createdTx._id;
+    posBill.cashbackAmount = customer ? cashbackEarned : 0;
+    posBill.paymentMethod = 'UPI';
+    posBill.claimMode = 'SCAN';
+    await posBill.save();
+
+    const socketPayload = {
+      billCode: posBill.billCode,
+      billNumber: posBill.billCode,
+      transactionId: createdTx.transactionId,
+      amount: billAmount,
+      cashbackAmount: customer ? cashbackEarned : 0,
+      customerName: customer ? customer.name : (posBill.customerName || 'Customer'),
+      customerZeebacId: customer ? customer.zeebacId : posBill.customerZeebacId,
+      paymentMethod: 'UPI',
+      items: posBill.items,
+      transaction: createdTx,
+    };
+
+    safeSocketEmit(`vendor:${vendor._id}`, 'pos_bill:paid', socketPayload);
+    safeSocketEmit(`pos_bill:${posBill.billCode}`, 'pos_bill:paid', socketPayload);
+
+    let updatedCustWallet = null;
+    if (customer) {
+      updatedCustWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
+      safeSocketEmit(`user:${customer._id}`, 'wallet:updated', {
+        transactionId: createdTx.transactionId,
+        amount: billAmount,
+        cashbackEarned,
+        newWalletBalance: updatedCustWallet?.balance || 0,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment verified and Bill generated successfully!',
+      data: {
+        billNumber: posBill.billCode,
+        amount: billAmount,
+        cashbackEarned: customer ? cashbackEarned : 0,
+        newWalletBalance: updatedCustWallet?.balance || 0,
+        transaction: createdTx,
+        vendorName: vendor.storeName,
+        transactionId: createdTx.transactionId,
+      },
+    });
+  } catch (error) {
+    logger.error(`[autoConfirmPosBillUtr] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

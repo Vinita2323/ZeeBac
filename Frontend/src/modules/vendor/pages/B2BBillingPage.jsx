@@ -6,6 +6,8 @@ import useAuthStore from '../../../store/useAuthStore';
 import { toast } from 'react-hot-toast';
 import QRCode from 'qrcode';
 import ProductBarcodeScannerModal from '../../../components/common/ProductBarcodeScannerModal';
+import { getSocket } from '../../../services/socket';
+import { playNotificationChime } from '../../../utils/voiceUtils';
 
 const getFormattedAddress = (addr) => {
   if (!addr) return 'Verified Merchant Store';
@@ -55,12 +57,20 @@ export default function B2BBillingPage() {
   const [retailBarcode, setRetailBarcode] = useState('');
   const [isLookingUpRetailProduct, setIsLookingUpRetailProduct] = useState(false);
   const [retailItems, setRetailItems] = useState([]);
-  const [retailPaymentMethod, setRetailPaymentMethod] = useState('Cash'); // 'Cash' | 'UPI' | 'Card'
+  const [retailPaymentMethod, setRetailPaymentMethod] = useState('UPI'); // 'UPI' | 'Cash' | 'Card'
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [receivedCash, setReceivedCash] = useState('');
   const [retailUpiQr, setRetailUpiQr] = useState('');
   const [isLoggingRetailBill, setIsLoggingRetailBill] = useState(false);
   const [completedRetailBill, setCompletedRetailBill] = useState(null);
+
+  // Dynamic POS Bill Intent & Real-Time Auto Confirmation
+  const [posBillIntent, setPosBillIntent] = useState(null);
+  const [isCreatingPosIntent, setIsCreatingPosIntent] = useState(false);
+  const [manualUtrInput, setManualUtrInput] = useState('');
+  const [isVerifyingUtr, setIsVerifyingUtr] = useState(false);
+  const [showManualUtrInput, setShowManualUtrInput] = useState(false);
+  const autoCompletedRef = useRef(false);
 
   // Catalog Picker & Custom Item Modals
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -474,45 +484,184 @@ export default function B2BBillingPage() {
   ) / 100;
 
   // Proceed to Payment Modal Trigger
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
     if (retailItems.length === 0) {
       toast.error('Please add at least one item to proceed');
       return;
     }
     setReceivedCash(String(retailSubtotal));
+    setManualUtrInput('');
+    setShowManualUtrInput(false);
+    autoCompletedRef.current = false;
     setShowPaymentModal(true);
+
+    if (retailPaymentMethod === 'UPI') {
+      await generatePosBillIntent();
+    }
   };
 
-  // Generate UPI QR Code dynamically when modal opens with UPI selected
-  useEffect(() => {
-    if (showPaymentModal && retailPaymentMethod === 'UPI' && retailSubtotal > 0) {
+  // Generate POS Bill Intent dynamically when modal opens with UPI selected
+  const generatePosBillIntent = async () => {
+    if (retailSubtotal <= 0) return;
+    setIsCreatingPosIntent(true);
+    try {
+      const generatedBillNo = `BILL-${Date.now().toString().slice(-6)}`;
+      const payload = {
+        amount: retailSubtotal,
+        items: retailItems,
+        customerZeebacId: verifiedCustomer?.zeebacId || (customerQuery.trim().toUpperCase().startsWith('ZBC') ? customerQuery.trim().toUpperCase() : undefined),
+        customerPhone: verifiedCustomer?.phone || customerQuery.trim() || undefined,
+        customerName: verifiedCustomer?.name || undefined,
+        billNumber: generatedBillNo,
+      };
+
+      const res = await VendorAPI.createPosBillIntent(payload);
+      if (res.success && res.data) {
+        setPosBillIntent(res.data);
+        const qrUrl = await QRCode.toDataURL(res.data.qrPayload || res.data.upiUri, { width: 220, margin: 1 });
+        setRetailUpiQr(qrUrl);
+      }
+    } catch (err) {
+      console.warn('Failed to create POS Bill Intent, falling back to static UPI QR', err);
       const upiId = currentVendor?.upiId || currentVendor?.bankDetails?.upiId || 'zeebac@upi';
       const storeName = currentVendor?.storeName || currentVendor?.ownerName || 'Zeebac Store';
       const uri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(storeName)}&am=${retailSubtotal}&cu=INR&tn=Zeebac%20POS%20Bill`;
       QRCode.toDataURL(uri, { width: 220, margin: 1 })
         .then((url) => setRetailUpiQr(url))
         .catch((e) => console.warn('Could not generate UPI QR', e));
+    } finally {
+      setIsCreatingPosIntent(false);
     }
-  }, [showPaymentModal, retailPaymentMethod, retailSubtotal, currentVendor]);
+  };
 
-  // 3. Complete Sale & Credit Cashback to Customer Wallet
+  // If merchant switches to UPI inside the open modal
+  useEffect(() => {
+    if (showPaymentModal && retailPaymentMethod === 'UPI' && !posBillIntent && !isCreatingPosIntent && retailSubtotal > 0) {
+      generatePosBillIntent();
+    }
+  }, [showPaymentModal, retailPaymentMethod]);
+
+  // Real-time Socket & Auto-Polling for POS Bill Payment Confirmation
+  useEffect(() => {
+    if (!showPaymentModal || retailPaymentMethod !== 'UPI' || !posBillIntent?.billCode) {
+      return;
+    }
+
+    const currentBillCode = posBillIntent.billCode;
+    const socket = getSocket();
+
+    const handlePaidEvent = (eventData) => {
+      if (
+        (eventData.billCode === currentBillCode || eventData.billNumber === currentBillCode) &&
+        !autoCompletedRef.current
+      ) {
+        autoCompletedRef.current = true;
+        handleAutoPaymentSuccess(eventData);
+      }
+    };
+
+    if (socket) {
+      socket.on('pos_bill:paid', handlePaidEvent);
+      socket.emit?.('join_room', `pos_bill:${currentBillCode}`);
+      if (currentVendor?._id) {
+        socket.emit?.('join_room', `vendor:${currentVendor._id}`);
+      }
+    }
+
+    // Auto-polling interval every 2.5s as robust backup
+    const pollTimer = setInterval(async () => {
+      if (autoCompletedRef.current) return;
+      try {
+        const res = await VendorAPI.getPosBillStatus(currentBillCode);
+        if (res.paid && res.data && !autoCompletedRef.current) {
+          autoCompletedRef.current = true;
+          handleAutoPaymentSuccess(res.data);
+        }
+      } catch (_) {}
+    }, 2500);
+
+    return () => {
+      clearInterval(pollTimer);
+      if (socket) {
+        socket.off('pos_bill:paid', handlePaidEvent);
+      }
+    };
+  }, [showPaymentModal, retailPaymentMethod, posBillIntent, currentVendor]);
+
+  // Handle Automatic Payment Success (No manual button press needed!)
+  const handleAutoPaymentSuccess = (data) => {
+    playNotificationChime('incoming');
+    toast.success(
+      `🎉 Payment of ₹${data.amount || retailSubtotal} Received! Bill #${data.billCode || data.billNumber} Generated Automatically!`,
+      { duration: 5000 }
+    );
+
+    const generatedBillNo = data.billCode || data.billNumber || posBillIntent?.billCode || `BILL-${Date.now().toString().slice(-6)}`;
+    const tx = data.transaction || data;
+
+    setCompletedRetailBill({
+      ...tx,
+      items: (posBillIntent?.items && posBillIntent.items.length > 0) ? posBillIntent.items : retailItems,
+      customerName: verifiedCustomer?.name || data.customerName || tx.customerName || 'Valued Customer',
+      customerZeebacId: verifiedCustomer?.zeebacId || data.customerZeebacId || tx.customerZeebacId,
+      customerPhone: verifiedCustomer?.phone || data.customerPhone || tx.customerPhone,
+      vendorStoreName: currentVendor?.storeName || currentVendor?.ownerName || 'Zeebac Store',
+      vendorZeebacId: currentVendor?.zeebacId || 'ZBV-STORE',
+      vendorAddress: getFormattedAddress(currentVendor?.address),
+      vendorPhone: currentVendor?.phone || '',
+      billNumber: generatedBillNo,
+      cashbackCredited: data.cashbackAmount || tx.cashbackAmount || retailTotalCashback,
+      date: new Date().toLocaleString('en-IN'),
+      paymentMethod: 'UPI',
+    });
+
+    // Close payment modal
+    setShowPaymentModal(false);
+    setPosBillIntent(null);
+
+    // Reset cart form
+    setRetailItems([]);
+    setVerifiedCustomer(null);
+    setCustomerQuery('');
+  };
+
+  // Verify Manual 12-digit UPI UTR (Backup for external GPay / PhonePe)
+  const handleVerifyManualUtr = async () => {
+    if (!posBillIntent?.billCode) return;
+    const cleanUtr = manualUtrInput.replace(/\D/g, '').trim();
+    if (cleanUtr.length !== 12) {
+      toast.error('Please enter a valid 12-digit UPI Reference ID (UTR)');
+      return;
+    }
+
+    setIsVerifyingUtr(true);
+    try {
+      const res = await VendorAPI.verifyPosBillUtr(posBillIntent.billCode, cleanUtr);
+      if (res.success && res.data) {
+        handleAutoPaymentSuccess(res.data);
+      } else {
+        toast.error(res.message || 'Verification failed. Check UTR.');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to verify UTR. Check if already used.');
+    } finally {
+      setIsVerifyingUtr(false);
+    }
+  };
+
+  // 3. Complete Sale for Cash or Card Swipe
   const handleCompleteRetailSale = async () => {
     if (retailItems.length === 0) {
       toast.error('Please add at least one item to generate bill');
       return;
     }
 
-    if (!verifiedCustomer && !customerQuery.trim()) {
-      toast.error('Enter Customer Zeebac ID or mobile number to credit cashback points');
-      return;
-    }
-
     setIsLoggingRetailBill(true);
     try {
-      const generatedBillNo = `BILL-${Date.now().toString().slice(-6)}`;
+      const generatedBillNo = posBillIntent?.billCode || `BILL-${Date.now().toString().slice(-6)}`;
       const payload = {
-        customerZeebacId: verifiedCustomer?.zeebacId || customerQuery.trim().toUpperCase(),
-        customerPhone: verifiedCustomer?.phone || customerQuery.trim(),
+        customerZeebacId: verifiedCustomer?.zeebacId || customerQuery.trim().toUpperCase() || undefined,
+        customerPhone: verifiedCustomer?.phone || customerQuery.trim() || undefined,
         amount: retailSubtotal,
         items: retailItems,
         paymentMethod: retailPaymentMethod,
@@ -546,6 +695,7 @@ export default function B2BBillingPage() {
 
         // Close payment modal
         setShowPaymentModal(false);
+        setPosBillIntent(null);
 
         // Reset form
         setRetailItems([]);
@@ -2373,32 +2523,92 @@ export default function B2BBillingPage() {
 
                 {/* UPI QR Payment Mode */}
                 {retailPaymentMethod === 'UPI' && (
-                  <div className="text-center bg-purple-50/60 border border-purple-200 rounded-2xl p-4 space-y-2.5 animate-reveal">
+                  <div className="text-center bg-purple-50/60 border border-purple-200 rounded-2xl p-4 space-y-3 animate-reveal">
                     <div className="flex items-center justify-between text-left">
                       <div>
-                        <p className="font-bold text-[12.5px] text-purple-950">Scan &amp; Pay via UPI</p>
+                        <p className="font-bold text-[12.5px] text-purple-950">Scan &amp; Pay via UPI / Zeebac App</p>
                         <p className="text-[11px] text-purple-700 font-mono">
                           Payable: <strong className="text-[13px]">₹{retailSubtotal}</strong>
+                          {posBillIntent?.billCode && (
+                            <span className="ml-1.5 text-[10px] text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded font-bold">
+                              #{posBillIntent.billCode}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <span className="text-[10.5px] font-bold text-purple-700 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full">
-                        GPay / PhonePe / Paytm
+                        GPay / PhonePe / Paytm / Zeebac
                       </span>
                     </div>
 
+                    {/* QR Code display */}
                     {retailUpiQr ? (
-                      <div className="w-44 h-44 mx-auto p-2 bg-white border-2 border-purple-200 rounded-2xl shadow-sm flex items-center justify-center">
+                      <div className="w-48 h-48 mx-auto p-2 bg-white border-2 border-purple-200 rounded-2xl shadow-sm flex items-center justify-center">
                         <img src={retailUpiQr} alt="UPI Payment QR" className="w-full h-full object-contain" />
                       </div>
                     ) : (
-                      <div className="w-44 h-44 mx-auto bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400">
-                        <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-600 rounded-full animate-spin" />
+                      <div className="w-48 h-48 mx-auto bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 gap-2">
+                        <div className="w-7 h-7 border-2 border-purple-500/30 border-t-purple-600 rounded-full animate-spin" />
+                        <span className="text-[11px] text-purple-700 font-medium">Generating Live Counter Barcode...</span>
                       </div>
                     )}
 
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      Ask customer to scan with any UPI App and complete payment of ₹{retailSubtotal}.
-                    </p>
+                    {/* Live Radar Listening Indicator */}
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between text-left animate-pulse">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center animate-spin shrink-0">
+                          <span className="material-symbols-outlined text-[17px]">sync</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-[12px] text-emerald-950 leading-tight">
+                            Awaiting Customer Payment...
+                          </p>
+                          <p className="text-[10.5px] text-emerald-700 font-medium mt-0.5 leading-snug">
+                            Auto-detecting payment via Zeebac App &amp; UPI. Bill generates automatically.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-200 text-emerald-900 shrink-0">
+                        LIVE
+                      </span>
+                    </div>
+
+                    {/* Manual UTR Override for External UPI Apps without webhook */}
+                    <div className="pt-0.5 text-center">
+                      {!showManualUtrInput ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowManualUtrInput(true)}
+                          className="text-[11px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                        >
+                          Customer paid externally? Enter 12-digit UTR
+                        </button>
+                      ) : (
+                        <div className="space-y-1.5 p-3 bg-purple-50/90 rounded-2xl border border-purple-200 text-left animate-reveal">
+                          <label className="text-[10px] font-bold text-purple-900 block uppercase tracking-wider">
+                            Enter 12-digit UPI UTR from customer payment:
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              maxLength={12}
+                              value={manualUtrInput}
+                              onChange={(e) => setManualUtrInput(e.target.value.replace(/\D/g, ''))}
+                              placeholder="e.g. 523412349876"
+                              className="flex-1 h-9 px-3 bg-white border border-purple-300 rounded-xl text-xs font-mono font-bold text-gray-900 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifyManualUtr}
+                              disabled={isVerifyingUtr || manualUtrInput.length !== 12}
+                              className="px-3 h-9 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-xs cursor-pointer disabled:opacity-50 shrink-0"
+                            >
+                              {isVerifyingUtr ? '...' : 'Verify'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2433,7 +2643,7 @@ export default function B2BBillingPage() {
                 </div>
               </div>
 
-              {/* 3. Modal Sticky Bottom Actions (ALWAYS VISIBLE & UNBLOCKED) */}
+              {/* 3. Modal Sticky Bottom Actions */}
               <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-white/98 backdrop-blur-md shrink-0 flex items-center gap-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
                 <button
                   type="button"
@@ -2443,21 +2653,44 @@ export default function B2BBillingPage() {
                   Back
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleCompleteRetailSale}
-                  disabled={isLoggingRetailBill}
-                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold text-[13.5px] shadow-lg shadow-purple-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isLoggingRetailBill ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-[18px]">verified</span>
-                      <span>Confirm &amp; Generate Bill</span>
-                    </>
-                  )}
-                </button>
+                {retailPaymentMethod === 'UPI' ? (
+                  <div className="flex-1 py-3.5 rounded-2xl bg-slate-50 text-emerald-800 font-bold text-[13px] flex items-center justify-center gap-2 border border-emerald-200 shadow-xs select-none">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                    <span>Auto-Generating Bill on Payment...</span>
+                  </div>
+                ) : retailPaymentMethod === 'Cash' ? (
+                  <button
+                    type="button"
+                    onClick={handleCompleteRetailSale}
+                    disabled={isLoggingRetailBill}
+                    className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-[13.5px] shadow-lg shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isLoggingRetailBill ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[18px]">payments</span>
+                        <span>Confirm Cash Received (₹{retailSubtotal})</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCompleteRetailSale}
+                    disabled={isLoggingRetailBill}
+                    className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white font-bold text-[13.5px] shadow-lg shadow-indigo-600/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isLoggingRetailBill ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[18px]">credit_card</span>
+                        <span>Confirm Card Swipe Done (₹{retailSubtotal})</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>,

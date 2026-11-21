@@ -57,6 +57,27 @@ const posBillSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    customerZeebacId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null,
+    },
+    customerName: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    items: [
+      {
+        productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+        name: String,
+        price: Number,
+        quantity: Number,
+        total: Number,
+        cashbackPercentage: Number,
+      },
+    ],
     invoiceNumber: {
       type: String,
       uppercase: true,

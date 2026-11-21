@@ -688,6 +688,18 @@ export const VendorAPI = {
     const res = await apiClient.post('/vendor/transactions/log', data);
     return res.data;
   },
+  createPosBillIntent: async (data) => {
+    const res = await apiClient.post('/pos/bill-intent', data);
+    return res.data;
+  },
+  getPosBillStatus: async (billCode) => {
+    const res = await apiClient.get(`/pos/bill-intent/${billCode}/status`);
+    return res.data;
+  },
+  verifyPosBillUtr: async (billCode, utr) => {
+    const res = await apiClient.post('/pos/verify-intent-utr', { billCode, utr });
+    return res.data;
+  },
   getTransactions: async () => {
     const res = await apiClient.get('/vendor/transactions');
     return res.data;
@@ -911,6 +923,14 @@ export const UserAPI = {
   // POS Flow: Claim printed bill QR (ZEEBAC-89214)
   claimPosBill: async (billCode) => {
     const res = await apiClient.post('/pos/claim', { billCode });
+    return res.data;
+  },
+  getPosBillDetails: async (billCode) => {
+    const res = await apiClient.get(`/pos/bill-intent/${billCode}/status`);
+    return res.data;
+  },
+  payPosBillIntent: async (data) => {
+    const res = await apiClient.post('/pos/pay-bill-intent', data);
     return res.data;
   },
   // Cash claim OTP verification flow

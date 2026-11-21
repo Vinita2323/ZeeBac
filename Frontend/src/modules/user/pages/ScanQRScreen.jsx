@@ -24,6 +24,14 @@ export default function ScanQRScreen() {
   const [cameraStatus, setCameraStatus] = useState('starting'); // starting | active | denied
   const [cameraPrimed, setCameraPrimed] = useState(hasSeenPrimer('camera'));
 
+  // Interactive POS Bill Payment Modal state
+  const [pendingPosBill, setPendingPosBill] = useState(null);
+  const [isPayingBill, setIsPayingBill] = useState(false);
+  const [billUtrInput, setBillUtrInput] = useState('');
+  const [isVerifyingBillUtr, setIsVerifyingBillUtr] = useState(false);
+  const currentUser = useAuthStore((state) => state.currentUser) || {};
+  const walletBalance = useAuthStore((state) => state.walletBalance ?? currentUser?.walletBalance ?? 0);
+
   // Only show the explainer once the shared primer gate is free — queued
   // behind any higher-priority primer (e.g. notifications right after login).
   const showCameraPrimer = usePrimerSlot('camera', PRIMER_PRIORITY.camera, !cameraPrimed);
@@ -37,38 +45,73 @@ export default function ScanQRScreen() {
     isBusyRef.current = true;
     setIsSearching(true);
     setError('');
-    const cleanValue = scannedValue.trim().toUpperCase();
 
-    // 1. Check if it's a POS Printed Bill Code (e.g., ZEEBAC-89214)
-    if (cleanValue.startsWith('ZEEBAC-') || cleanValue.startsWith('BILL-')) {
+    const rawStr = scannedValue.trim();
+    const cleanValue = rawStr.toUpperCase();
+
+    // 1. Check if it's a dynamic POS Bill QR or Printed Bill Code (BILL-XXXXXX, ZEEBAC-XXXXXX, or tr=BILL-...)
+    let detectedBillCode = null;
+    if (rawStr.toLowerCase().startsWith('upi://') || rawStr.includes('tr=')) {
+      const trMatch = rawStr.match(/[?&]tr=([^&]+)/i) || rawStr.match(/tr=([^&]+)/i);
+      if (trMatch) {
+        const trVal = decodeURIComponent(trMatch[1]).trim().toUpperCase();
+        if (trVal.startsWith('BILL-') || trVal.startsWith('ZEEBAC-')) {
+          detectedBillCode = trVal;
+        }
+      }
+    }
+    if (!detectedBillCode && (cleanValue.startsWith('BILL-') || cleanValue.startsWith('ZEEBAC-'))) {
+      detectedBillCode = cleanValue;
+    }
+
+    if (detectedBillCode) {
       try {
-        const posRes = await UserAPI.claimPosBill(cleanValue);
-        if (posRes.success) {
-          useAuthStore.getState().updateBalance(posRes.data.newWalletBalance);
-          navigate('/transaction-success', {
-            state: {
-              vendorName: posRes.data.vendorName,
-              amount: posRes.data.amount,
-              cashback: posRes.data.cashbackEarned,
-              transactionId: posRes.data.transactionId,
-            }
-          });
+        const billRes = await UserAPI.getPosBillDetails(detectedBillCode);
+        if (billRes && billRes.success && billRes.data) {
+          if (billRes.paid || billRes.data.status === 'CLAIMED') {
+            setError(`Bill #${detectedBillCode} has already been paid and settled.`);
+            setIsSearching(false);
+            isBusyRef.current = false;
+            return;
+          }
+          // Open interactive POS Checkout Drawer
+          setPendingPosBill(billRes.data);
+          setIsSearching(false);
+          isBusyRef.current = false;
           return;
         }
-      } catch (posErr) {
-        const msg = posErr.response?.data?.message || posErr.message || 'Error processing POS Bill Code';
-        setError(msg);
-        setIsSearching(false);
-        isBusyRef.current = false;
-        return;
+      } catch (intentErr) {
+        // Fallback for offline printed vouchers
+        try {
+          const posRes = await UserAPI.claimPosBill(detectedBillCode);
+          if (posRes.success) {
+            useAuthStore.getState().updateBalance(posRes.data.newWalletBalance);
+            navigate('/transaction-success', {
+              state: {
+                vendorName: posRes.data.vendorName,
+                amount: posRes.data.amount,
+                cashback: posRes.data.cashbackEarned,
+                transactionId: posRes.data.transactionId,
+                billNumber: detectedBillCode,
+                isStoreBill: true,
+              }
+            });
+            return;
+          }
+        } catch (posErr) {
+          const msg = posErr.response?.data?.message || intentErr.response?.data?.message || 'Error processing POS Bill Code';
+          setError(msg);
+          setIsSearching(false);
+          isBusyRef.current = false;
+          return;
+        }
       }
     }
 
     // 2. Check if it's a 12-digit UPI UTR / Transaction ID (e.g. from GPay, PhonePe, Paytm)
-    const rawTrimmed = scannedValue.trim();
-    if (/^\d{12}$/.test(rawTrimmed) || rawTrimmed.toLowerCase().startsWith('pay_')) {
+    if (/^\d{12}$/.test(rawStr) || rawStr.toLowerCase().startsWith('pay_')) {
       try {
-        const upiRes = await UserAPI.claimUpiCashback(rawTrimmed);
+        const upiRes = await UserAPI.claimUpiCashback(rawStr);
         if (upiRes.success) {
           useAuthStore.getState().updateBalance(upiRes.data.newWalletBalance);
           navigate('/transaction-success', {
@@ -77,12 +120,13 @@ export default function ScanQRScreen() {
               amount: upiRes.data.amount,
               cashback: upiRes.data.cashbackEarned,
               transactionId: upiRes.data.transactionId,
+              isStoreBill: true,
             }
           });
           return;
         }
       } catch (upiErr) {
-        if (/^\d{12}$/.test(rawTrimmed)) {
+        if (/^\d{12}$/.test(rawStr)) {
           const msg = upiErr.response?.data?.message || upiErr.message || 'No payment found matching this 12-digit UPI Reference ID.';
           setError(msg);
           setIsSearching(false);
@@ -92,8 +136,8 @@ export default function ScanQRScreen() {
       }
     }
 
-    // 2. Check if it's a UPI Counter QR code (e.g. upi://pay?pa=...&tr=ZBV-12345)
-    let lookupQuery = scannedValue.trim();
+    // 3. Standard Vendor Lookup (Store ID / QR Token / UPI Reference)
+    let lookupQuery = rawStr;
     if (lookupQuery.toLowerCase().startsWith('upi://') || lookupQuery.includes('tr=')) {
       const trMatch = lookupQuery.match(/tr=([^&]+)/i);
       if (trMatch) {
@@ -101,7 +145,6 @@ export default function ScanQRScreen() {
       }
     }
 
-    // 3. Standard Vendor Lookup (Store ID / QR Token / UPI Reference)
     try {
       const res = await UserAPI.lookupVendor(lookupQuery);
       if (res.success) {
@@ -116,6 +159,99 @@ export default function ScanQRScreen() {
       cameraScannerRef.current?.resume?.();
     }
   }, [navigate]);
+
+  // Handle Pay POS Bill via Zeebac Wallet
+  const handlePayPosBillWithWallet = async () => {
+    if (!pendingPosBill || isPayingBill) return;
+    setIsPayingBill(true);
+    setError('');
+    try {
+      const res = await UserAPI.payPosBillIntent({
+        billCode: pendingPosBill.billCode,
+        paymentMethod: 'Wallet',
+      });
+      if (res.success) {
+        if (typeof res.data?.newWalletBalance === 'number') {
+          useAuthStore.getState().updateBalance(res.data.newWalletBalance);
+        }
+        navigate('/transaction-success', {
+          state: {
+            vendorName: pendingPosBill.vendor?.storeName || res.data?.vendorName || 'Zeebac Store',
+            vendorZeebacId: pendingPosBill.vendor?.zeebacId || pendingPosBill.vendorZeebacId,
+            vendorPhone: pendingPosBill.vendor?.phone,
+            amount: pendingPosBill.amount,
+            billAmount: pendingPosBill.amount,
+            cashback: res.data?.cashbackEarned || pendingPosBill.cashbackAmount,
+            transactionId: res.data?.transactionId || res.data?.transaction?.transactionId,
+            billNumber: pendingPosBill.billCode,
+            items: pendingPosBill.items || [],
+            paymentMethod: 'Zeebac Wallet',
+            isStoreBill: true,
+          }
+        });
+      } else {
+        setError(res.message || 'Payment failed');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Payment failed');
+    } finally {
+      setIsPayingBill(false);
+    }
+  };
+
+  // Open external UPI App for payment
+  const handleOpenUpiApp = () => {
+    if (!pendingPosBill) return;
+    const upiId = pendingPosBill.vendor?.upiId || pendingPosBill.vendor?.bankDetails?.upiId || 'zeebac@upi';
+    const storeName = pendingPosBill.vendor?.storeName || 'Zeebac Store';
+    const upiUri = pendingPosBill.upiUri || `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(storeName)}&am=${pendingPosBill.amount}&cu=INR&tr=${encodeURIComponent(pendingPosBill.billCode)}&tn=${encodeURIComponent(`Zeebac POS Bill ${pendingPosBill.billCode}`)}`;
+    window.location.href = upiUri;
+  };
+
+  // Verify external UPI 12-digit UTR
+  const handleVerifyBillUtr = async () => {
+    if (!pendingPosBill || isVerifyingBillUtr) return;
+    const cleanUtr = billUtrInput.replace(/\D/g, '').trim();
+    if (cleanUtr.length !== 12) {
+      setError('Please enter a valid 12-digit UPI Reference ID (UTR)');
+      return;
+    }
+    setIsVerifyingBillUtr(true);
+    setError('');
+    try {
+      const res = await UserAPI.payPosBillIntent({
+        billCode: pendingPosBill.billCode,
+        paymentMethod: 'UPI',
+        utr: cleanUtr,
+      });
+      if (res.success) {
+        if (typeof res.data?.newWalletBalance === 'number') {
+          useAuthStore.getState().updateBalance(res.data.newWalletBalance);
+        }
+        navigate('/transaction-success', {
+          state: {
+            vendorName: pendingPosBill.vendor?.storeName || res.data?.vendorName || 'Zeebac Store',
+            vendorZeebacId: pendingPosBill.vendor?.zeebacId || pendingPosBill.vendorZeebacId,
+            vendorPhone: pendingPosBill.vendor?.phone,
+            amount: pendingPosBill.amount,
+            billAmount: pendingPosBill.amount,
+            cashback: res.data?.cashbackEarned || pendingPosBill.cashbackAmount,
+            transactionId: res.data?.transactionId || res.data?.transaction?.transactionId,
+            billNumber: pendingPosBill.billCode,
+            items: pendingPosBill.items || [],
+            paymentMethod: 'UPI',
+            isStoreBill: true,
+          }
+        });
+      } else {
+        setError(res.message || 'Verification failed');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'UTR verification failed');
+    } finally {
+      setIsVerifyingBillUtr(false);
+    }
+  };
 
   // Real camera scanning with safe fallback for desktops without webcams
   useEffect(() => {
@@ -415,6 +551,169 @@ export default function ScanQRScreen() {
                 {error}
               </p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── INTERACTIVE POS BILL CHECKOUT DRAWER ─── */}
+      {pendingPosBill && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col justify-end p-0 sm:p-4 animate-reveal select-text">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full mx-auto max-h-[88vh] flex flex-col text-slate-800 shadow-2xl overflow-hidden animate-slide-up">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 shadow-xs">
+                  <span className="material-symbols-outlined text-[22px]">point_of_sale</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-slate-900 text-[15px] leading-tight">
+                      {pendingPosBill.vendor?.storeName || 'Store Counter Bill'}
+                    </h3>
+                    <span className="material-symbols-outlined text-green-500 text-[16px]">verified</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Bill #{pendingPosBill.billCode} • {pendingPosBill.vendor?.category || 'Retail Store'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingPosBill(null);
+                  cameraScannerRef.current?.resume?.();
+                }}
+                className="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Bill Body (Scrollable) */}
+            <div className="p-4 space-y-4 overflow-y-auto">
+              {/* Payable Amount & Cashback Banner */}
+              <div className="bg-gradient-to-br from-purple-700 to-indigo-800 rounded-2xl p-4 text-white shadow-md">
+                <div className="flex justify-between items-baseline mb-1">
+                  <span className="text-xs text-purple-200 uppercase tracking-wider font-semibold">Total Bill Amount</span>
+                  <span className="text-2xl font-black">₹{Number(pendingPosBill.amount).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-2 bg-white/15 backdrop-blur-xs px-3 py-2 rounded-xl text-xs font-medium mt-2">
+                  <span className="material-symbols-outlined text-amber-300 text-[18px]">savings</span>
+                  <span>
+                    🎁 Instant Cashback: <strong className="text-amber-300 font-bold">+₹{Number(pendingPosBill.cashbackAmount || (pendingPosBill.amount * 0.1)).toFixed(2)} ({pendingPosBill.cashbackRate || 10}%)</strong> will be credited to your wallet!
+                  </span>
+                </div>
+              </div>
+
+              {/* Itemized breakdown if items present */}
+              {pendingPosBill.items && pendingPosBill.items.length > 0 && (
+                <div className="space-y-1.5">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Bill Items</h4>
+                  <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/60 max-h-40 overflow-y-auto">
+                    {pendingPosBill.items.map((it, idx) => (
+                      <div key={idx} className="p-2.5 flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-semibold text-slate-800">{it.name}</span>
+                          <span className="text-slate-400 ml-1.5">× {it.quantity || 1}</span>
+                        </div>
+                        <span className="font-bold text-slate-900">₹{Number(it.total || (it.price * (it.quantity || 1))).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Options */}
+              <div className="space-y-2.5 pt-1">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Pay & Auto-Confirm</h4>
+
+                {/* Option 1: Zeebac Wallet */}
+                <button
+                  type="button"
+                  onClick={handlePayPosBillWithWallet}
+                  disabled={isPayingBill || walletBalance < pendingPosBill.amount}
+                  className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
+                    walletBalance >= pendingPosBill.amount
+                      ? 'border-purple-600 bg-purple-50/80 hover:bg-purple-100/80 text-purple-900 active:scale-[0.99]'
+                      : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 text-left">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${walletBalance >= pendingPosBill.amount ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                      <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Pay from Zeebac Wallet</p>
+                      <p className="text-[11px] text-slate-500">
+                        Available Balance: ₹{Number(walletBalance).toFixed(2)}
+                        {walletBalance < pendingPosBill.amount && ' (Insufficient)'}
+                      </p>
+                    </div>
+                  </div>
+                  {isPayingBill ? (
+                    <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-600 text-white shadow-xs">
+                      ⚡ 1-Tap Pay
+                    </span>
+                  )}
+                </button>
+
+                {/* Option 2: UPI Apps (GPay, PhonePe, Paytm) */}
+                <div className="border border-slate-200 rounded-2xl p-3.5 bg-slate-50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[20px]">qr_code_2</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-slate-800">Pay with Any UPI App</p>
+                        <p className="text-[11px] text-slate-500">Google Pay, PhonePe, Paytm, BHIM</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenUpiApp}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer shadow-xs"
+                    >
+                      Open UPI App
+                    </button>
+                  </div>
+
+                  {/* Inline UTR Confirmation */}
+                  <div className="pt-2 border-t border-slate-200/60">
+                    <p className="text-[10.5px] text-slate-500 mb-1.5 font-medium">
+                      Already paid on GPay / PhonePe? Enter 12-digit UTR to auto-confirm & claim cashback:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        maxLength={12}
+                        value={billUtrInput}
+                        onChange={(e) => setBillUtrInput(e.target.value.replace(/\D/g, ''))}
+                        placeholder="12-digit UTR (e.g. 425512345678)"
+                        className="flex-1 px-3 py-2 bg-white rounded-xl text-xs font-mono font-bold border border-slate-200 focus:border-indigo-600 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyBillUtr}
+                        disabled={isVerifyingBillUtr || billUtrInput.length !== 12}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+                      >
+                        {isVerifyingBillUtr ? 'Verifying...' : 'Confirm'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-medium flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">error</span>
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
