@@ -148,7 +148,7 @@ describe('User requestWithdrawal — bank account gate + duplicate protection (Q
 describe('Vendor requestWithdrawal — duplicate protection (QA regression)', () => {
   it('two concurrent identical withdrawal requests produce exactly one Pending record, not two', async () => {
     const vendor = await makeVerifiedVendor();
-    await Wallet.create({ ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId, balance: 2000 });
+    await Wallet.create({ ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId, balance: 2000, purchasedPoints: 2000 });
 
     const req = { user: { id: vendor._id.toString() }, body: { amount: 300 } };
     const res1 = mockRes();

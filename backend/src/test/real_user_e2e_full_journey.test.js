@@ -375,8 +375,10 @@ describe('Real-User End-to-End Complete Flow (Customer, Vendor, Delivery, Admin)
     await getDeliveryEarnings(earningsReq, earningsRes);
     expect(earningsRes.statusCode).toBe(200);
     expect(earningsRes.body.data.completedDeliveries).toBe(1);
-    expect(earningsRes.body.data.ledger.length).toBe(1);
-    expect(earningsRes.body.data.ledger[0].orderId).toBe(orderData.orderId);
+    // COD orders log a COD_CASH_COLLECTED entry alongside the DELIVERY_PAYOUT entry
+    const payoutEntries = earningsRes.body.data.ledger.filter((e) => e.type === 'DELIVERY_PAYOUT');
+    expect(payoutEntries.length).toBe(1);
+    expect(payoutEntries[0].orderId).toBe(orderData.orderId);
 
     // ═════════════════════════════════════════════════════════════════════════
     // PHASE 6: IN-STORE COUNTER SHOPPING & CASHBACK POS
