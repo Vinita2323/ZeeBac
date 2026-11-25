@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import useLanguageStore from '../../../../store/useLanguageStore';
 import useCartStore from '../../../../store/useCartStore';
+import SiteFooter from './SiteFooter';
 
 export default function BottomNavBar() {
   const location = useLocation();
@@ -21,11 +22,49 @@ export default function BottomNavBar() {
     { label: 'Profile', icon: 'person', path: '/profile' }
   ];
 
+  const isItemActive = (item) =>
+    location.pathname === item.path || (item.path === '/profile' && (location.pathname === '/orders' || location.pathname === '/my-orders'));
+
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
+    <>
+    {/* Tablet / desktop: horizontal nav pinned in the header area */}
+    <nav className="hidden md:flex fixed top-0 inset-x-0 z-[60] justify-center pointer-events-none pt-3.5">
+      <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl p-1 shadow-2xs">
+        {navItems.map((item) => {
+          const isActive = isItemActive(item);
+          return (
+            <Link
+              key={item.label}
+              to={item.path}
+              className={`relative flex items-center gap-2 px-4 py-1.5 rounded-xl text-[12.5px] font-bold transition-all ${
+                isActive
+                  ? 'btn-primary-gradient text-white shadow-sm shadow-primary/25'
+                  : 'text-slate-600 hover:text-[#7c3aed] hover:bg-[#7c3aed]/5'
+              }`}
+            >
+              <span
+                className="material-symbols-outlined text-[18px]"
+                style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                {item.icon}
+              </span>
+              <span>{t(item.label)}</span>
+              {item.badge > 0 && (
+                <span className="min-w-[16px] h-4 px-1 rounded-full bg-amber-400 text-purple-950 font-black text-[9px] flex items-center justify-center">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+
+    {/* Mobile: floating bottom nav */}
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
       <div className="glass-nav pointer-events-auto w-full max-w-[480px] rounded-[1.75rem] flex justify-around items-center h-16 px-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path || (item.path === '/profile' && (location.pathname === '/orders' || location.pathname === '/my-orders'));
+          const isActive = isItemActive(item);
           return (
             <Link
               key={item.label}
@@ -55,6 +94,10 @@ export default function BottomNavBar() {
         })}
       </div>
     </nav>
+
+    {/* Website footer (tablet/desktop only) */}
+    <SiteFooter />
+    </>
   );
 }
 

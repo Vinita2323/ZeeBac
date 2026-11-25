@@ -1,4 +1,4 @@
-import { Routes, Route, Outlet } from 'react-router-dom';
+import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import SplashScreen from './pages/SplashScreen';
 import LocationPermissionScreen from './pages/LocationPermissionScreen';
 import HomeScreen from './pages/HomeScreen';
@@ -59,7 +59,12 @@ export default function UserRoutes() {
   );
 }
 
-// Simple wrapper to render nested routes
+// Wraps nested routes and fades each page in on navigation (keyed by path)
 function RouteWrapper() {
-  return <Outlet />;
+  const location = useLocation();
+  return (
+    <div key={location.pathname} className="page-fade-in">
+      <Outlet />
+    </div>
+  );
 }

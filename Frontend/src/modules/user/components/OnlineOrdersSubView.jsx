@@ -410,8 +410,10 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
 
       {/* ── Main Container ── */}
       <main className="flex-1 app-container px-3 sm:px-4 py-4 space-y-3.5">
+        {/* Search + Filters (single row on desktop) */}
+        <div className="space-y-3.5 lg:space-y-0 lg:flex lg:items-center lg:gap-4">
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative lg:w-[380px] lg:shrink-0">
           <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
             search
           </span>
@@ -433,7 +435,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar py-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar py-1 lg:flex-1 lg:min-w-0">
           {[
             { id: 'all', label: 'All Orders' },
             { id: 'active', label: 'Active 🛵', count: activeCount },
@@ -466,11 +468,12 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
             );
           })}
         </div>
+        </div>
 
         {/* Loading Skeleton */}
         {isLoading && (
-          <div className="space-y-3 pt-2">
-            {[1, 2, 3].map((n) => (
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3 pt-2">
+            {[1, 2, 3, 4].map((n) => (
               <div key={n} className="bg-white rounded-3xl p-4 border border-slate-100 shadow-2xs animate-pulse space-y-3">
                 <div className="flex justify-between items-center">
                   <div className="h-4 bg-slate-200 rounded-md w-32" />
@@ -488,7 +491,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
 
         {/* Empty State */}
         {!isLoading && filteredOrders.length === 0 && (
-          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm text-center space-y-4 my-6">
+          <div className="bg-white rounded-3xl p-8 md:p-12 border border-slate-100 shadow-sm text-center space-y-4 my-6 md:max-w-xl md:mx-auto">
             <div className="w-20 h-20 rounded-full bg-purple-50 text-purple-700 mx-auto flex items-center justify-center">
               <span className="material-symbols-outlined text-[40px]">local_shipping</span>
             </div>
@@ -550,7 +553,7 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
 
         {/* Orders List */}
         {!isLoading && filteredOrders.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3 md:items-start">
             {filteredOrders.map((order) => {
               const isDelivered = order.orderStatus === 'DELIVERED';
               const isCancelled = order.orderStatus === 'CANCELLED';

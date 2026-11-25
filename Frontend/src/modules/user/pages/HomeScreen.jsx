@@ -258,7 +258,7 @@ export default function HomeScreen() {
     usePrimerGate.getState().release('location');
   };
   return (
-    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32">
+    <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-32 md:pb-24">
 
 
       <PermissionPrimerModal
@@ -288,12 +288,12 @@ export default function HomeScreen() {
             <img
               alt="ZeeBac Logo"
               src="/Logo (6).png"
-              className="h-9 w-auto object-contain"
+              className="h-9 md:h-12 w-auto object-contain"
             />
           </div>
 
           {/* Right: Chat Support & Notifications Bell */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 md:gap-4">
             {/* Chat Support */}
             <button
               type="button"
@@ -328,6 +328,8 @@ export default function HomeScreen() {
       {/* Main Content Area */}
       <main className="flex-1 app-container px-container-margin pt-3 pb-2 space-y-4 text-left">
 
+        {/* Top row: search card + live order (side by side on desktop) */}
+        <div className={`grid gap-4 ${activeOrder ? 'lg:grid-cols-[1.4fr_1fr]' : ''}`}>
         {/* Search Product Card matching Brand Purple Theme */}
         <div className="rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-[#16082f] via-[#2d0554] to-[#6000da] text-white shadow-lg relative overflow-hidden">
           {/* Subtle decorative circles */}
@@ -394,7 +396,7 @@ export default function HomeScreen() {
         {activeOrder && (
           <div
             onClick={() => navigate('/orders')}
-            className="bg-gradient-to-r from-purple-900 via-indigo-950 to-purple-900 text-white p-3.5 rounded-2xl shadow-md border border-purple-400/30 flex items-center justify-between gap-3 cursor-pointer hover:border-purple-300 transition-all active:scale-[0.99]"
+            className="bg-gradient-to-r from-purple-900 via-indigo-950 to-purple-900 text-white p-3.5 lg:p-5 rounded-2xl lg:rounded-3xl shadow-md border border-purple-400/30 flex items-center justify-between gap-3 cursor-pointer hover:border-purple-300 transition-all active:scale-[0.99]"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-purple-500/25 border border-purple-400/40 flex items-center justify-center text-amber-300 shrink-0">
@@ -443,6 +445,7 @@ export default function HomeScreen() {
             </div>
           </div>
         )}
+        </div>
 
         {/* Quick Actions */}
         <div className="space-y-2">
@@ -453,7 +456,7 @@ export default function HomeScreen() {
           </div>
 
           {/* Primary 5 Actions: Scan & Pay | My Orders | My QR | Wallet | History */}
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2 lg:gap-4">
             {[
               { label: t('Scan & Pay'), icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
               { label: t('My Orders'), icon: 'local_shipping', onClick: () => navigate('/orders'), bg: 'from-[#4c1d95] via-[#6d28d9] to-[#7c3aed]', highlight: Boolean(activeOrder) },
@@ -464,7 +467,7 @@ export default function HomeScreen() {
               <button
                 key={action.label}
                 onClick={action.onClick}
-                className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 px-0.5 rounded-2xl bg-white/90 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
+                className="relative flex flex-col items-center justify-center gap-1.5 py-2.5 lg:py-5 px-0.5 rounded-2xl bg-white/90 hover:bg-white border border-outline-variant/15 shadow-xs hover:shadow-sm transition-all active:scale-[0.94] cursor-pointer"
               >
                 <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br ${action.bg} flex items-center justify-center text-white shadow-xs relative`}>
                   <span className="material-symbols-outlined text-[19px] sm:text-[20px]">{action.icon}</span>
@@ -481,10 +484,10 @@ export default function HomeScreen() {
         </div>
 
         {/* Cashback Banner matching Brand Theme */}
-        <div className="rounded-3xl p-4 bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-100/60 border border-purple-200/60 shadow-xs flex items-center justify-between gap-3 relative overflow-hidden">
+        <div className="rounded-3xl p-4 md:p-6 lg:px-8 bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-100/60 border border-purple-200/60 shadow-xs flex items-center justify-between gap-3 relative overflow-hidden">
           <div className="min-w-0 space-y-1.5 z-10">
             <div>
-              <p className="font-display font-black text-[17px] text-slate-900 leading-tight">
+              <p className="font-display font-black text-[17px] md:text-[22px] lg:text-[26px] text-slate-900 leading-tight">
                 {t('Get 3%+ Cashback')}
               </p>
               <p className="text-[12px] text-slate-600 font-medium">
@@ -501,7 +504,7 @@ export default function HomeScreen() {
           </div>
 
           {/* Friendly Zeebac Cashback Mascot SVG */}
-          <div className="shrink-0 relative z-10 w-24 h-24 flex items-center justify-center">
+          <div className="shrink-0 relative z-10 w-24 h-24 md:w-32 md:h-32 flex items-center justify-center">
             <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
               {/* Leaves */}
               <path d="M 65 30 C 80 15, 85 40, 68 45 Z" fill="#9333ea" />
@@ -619,9 +622,9 @@ export default function HomeScreen() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 md:gap-3">
             {isLoading ? (
-              <div className="flex justify-center items-center py-10">
+              <div className="flex justify-center items-center py-10 md:col-span-2">
                 <div className="animate-spin rounded-full h-7 w-7 border-2 border-primary/20 border-t-primary"></div>
               </div>
             ) : (

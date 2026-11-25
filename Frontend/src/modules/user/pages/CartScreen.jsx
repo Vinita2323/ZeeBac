@@ -1374,7 +1374,9 @@ export default function CartScreen() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 app-container px-3.5 sm:px-4 py-4 space-y-3.5 text-left">
+      <main className="flex-1 app-container px-3.5 sm:px-4 py-4 text-left lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-5 lg:items-start">
+        {/* Left column: cart, fulfillment & timing */}
+        <div className="space-y-3.5">
         {/* 1 Zeebac Point = 1 Rs. Banner */}
         <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 text-white px-4 py-2.5 rounded-2xl shadow-xs flex items-center justify-center gap-2 text-center">
           <span className="material-symbols-outlined text-amber-400 text-[18px]">stars</span>
@@ -1824,7 +1826,10 @@ export default function CartScreen() {
             />
           </div>
         )}
+        </div>
 
+        {/* Right column (desktop): sticky order summary & payment */}
+        <div className="space-y-3.5 mt-3.5 lg:mt-0 lg:sticky lg:top-20">
         {/* ── STEP 4: ZEEBAC POINTS REDEMPTION (1 POINT = ₹1) ── */}
         <div className="bg-white rounded-2xl p-4 border border-purple-100 shadow-2xs space-y-2.5">
           <div className="flex items-center justify-between">
@@ -2348,11 +2353,12 @@ export default function CartScreen() {
             </div>
           </div>
         )}
+        </div>
       </main>
 
       {/* ── STICKY BOTTOM CHECKOUT BAR (ZOMATO STYLE) ── */}
       <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-100 px-4 py-3 shadow-lg">
-        <div className="max-w-md mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-md md:max-w-[720px] lg:max-w-[1120px] mx-auto flex items-center justify-between lg:justify-end gap-3 lg:gap-6">
           <div>
             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{t('Total Payable')}</p>
             <div className="flex items-baseline gap-1.5">
@@ -2371,7 +2377,7 @@ export default function CartScreen() {
             <button
               type="button"
               onClick={() => setShowAddAddressModal(true)}
-              className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-600 hover:opacity-95 text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-purple-600/25 cursor-pointer active:scale-95 transition-all"
+              className="flex-1 lg:flex-none lg:w-[400px] py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-600 hover:opacity-95 text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-purple-600/25 cursor-pointer active:scale-95 transition-all"
             >
               <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
               <span>Add Address to Proceed</span>
@@ -2380,7 +2386,7 @@ export default function CartScreen() {
             <button
               onClick={handlePlaceOrder}
               disabled={isProcessing}
-              className={`flex-1 py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all ${
+              className={`flex-1 lg:flex-none lg:w-[400px] py-3.5 px-4 rounded-2xl btn-primary-gradient text-white font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all ${
                 isProcessing ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >

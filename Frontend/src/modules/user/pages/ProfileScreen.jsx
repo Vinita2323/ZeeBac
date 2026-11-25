@@ -23,8 +23,14 @@ export default function ProfileScreen() {
   const [subView, setSubView] = useState(() => {
     if (location.state?.openLinkedAccounts) return 'linked-accounts';
     if (location.state?.openBills || location.search?.includes('tab=bills') || location.search?.includes('subView=bills')) return 'bills';
+    if (location.state?.subView) return location.state.subView;
     return null;
   }); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn', 'audits', 'bills'
+
+  // Deep-link into a subview (e.g. footer / Home quick actions) even when already on /profile
+  useEffect(() => {
+    if (location.state?.subView) setSubView(location.state.subView);
+  }, [location.key]);
 
   // Make the browser/hardware back button close an open subview one step at
   // a time instead of jumping straight past Profile to the previous route.
