@@ -616,8 +616,8 @@ export default function VendorDetailScreen() {
       <main className="flex-1 app-container px-3.5 sm:px-4 py-3.5 space-y-4 text-left">
 
         {/* ── 1. STORE OVERVIEW CARD ── */}
-        <div className="bg-white rounded-3xl p-3.5 sm:p-4 border border-slate-100 shadow-sm flex items-center gap-3.5 relative overflow-hidden">
-          <div className="w-22 h-22 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-purple-50 border border-purple-100 shrink-0 relative group">
+        <div className="bg-white rounded-3xl p-3.5 sm:p-4 md:p-6 border border-slate-100 shadow-sm flex items-center gap-3.5 md:gap-6 relative overflow-hidden">
+          <div className="w-22 h-22 sm:w-24 sm:h-24 md:w-36 md:h-36 lg:w-40 lg:h-40 rounded-2xl overflow-hidden bg-purple-50 border border-purple-100 shrink-0 relative group">
             <img
               src={vendorImageSrc.startsWith('http') || vendorImageSrc.startsWith('data:') ? vendorImageSrc : `${API_BASE_URL}${vendorImageSrc}`}
               alt={vendor.storeName}
@@ -669,7 +669,7 @@ export default function VendorDetailScreen() {
 
             <button
               onClick={() => navigate('/pay-vendor', { state: { vendor } })}
-              className="mt-1 w-full py-1.5 px-3 rounded-xl btn-primary-gradient text-white flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+              className="mt-1 w-full md:w-auto md:px-6 md:py-2 py-1.5 px-3 rounded-xl btn-primary-gradient text-white flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
             >
               <span className="font-display font-black text-[12px] tracking-wide">
                 {vendor.cashbackRate ? `${vendor.cashbackRate}%+ Cashback` : '3%+ Cashback'}
@@ -678,7 +678,7 @@ export default function VendorDetailScreen() {
 
             {/* Store Points Redemption Capacity Indicator */}
             {vendor.redemptionCapacity && (
-              <div className="mt-2 px-2.5 py-1.5 rounded-xl bg-purple-50/70 border border-purple-100 flex items-center justify-between text-[11px]">
+              <div className="mt-2 md:max-w-sm px-2.5 py-1.5 rounded-xl bg-purple-50/70 border border-purple-100 flex items-center justify-between text-[11px]">
                 <div className="flex items-center gap-1 text-slate-700">
                   <span className="material-symbols-outlined text-purple-700 text-[14px]">stars</span>
                   <span className="font-semibold">Redemption:</span>
@@ -712,7 +712,7 @@ export default function VendorDetailScreen() {
 
         {/* ── 2. BLINKIT-STYLE QUICK SEARCH BAR WITH VOICE INPUT ── */}
         {(products.length > 0 || searchQuery) && (
-          <div className="relative flex items-center gap-2">
+          <div className="relative flex items-center gap-2 md:max-w-2xl">
             <div className="relative flex-1">
               <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
                 search
@@ -795,7 +795,7 @@ export default function VendorDetailScreen() {
                 </div>
 
                 {/* 4-Column Category Grid matching reference image */}
-                <div className="grid grid-cols-4 gap-2.5 sm:gap-3">
+                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5 sm:gap-3 lg:gap-4">
                   {section.categories.map((cat) => (
                     <button
                       key={cat.id}
@@ -914,7 +914,7 @@ export default function VendorDetailScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 lg:gap-4">
               {filteredProducts.map((product) => {
                 const qty = getItemQuantity(product._id || product.id);
                 const rawRate = product.cashbackPercentage ?? product.branding?.cashbackPercentage ?? product.cashbackRate ?? vendor.cashbackRate ?? 0;
@@ -1216,10 +1216,10 @@ export default function VendorDetailScreen() {
 
       {/* Floating Quick-Commerce Cart Bar (like Blinkit / Zepto) */}
       {cartItemsCount > 0 && (
-        <div className="fixed bottom-20 inset-x-0 z-40 px-3 max-w-[480px] mx-auto animate-bounce-short">
+        <div className="fixed bottom-20 inset-x-0 z-40 px-3 max-w-[480px] mx-auto lg:max-w-[1120px] lg:px-4 lg:flex lg:justify-end animate-bounce-short">
           <div
             onClick={() => navigate('/cart')}
-            className="w-full bg-slate-900 text-white rounded-2xl p-3 shadow-xl flex items-center justify-between cursor-pointer border border-purple-500/30 hover:bg-slate-850 active:scale-98 transition-all"
+            className="w-full lg:w-[440px] bg-slate-900 text-white rounded-2xl p-3 shadow-xl flex items-center justify-between cursor-pointer border border-purple-500/30 hover:bg-slate-850 active:scale-98 transition-all"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-black relative shrink-0">
@@ -1247,11 +1247,11 @@ export default function VendorDetailScreen() {
       )}
 
       {/* Bottom Action Buttons (Get Directions | Shop at Store) */}
-      <footer className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-100 p-3 max-w-[480px] mx-auto">
-        <div className="grid grid-cols-2 gap-2.5">
+      <footer className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-100 p-3 max-w-[480px] mx-auto md:max-w-none">
+        <div className="grid grid-cols-2 gap-2.5 md:max-w-[720px] lg:max-w-[1120px] md:mx-auto lg:flex lg:justify-end lg:gap-3 lg:px-4">
           <button
             onClick={handleGetDirections}
-            className="h-11 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-[13px] flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+            className="h-11 lg:w-[210px] rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-[13px] flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-primary text-[18px]">near_me</span>
             <span>{t('Get Directions')}</span>
@@ -1259,7 +1259,7 @@ export default function VendorDetailScreen() {
 
           <button
             onClick={products.length === 0 && cartItemsCount === 0 ? () => navigate('/pay-vendor', { state: { vendor } }) : handleShopAtStore}
-            className="h-11 rounded-full btn-primary-gradient text-white font-black text-[13px] flex items-center justify-center gap-1.5 shadow-md shadow-primary/25 active:scale-95 transition-all cursor-pointer"
+            className="h-11 lg:w-[210px] rounded-full btn-primary-gradient text-white font-black text-[13px] flex items-center justify-center gap-1.5 shadow-md shadow-primary/25 active:scale-95 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">
               {cartItemsCount > 0 ? 'shopping_bag' : products.length === 0 ? 'qr_code_scanner' : 'storefront'}

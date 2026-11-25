@@ -1850,16 +1850,18 @@ function ReferEarnSubView({ profile, onBack, t }) {
         <span className="font-display text-title-md text-primary ml-4">{t ? t('Refer & Earn') : 'Refer & Earn'}</span>
       </header>
 
-      <main className="flex-grow max-w-[460px] mx-auto w-full px-container-margin py-lg flex flex-col justify-between text-left space-y-6">
-        <div className="space-y-5 flex-grow">
+      <main className="flex-grow max-w-[460px] md:max-w-[720px] lg:max-w-[1120px] mx-auto w-full px-container-margin py-lg md:py-8 flex flex-col justify-between text-left space-y-6">
+        <div className="space-y-5 flex-grow lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+          {/* Left column: offer, stats & referral code */}
+          <div className="space-y-5">
           {/* Promotional Banner Card */}
-          <div className="bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#c026d3] text-white p-5 rounded-3xl shadow-lg shadow-purple-600/20 relative overflow-hidden flex items-center gap-md">
+          <div className="bg-gradient-to-br from-[#7c3aed] via-[#9333ea] to-[#c026d3] text-white p-5 md:p-7 rounded-3xl shadow-lg shadow-purple-600/20 relative overflow-hidden flex items-center gap-md">
             <span className="material-symbols-outlined absolute right-[-12px] bottom-[-14px] text-white/10 text-[115px] pointer-events-none select-none">card_giftcard</span>
             <div className="flex-grow z-10">
               <span className="text-[10px] text-amber-300 font-extrabold tracking-wider uppercase bg-amber-400/20 border border-amber-300/30 px-2.5 py-1 rounded-full">
                 {t ? t('INSTANT CASH REWARD', 'INSTANT CASH REWARD') : 'INSTANT CASH REWARD'}
               </span>
-              <h2 className="text-title-md font-black mt-2 leading-tight">
+              <h2 className="text-title-md md:text-[24px] font-black mt-2 leading-tight">
                 {t ? t('Invite Friends & Earn', 'Invite Friends & Earn') : 'Invite Friends & Earn'} ₹{stats.rewardAmount}!
               </h2>
               <p className="text-[11px] text-white/90 mt-1 leading-relaxed">
@@ -1921,7 +1923,10 @@ function ReferEarnSubView({ profile, onBack, t }) {
               </button>
             </div>
           </div>
+          </div>
 
+          {/* Right column: friends list & how it works */}
+          <div className="space-y-5">
           {/* Invited Friends List */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
@@ -1944,7 +1949,7 @@ function ReferEarnSubView({ profile, onBack, t }) {
                 </p>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden shadow-2xs max-h-[220px] overflow-y-auto">
+              <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden shadow-2xs max-h-[220px] lg:max-h-[320px] overflow-y-auto">
                 {stats.history.map((item, idx) => (
                   <div key={item._id || idx} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -2011,9 +2016,10 @@ function ReferEarnSubView({ profile, onBack, t }) {
               </div>
             </div>
           </div>
+          </div>
         </div>
 
-        <div className="pt-3">
+        <div className="pt-3 md:max-w-md md:mx-auto md:w-full">
           <button 
             onClick={handleShare}
             className="w-full h-13 bg-gradient-to-r from-purple-600 via-purple-700 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 active:scale-98 transition-all cursor-pointer"
