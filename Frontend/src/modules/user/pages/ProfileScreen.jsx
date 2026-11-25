@@ -430,10 +430,12 @@ export default function ProfileScreen() {
       </header>
 
       {/* Main Body */}
-      <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
-        
+      <main className="flex-grow app-container px-container-margin py-lg md:py-8 space-y-lg text-left lg:space-y-0 lg:grid lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-8 lg:items-start">
+
+        {/* Left column (desktop): identity, KYC, points & logout */}
+        <div className="space-y-lg lg:sticky lg:top-24">
         {/* User Card */}
-        <div className="glass-card rounded-[2rem] border border-outline-variant/30 p-md flex items-center gap-md shadow-sm relative bg-white">
+        <div className="glass-card rounded-[2rem] border border-outline-variant/30 p-md md:p-6 flex items-center gap-md lg:gap-4 shadow-sm relative bg-white">
           <div 
             className="relative cursor-pointer group"
             onClick={() => setShowImageOptions(true)}
@@ -453,7 +455,7 @@ export default function ProfileScreen() {
               capture="user"
               onChange={handleImageUpload}
             />
-            <div className="w-18 h-18 rounded-full bg-[#7c3aed]/10 flex items-center justify-center text-[#7c3aed] border border-[#7c3aed]/20 overflow-hidden relative">
+            <div className="w-18 h-18 md:w-20 md:h-20 rounded-full bg-[#7c3aed]/10 flex items-center justify-center text-[#7c3aed] border border-[#7c3aed]/20 overflow-hidden relative">
               {profile.profileImage ? (
                 <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
@@ -469,7 +471,7 @@ export default function ProfileScreen() {
             </div>
           </div>
           <div className="flex-grow min-w-0">
-            <h2 className="text-body-lg font-extrabold text-on-surface leading-tight truncate">{profile.name}</h2>
+            <h2 className="text-body-lg md:text-[20px] font-extrabold text-on-surface leading-tight truncate">{profile.name}</h2>
             
             {/* Customer Zeebac Unique ID Pill */}
             <div className="mt-1 flex items-center">
@@ -487,7 +489,7 @@ export default function ProfileScreen() {
             </div>
 
             <p className="text-[12px] text-on-surface-variant font-medium mt-1">{profile.phone}</p>
-            <p className="text-[11px] text-on-surface-variant/75 truncate max-w-[200px]">{profile.email}</p>
+            <p className="text-[11px] text-on-surface-variant/75 truncate max-w-[200px] md:max-w-full">{profile.email}</p>
           </div>
           <button 
             onClick={() => setSubView('edit-profile')}
@@ -547,6 +549,21 @@ export default function ProfileScreen() {
           <span className="material-symbols-outlined text-[20px] text-[#0F4C81] opacity-70 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
         </div>
 
+        {/* Logout (desktop: lives in the left column) */}
+        <button
+          onClick={() => {
+            logout('customer');
+            window.location.replace('/login');
+          }}
+          className="hidden lg:flex w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer items-center justify-center gap-sm shadow-sm"
+        >
+          <span className="material-symbols-outlined text-[18px]">logout</span>
+          {t('Logout Account')}
+        </button>
+        </div>
+
+        {/* Right column (desktop): settings groups */}
+        <div className="space-y-lg md:grid md:grid-cols-2 md:gap-5 md:space-y-0 lg:grid-cols-1 lg:space-y-6 lg:gap-0">
         {/* Settings Group 1: General Options */}
         <div className="space-y-sm">
           <h3 className="font-display text-body-sm font-extrabold text-on-surface-variant uppercase tracking-wider pl-1">{t('Accounts & History')}</h3>
@@ -681,13 +698,15 @@ export default function ProfileScreen() {
           </div>
         </div>
 
-        {/* Logout */}
+        </div>
+
+        {/* Logout (mobile / tablet) */}
         <button 
           onClick={() => {
             logout('customer');
             window.location.replace('/login');
           }}
-          className="w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"
+          className="lg:hidden w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
           {t('Logout Account')}
@@ -697,8 +716,8 @@ export default function ProfileScreen() {
 
       {/* Profile Picture Source Modal */}
       {showImageOptions && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center animate-reveal">
-          <div className="bg-white w-full max-w-[440px] rounded-t-3xl p-6 shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end md:items-center justify-center md:p-4 animate-reveal">
+          <div className="bg-white w-full max-w-[440px] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl relative">
             <button 
               onClick={() => setShowImageOptions(false)}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-surface-container hover:bg-outline-variant/20 transition-colors"
@@ -1418,7 +1437,7 @@ function SupportSubView({ onBack, t }) {
         <span className="font-display text-title-md text-primary ml-4">{t ? t('Help & FAQ Support') : 'Help & FAQ Support'}</span>
       </header>
 
-      <main className="flex-grow max-w-[440px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left">
+      <main className="flex-grow max-w-[440px] md:max-w-[720px] lg:max-w-[1120px] mx-auto w-full px-container-margin py-xl flex flex-col justify-between text-left lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8 lg:items-start">
         <div className="space-y-lg flex-grow">
           <div className="text-center space-y-xs pb-2 border-b border-outline-variant/10">
             <span className="material-symbols-outlined text-[#7c3aed] text-[48px] animate-bounce">contact_support</span>
@@ -1431,7 +1450,7 @@ function SupportSubView({ onBack, t }) {
             href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
+            className="lg:hidden w-full p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
@@ -1540,7 +1559,37 @@ function SupportSubView({ onBack, t }) {
             )}
           </div>
 
-          <div className="pt-xl">
+          </div>
+
+        {/* Right column (desktop): WhatsApp, tickets & contact */}
+        <div className="space-y-lg lg:sticky lg:top-24">
+          {/* Direct WhatsApp Support Card (desktop) */}
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:flex w-full p-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-[#25D366] text-white rounded-2xl flex items-center justify-between shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-[0.98] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.761.815 2.796.815 3.183 0 5.769-2.587 5.77-5.767 0-3.181-2.587-5.767-5.77-5.767zm7.391 5.766c-.001 4.075-3.316 7.39-7.391 7.39-1.287 0-2.496-.334-3.555-.92L4.01 19.5l1.093-3.992c-.675-1.127-1.072-2.428-1.072-3.818 0-4.075 3.316-7.39 7.391-7.39 4.075 0 7.39 3.315 7.391 7.39z"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-[15px] leading-tight text-white">Chat on WhatsApp</span>
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                </div>
+                <p className="text-[12px] text-white/95 font-medium mt-0.5">{supportWhatsapp} · Direct Support</p>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0">
+              <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+            </div>
+          </a>
+
+          <div className="pt-xl lg:pt-0">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-title-md font-bold text-on-surface">My Support Tickets</h3>
               <button 
@@ -1619,9 +1668,8 @@ function SupportSubView({ onBack, t }) {
               </div>
             )}
           </div>
-        </div>
 
-        <div className="pt-8 space-y-3">
+        <div className="pt-8 lg:pt-0 space-y-3">
           <a 
             href={waUrl}
             target="_blank"
@@ -1641,6 +1689,7 @@ function SupportSubView({ onBack, t }) {
             <span className="material-symbols-outlined">mail</span>
             Email Support (24/7)
           </a>
+        </div>
         </div>
       </main>
     </div>
