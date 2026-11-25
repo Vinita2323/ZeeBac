@@ -197,9 +197,10 @@ export default function WalletScreen() {
       </header>
 
       {/* Main body content */}
-      <main className="flex-grow app-container px-container-margin py-lg space-y-lg text-left">
-        
+      <main className="flex-grow app-container px-container-margin py-lg md:py-8 space-y-lg text-left lg:space-y-0 lg:grid lg:grid-cols-[420px_minmax(0,1fr)] lg:gap-8 lg:items-start">
 
+        {/* Left column (desktop): balance card & cashback requests */}
+        <div className="space-y-lg lg:sticky lg:top-24">
         {/* Available rewards banner card */}
         <div className="bg-white border border-outline-variant/30 rounded-[2rem] p-lg shadow-md text-center space-y-md relative overflow-hidden">
           <div className="space-y-sm">
@@ -208,7 +209,7 @@ export default function WalletScreen() {
               <span>1 Zeebac Point = ₹1 Rupee</span>
             </div>
             <div className="flex items-center justify-center gap-2 pt-1">
-              <h2 className="text-[44px] font-display font-black text-primary leading-none">{balance.toFixed(0)}</h2>
+              <h2 className="text-[44px] md:text-[52px] font-display font-black text-primary leading-none">{balance.toFixed(0)}</h2>
               <span className="text-[20px] font-extrabold text-on-surface-variant">Pts</span>
             </div>
             <p className="text-[13px] font-bold text-emerald-600">Total Purchase Value: ₹{balance.toFixed(2)}</p>
@@ -280,13 +281,14 @@ export default function WalletScreen() {
           </div>
           <span className="material-symbols-outlined text-outline text-body-lg">chevron_right</span>
         </div>
+        </div>
 
         {/* Recent rewards transaction list */}
         <div className="space-y-md">
           <h3 className="font-display text-title-md text-on-surface font-extrabold">{t('Recent Wallet Activity')}</h3>
           
           {activities.length === 0 ? (
-            <div className="glass-card rounded-2xl py-8 px-4 flex flex-col items-center text-center gap-1.5">
+            <div className="glass-card rounded-2xl py-8 lg:py-16 px-4 flex flex-col items-center text-center gap-1.5">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-1">
                 <span className="material-symbols-outlined text-primary text-[24px]">receipt_long</span>
               </div>

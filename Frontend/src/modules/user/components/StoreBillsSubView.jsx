@@ -101,7 +101,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
   const totalCashbackEarned = bills.reduce((acc, b) => acc + Number(b.cashbackAmount || 0), 0);
 
   return (
-    <div className="bg-white min-h-screen text-on-surface flex flex-col font-body-lg pb-10">
+    <div className="bg-white md:bg-slate-50/60 min-h-screen text-on-surface flex flex-col font-body-lg pb-10">
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 border-b border-slate-100 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2">
@@ -135,10 +135,10 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
       </header>
 
       {/* Main Body */}
-      <main className="max-w-md mx-auto w-full px-4 py-3 space-y-3 flex-1">
+      <main className="max-w-md md:max-w-[720px] lg:max-w-[1120px] mx-auto w-full px-4 py-3 md:py-6 space-y-3 md:space-y-4 flex-1">
         {/* Search Bar Input */}
         {showSearch && (
-          <div className="relative animate-reveal">
+          <div className="relative animate-reveal md:max-w-xl">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
               search
             </span>
@@ -162,12 +162,12 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
         )}
 
         {/* Quick Stats Banner */}
-        <div className="bg-gradient-to-r from-purple-50 via-fuchsia-50/40 to-emerald-50/50 rounded-2xl p-3.5 border border-purple-100/80 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-50 via-fuchsia-50/40 to-emerald-50/50 rounded-2xl p-3.5 md:p-5 border border-purple-100/80 flex items-center justify-between">
           <div>
             <p className="text-[10px] text-purple-700 uppercase font-bold tracking-wider">
               {t('Total Store Bills', 'Total Store Bills')}
             </p>
-            <p className="font-display font-black text-xl text-purple-950 mt-0.5">
+            <p className="font-display font-black text-xl md:text-2xl text-purple-950 mt-0.5">
               {bills.length}
             </p>
           </div>
@@ -176,7 +176,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
               <span className="material-symbols-outlined text-[12px]">redeem</span>
               {t('Total Cashback Earned', 'Cashback Earned')}
             </p>
-            <p className="font-display font-black text-xl text-emerald-600 mt-0.5">
+            <p className="font-display font-black text-xl md:text-2xl text-emerald-600 mt-0.5">
               +₹{totalCashbackEarned.toLocaleString('en-IN')}
             </p>
           </div>
@@ -190,7 +190,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
           </div>
         ) : filteredBills.length > 0 ? (
           /* Store Bills List */
-          <div className="space-y-3">
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4 md:items-start">
             {filteredBills.map((bill) => (
               <div
                 key={bill.id || bill.billNumber}

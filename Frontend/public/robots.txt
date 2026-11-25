@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /vendor/
+Disallow: /delivery/
+Disallow: /verify-otp
+Disallow: /vendor-app/verify-otp
+
+Sitemap: https://zeebac.com/sitemap.xml
