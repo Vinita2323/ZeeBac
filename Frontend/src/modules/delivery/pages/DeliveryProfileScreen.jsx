@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { toast } from 'react-hot-toast';
-import { playDeliveryOrderAlarm } from '../../../utils/voiceUtils';
+import { playDeliveryOrderAlarm } from '../../../utils/voiceUtils';
+import useSupportConfig, { toTelHref } from '../../../hooks/useSupportConfig';
 
 export default function DeliveryProfileScreen() {
+  const { riderSupportPhone: helplinePhone } = useSupportConfig();
   const navigate = useNavigate();
   const rider = useDeliveryStore((state) => state.rider);
   const token = useDeliveryStore((state) => state.token);
@@ -358,14 +360,14 @@ export default function DeliveryProfileScreen() {
           <h3 className="font-display font-black text-sm text-slate-900">Support & Emergency</h3>
           <div className="divide-y divide-slate-100 text-xs">
             <a
-              href="tel:18001234567"
+              href={toTelHref(helplinePhone)}
               className="py-2.5 flex items-center justify-between text-slate-800 hover:text-purple-700 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-[20px] text-purple-600">support_agent</span>
                 <div>
                   <p className="font-bold">Zeebac Rider Helpline</p>
-                  <p className="text-[10px] text-slate-400 font-medium">Call 1800-123-4567</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Call {helplinePhone}</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-[18px] text-purple-700">call</span>

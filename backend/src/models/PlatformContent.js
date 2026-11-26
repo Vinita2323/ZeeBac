@@ -40,6 +40,12 @@ const platformContentSchema = new mongoose.Schema(
       default: '+919111966732',
       trim: true,
     },
+    // Separate helpline for delivery riders (e.g. operations team). Empty = use supportPhone.
+    riderSupportPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     supportEmail: {
       type: String,
       default: 'support@zeebac.com',

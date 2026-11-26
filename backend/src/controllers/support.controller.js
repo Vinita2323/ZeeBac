@@ -451,6 +451,9 @@ export const getSupportConfig = async (req, res) => {
       data: {
         supportWhatsapp: content.supportWhatsapp || '+919111966732',
         supportPhone: content.supportPhone || '+919111966732',
+        // Rider helpline falls back to the main helpline when not set
+        riderSupportPhone: content.riderSupportPhone || content.supportPhone || '+919111966732',
+        riderSupportPhoneIsCustom: Boolean(content.riderSupportPhone),
         supportEmail: content.supportEmail || 'support@zeebac.com',
       },
     });
@@ -463,7 +466,16 @@ export const getSupportConfig = async (req, res) => {
 // 8. Admin: Update Support Contact Configuration (WhatsApp, Phone, Email)
 export const updateSupportConfig = async (req, res) => {
   try {
-    const { supportWhatsapp, supportPhone, supportEmail } = req.body;
+    const { supportWhatsapp, supportPhone, supportEmail, riderSupportPhone } = req.body || {};
+    const PHONE_RX = /^\+?[0-9][0-9\s-]{5,18}$/;
+    for (const [key, val] of Object.entries({ supportWhatsapp, supportPhone, supportEmail, riderSupportPhone })) {
+      if (val !== undefined && typeof val !== 'string') {
+        return res.status(400).json({ success: false, message: `${key} must be text` });
+      }
+    }
+    if (riderSupportPhone && !PHONE_RX.test(riderSupportPhone.trim())) {
+      return res.status(400).json({ success: false, message: 'Enter a valid rider helpline number (digits, optional +, spaces or dashes)' });
+    }
     let content = await PlatformContent.findOne();
     if (!content) {
       content = new PlatformContent({});
@@ -471,6 +483,7 @@ export const updateSupportConfig = async (req, res) => {
     if (supportWhatsapp !== undefined) content.supportWhatsapp = supportWhatsapp.trim();
     if (supportPhone !== undefined) content.supportPhone = supportPhone.trim();
     if (supportEmail !== undefined) content.supportEmail = supportEmail.trim();
+    if (riderSupportPhone !== undefined) content.riderSupportPhone = riderSupportPhone.trim();
     if (req.user?.id) content.updatedBy = req.user.id;
     await content.save();
 
@@ -481,6 +494,7 @@ export const updateSupportConfig = async (req, res) => {
         supportWhatsapp: content.supportWhatsapp,
         supportPhone: content.supportPhone,
         supportEmail: content.supportEmail,
+        riderSupportPhone: content.riderSupportPhone,
       },
     });
   } catch (error) {

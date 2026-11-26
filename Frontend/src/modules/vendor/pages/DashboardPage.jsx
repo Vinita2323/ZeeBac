@@ -14,8 +14,10 @@ import { getSocket } from '../../../services/socket';
 import useLanguageStore from '../../../store/useLanguageStore';
 import { formatOrderTime, playStoreNewOrderAlarm, playRiderDeclinedTone } from '../../../utils/voiceUtils';
 import { isManufacturerOrWholesaler } from '../../../utils/vendorSectorUtils';
+import useSupportConfig from '../../../hooks/useSupportConfig';
 
 export default function DashboardPage() {
+  const { supportPhone: helplinePhone } = useSupportConfig();
   const navigate = useNavigate();
   const { t } = useLanguageStore();
   const [showQRModal, setShowQRModal] = useState(false);
@@ -611,7 +613,7 @@ export default function DashboardPage() {
               <p className="font-bold text-[13.5px] text-slate-900 group-hover:text-purple-700 transition-colors">
                 Need Help?
               </p>
-              <p className="text-[11.5px] text-slate-500">Contact Support • Call 1800-123-4567</p>
+              <p className="text-[11.5px] text-slate-500">Contact Support • Call {helplinePhone}</p>
             </div>
           </div>
           <span className="material-symbols-outlined text-slate-400 group-hover:text-purple-700 group-hover:translate-x-0.5 transition-all">

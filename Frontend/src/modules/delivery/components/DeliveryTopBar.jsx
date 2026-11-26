@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { DeliveryAPI } from '../../../services/api';
-import { toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
+import useSupportConfig, { toTelHref } from '../../../hooks/useSupportConfig';
 
 export default function DeliveryTopBar({ onToggleOnline, isTogglingOnline, activeOrder }) {
+  const { riderSupportPhone: helplinePhone } = useSupportConfig();
   const navigate = useNavigate();
   const rider = useDeliveryStore((state) => state.rider);
   const isOnline = useDeliveryStore((state) => state.isOnline);
@@ -175,14 +177,14 @@ export default function DeliveryTopBar({ onToggleOnline, isTogglingOnline, activ
               </a>
 
               <a
-                href="tel:18001234567"
+                href={toTelHref(helplinePhone)}
                 className="w-full py-2.5 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-black flex items-center justify-between transition-all"
               >
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">support_agent</span>
                   <span>Zeebac Rider Helpline</span>
                 </div>
-                <span className="font-mono text-xs">1800-123-4567</span>
+                <span className="font-mono text-xs">{helplinePhone}</span>
               </a>
             </div>
 
@@ -241,7 +243,7 @@ export default function DeliveryTopBar({ onToggleOnline, isTogglingOnline, activ
               </button>
 
               <a
-                href="tel:18001234567"
+                href={toTelHref(helplinePhone)}
                 className="w-full p-3 rounded-xl bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 border border-slate-100 flex items-center justify-between font-bold"
               >
                 <span className="flex items-center gap-1.5">

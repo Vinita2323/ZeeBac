@@ -14,7 +14,8 @@ import {
   describeBiometricUnsupportedReason,
   registerBiometricCredential,
 } from '../../../utils/biometric.util';
-import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+import useSupportConfig, { toTelHref } from '../../../hooks/useSupportConfig';
 import {
   getStoreTimingStatus,
   formatOperatingHours,
@@ -23,6 +24,7 @@ import {
 } from '../../../utils/storeTiming';
 
 export default function ProfilePage({ openDocs = false }) {
+  const { supportPhone: helplinePhone } = useSupportConfig();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguageStore();
@@ -883,7 +885,7 @@ export default function ProfilePage({ openDocs = false }) {
         {/* 4. BOTTOM 24/7 HELPLINE (Matching Reference Screen 5) */}
         {/* ───────────────────────────────────────────────────────────── */}
         <a
-          href="tel:18001234567"
+          href={toTelHref(helplinePhone)}
           className="max-w-md mx-auto bg-purple-50 hover:bg-purple-100/80 border border-purple-200/80 rounded-2xl p-3 flex items-center justify-between transition-colors cursor-pointer shadow-2xs group"
         >
           <div className="flex items-center gap-3">
@@ -893,7 +895,7 @@ export default function ProfilePage({ openDocs = false }) {
             <div>
               <p className="text-[11px] font-bold text-slate-500 leading-none">Need Help?</p>
               <p className="font-display font-black text-[13.5px] text-purple-900 mt-0.5 leading-tight">
-                Call 1800-123-4567
+                Call {helplinePhone}
               </p>
             </div>
           </div>
@@ -1387,15 +1389,15 @@ export default function ProfilePage({ openDocs = false }) {
 
             <div className="space-y-2">
               <a
-                href="tel:18001234567"
+                href={toTelHref(helplinePhone)}
                 className="p-3 rounded-2xl bg-purple-50 hover:bg-purple-100 border border-purple-200 flex items-center gap-3 transition-colors cursor-pointer"
               >
                 <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-[20px]">call</span>
                 </div>
                 <div>
-                  <p className="text-[13px] font-bold text-slate-900">Toll-Free Partner Helpline</p>
-                  <p className="text-[11px] text-primary font-bold">1800-123-4567 (Toll-Free)</p>
+                  <p className="text-[13px] font-bold text-slate-900">Partner Helpline</p>
+                  <p className="text-[11px] text-primary font-bold">{helplinePhone}</p>
                 </div>
               </a>
 

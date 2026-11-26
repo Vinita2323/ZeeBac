@@ -57,6 +57,7 @@ export default function SupportPage() {
   const [supportConfig, setSupportConfig] = useState({
     supportWhatsapp: '+91 91119 66732',
     supportPhone: '+91 91119 66732',
+    riderSupportPhone: '',
     supportEmail: 'support@zeebac.com'
   });
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
@@ -75,6 +76,8 @@ export default function SupportPage() {
         setSupportConfig({
           supportWhatsapp: res.data.supportWhatsapp || '+91 91119 66732',
           supportPhone: res.data.supportPhone || '+91 91119 66732',
+          // Show empty when the rider helpline is just falling back to the main number
+          riderSupportPhone: res.data.riderSupportPhoneIsCustom ? res.data.riderSupportPhone : '',
           supportEmail: res.data.supportEmail || 'support@zeebac.com'
         });
       }
@@ -1157,6 +1160,24 @@ export default function SupportPage() {
                     </p>
                   </div>
 
+                  {/* Rider Helpline Field */}
+                  <div>
+                    <label className="block text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                      Rider Helpline Number
+                    </label>
+                    <input
+                      type="text"
+                      value={supportConfig.riderSupportPhone}
+                      onChange={(e) => setSupportConfig({ ...supportConfig, riderSupportPhone: e.target.value })}
+                      placeholder={`Same as helpline (${supportConfig.supportPhone || '+91 91119 66732'})`}
+                      className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-xl text-[14px] font-semibold text-on-surface focus:outline-none focus:border-primary focus:bg-white"
+                    />
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      Number delivery partners call from the rider app (Support &amp; Emergency, SOS). Leave empty to use the main helpline.
+                    </p>
+                  </div>
+
                   {/* Support Email Field */}
                   <div>
                     <label className="block text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -1254,6 +1275,9 @@ export default function SupportPage() {
                       <span className="text-[12px] font-bold block text-on-surface">Helpline Dialing</span>
                       <p className="text-[11px] text-on-surface-variant font-medium">
                         {supportConfig.supportPhone || '+91 91119 66732'}
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant font-medium">
+                        Riders: {supportConfig.riderSupportPhone || supportConfig.supportPhone || '+91 91119 66732'}
                       </p>
                     </div>
                   </div>

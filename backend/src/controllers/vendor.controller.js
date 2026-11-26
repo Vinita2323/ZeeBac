@@ -4352,10 +4352,16 @@ export const verifyMerchantPayment = async (req, res) => {
  * GET /api/v1/vendor/gst-report
  * Automatically calculates GST liability on all sales and Input Tax Credit (ITC) on all wholesaler purchases.
  */
+const resolveRequestVendor = async (req) => req.vendor || (req.user?.id ? Vendor.findById(req.user.id).lean() : null);
+
 export const getVendorGSTReport = async (req, res) => {
   try {
-    const vendorId = req.vendor._id;
-    const vendor = req.vendor;
+    // req.vendor is only set by the requireRole fallback path; load it when missing
+    const vendor = await resolveRequestVendor(req);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+    const vendorId = vendor._id;
     const { month, year, quarter } = req.query;
 
     const now = new Date();
@@ -4618,8 +4624,12 @@ export const getVendorGSTReport = async (req, res) => {
  */
 export const fileVendorGST = async (req, res) => {
   try {
-    const vendorId = req.vendor._id;
-    const vendor = req.vendor;
+    // req.vendor is only set by the requireRole fallback path; load it when missing
+    const vendor = await resolveRequestVendor(req);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+    const vendorId = vendor._id;
     const { period, arn, notes, filingMode = 'ZEEBAC_AUTO', periodName, totalSalesTaxable, totalOutputGst, totalPurchasesTaxable, totalInputGst, netGstPayable, itcCarryForward } = req.body;
 
     if (!period) {
@@ -4671,7 +4681,11 @@ export const fileVendorGST = async (req, res) => {
  */
 export const getVendorGSTFilingHistory = async (req, res) => {
   try {
-    const vendorId = req.vendor._id;
+    const vendor = await resolveRequestVendor(req);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+    const vendorId = vendor._id;
     const filings = await GstFiling.find({ vendorId }).sort({ createdAt: -1 }).lean();
     return res.status(200).json({ success: true, data: filings });
   } catch (error) {
