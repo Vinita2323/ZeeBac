@@ -54,7 +54,12 @@ export default function DashboardPage() {
     },
   ];
 
-  const pendingVendors = []; // We can fetch recent pending vendors if needed later
+  const [pendingVendors, setPendingVendors] = useState([]);
+  useEffect(() => {
+    AdminAPI.getVendors('PENDING_REVIEW', 1, '')
+      .then((res) => setPendingVendors((res.data || []).slice(0, 5)))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-6 animate-reveal text-left">
@@ -349,7 +354,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border border-outline-variant/5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden">
           <div className="p-4 border-b border-outline-variant/5 flex justify-between items-center bg-[#fafafa]">
             <h3 className="font-title-md font-bold text-on-surface text-[14px]">Live Transactions</h3>
-            <button className="text-primary text-[12px] font-bold hover:underline">View All</button>
+            <button onClick={() => navigate('/admin/transactions')} className="text-primary text-[12px] font-bold hover:underline">View All</button>
           </div>
           <div className="p-0 overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[500px]">
@@ -396,18 +401,21 @@ export default function DashboardPage() {
             <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{data?.pendingVendors || 0} Pending</span>
           </div>
           <div className="p-3 space-y-2 flex-1">
+            {pendingVendors.length === 0 && (
+              <p className="text-[12px] text-on-surface-variant text-center py-8">No vendors waiting for review.</p>
+            )}
             {pendingVendors.map((vendor, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg border border-outline-variant/5 hover:border-primary/20 transition-colors bg-white">
+              <div key={vendor._id || idx} className="flex items-center justify-between p-2.5 rounded-lg border border-outline-variant/5 hover:border-primary/20 transition-colors bg-white">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-surface-container-low rounded-md flex items-center justify-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-[16px]">storefront</span>
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold text-on-surface leading-tight">{vendor.name}</h4>
-                    <p className="text-[11px] text-on-surface-variant">{vendor.category} • {vendor.date}</p>
+                    <h4 className="text-[13px] font-bold text-on-surface leading-tight">{vendor.storeName || vendor.ownerName}</h4>
+                    <p className="text-[11px] text-on-surface-variant">{vendor.category || vendor.businessType || 'Store'} • {new Date(vendor.lastSubmittedAt || vendor.submittedAt || vendor.createdAt).toLocaleDateString('en-IN')}</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-primary/10 text-primary font-bold text-[11px] rounded-md hover:bg-primary hover:text-white transition-colors">
+                <button onClick={() => navigate(`/admin/vendors/${vendor._id}`)} className="px-3 py-1 bg-primary/10 text-primary font-bold text-[11px] rounded-md hover:bg-primary hover:text-white transition-colors">
                   Review
                 </button>
               </div>

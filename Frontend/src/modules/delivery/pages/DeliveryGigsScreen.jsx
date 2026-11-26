@@ -37,7 +37,7 @@ export default function DeliveryGigsScreen() {
 
       if (zonesRes.success && zonesRes.data) {
         setZones(zonesRes.data.zones || []);
-        if (zonesRes.data.currentZone && !zoneName) {
+        if (zonesRes.data.currentZone && !rider?.workingZone && zonesRes.data.currentZone !== zoneName) {
           setSelectedZone(zonesRes.data.currentZone);
         }
       }
@@ -382,7 +382,8 @@ export default function DeliveryGigsScreen() {
             ) : (
               bookedGigs.map((gig) => {
                 const isCheckedIn = gig.status === 'CHECKED_IN';
-                const todayStr = new Date().toISOString().slice(0, 10);
+                const now = new Date();
+                const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 const isToday = gig.date === todayStr;
 
                 return (
