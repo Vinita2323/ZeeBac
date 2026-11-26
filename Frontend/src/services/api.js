@@ -303,6 +303,34 @@ export const AdminAPI = {
     const res = await apiClient.post(`/admin/delivery/partners/${id}/settle-cash`, data);
     return res.data;
   },
+  getRiderEarningsSummary: async (params = {}) => {
+    const res = await apiClient.get('/admin/delivery/earnings', { params });
+    return res.data;
+  },
+  getRiderEarningsLedger: async (riderId, params = {}) => {
+    const res = await apiClient.get(`/admin/delivery/earnings/${riderId}`, { params });
+    return res.data;
+  },
+  getRiderCashLedgerSummary: async (params = {}) => {
+    const res = await apiClient.get('/admin/delivery/cash-ledger', { params });
+    return res.data;
+  },
+  getRiderCashLedger: async (riderId, params = {}) => {
+    const res = await apiClient.get(`/admin/delivery/cash-ledger/${riderId}`, { params });
+    return res.data;
+  },
+  getRiderSettlementRequests: async (params = {}) => {
+    const res = await apiClient.get('/admin/delivery/settlement-requests', { params });
+    return res.data;
+  },
+  processRiderWithdrawal: async (riderId, requestId, data) => {
+    const res = await apiClient.post(`/admin/delivery/partners/${riderId}/withdrawals/${requestId}/process`, data);
+    return res.data;
+  },
+  verifyRiderCashDeposit: async (riderId, depositId, data) => {
+    const res = await apiClient.post(`/admin/delivery/partners/${riderId}/cash-deposits/${depositId}/verify`, data);
+    return res.data;
+  },
   saveAdminFcmToken: async (token) => {
     const res = await apiClient.post('/admin/fcm-token', { token });
     return res.data;
@@ -1447,6 +1475,10 @@ export const DeliveryAPI = {
   },
   depositCash: async (data) => {
     const res = await apiClient.post('/delivery/deposit-cash', data);
+    return res.data;
+  },
+  logout: async () => {
+    const res = await apiClient.post('/delivery/logout');
     return res.data;
   },
   getZones: async (params) => {

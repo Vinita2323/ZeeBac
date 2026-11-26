@@ -133,6 +133,12 @@ const deliveryPartnerSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // Last time the rider app showed activity (orders poll, GPS update, socket connect).
+    // Used to auto-switch inactive riders offline.
+    lastSeenAt: {
+      type: Date,
+      default: null,
+    },
     status: {
       type: String,
       enum: ['AVAILABLE', 'BUSY', 'OFFLINE'],
@@ -234,6 +240,7 @@ const deliveryPartnerSchema = new mongoose.Schema(
         utr: String,
         status: { type: String, enum: ['COMPLETED', 'PENDING', 'REJECTED'], default: 'COMPLETED' },
         settledAt: { type: Date, default: Date.now },
+        submittedAt: Date,
         verifiedBy: String,
         note: String,
       },
@@ -284,6 +291,14 @@ const deliveryPartnerSchema = new mongoose.Schema(
           surgeBonus: Number,
         },
         date: { type: Date, default: Date.now },
+        // Withdrawal lifecycle (WITHDRAWAL entries start PENDING until admin pays).
+        // Other entry types default to COMPLETED, matching previous behaviour.
+        status: { type: String, enum: ['PENDING', 'COMPLETED', 'REJECTED'], default: 'COMPLETED' },
+        payoutMethod: { type: String, enum: ['CASH', 'ONLINE', null], default: null },
+        utr: String,
+        processedAt: Date,
+        processedBy: String,
+        remarks: String,
       },
     ],
 

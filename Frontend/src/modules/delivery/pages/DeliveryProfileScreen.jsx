@@ -68,7 +68,13 @@ export default function DeliveryProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Go offline on the server first so the rider stops receiving orders after logout
+    try {
+      await DeliveryAPI.logout();
+    } catch {
+      // Ignore network errors — local logout must still happen
+    }
     logout();
     toast.success('Logged out successfully');
     navigate('/delivery/login');

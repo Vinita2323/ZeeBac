@@ -9,6 +9,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
+  const [openGroups, setOpenGroups] = useState({});
 
   useEffect(() => {
     const fetchOpenTickets = async () => {
@@ -28,7 +29,17 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
     { label: 'Users', icon: 'group', path: '/admin/users' },
     { label: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
-    { label: 'Delivery Partners', icon: 'two_wheeler', path: '/admin/delivery-partners' },
+    {
+      label: 'Delivery Partners',
+      icon: 'two_wheeler',
+      path: '/admin/delivery-partners',
+      children: [
+        { label: 'All Partners', icon: 'groups', path: '/admin/delivery-partners' },
+        { label: 'Deposits & Payouts', icon: 'account_balance_wallet', path: '/admin/rider-settlements' },
+        { label: 'Rider Cash Ledger', icon: 'payments', path: '/admin/rider-cash-ledger' },
+        { label: 'Rider Earnings', icon: 'savings', path: '/admin/rider-earnings' },
+      ],
+    },
     { label: 'Live Deliveries', icon: 'route', path: '/admin/delivery-operations' },
     { label: 'Subscription Plans', icon: 'card_membership', path: '/admin/subscriptions' },
     { label: 'Supply Chain & B2B', icon: 'hub', path: '/admin/supply-chain' },
@@ -101,8 +112,76 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
       {/* Navigation Links */}
       <nav className={`flex-1 overflow-y-auto py-4 ${isCollapsed ? 'px-2' : 'px-3'} space-y-1 scroll-hide`}>
         {navItems.map((item) => {
+          // Dropdown group (e.g. Delivery Partners)
+          if (item.children) {
+            const childActive = item.children.some((c) => location.pathname.startsWith(c.path));
+            const isOpen = openGroups[item.label] ?? childActive;
+            return (
+              <div key={item.label} className="space-y-1">
+                <button
+                  onClick={() =>
+                    isCollapsed
+                      ? handleNavClick(item.children[0].path)
+                      : setOpenGroups((g) => ({ ...g, [item.label]: !isOpen }))
+                  }
+                  className={`w-full relative flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                    childActive && (isCollapsed || !isOpen)
+                      ? 'bg-white/50 backdrop-blur-md border-white/50 text-primary font-bold shadow-sm'
+                      : 'border-transparent text-[#4b3370] hover:bg-[#d8cced]/70 hover:text-[#25005b] font-medium'
+                  }`}
+                  title={isCollapsed ? item.label : undefined}
+                >
+                  <span
+                    className="material-symbols-outlined text-[18px]"
+                    style={{ fontVariationSettings: childActive ? "'FILL' 1" : "'FILL' 0" }}
+                  >
+                    {item.icon}
+                  </span>
+                  {!isCollapsed && (
+                    <>
+                      <span className={`font-title-md text-[13px] ${childActive ? 'font-bold' : 'font-medium'}`}>
+                        {item.label}
+                      </span>
+                      <span
+                        className={`material-symbols-outlined text-[18px] ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                      >
+                        expand_more
+                      </span>
+                    </>
+                  )}
+                </button>
+                {!isCollapsed && isOpen && (
+                  <div className="ml-5 pl-3 border-l border-[#cbbedf] space-y-1">
+                    {item.children.map((child) => {
+                      const active = location.pathname.startsWith(child.path);
+                      return (
+                        <button
+                          key={child.path}
+                          onClick={() => handleNavClick(child.path)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all duration-200 cursor-pointer ${
+                            active
+                              ? 'bg-white/50 backdrop-blur-md border-white/50 text-primary font-bold shadow-sm'
+                              : 'border-transparent text-[#4b3370] hover:bg-[#d8cced]/70 hover:text-[#25005b] font-medium'
+                          }`}
+                        >
+                          <span
+                            className="material-symbols-outlined text-[16px]"
+                            style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
+                          >
+                            {child.icon}
+                          </span>
+                          <span className="font-title-md text-[12.5px]">{child.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           // Exact match for dashboard, prefix match for others
-          const isActive = item.path === '/admin' 
+          const isActive = item.path === '/admin'
             ? location.pathname === '/admin' || location.pathname === '/admin/'
             : location.pathname.startsWith(item.path);
 

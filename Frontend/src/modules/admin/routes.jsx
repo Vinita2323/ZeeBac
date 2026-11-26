@@ -7,6 +7,9 @@ import VendorsPage from './pages/VendorsPage';
 import VendorApplicationDetailPage from './pages/VendorApplicationDetailPage';
 import DeliveryPartnersPage from './pages/DeliveryPartnersPage';
 import DeliveryOperationsPage from './pages/DeliveryOperationsPage';
+import RiderSettlementsPage from './pages/RiderSettlementsPage';
+import RiderCashLedgerPage from './pages/RiderCashLedgerPage';
+import RiderEarningsPage from './pages/RiderEarningsPage';
 import TransactionsPage from './pages/TransactionsPage';
 import CashbackRulesPage from './pages/CashbackRulesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -31,6 +34,9 @@ export default function AdminRoutes() {
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/vendors/:id" element={<VendorApplicationDetailPage />} />
         <Route path="/delivery-partners" element={<DeliveryPartnersPage />} />
+        <Route path="/rider-settlements" element={<RiderSettlementsPage />} />
+        <Route path="/rider-cash-ledger" element={<RiderCashLedgerPage />} />
+        <Route path="/rider-earnings" element={<RiderEarningsPage />} />
         <Route path="/delivery-operations" element={<DeliveryOperationsPage />} />
         <Route path="/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />

@@ -7,6 +7,7 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import DeliveryPayoutConfig from '../models/DeliveryPayoutConfig.js';
 import { calculateDeliveryPayout } from '../utils/deliveryPayout.util.js';
+import { touchRiderLastSeen } from '../utils/riderPresence.util.js';
 import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
 import logger from '../utils/logger.js';
@@ -571,6 +572,7 @@ export const updateDeliveryLocation = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
     }
 
+    rider.lastSeenAt = new Date();
     if (rawLat !== undefined && rawLng !== undefined) {
       rider.currentLocation = {
         latitude: Number(rawLat),
@@ -643,6 +645,7 @@ export const getDeliveryOrders = async (req, res) => {
     if (!rider) {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
     }
+    touchRiderLastSeen(rider._id);
 
     const riderLat = rider.currentLocation?.latitude;
     const riderLng = rider.currentLocation?.longitude;
@@ -897,6 +900,14 @@ export const acceptDeliveryOrder = async (req, res) => {
         cashInHand,
         maxCashLimit: effectiveLimit,
         message: `Cannot accept order! You have reached your Cash-in-Hand limit (₹${cashInHand} / ₹${effectiveLimit}). Please deposit collected cash to Admin first.`,
+      });
+    }
+
+    if (!rider.isOnline) {
+      return res.status(403).json({
+        success: false,
+        code: 'RIDER_OFFLINE',
+        message: 'You are Offline. Go Online to accept delivery orders.',
       });
     }
 
@@ -1477,19 +1488,24 @@ export const getDeliveryEarnings = async (req, res) => {
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Monday 00:00 of the current week (matches the week range shown in the rider app)
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - ((startOfToday.getDay() + 6) % 7));
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const ledger = rider.earningsLedger || [];
-    const todayEarnings = ledger
+    // Only rider fee (+tip) counts as earnings. COD cash collected is admin money held by the
+    // rider, and withdrawals/cash settlements are wallet movements — none of these are earnings.
+    const payoutLedger = ledger.filter((e) => e.type === 'DELIVERY_PAYOUT');
+    const todayEarnings = payoutLedger
       .filter((e) => new Date(e.date) >= startOfToday)
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    const weekEarnings = ledger
+    const weekEarnings = payoutLedger
       .filter((e) => new Date(e.date) >= startOfWeek)
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    const monthEarnings = ledger
+    const monthEarnings = payoutLedger
       .filter((e) => new Date(e.date) >= startOfMonth)
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
@@ -1499,7 +1515,7 @@ export const getDeliveryEarnings = async (req, res) => {
     }).lean();
 
     const totalTips = deliveredOrders.reduce((sum, o) => sum + (o.tipAmount || 0), 0);
-    const codOrders = deliveredOrders.filter((o) => o.paymentMethod === 'Cash');
+    const codOrders = deliveredOrders.filter((o) => ['CASH', 'COD', 'Cash'].includes(o.paymentMethod));
     const totalCodCollected = codOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
     const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
@@ -1521,6 +1537,13 @@ export const getDeliveryEarnings = async (req, res) => {
         completedDeliveries: rider.completedDeliveries || 0,
         totalCompletedDeliveries: rider.completedDeliveries || 0,
         customerTipsBalance: Math.round(totalTips * 100) / 100,
+        weekDeliveries: payoutLedger.filter((e) => new Date(e.date) >= startOfWeek).length,
+        pendingWithdrawals: round2(
+          ledger.filter((e) => e.type === 'WITHDRAWAL' && e.status === 'PENDING').reduce((s2, e) => s2 + Math.abs(e.amount || 0), 0)
+        ),
+        pendingCashDeposits: round2(
+          (rider.cashDepositHistory || []).filter((d) => d.method === 'UPI' && d.status === 'PENDING').reduce((s2, d) => s2 + Number(d.amount || 0), 0)
+        ),
         cashInHand: Math.round(cashInHand * 100) / 100,
         maxCashLimit: effectiveCashLimit,
         availableCashLimit: Math.round(availableCashLimit * 100) / 100,
@@ -2144,7 +2167,19 @@ export const updateAdminDeliveryPayoutConfig = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 15. WITHDRAW EARNINGS TO LINKED UPI / BANK
+// Helpers: strict money parsing (rejects NaN, Infinity, negatives, strings like "1e9abc")
+// ─────────────────────────────────────────────────────────────
+const parseMoney = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return NaN;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return NaN;
+  return Math.round(n * 100) / 100;
+};
+const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+
+// ─────────────────────────────────────────────────────────────
+// 15. WITHDRAW EARNINGS — creates a PENDING request; admin pays it later
 // ─────────────────────────────────────────────────────────────
 export const withdrawDeliveryEarnings = async (req, res) => {
   try {
@@ -2165,10 +2200,8 @@ export const withdrawDeliveryEarnings = async (req, res) => {
       });
     }
 
-    const { amount } = req.body;
-    const withdrawAmt = Number(amount);
-
-    if (isNaN(withdrawAmt) || withdrawAmt <= 0) {
+    const withdrawAmt = parseMoney(req.body?.amount);
+    if (withdrawAmt === null || Number.isNaN(withdrawAmt) || withdrawAmt <= 0) {
       return res.status(400).json({ success: false, message: 'Please enter a valid withdrawal amount' });
     }
 
@@ -2182,27 +2215,46 @@ export const withdrawDeliveryEarnings = async (req, res) => {
 
     const upiId = rider.bankDetails?.upiId || 'Linked Bank Account';
 
-    rider.totalEarnings = Math.max(0, currentBalance - withdrawAmt);
-    if (!Array.isArray(rider.earningsLedger)) {
-      rider.earningsLedger = [];
+    // Atomic hold: only succeeds if balance is still sufficient and no cash is pending.
+    // Prevents double-tap / parallel requests from overdrawing earnings.
+    const updated = await DeliveryPartner.findOneAndUpdate(
+      { _id: rider._id, totalEarnings: { $gte: withdrawAmt }, cashInHand: { $lte: 0 } },
+      {
+        $inc: { totalEarnings: -withdrawAmt },
+        $push: {
+          earningsLedger: {
+            $each: [{
+              type: 'WITHDRAWAL',
+              amount: -withdrawAmt,
+              date: new Date(),
+              description: `Withdrawal request to ${upiId} (awaiting admin payment)`,
+              status: 'PENDING',
+            }],
+            $position: 0,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(409).json({
+        success: false,
+        message: 'Balance changed while processing. Please refresh and try again.',
+      });
     }
 
-    rider.earningsLedger.unshift({
-      type: 'WITHDRAWAL',
-      amount: -withdrawAmt,
-      date: new Date(),
-      description: `Payout withdrawal to UPI (${upiId})`,
-      status: 'COMPLETED',
-    });
-
-    await rider.save();
+    const request = updated.earningsLedger[0];
+    logger.info(`[withdrawDeliveryEarnings] PENDING withdrawal ₹${withdrawAmt} by rider ${updated.name} (${updated.riderId})`);
 
     return res.status(200).json({
       success: true,
-      message: `₹${withdrawAmt} successfully initiated to ${upiId}!`,
+      message: `Withdrawal request of ₹${withdrawAmt} submitted. It will be paid to ${upiId} after admin approval.`,
       data: {
-        totalEarnings: rider.totalEarnings,
+        totalEarnings: round2(updated.totalEarnings),
         withdrawnAmount: withdrawAmt,
+        requestId: request?._id,
+        status: 'PENDING',
       },
     });
   } catch (error) {
@@ -2213,7 +2265,11 @@ export const withdrawDeliveryEarnings = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // 16. DEPOSIT / SETTLE FLOATING CASH IN HAND (RIDER TO ADMIN)
+//     EARNINGS_DEDUCTION → settled immediately (internal, verifiable)
+//     UPI → recorded PENDING; cashInHand unchanged until admin verifies UTR
 // ─────────────────────────────────────────────────────────────
+const RIDER_DEPOSIT_METHODS = ['EARNINGS_DEDUCTION', 'UPI'];
+
 export const depositDeliveryCash = async (req, res) => {
   try {
     const rider = await DeliveryPartner.findById(req.user.id);
@@ -2221,22 +2277,31 @@ export const depositDeliveryCash = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Delivery partner not found' });
     }
 
-    const { amount, method, paymentMethod, utr, txnRef, referenceId } = req.body;
+    const { amount, method, paymentMethod, utr, txnRef, referenceId } = req.body || {};
     const effectiveMethod = method || paymentMethod || 'EARNINGS_DEDUCTION';
-    const effectiveUtr = utr || txnRef || referenceId || '';
-    const currentCashInHand = Number(rider.cashInHand || 0);
+    if (!RIDER_DEPOSIT_METHODS.includes(effectiveMethod)) {
+      return res.status(400).json({ success: false, message: 'Invalid deposit method' });
+    }
+
+    const rawUtr = utr ?? txnRef ?? referenceId ?? '';
+    const effectiveUtr = typeof rawUtr === 'string' ? rawUtr.trim() : '';
+    const currentCashInHand = round2(rider.cashInHand);
 
     if (currentCashInHand <= 0) {
       return res.status(400).json({ success: false, message: 'You have no pending Cash-in-Hand to deposit.' });
     }
 
-    const depositAmt = amount ? Math.min(currentCashInHand, Math.round(Number(amount) * 100) / 100) : currentCashInHand;
-
-    if (isNaN(depositAmt) || depositAmt <= 0) {
+    const parsed = parseMoney(amount);
+    if (Number.isNaN(parsed) || (parsed !== null && parsed <= 0)) {
       return res.status(400).json({ success: false, message: 'Please provide a valid deposit amount greater than ₹0' });
     }
 
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+    const effectiveLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
+
+    // ── EARNINGS_DEDUCTION: internal transfer, settled atomically ──
     if (effectiveMethod === 'EARNINGS_DEDUCTION') {
+      const depositAmt = parsed === null ? currentCashInHand : Math.min(currentCashInHand, parsed);
       const currentEarnings = Number(rider.totalEarnings || 0);
       if (depositAmt > currentEarnings) {
         return res.status(400).json({
@@ -2245,50 +2310,126 @@ export const depositDeliveryCash = async (req, res) => {
         });
       }
 
-      rider.totalEarnings = Math.max(0, Math.round((currentEarnings - depositAmt) * 100) / 100);
-      rider.cashInHand = Math.max(0, Math.round((currentCashInHand - depositAmt) * 100) / 100);
+      const now = new Date();
+      const updated = await DeliveryPartner.findOneAndUpdate(
+        { _id: rider._id, totalEarnings: { $gte: depositAmt }, cashInHand: { $gte: depositAmt } },
+        {
+          $inc: { totalEarnings: -depositAmt, cashInHand: -depositAmt },
+          $push: {
+            earningsLedger: {
+              $each: [{
+                type: 'CASH_SETTLEMENT',
+                amount: -depositAmt,
+                date: now,
+                description: `Settled ₹${depositAmt} Cash-in-Hand from pocket earnings`,
+                status: 'COMPLETED',
+              }],
+              $position: 0,
+            },
+            cashDepositHistory: {
+              $each: [{
+                amount: depositAmt,
+                method: 'EARNINGS_DEDUCTION',
+                txnRef: `DEP-${Date.now()}`,
+                status: 'COMPLETED',
+                submittedAt: now,
+                settledAt: now,
+                note: 'Settled from Pocket Earnings',
+              }],
+              $position: 0,
+            },
+          },
+        },
+        { new: true }
+      );
 
-      if (!Array.isArray(rider.earningsLedger)) rider.earningsLedger = [];
-      rider.earningsLedger.unshift({
-        type: 'CASH_SETTLEMENT',
-        amount: -depositAmt,
-        date: new Date(),
-        description: `Settled ₹${depositAmt} Cash-in-Hand from pocket earnings`,
-        status: 'COMPLETED',
+      if (!updated) {
+        return res.status(409).json({ success: false, message: 'Balance changed while processing. Please refresh and try again.' });
+      }
+
+      // Fix float drift from $inc
+      updated.totalEarnings = round2(updated.totalEarnings);
+      updated.cashInHand = Math.max(0, round2(updated.cashInHand));
+      await updated.save();
+
+      logger.info(`[DeliveryPartner] Cash-in-hand settled from earnings: ₹${depositAmt} by rider ${updated.name} (${updated.phone})`);
+
+      return res.status(200).json({
+        success: true,
+        message: `🎉 ₹${depositAmt} Cash-in-Hand successfully settled!`,
+        data: {
+          cashInHand: updated.cashInHand,
+          totalEarnings: updated.totalEarnings,
+          maxCashLimit: effectiveLimit,
+          isCashLimitReached: updated.cashInHand >= effectiveLimit,
+          canWithdraw: updated.cashInHand === 0,
+        },
       });
-    } else {
-      // Direct UPI payment to Admin
-      rider.cashInHand = Math.max(0, Math.round((currentCashInHand - depositAmt) * 100) / 100);
     }
 
-    if (!Array.isArray(rider.cashDepositHistory)) rider.cashDepositHistory = [];
-    rider.cashDepositHistory.unshift({
-      amount: depositAmt,
-      method: effectiveMethod,
-      txnRef: txnRef || `DEP-${Date.now()}`,
-      utr: effectiveUtr,
-      status: 'COMPLETED',
-      settledAt: new Date(),
-      note: effectiveMethod === 'EARNINGS_DEDUCTION' ? 'Settled from Pocket Earnings' : `Direct UPI payment (UTR: ${effectiveUtr || 'N/A'})`,
+    // ── UPI: record as PENDING, do NOT touch cashInHand ──
+    if (!/^[A-Za-z0-9]{6,35}$/.test(effectiveUtr)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid UPI Reference ID / UTR Number' });
+    }
+
+    const pendingTotal = round2(
+      (rider.cashDepositHistory || [])
+        .filter((d) => d.status === 'PENDING')
+        .reduce((sum, d) => sum + Number(d.amount || 0), 0)
+    );
+    const remainingClaimable = round2(currentCashInHand - pendingTotal);
+    if (remainingClaimable <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: `You already have ₹${pendingTotal} in UPI deposits awaiting admin verification.`,
+      });
+    }
+    const depositAmt = parsed === null ? remainingClaimable : Math.min(remainingClaimable, parsed);
+
+    // A UTR can be claimed only once across all riders (unless that claim was rejected)
+    const utrInUse = await DeliveryPartner.exists({
+      cashDepositHistory: { $elemMatch: { utr: effectiveUtr, status: { $in: ['PENDING', 'COMPLETED'] } } },
     });
+    if (utrInUse) {
+      return res.status(409).json({ success: false, message: 'This UPI Reference ID / UTR has already been submitted' });
+    }
 
-    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
-    const effectiveLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);
-    const isCashLimitReached = rider.cashInHand >= effectiveLimit;
+    const now = new Date();
+    const updated = await DeliveryPartner.findByIdAndUpdate(
+      rider._id,
+      {
+        $push: {
+          cashDepositHistory: {
+            $each: [{
+              amount: depositAmt,
+              method: 'UPI',
+              txnRef: `DEP-${Date.now()}`,
+              utr: effectiveUtr,
+              status: 'PENDING',
+              submittedAt: now,
+              settledAt: null,
+              note: `Direct UPI payment (UTR: ${effectiveUtr}) — awaiting admin verification`,
+            }],
+            $position: 0,
+          },
+        },
+      },
+      { new: true }
+    );
 
-    await rider.save();
-
-    logger.info(`[DeliveryPartner] Cash-in-hand deposited: ₹${depositAmt} by rider ${rider.name} (${rider.phone}) via ${effectiveMethod}`);
+    logger.info(`[DeliveryPartner] UPI cash deposit ₹${depositAmt} PENDING verification for rider ${updated.name} (UTR ${effectiveUtr})`);
 
     return res.status(200).json({
       success: true,
-      message: `🎉 ₹${depositAmt} Cash-in-Hand successfully settled!`,
+      message: `UPI deposit of ₹${depositAmt} submitted. Your Cash-in-Hand will be cleared after admin verifies the UTR.`,
       data: {
-        cashInHand: rider.cashInHand,
-        totalEarnings: rider.totalEarnings,
+        cashInHand: round2(updated.cashInHand),
+        totalEarnings: round2(updated.totalEarnings),
         maxCashLimit: effectiveLimit,
-        isCashLimitReached,
-        canWithdraw: rider.cashInHand === 0,
+        isCashLimitReached: Number(updated.cashInHand) >= effectiveLimit,
+        canWithdraw: Number(updated.cashInHand) === 0,
+        depositId: updated.cashDepositHistory[0]?._id,
+        status: 'PENDING',
       },
     });
   } catch (error) {
@@ -2311,9 +2452,13 @@ export const adminSettleRiderCash = async (req, res) => {
     }
 
     const currentCash = Number(rider.cashInHand || 0);
-    const settleAmt = amount ? Math.min(currentCash, Math.round(Number(amount) * 100) / 100) : currentCash;
+    const parsedAmt = parseMoney(amount);
+    if (Number.isNaN(parsedAmt) || (parsedAmt !== null && parsedAmt <= 0)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid amount greater than ₹0' });
+    }
+    const settleAmt = parsedAmt === null ? currentCash : Math.min(currentCash, parsedAmt);
 
-    if (settleAmt <= 0) {
+    if (!(settleAmt > 0)) {
       return res.status(400).json({ success: false, message: 'Rider has no cash in hand to settle' });
     }
 
@@ -2349,6 +2494,182 @@ export const adminSettleRiderCash = async (req, res) => {
   } catch (error) {
     logger.error(`[adminSettleRiderCash] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server error clearing rider cash' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17b. ADMIN: PAY / REJECT A PENDING RIDER WITHDRAWAL
+//      body: { action: 'Approve' | 'Reject', payoutMethod: 'CASH' | 'ONLINE', utr, remarks }
+// ─────────────────────────────────────────────────────────────
+export const adminProcessRiderWithdrawal = async (req, res) => {
+  try {
+    const { id, requestId } = req.params;
+    const { action, payoutMethod, utr, remarks } = req.body || {};
+    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid rider or request id' });
+    }
+    if (!['Approve', 'Reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: "action must be 'Approve' or 'Reject'" });
+    }
+    const adminName = req.user?.name || req.user?.email || 'Admin';
+    const now = new Date();
+    const cleanUtr = typeof utr === 'string' ? utr.trim() : '';
+    const cleanRemarks = typeof remarks === 'string' ? remarks.trim().slice(0, 300) : '';
+
+    if (action === 'Approve') {
+      if (!['CASH', 'ONLINE'].includes(payoutMethod)) {
+        return res.status(400).json({ success: false, message: "payoutMethod must be 'CASH' or 'ONLINE'" });
+      }
+      if (payoutMethod === 'ONLINE' && !/^[A-Za-z0-9]{6,35}$/.test(cleanUtr)) {
+        return res.status(400).json({ success: false, message: 'A valid UTR is required for online payout' });
+      }
+      // Status-in-filter makes approve/reject single-winner
+      const updated = await DeliveryPartner.findOneAndUpdate(
+        { _id: id, earningsLedger: { $elemMatch: { _id: requestId, type: 'WITHDRAWAL', status: 'PENDING' } } },
+        {
+          $set: {
+            'earningsLedger.$.status': 'COMPLETED',
+            'earningsLedger.$.payoutMethod': payoutMethod,
+            'earningsLedger.$.utr': payoutMethod === 'ONLINE' ? cleanUtr : undefined,
+            'earningsLedger.$.processedAt': now,
+            'earningsLedger.$.processedBy': adminName,
+            'earningsLedger.$.remarks': cleanRemarks,
+          },
+        },
+        { new: true }
+      );
+      if (!updated) {
+        return res.status(400).json({ success: false, message: 'Withdrawal request not found or already processed' });
+      }
+      const entry = updated.earningsLedger.id(requestId);
+      safeSocketEmit(`rider_${updated._id}`, 'delivery:withdrawal_processed', {
+        requestId, status: 'COMPLETED', amount: Math.abs(entry.amount), payoutMethod, utr: entry.utr,
+        message: `Your withdrawal of ₹${Math.abs(entry.amount)} has been paid${payoutMethod === 'ONLINE' ? ` (UTR ${cleanUtr})` : ' in cash'}.`,
+      });
+      return res.status(200).json({ success: true, message: 'Rider withdrawal marked as paid', data: { request: entry } });
+    }
+
+    // Reject → refund the held amount back to totalEarnings atomically
+    const rider = await DeliveryPartner.findOne(
+      { _id: id, earningsLedger: { $elemMatch: { _id: requestId, type: 'WITHDRAWAL', status: 'PENDING' } } },
+      { 'earningsLedger.$': 1 }
+    );
+    if (!rider) {
+      return res.status(400).json({ success: false, message: 'Withdrawal request not found or already processed' });
+    }
+    const refundAmt = Math.abs(Number(rider.earningsLedger[0].amount || 0));
+    const updated = await DeliveryPartner.findOneAndUpdate(
+      { _id: id, earningsLedger: { $elemMatch: { _id: requestId, status: 'PENDING' } } },
+      {
+        $set: {
+          'earningsLedger.$.status': 'REJECTED',
+          'earningsLedger.$.processedAt': now,
+          'earningsLedger.$.processedBy': adminName,
+          'earningsLedger.$.remarks': cleanRemarks,
+        },
+        $inc: { totalEarnings: refundAmt },
+      },
+      { new: true }
+    );
+    if (!updated) {
+      return res.status(400).json({ success: false, message: 'Withdrawal request not found or already processed' });
+    }
+    updated.totalEarnings = round2(updated.totalEarnings);
+    await updated.save();
+    safeSocketEmit(`rider_${updated._id}`, 'delivery:withdrawal_processed', {
+      requestId, status: 'REJECTED', amount: refundAmt,
+      message: `Your withdrawal of ₹${refundAmt} was rejected and refunded to your earnings.${cleanRemarks ? ` Reason: ${cleanRemarks}` : ''}`,
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Rider withdrawal rejected and refunded',
+      data: { request: updated.earningsLedger.id(requestId), totalEarnings: updated.totalEarnings },
+    });
+  } catch (error) {
+    logger.error(`[adminProcessRiderWithdrawal] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error processing rider withdrawal' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17c. ADMIN: VERIFY / REJECT A PENDING RIDER UPI CASH DEPOSIT
+//      body: { action: 'Approve' | 'Reject', note }
+// ─────────────────────────────────────────────────────────────
+export const adminVerifyRiderCashDeposit = async (req, res) => {
+  try {
+    const { id, depositId } = req.params;
+    const { action, note } = req.body || {};
+    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(depositId)) {
+      return res.status(400).json({ success: false, message: 'Invalid rider or deposit id' });
+    }
+    if (!['Approve', 'Reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: "action must be 'Approve' or 'Reject'" });
+    }
+    const adminName = req.user?.name || req.user?.email || 'Admin';
+    const now = new Date();
+    const cleanNote = typeof note === 'string' ? note.trim().slice(0, 300) : '';
+
+    const rider = await DeliveryPartner.findOne(
+      { _id: id, cashDepositHistory: { $elemMatch: { _id: depositId, method: 'UPI', status: 'PENDING' } } }
+    );
+    if (!rider) {
+      return res.status(400).json({ success: false, message: 'Deposit not found or already processed' });
+    }
+    const deposit = rider.cashDepositHistory.id(depositId);
+
+    if (action === 'Reject') {
+      const updated = await DeliveryPartner.findOneAndUpdate(
+        { _id: id, cashDepositHistory: { $elemMatch: { _id: depositId, status: 'PENDING' } } },
+        {
+          $set: {
+            'cashDepositHistory.$.status': 'REJECTED',
+            'cashDepositHistory.$.verifiedBy': adminName,
+            'cashDepositHistory.$.settledAt': now,
+            ...(cleanNote ? { 'cashDepositHistory.$.note': `Rejected: ${cleanNote}` } : {}),
+          },
+        },
+        { new: true }
+      );
+      if (!updated) return res.status(400).json({ success: false, message: 'Deposit not found or already processed' });
+      safeSocketEmit(`rider_${updated._id}`, 'delivery:cash_deposit_rejected', {
+        depositId, amount: deposit.amount,
+        message: `Your UPI deposit of ₹${deposit.amount} (UTR ${deposit.utr}) was rejected.${cleanNote ? ` Reason: ${cleanNote}` : ''}`,
+      });
+      return res.status(200).json({ success: true, message: 'Deposit rejected', data: { cashInHand: round2(updated.cashInHand) } });
+    }
+
+    // Approve → clear cash (never below 0)
+    const clearAmt = Math.min(round2(deposit.amount), round2(rider.cashInHand));
+    const updated = await DeliveryPartner.findOneAndUpdate(
+      { _id: id, cashInHand: { $gte: clearAmt }, cashDepositHistory: { $elemMatch: { _id: depositId, status: 'PENDING' } } },
+      {
+        $set: {
+          'cashDepositHistory.$.status': 'COMPLETED',
+          'cashDepositHistory.$.verifiedBy': adminName,
+          'cashDepositHistory.$.settledAt': now,
+          ...(cleanNote ? { 'cashDepositHistory.$.note': cleanNote } : {}),
+        },
+        $inc: { cashInHand: -clearAmt },
+      },
+      { new: true }
+    );
+    if (!updated) return res.status(409).json({ success: false, message: 'Deposit already processed or cash balance changed. Refresh and retry.' });
+    updated.cashInHand = Math.max(0, round2(updated.cashInHand));
+    await updated.save();
+
+    safeSocketEmit(`rider_${updated._id}`, 'delivery:cash_cleared', {
+      settledAmount: clearAmt,
+      remainingCashInHand: updated.cashInHand,
+      message: `Admin verified your UPI deposit and cleared ₹${clearAmt} of your floating cash.`,
+    });
+    return res.status(200).json({
+      success: true,
+      message: `Deposit verified. ₹${clearAmt} cleared. Remaining Cash: ₹${updated.cashInHand}`,
+      data: { cashInHand: updated.cashInHand },
+    });
+  } catch (error) {
+    logger.error(`[adminVerifyRiderCashDeposit] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Server error verifying cash deposit' });
   }
 };
 
@@ -2698,5 +3019,558 @@ export const checkInRiderGig = async (req, res) => {
   } catch (error) {
     logger.error(`[checkInRiderGig] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server error checking in to gig' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17d. ADMIN: LIST RIDER SETTLEMENT REQUESTS (withdrawals / UPI cash deposits)
+//      query: type=withdrawal|deposit, status=PENDING|COMPLETED|REJECTED|ALL, limit
+// ─────────────────────────────────────────────────────────────
+export const adminGetRiderSettlementRequests = async (req, res) => {
+  try {
+    const type = req.query.type === 'deposit' ? 'deposit' : 'withdrawal';
+    const allowed = ['PENDING', 'COMPLETED', 'REJECTED', 'ALL'];
+    const status = allowed.includes(req.query.status) ? req.query.status : 'PENDING';
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+
+    const field = type === 'withdrawal' ? 'earningsLedger' : 'cashDepositHistory';
+    const elem = type === 'withdrawal' ? { type: 'WITHDRAWAL' } : { method: 'UPI' };
+    if (status !== 'ALL') elem.status = status;
+    const unwoundMatch = Object.fromEntries(Object.entries(elem).map(([k, v]) => [`${field}.${k}`, v]));
+    const sortKey = type === 'withdrawal' ? 'entry.date' : 'entry.submittedAt';
+
+    const rows = await DeliveryPartner.aggregate([
+      { $match: { [field]: { $elemMatch: elem } } },
+      { $unwind: `$${field}` },
+      { $match: unwoundMatch },
+      {
+        $project: {
+          _id: 0,
+          riderObjectId: '$_id',
+          riderId: '$riderId',
+          riderName: '$name',
+          riderPhone: '$phone',
+          upiId: '$bankDetails.upiId',
+          currentEarnings: '$totalEarnings',
+          currentCashInHand: '$cashInHand',
+          entry: `$${field}`,
+        },
+      },
+      { $sort: { [sortKey]: -1, 'entry.settledAt': -1 } },
+      { $limit: limit },
+    ]);
+
+    const data = rows.map((r) => {
+      const e = r.entry || {};
+      const base = {
+        requestId: e._id,
+        riderObjectId: r.riderObjectId,
+        riderId: r.riderId,
+        riderName: r.riderName,
+        riderPhone: r.riderPhone,
+      };
+      if (type === 'withdrawal') {
+        return {
+          ...base,
+          upiId: r.upiId || null,
+          amount: Math.abs(Number(e.amount || 0)),
+          status: e.status || 'COMPLETED',
+          requestedAt: e.date,
+          payoutMethod: e.payoutMethod || null,
+          utr: e.utr || null,
+          processedAt: e.processedAt || null,
+          processedBy: e.processedBy || null,
+          remarks: e.remarks || '',
+          currentEarnings: round2(r.currentEarnings),
+        };
+      }
+      return {
+        ...base,
+        amount: round2(e.amount),
+        status: e.status,
+        utr: e.utr || null,
+        txnRef: e.txnRef,
+        submittedAt: e.submittedAt || e.settledAt,
+        verifiedAt: e.status === 'PENDING' ? null : e.settledAt,
+        verifiedBy: e.verifiedBy || null,
+        note: e.note || '',
+        currentCashInHand: round2(r.currentCashInHand),
+      };
+    });
+
+    const [pw, pd] = await Promise.all([
+      DeliveryPartner.aggregate([
+        { $match: { earningsLedger: { $elemMatch: { type: 'WITHDRAWAL', status: 'PENDING' } } } },
+        { $unwind: '$earningsLedger' },
+        { $match: { 'earningsLedger.type': 'WITHDRAWAL', 'earningsLedger.status': 'PENDING' } },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: { $abs: '$earningsLedger.amount' } } } },
+      ]),
+      DeliveryPartner.aggregate([
+        { $match: { cashDepositHistory: { $elemMatch: { method: 'UPI', status: 'PENDING' } } } },
+        { $unwind: '$cashDepositHistory' },
+        { $match: { 'cashDepositHistory.method': 'UPI', 'cashDepositHistory.status': 'PENDING' } },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$cashDepositHistory.amount' } } },
+      ]),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      summary: {
+        pendingWithdrawals: { count: pw[0]?.count || 0, amount: round2(pw[0]?.amount) },
+        pendingDeposits: { count: pd[0]?.count || 0, amount: round2(pd[0]?.amount) },
+      },
+    });
+  } catch (error) {
+    logger.error(`[adminGetRiderSettlementRequests] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load settlement requests' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17e. ADMIN: RIDER CASH LEDGER — riders list with cash held (read-only)
+//      query: search, filter=ALL|WITH_CASH|AT_LIMIT
+// ─────────────────────────────────────────────────────────────
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const adminGetRiderCashLedgerSummary = async (req, res) => {
+  try {
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+    const globalLimit = Number(payoutConfig.maxCashInHandLimit || 1500);
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 60) : '';
+    const filter = ['ALL', 'WITH_CASH', 'AT_LIMIT'].includes(req.query.filter) ? req.query.filter : 'WITH_CASH';
+
+    const match = {};
+    if (search) {
+      const rx = new RegExp(escapeRegex(search), 'i');
+      match.$or = [{ name: rx }, { phone: rx }, { riderId: rx }];
+    }
+
+    const riders = await DeliveryPartner.find(match)
+      .select('riderId name phone cashInHand maxCashLimit isOnline status applicationStatus cashDepositHistory earningsLedger')
+      .lean();
+
+    let rows = riders.map((r) => {
+      const limit = Number(r.maxCashLimit || globalLimit);
+      const cash = round2(r.cashInHand);
+      const deposits = r.cashDepositHistory || [];
+      const lastCleared = deposits
+        .filter((d) => d.status === 'COMPLETED')
+        .map((d) => d.settledAt)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+      const lastCollected = (r.earningsLedger || [])
+        .filter((e) => e.type === 'COD_CASH_COLLECTED')
+        .map((e) => e.date)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+      const pendingUpi = round2(
+        deposits.filter((d) => d.method === 'UPI' && d.status === 'PENDING').reduce((s, d) => s + Number(d.amount || 0), 0)
+      );
+      return {
+        riderObjectId: r._id,
+        riderId: r.riderId,
+        name: r.name,
+        phone: r.phone,
+        isOnline: !!r.isOnline,
+        applicationStatus: r.applicationStatus,
+        cashInHand: cash,
+        cashLimit: limit,
+        atLimit: cash >= limit,
+        pendingUpi,
+        lastCollectedAt: lastCollected,
+        lastClearedAt: lastCleared,
+      };
+    });
+
+    const summary = {
+      totalCashHeld: round2(rows.reduce((s, r) => s + r.cashInHand, 0)),
+      ridersWithCash: rows.filter((r) => r.cashInHand > 0).length,
+      ridersAtLimit: rows.filter((r) => r.atLimit && r.cashInHand > 0).length,
+      pendingUpiAmount: round2(rows.reduce((s, r) => s + r.pendingUpi, 0)),
+      pendingUpiCount: rows.filter((r) => r.pendingUpi > 0).length,
+    };
+
+    if (filter === 'WITH_CASH') rows = rows.filter((r) => r.cashInHand > 0);
+    if (filter === 'AT_LIMIT') rows = rows.filter((r) => r.atLimit && r.cashInHand > 0);
+    rows.sort((a, b) => b.cashInHand - a.cashInHand);
+
+    return res.status(200).json({ success: true, data: rows, summary });
+  } catch (error) {
+    logger.error(`[adminGetRiderCashLedgerSummary] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load rider cash summary' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17f. ADMIN: RIDER CASH LEDGER — full chronological ledger for one rider
+//      query: from, to (ISO dates, optional)
+//      Balance-affecting: COD collected (+), COMPLETED deposits/clearances (−).
+//      PENDING / REJECTED UPI deposits are listed but do not change the balance.
+//      Any difference between recorded history and actual cashInHand (legacy data /
+//      manual edits) is shown as an "Opening / unrecorded balance" line so the
+//      closing balance always equals the rider's real cashInHand.
+// ─────────────────────────────────────────────────────────────
+const DEPOSIT_LABELS = {
+  EARNINGS_DEDUCTION: 'Settled from rider earnings',
+  UPI: 'UPI deposit',
+  CASH_HUB: 'Cash deposited at hub',
+  ADMIN_CLEARANCE: 'Cleared by admin',
+};
+
+export const adminGetRiderCashLedger = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid rider id' });
+    }
+    const rider = await DeliveryPartner.findById(id)
+      .select('riderId name phone cashInHand maxCashLimit totalEarnings earningsLedger cashDepositHistory')
+      .lean();
+    if (!rider) return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+
+    const parseDate = (v, endOfDay) => {
+      if (!v || typeof v !== 'string') return null;
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return null;
+      if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(v)) d.setHours(23, 59, 59, 999);
+      return d;
+    };
+    const from = parseDate(req.query.from, false);
+    const to = parseDate(req.query.to, true);
+
+    const events = [];
+    for (const e of rider.earningsLedger || []) {
+      if (e.type !== 'COD_CASH_COLLECTED') continue;
+      events.push({
+        id: e._id,
+        date: e.date,
+        kind: 'COD_COLLECTED',
+        label: 'COD cash collected',
+        orderId: e.orderId || null,
+        reference: e.orderId || null,
+        description: e.description || '',
+        credit: round2(e.amount), // cash in (rider holds more)
+        debit: 0,
+        status: 'COMPLETED',
+        affectsBalance: true,
+      });
+    }
+    for (const d of rider.cashDepositHistory || []) {
+      const status = d.status || 'COMPLETED';
+      events.push({
+        id: d._id,
+        date: status === 'COMPLETED' ? d.settledAt || d.submittedAt : d.submittedAt || d.settledAt,
+        kind: d.method || 'UPI',
+        label: DEPOSIT_LABELS[d.method] || d.method || 'Deposit',
+        orderId: null,
+        reference: d.utr || d.txnRef || null,
+        utr: d.utr || null,
+        txnRef: d.txnRef || null,
+        description: d.note || '',
+        verifiedBy: d.verifiedBy || null,
+        credit: 0,
+        debit: round2(d.amount),
+        status,
+        affectsBalance: status === 'COMPLETED',
+      });
+    }
+    events.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
+    // Reconcile recorded history with the actual balance
+    const recordedNet = round2(
+      events.filter((e) => e.affectsBalance).reduce((s, e) => s + e.credit - e.debit, 0)
+    );
+    const actualCash = round2(rider.cashInHand);
+    const unrecorded = round2(actualCash - recordedNet);
+
+    // Running balance across full history
+    let running = unrecorded;
+    for (const e of events) {
+      if (e.affectsBalance) running = round2(running + e.credit - e.debit);
+      e.balance = running;
+    }
+
+    // Apply date window
+    const inRange = (e) => {
+      const t = new Date(e.date || 0).getTime();
+      return (!from || t >= from.getTime()) && (!to || t <= to.getTime());
+    };
+    const before = from ? events.filter((e) => new Date(e.date || 0).getTime() < from.getTime()) : [];
+    const openingBalance = round2(
+      unrecorded + before.filter((e) => e.affectsBalance).reduce((s, e) => s + e.credit - e.debit, 0)
+    );
+    const entries = events.filter(inRange);
+    const periodIn = round2(entries.filter((e) => e.affectsBalance).reduce((s, e) => s + e.credit, 0));
+    const periodOut = round2(entries.filter((e) => e.affectsBalance).reduce((s, e) => s + e.debit, 0));
+    const closingBalance = round2(openingBalance + periodIn - periodOut);
+
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        rider: {
+          riderObjectId: rider._id,
+          riderId: rider.riderId,
+          name: rider.name,
+          phone: rider.phone,
+          cashInHand: actualCash,
+          cashLimit: Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500),
+        },
+        period: { from: from || null, to: to || null },
+        openingBalance,
+        unrecordedBalance: unrecorded,
+        totalCollected: periodIn,
+        totalCleared: periodOut,
+        closingBalance,
+        pendingUpi: round2(
+          entries.filter((e) => e.kind === 'UPI' && e.status === 'PENDING').reduce((s, e) => s + e.debit, 0)
+        ),
+        entries: entries.reverse(), // newest first for display
+      },
+    });
+  } catch (error) {
+    logger.error(`[adminGetRiderCashLedger] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load rider cash ledger' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17g. ADMIN: RIDER EARNINGS WALLET — riders list (read-only)
+//      query: search, filter=ALL|WITH_BALANCE|PENDING_WITHDRAWAL
+// ─────────────────────────────────────────────────────────────
+const summariseEarnings = (ledger = []) => {
+  let earned = 0, pending = 0, paid = 0, cashSettled = 0, payouts = 0;
+  let lastPayoutAt = null, lastPaidAt = null;
+  for (const e of ledger) {
+    const amt = Number(e.amount || 0);
+    if (e.type === 'DELIVERY_PAYOUT') {
+      earned += amt;
+      payouts += 1;
+      if (!lastPayoutAt || new Date(e.date) > new Date(lastPayoutAt)) lastPayoutAt = e.date;
+    } else if (e.type === 'WITHDRAWAL') {
+      const st = e.status || 'COMPLETED';
+      if (st === 'PENDING') pending += Math.abs(amt);
+      if (st === 'COMPLETED') {
+        paid += Math.abs(amt);
+        const t = e.processedAt || e.date;
+        if (!lastPaidAt || new Date(t) > new Date(lastPaidAt)) lastPaidAt = t;
+      }
+    } else if (e.type === 'CASH_SETTLEMENT') {
+      cashSettled += Math.abs(amt);
+    }
+  }
+  return {
+    totalEarned: round2(earned),
+    pendingWithdrawals: round2(pending),
+    totalPaidOut: round2(paid),
+    cashSettledFromEarnings: round2(cashSettled),
+    payoutCount: payouts,
+    lastPayoutAt,
+    lastPaidAt,
+  };
+};
+
+export const adminGetRiderEarningsSummary = async (req, res) => {
+  try {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 60) : '';
+    const filter = ['ALL', 'WITH_BALANCE', 'PENDING_WITHDRAWAL'].includes(req.query.filter) ? req.query.filter : 'ALL';
+    const match = { applicationStatus: { $in: ['APPROVED', 'SUSPENDED'] } };
+    if (search) {
+      const rx = new RegExp(escapeRegex(search), 'i');
+      match.$or = [{ name: rx }, { phone: rx }, { riderId: rx }];
+    }
+    const riders = await DeliveryPartner.find(match)
+      .select('riderId name phone isOnline applicationStatus totalEarnings completedDeliveries bankDetails.upiId earningsLedger')
+      .lean();
+
+    let rows = riders.map((r) => ({
+      riderObjectId: r._id,
+      riderId: r.riderId,
+      name: r.name,
+      phone: r.phone,
+      isOnline: !!r.isOnline,
+      applicationStatus: r.applicationStatus,
+      upiId: r.bankDetails?.upiId || null,
+      walletBalance: round2(r.totalEarnings),
+      completedDeliveries: r.completedDeliveries || 0,
+      ...summariseEarnings(r.earningsLedger),
+    }));
+
+    const summary = {
+      totalEarned: round2(rows.reduce((s, r) => s + r.totalEarned, 0)),
+      totalWalletBalance: round2(rows.reduce((s, r) => s + r.walletBalance, 0)),
+      totalPendingWithdrawals: round2(rows.reduce((s, r) => s + r.pendingWithdrawals, 0)),
+      ridersWithPending: rows.filter((r) => r.pendingWithdrawals > 0).length,
+      totalPaidOut: round2(rows.reduce((s, r) => s + r.totalPaidOut, 0)),
+      riderCount: rows.length,
+    };
+
+    if (filter === 'WITH_BALANCE') rows = rows.filter((r) => r.walletBalance > 0);
+    if (filter === 'PENDING_WITHDRAWAL') rows = rows.filter((r) => r.pendingWithdrawals > 0);
+    rows.sort((a, b) => b.walletBalance - a.walletBalance || b.totalEarned - a.totalEarned);
+
+    return res.status(200).json({ success: true, data: rows, summary });
+  } catch (error) {
+    logger.error(`[adminGetRiderEarningsSummary] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load rider earnings' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// 17h. ADMIN: RIDER EARNINGS WALLET — full ledger for one rider
+//      Balance effect mirrors how totalEarnings actually changes:
+//        DELIVERY_PAYOUT +amount (incl. tip)
+//        WITHDRAWAL PENDING/COMPLETED −amount (held at request time)
+//        WITHDRAWAL REJECTED → listed, no net effect (deducted then refunded)
+//        CASH_SETTLEMENT −amount
+//      Any gap vs. actual totalEarnings is shown as an unrecorded opening balance.
+// ─────────────────────────────────────────────────────────────
+const EARNING_LABELS = {
+  DELIVERY_PAYOUT: 'Delivery payout',
+  WITHDRAWAL: 'Withdrawal',
+  CASH_SETTLEMENT: 'COD cash settled from earnings',
+};
+
+export const adminGetRiderEarningsLedger = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid rider id' });
+    }
+    const rider = await DeliveryPartner.findById(id)
+      .select('riderId name phone totalEarnings completedDeliveries bankDetails.upiId earningsLedger')
+      .lean();
+    if (!rider) return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+
+    const parseDate = (v, endOfDay) => {
+      if (!v || typeof v !== 'string') return null;
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return null;
+      if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(v)) d.setHours(23, 59, 59, 999);
+      return d;
+    };
+    const from = parseDate(req.query.from, false);
+    const to = parseDate(req.query.to, true);
+
+    const relevant = (rider.earningsLedger || []).filter((e) => e.type in EARNING_LABELS);
+
+    // Pull tip amounts from orders (tip is folded into the payout amount)
+    const orderIds = [...new Set(relevant.filter((e) => e.type === 'DELIVERY_PAYOUT' && e.orderId).map((e) => e.orderId))];
+    const orders = orderIds.length
+      ? await Order.find({ orderId: { $in: orderIds } }).select('orderId storeName tipAmount deliveryDistanceKm').lean()
+      : [];
+    const orderMap = new Map(orders.map((o) => [o.orderId, o]));
+
+    const events = relevant.map((e) => {
+      const amt = round2(Math.abs(Number(e.amount || 0)));
+      const status = e.type === 'WITHDRAWAL' ? e.status || 'COMPLETED' : 'COMPLETED';
+      const isCredit = e.type === 'DELIVERY_PAYOUT';
+      const order = e.orderId ? orderMap.get(e.orderId) : null;
+      const tip = isCredit ? round2(order?.tipAmount || 0) : 0;
+      return {
+        id: e._id,
+        date: e.date,
+        type: e.type,
+        label: e.type === 'WITHDRAWAL'
+          ? `Withdrawal${status === 'COMPLETED' ? ` paid (${e.payoutMethod === 'ONLINE' ? 'Online' : e.payoutMethod === 'CASH' ? 'Cash' : 'legacy'})` : status === 'PENDING' ? ' requested' : ' rejected & refunded'}`
+          : EARNING_LABELS[e.type],
+        orderId: e.orderId || null,
+        storeName: order?.storeName || null,
+        distanceKm: e.distanceKm ?? order?.deliveryDistanceKm ?? null,
+        breakdown: isCredit
+          ? {
+              baseFare: e.breakdown?.baseFare ?? null,
+              distancePayout: e.breakdown?.distancePayout ?? null,
+              billableDistanceKm: e.breakdown?.billableDistanceKm ?? null,
+              perKmRate: e.breakdown?.perKmRate ?? null,
+              surgeBonus: e.breakdown?.surgeBonus ?? null,
+              tip,
+              deliveryFee: round2(amt - tip),
+            }
+          : null,
+        payoutMethod: e.payoutMethod || null,
+        utr: e.utr || null,
+        processedAt: e.processedAt || null,
+        processedBy: e.processedBy || null,
+        remarks: e.remarks || '',
+        description: e.description || '',
+        credit: isCredit ? amt : 0,
+        debit: isCredit ? 0 : amt,
+        status,
+        affectsBalance: !(e.type === 'WITHDRAWAL' && status === 'REJECTED'),
+      };
+    });
+    events.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
+    const recordedNet = round2(events.filter((e) => e.affectsBalance).reduce((s, e) => s + e.credit - e.debit, 0));
+    const actual = round2(rider.totalEarnings);
+    const unrecorded = round2(actual - recordedNet);
+
+    let running = unrecorded;
+    for (const e of events) {
+      if (e.affectsBalance) running = round2(running + e.credit - e.debit);
+      e.balance = running;
+    }
+
+    const t = (e) => new Date(e.date || 0).getTime();
+    const before = from ? events.filter((e) => t(e) < from.getTime()) : [];
+    const openingBalance = round2(unrecorded + before.filter((e) => e.affectsBalance).reduce((s, e) => s + e.credit - e.debit, 0));
+    const entries = events.filter((e) => (!from || t(e) >= from.getTime()) && (!to || t(e) <= to.getTime()));
+    const counted = entries.filter((e) => e.affectsBalance);
+    const totalEarned = round2(counted.reduce((s, e) => s + e.credit, 0));
+    const totalDebited = round2(counted.reduce((s, e) => s + e.debit, 0));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        rider: {
+          riderObjectId: rider._id,
+          riderId: rider.riderId,
+          name: rider.name,
+          phone: rider.phone,
+          upiId: rider.bankDetails?.upiId || null,
+          walletBalance: actual,
+          completedDeliveries: rider.completedDeliveries || 0,
+        },
+        period: { from: from || null, to: to || null },
+        openingBalance,
+        unrecordedBalance: unrecorded,
+        totalEarned,
+        totalTips: round2(entries.reduce((s, e) => s + (e.breakdown?.tip || 0), 0)),
+        deliveries: entries.filter((e) => e.type === 'DELIVERY_PAYOUT').length,
+        totalPaidOut: round2(entries.filter((e) => e.type === 'WITHDRAWAL' && e.status === 'COMPLETED').reduce((s, e) => s + e.debit, 0)),
+        pendingWithdrawals: round2(entries.filter((e) => e.type === 'WITHDRAWAL' && e.status === 'PENDING').reduce((s, e) => s + e.debit, 0)),
+        cashSettled: round2(entries.filter((e) => e.type === 'CASH_SETTLEMENT').reduce((s, e) => s + e.debit, 0)),
+        totalDebited,
+        closingBalance: round2(openingBalance + totalEarned - totalDebited),
+        entries: entries.reverse(),
+      },
+    });
+  } catch (error) {
+    logger.error(`[adminGetRiderEarningsLedger] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load rider earnings ledger' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// RIDER LOGOUT — go offline on the server (unless a delivery is in progress)
+// ─────────────────────────────────────────────────────────────
+export const deliveryLogout = async (req, res) => {
+  try {
+    const result = await DeliveryPartner.updateOne(
+      { _id: req.user.id, $or: [{ activeOrderId: null }, { activeOrderId: { $exists: false } }] },
+      { $set: { isOnline: false, status: 'OFFLINE' } }
+    );
+    const wentOffline = result.modifiedCount > 0 || result.matchedCount > 0;
+    return res.status(200).json({
+      success: true,
+      message: wentOffline ? 'Logged out and set Offline' : 'Logged out. You still have an active delivery assigned.',
+      data: { isOnline: !wentOffline },
+    });
+  } catch (error) {
+    logger.error(`[deliveryLogout] Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Logout failed' });
   }
 };

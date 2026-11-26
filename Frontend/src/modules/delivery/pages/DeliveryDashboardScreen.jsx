@@ -309,11 +309,20 @@ export default function DeliveryDashboardScreen() {
       fetchDashboardData();
     };
 
+    // Server switched this rider offline after inactivity
+    const handleAutoOffline = (data) => {
+      setOnlineStatus(false);
+      setRingingOrderAlert(null);
+      toast(data?.message || 'You were set Offline due to inactivity.', { icon: '⏸️' });
+    };
+
     socket.on('delivery:new_order', handleNewOrder);
+    socket.on('delivery:auto_offline', handleAutoOffline);
     return () => {
       socket.off('delivery:new_order', handleNewOrder);
+      socket.off('delivery:auto_offline', handleAutoOffline);
     };
-  }, [isOnline, activeOrder, fetchDashboardData]);
+  }, [isOnline, activeOrder, fetchDashboardData, setOnlineStatus]);
 
   // GPS Location Tracking when online
   useEffect(() => {
@@ -1670,7 +1679,11 @@ export default function DeliveryDashboardScreen() {
             <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
               <button
                 type="button"
-                onClick={() => setDepositMethod('EARNINGS_DEDUCTION')}
+                onClick={() => {
+                  setDepositMethod('EARNINGS_DEDUCTION');
+                  const cap = Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0));
+                  if (Number(depositAmount) > cap) setDepositAmount(cap > 0 ? String(cap) : '');
+                }}
                 className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                   depositMethod === 'EARNINGS_DEDUCTION'
                     ? 'bg-white text-slate-900 shadow-xs font-black'
@@ -1703,9 +1716,27 @@ export default function DeliveryDashboardScreen() {
                     ₹{(rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0).toLocaleString('en-IN')}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  Aapke pocket balance me se cash amount turant deduct ho jayegi aur Cash in Hand clear ho jayega.
-                </p>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Max you can settle from pocket:</span>
+                  <span className="font-mono font-black text-slate-900 text-sm">₹{Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)).toLocaleString('en-IN')}</span>
+                </div>
+                {(rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0) <= 0 ? (
+                  <p className="text-[11px] text-rose-700 font-semibold leading-snug">
+                    Pocket balance ₹0 hai. Cash deposit karne ke liye Online UPI use karein.
+                  </p>
+                ) : (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0) < cashInHand ? (
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pocket se max ₹{(rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0).toLocaleString('en-IN')} settle hoga. Baaki ₹{Math.round((cashInHand - (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) * 100) / 100} ke liye{' '}
+                    <button type="button" onClick={() => setDepositMethod('UPI')} className="font-black text-emerald-700 underline cursor-pointer">
+                      Online UPI
+                    </button>{' '}
+                    use karein.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    Aapke pocket balance me se cash amount turant deduct ho jayegi aur Cash in Hand clear ho jayega.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1754,10 +1785,10 @@ export default function DeliveryDashboardScreen() {
                   <label className="font-bold text-slate-700">Amount to Settle (₹):</label>
                   <button
                     type="button"
-                    onClick={() => setDepositAmount(String(cashInHand))}
+                    onClick={() => setDepositAmount(String((depositMethod === 'EARNINGS_DEDUCTION' ? Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) : cashInHand)))}
                     className="text-purple-700 font-black hover:underline cursor-pointer"
                   >
-                    Settle All (₹{cashInHand})
+                    {depositMethod === 'EARNINGS_DEDUCTION' ? 'Use full pocket' : 'Settle All'} (₹{(depositMethod === 'EARNINGS_DEDUCTION' ? Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) : cashInHand)})
                   </button>
                 </div>
                 <div className="relative">
@@ -1765,7 +1796,7 @@ export default function DeliveryDashboardScreen() {
                   <input
                     type="number"
                     min="1"
-                    max={cashInHand}
+                    max={(depositMethod === 'EARNINGS_DEDUCTION' ? Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) : cashInHand)}
                     required
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
@@ -1777,7 +1808,7 @@ export default function DeliveryDashboardScreen() {
 
               {/* Quick Preset Buttons */}
               <div className="flex gap-2">
-                {[500, 1000, cashInHand].filter((amt) => amt > 0 && amt <= cashInHand).map((amt, idx) => (
+                {[...new Set([500, 1000, (depositMethod === 'EARNINGS_DEDUCTION' ? Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) : cashInHand)])].filter((amt) => amt > 0 && amt <= (depositMethod === 'EARNINGS_DEDUCTION' ? Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) : cashInHand)).map((amt, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -1791,7 +1822,7 @@ export default function DeliveryDashboardScreen() {
 
               <button
                 type="submit"
-                disabled={depositSubmitting || cashInHand <= 0}
+                disabled={depositSubmitting || (depositMethod === 'EARNINGS_DEDUCTION' ? Math.min(cashInHand, (rider?.totalEarnings ?? riderDetails?.totalEarnings ?? 0)) : cashInHand) <= 0}
                 className="w-full py-3 rounded-2xl bg-slate-950 hover:bg-black text-white font-display font-black text-xs shadow-md active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-[16px]">check_circle</span>

@@ -20,7 +20,7 @@ import {
   getDeliveryPayoutConfig,
   withdrawDeliveryEarnings,
   depositDeliveryCash,
-  adminSettleRiderCash,
+  deliveryLogout,
   getDeliveryZones,
   updateRiderWorkingZone,
   getRiderGigs,
@@ -65,6 +65,6 @@ router.get('/history', getDeliveryHistory);
 router.get('/earnings', getDeliveryEarnings);
 router.post('/withdraw', withdrawDeliveryEarnings);
 router.post('/deposit-cash', depositDeliveryCash);
-router.post('/admin/settle-cash/:id', adminSettleRiderCash);
+router.post('/logout', deliveryLogout);
 
 export default router;

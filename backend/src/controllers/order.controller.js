@@ -7,6 +7,7 @@ import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import RewardConfig from '../models/RewardConfig.js';
 import DeliveryPayoutConfig from '../models/DeliveryPayoutConfig.js';
+import { emitNewDeliveryOrderToOnlineRiders } from '../utils/riderPresence.util.js';
 import Review from '../models/Review.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
 import { calculateDeliveryPayout, estimateDistanceKm } from '../utils/deliveryPayout.util.js';
@@ -494,7 +495,7 @@ export const createOrder = async (req, res) => {
               city: vendor.address?.city || vendor.location?.city || 'Indore',
             },
           };
-          getIO().emit('delivery:new_order', {
+          emitNewDeliveryOrderToOnlineRiders({
             order: orderWithVendor,
             orderId,
             storeName: vendor.storeName,
@@ -642,7 +643,7 @@ export const verifyOrderUpiPayment = async (req, res) => {
           ...(order.toObject ? order.toObject() : order),
           vendor: vendorDoc || { storeName: order.storeName },
         };
-        getIO().emit('delivery:new_order', {
+        emitNewDeliveryOrderToOnlineRiders({
           order: orderWithVendor,
           orderId: order.orderId,
           storeName: order.storeName,
@@ -988,7 +989,7 @@ export const updateOrderStatus = async (req, res) => {
           ...(order.toObject ? order.toObject() : order),
           vendor: vendorDoc || { storeName: order.storeName },
         };
-        getIO().emit('delivery:new_order', {
+        emitNewDeliveryOrderToOnlineRiders({
           order: orderWithVendor,
           orderId: order.orderId,
           storeName: order.storeName,

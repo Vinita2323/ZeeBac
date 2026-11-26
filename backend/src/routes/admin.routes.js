@@ -72,6 +72,13 @@ import {
   getAdminDeliveryPayoutConfig,
   updateAdminDeliveryPayoutConfig,
   adminSettleRiderCash,
+  adminProcessRiderWithdrawal,
+  adminVerifyRiderCashDeposit,
+  adminGetRiderSettlementRequests,
+  adminGetRiderCashLedgerSummary,
+  adminGetRiderCashLedger,
+  adminGetRiderEarningsSummary,
+  adminGetRiderEarningsLedger,
 } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
@@ -191,7 +198,14 @@ router.post('/delivery/partners/:id/reject', adminRejectDeliveryPartner);
 router.post('/delivery/partners/:id/under-review', adminMarkUnderReview);
 router.post('/delivery/partners/:id/suspend', adminSuspendDeliveryPartner);
 router.post('/delivery/partners/:id/reactivate', adminReactivateDeliveryPartner);
+router.get('/delivery/settlement-requests', adminGetRiderSettlementRequests);
+router.get('/delivery/cash-ledger', adminGetRiderCashLedgerSummary);
+router.get('/delivery/cash-ledger/:id', adminGetRiderCashLedger);
+router.get('/delivery/earnings', adminGetRiderEarningsSummary);
+router.get('/delivery/earnings/:id', adminGetRiderEarningsLedger);
 router.post('/delivery/partners/:id/settle-cash', adminSettleRiderCash);
+router.post('/delivery/partners/:id/withdrawals/:requestId/process', adminProcessRiderWithdrawal);
+router.post('/delivery/partners/:id/cash-deposits/:depositId/verify', adminVerifyRiderCashDeposit);
 
 router.get('/delivery/operations/live', adminGetLiveDeliveryOperations);
 router.post('/delivery/operations/assign', adminAssignDeliveryOrder);

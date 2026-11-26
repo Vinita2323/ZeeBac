@@ -1520,9 +1520,9 @@ export default function DeliveryPartnersPage() {
       {/* RIDER PAYOUT & DYNAMIC PRICING CONFIGURATION MODAL */}
       {isPayoutModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-4xl w-full p-5 sm:p-7 border border-slate-100 shadow-2xl space-y-5 text-left my-8">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-4 sm:p-5 border border-slate-100 shadow-2xl space-y-4 text-left my-4">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#7c3aed] text-2xl">calculate</span>
@@ -1547,17 +1547,17 @@ export default function DeliveryPartnersPage() {
                 <div className="w-8 h-8 border-3 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
-              <form onSubmit={handleSavePayoutConfig} className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <form onSubmit={handleSavePayoutConfig} className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                   {/* Left Column: Form Inputs (7 cols) */}
-                  <div className="lg:col-span-7 space-y-4">
+                  <div className="lg:col-span-7 space-y-3">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Payout Rule Parameters
                     </h4>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {/* Base Fare */}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 block">
                           Base Fare (₹)
                         </label>
@@ -1573,15 +1573,15 @@ export default function DeliveryPartnersPage() {
                             onChange={(e) =>
                               setPayoutForm({ ...payoutForm, baseFare: Number(e.target.value) })
                             }
-                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            className="w-full pl-7 pr-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                             required
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400">Guaranteed fixed amount per order</p>
+                        <p className="text-[10px] text-slate-400 truncate">Guaranteed fixed amount per order</p>
                       </div>
 
                       {/* Per KM Rate */}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 block">
                           Per KM Rate (₹/KM)
                         </label>
@@ -1597,15 +1597,15 @@ export default function DeliveryPartnersPage() {
                             onChange={(e) =>
                               setPayoutForm({ ...payoutForm, perKmRate: Number(e.target.value) })
                             }
-                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            className="w-full pl-7 pr-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                             required
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400">Multiplied by drop distance (e.g. ₹10/km)</p>
+                        <p className="text-[10px] text-slate-400 truncate">Multiplied by drop distance (e.g. ₹10/km)</p>
                       </div>
 
                       {/* Base Distance Included */}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 block">
                           Base Distance Included (KM)
                         </label>
@@ -1621,20 +1621,20 @@ export default function DeliveryPartnersPage() {
                                 baseDistanceIncludedKm: Number(e.target.value),
                               })
                             }
-                            className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            className="w-full px-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                             required
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                             KM
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px] text-slate-400 truncate">
                           Set 0 to bill every km (Base + Dist × Rate)
                         </p>
                       </div>
 
                       {/* Guaranteed Min Payout */}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 block">
                           Guaranteed Min Payout (₹)
                         </label>
@@ -1650,15 +1650,15 @@ export default function DeliveryPartnersPage() {
                             onChange={(e) =>
                               setPayoutForm({ ...payoutForm, minPayout: Number(e.target.value) })
                             }
-                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            className="w-full pl-7 pr-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                             required
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400">Minimum floor for any completed drop</p>
+                        <p className="text-[10px] text-slate-400 truncate">Minimum floor for any completed drop</p>
                       </div>
 
                       {/* Weather / Rain Surge */}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 block">
                           Rain / Demand Surge Bonus (₹)
                         </label>
@@ -1674,14 +1674,14 @@ export default function DeliveryPartnersPage() {
                             onChange={(e) =>
                               setPayoutForm({ ...payoutForm, surgeBonus: Number(e.target.value) })
                             }
-                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            className="w-full pl-7 pr-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400">Added to all orders when rain/surge active</p>
+                        <p className="text-[10px] text-slate-400 truncate">Added to all orders when rain/surge active</p>
                       </div>
 
                       {/* Night Surge */}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 block">
                           Night Hours Bonus (₹)
                         </label>
@@ -1700,13 +1700,14 @@ export default function DeliveryPartnersPage() {
                                 nightSurgeBonus: Number(e.target.value),
                               })
                             }
-                            className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                            className="w-full pl-7 pr-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400">Late night delivery incentive</p>
+                        <p className="text-[10px] text-slate-400 truncate">Late night delivery incentive</p>
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {/* Floating Cash in Hand Limit */}
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
@@ -1714,10 +1715,10 @@ export default function DeliveryPartnersPage() {
                           <span className="material-symbols-outlined text-[15px] text-amber-600">payments</span>
                           <span>Max Cash-In-Hand Limit (₹)</span>
                         </span>
-                        <span className="text-[10px] text-amber-700 font-black">Pause orders on reach</span>
+                        <span className="text-[10px] text-amber-700 font-black whitespace-nowrap">Pauses orders</span>
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">₹</span>
                         <input
                           type="number"
                           min="100"
@@ -1729,10 +1730,10 @@ export default function DeliveryPartnersPage() {
                               maxCashInHandLimit: Number(e.target.value),
                             })
                           }
-                          className="w-full pl-7 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                          className="w-full pl-7 pr-3 py-1.5 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[10px] text-slate-400 truncate">
                         Rider ka COD floating cash is limit par pahunchne par order assignment pause ho jayegi aur withdrawal lock ho jayega.
                       </p>
                     </div>
@@ -1747,8 +1748,9 @@ export default function DeliveryPartnersPage() {
                         value={payoutForm.notes}
                         onChange={(e) => setPayoutForm({ ...payoutForm, notes: e.target.value })}
                         placeholder="e.g. Base ₹30 + ₹10/km standard dynamic rate card"
-                        className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7c3aed]"
+                        className="w-full px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7c3aed]"
                       />
+                    </div>
                     </div>
                   </div>
 

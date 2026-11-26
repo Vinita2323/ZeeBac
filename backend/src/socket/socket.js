@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 import registerChatHandlers from './chatHandlers.js';
 import registerCallHandlers from './callHandlers.js';
+import { touchRiderLastSeen } from '../utils/riderPresence.util.js';
 
 let io;
 
@@ -42,9 +43,10 @@ export const initSocket = (httpServer) => {
       if (socket.user.role === 'vendor') {
         socket.join(`vendor_${socket.user.id}`);
         socket.join(`vendor:${socket.user.id}`);
-      } else if (socket.user.role === 'delivery') {
+      } else if (socket.user.role === 'delivery_partner' || socket.user.role === 'delivery') {
         socket.join(`rider_${socket.user.id}`);
         socket.join(`rider:${socket.user.id}`);
+        touchRiderLastSeen(socket.user.id);
       } else {
         socket.join(`customer_${socket.user.id}`);
         socket.join(`customer:${socket.user.id}`);

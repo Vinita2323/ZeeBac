@@ -49,12 +49,17 @@ export default function DeliveryEarningsScreen() {
   const today = earningsData?.today || 0;
   const thisWeek = earningsData?.thisWeek || 0;
   const total = earningsData?.totalEarnings || 0;
-  const completedCount = earningsData?.totalCompletedDeliveries || 0;
+  const weekDeliveries = earningsData?.weekDeliveries || 0;
+  const cashInHand = earningsData?.cashInHand || 0;
+  const cashLimit = earningsData?.maxCashLimit || 1500;
+  const cashUsedPct = Math.min(100, Math.round((cashInHand / cashLimit) * 100));
+  const pendingWithdrawals = earningsData?.pendingWithdrawals || 0;
+  const pendingCashDeposits = earningsData?.pendingCashDeposits || 0;
 
   // Date Range string e.g. "9 Nov - 15 Nov"
   const now = new Date();
   const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+  startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Monday (same as backend)
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   const weekRangeStr = `${startOfWeek.getDate()} ${startOfWeek.toLocaleString('default', { month: 'short' })} - ${endOfWeek.getDate()} ${endOfWeek.toLocaleString('default', { month: 'short' })}`;
@@ -85,7 +90,7 @@ export default function DeliveryEarningsScreen() {
     try {
       const res = await DeliveryAPI.withdraw({ amount: amt });
       if (res.success) {
-        toast.success(res.message || `₹${amt} successfully initiated to your UPI ID!`);
+        toast.success(res.message || `Withdrawal request of ₹${amt} submitted for admin approval.`);
         setShowWithdrawModal(false);
         setWithdrawAmount('');
         loadEarnings();
@@ -201,115 +206,139 @@ export default function DeliveryEarningsScreen() {
           </div>
         )}
 
-        {/* Weekly Earnings Card (From Image 7) */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs text-center">
-          <div className="flex items-center justify-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer">
-            <span>Earnings: {weekRangeStr}</span>
-            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-          </div>
-
-          <div className="my-2">
-            <span className="text-4xl sm:text-5xl font-display font-black text-slate-950 tracking-tight">
-              ₹{(thisWeek || total).toLocaleString('en-IN')}
-            </span>
-          </div>
-
-          <p className="text-[11px] text-slate-400 font-medium">
-            From {completedCount} delivered {completedCount === 1 ? 'order' : 'orders'} this cycle
-          </p>
-        </div>
-
-        {/* ─── POCKET SECTION (From Image 7) ─── */}
+        {/* ─── 1. MY EARNINGS (rider's own money) ─── */}
         <div>
-          <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">
-            POCKET
+          <p className="text-[11px] font-black uppercase tracking-widest text-emerald-700 mb-2 px-1 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[15px]">account_balance_wallet</span>
+            My Earnings
           </p>
 
-          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-2xs space-y-4">
-            {/* Pocket balance line */}
-            <div className="flex items-center justify-between cursor-pointer group">
-              <span className="text-sm font-bold text-slate-800">Pocket balance</span>
-              <div className="flex items-center gap-1">
-                <span className="text-base font-black text-slate-950">₹{total.toLocaleString('en-IN')}</span>
-                <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
-                  chevron_right
+          <div className="bg-white rounded-3xl border border-emerald-100 shadow-2xs overflow-hidden">
+            {/* This week */}
+            <div className="p-5 text-center bg-emerald-50/50 border-b border-emerald-100">
+              <p className="text-xs font-bold text-slate-600">Earned this week · {weekRangeStr}</p>
+              <div className="my-1.5">
+                <span className="text-4xl sm:text-5xl font-display font-black text-emerald-700 tracking-tight">
+                  ₹{thisWeek.toLocaleString('en-IN')}
                 </span>
               </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Delivery fees + tips from {weekDeliveries} {weekDeliveries === 1 ? 'delivery' : 'deliveries'} · Today ₹{today.toLocaleString('en-IN')}
+              </p>
             </div>
 
-            {/* Dotted border separator */}
-            <div className="border-t border-dashed border-slate-200" />
-
-            {/* Available cash limit line */}
-            <div className="flex items-center justify-between cursor-pointer group">
-              <div>
-                <span className="text-sm font-bold text-slate-800">Available cash limit</span>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  {earningsData?.cashInHand ? `₹${(earningsData.cashInHand).toLocaleString('en-IN')} cash in hand` : 'COD Cash holding capacity'}
-                </p>
+            <div className="p-4 sm:p-5 space-y-3">
+              {/* Wallet balance */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-bold text-slate-800">Wallet balance</span>
+                  <p className="text-[10px] text-slate-400 font-medium">Your money, available to withdraw</p>
+                </div>
+                <span className="text-xl font-black text-slate-950">₹{total.toLocaleString('en-IN')}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-base font-black text-slate-950">₹{(earningsData?.availableCashLimit ?? 2000).toLocaleString('en-IN')}</span>
-                <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">
-                  chevron_right
-                </span>
-              </div>
-            </div>
 
-            {/* 2 Big Action Buttons: Deposit & Withdraw (From Image 7) */}
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <button
-                onClick={() => {
-                  setDepositAmount(String(earningsData?.cashInHand || ''));
-                  setShowDepositModal(true);
-                }}
-                className="py-2.5 px-4 rounded-xl border border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-display font-black text-xs transition-all active:scale-98 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[16px]">payments</span>
-                <span>Deposit Cash</span>
-              </button>
+              {pendingWithdrawals > 0 && (
+                <div className="flex items-center justify-between text-[11px] bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  <span className="text-amber-800 font-bold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">schedule</span>
+                    Withdrawal awaiting admin payment
+                  </span>
+                  <span className="font-black text-amber-800">₹{pendingWithdrawals.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
+              {/* Customer tips */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[18px] text-emerald-600">volunteer_activism</span>
+                  <span className="text-xs font-bold text-slate-700">Customer tips received (all time)</span>
+                </div>
+                <span className="text-xs font-black text-emerald-700">₹{(earningsData?.customerTipsBalance || 0).toLocaleString('en-IN')}</span>
+              </div>
 
               <button
                 onClick={() => {
-                  if ((earningsData?.cashInHand || 0) > 0) {
-                    toast.error(`Withdrawal locked! Pehle aapko ₹${earningsData.cashInHand} Cash-in-Hand clear/deposit karna hoga.`);
-                    setDepositAmount(String(earningsData.cashInHand));
+                  if (cashInHand > 0) {
+                    toast.error(`Withdrawal locked! Pehle ₹${cashInHand.toLocaleString('en-IN')} Cash-in-Hand deposit karein.`);
+                    setDepositAmount(String(cashInHand));
                     setShowDepositModal(true);
                   } else {
                     setShowWithdrawModal(true);
                   }
                 }}
-                className={`py-2.5 px-4 rounded-xl font-display font-black text-xs transition-all active:scale-98 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 ${
-                  (earningsData?.cashInHand || 0) > 0
+                className={`w-full py-2.5 px-4 rounded-xl font-display font-black text-xs transition-all active:scale-98 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 ${
+                  cashInHand > 0
                     ? 'bg-slate-200 text-slate-500 hover:bg-slate-300 border border-slate-300'
-                    : 'bg-slate-900 hover:bg-black text-white'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">
-                  {(earningsData?.cashInHand || 0) > 0 ? 'lock' : 'account_balance'}
-                </span>
-                <span>{(earningsData?.cashInHand || 0) > 0 ? 'Withdraw Locked' : 'Withdraw'}</span>
+                <span className="material-symbols-outlined text-[16px]">{cashInHand > 0 ? 'lock' : 'account_balance'}</span>
+                <span>{cashInHand > 0 ? 'Withdraw Locked' : 'Withdraw Earnings'}</span>
               </button>
+              {cashInHand > 0 && (
+                <p className="text-[10px] text-slate-500 text-center -mt-1">
+                  Unlocks after you deposit your Cash in Hand below
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── 2. CASH IN HAND (company money held by rider) ─── */}
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-widest text-amber-700 mb-2 px-1 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[15px]">payments</span>
+            Cash in Hand · Not your earnings
+          </p>
+
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-amber-200 shadow-2xs space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="text-sm font-bold text-slate-800">COD cash to deposit</span>
+                <p className="text-[10px] text-slate-500 font-medium leading-snug mt-0.5">
+                  Cash collected from customers on COD orders. This belongs to Zeebac and must be deposited.
+                </p>
+              </div>
+              <span className={`text-xl font-black shrink-0 ${cashInHand > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                ₹{cashInHand.toLocaleString('en-IN')}
+              </span>
             </div>
 
-            {/* Dotted border separator */}
-            <div className="border-t border-dashed border-slate-200" />
-
-            {/* Customer tips balance */}
-            <div className="flex items-center justify-between cursor-pointer group">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-emerald-600">
-                  volunteer_activism
-                </span>
-                <span className="text-xs font-bold text-slate-800">Customer tips balance</span>
+            {/* Limit bar */}
+            <div className="space-y-1">
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${cashUsedPct >= 100 ? 'bg-rose-500' : cashUsedPct >= 75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${cashUsedPct}%` }}
+                />
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-black text-emerald-700">₹{(earningsData?.customerTipsBalance || 0).toLocaleString('en-IN')}</span>
-                <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-slate-700">
-                  chevron_right
-                </span>
+              <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                <span>Can still collect ₹{(earningsData?.availableCashLimit ?? 0).toLocaleString('en-IN')}</span>
+                <span>Limit ₹{cashLimit.toLocaleString('en-IN')}</span>
               </div>
             </div>
+
+            {pendingCashDeposits > 0 && (
+              <div className="flex items-center justify-between text-[11px] bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                <span className="text-amber-800 font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span>
+                  UPI deposit awaiting admin verification
+                </span>
+                <span className="font-black text-amber-800">₹{pendingCashDeposits.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setDepositAmount(String(cashInHand || ''));
+                setShowDepositModal(true);
+              }}
+              disabled={cashInHand <= 0}
+              className="w-full py-2.5 px-4 rounded-xl border border-amber-600 bg-amber-500 hover:bg-amber-600 text-white font-display font-black text-xs transition-all active:scale-98 cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[16px]">payments</span>
+              <span>{cashInHand > 0 ? `Deposit ₹${cashInHand.toLocaleString('en-IN')} Cash` : 'No cash to deposit'}</span>
+            </button>
           </div>
         </div>
 
@@ -472,7 +501,11 @@ export default function DeliveryEarningsScreen() {
             <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
               <button
                 type="button"
-                onClick={() => setDepositMethod('EARNINGS_DEDUCTION')}
+                onClick={() => {
+                  setDepositMethod('EARNINGS_DEDUCTION');
+                  const cap = Math.min((earningsData?.cashInHand || 0), total);
+                  if (Number(depositAmount) > cap) setDepositAmount(cap > 0 ? String(cap) : '');
+                }}
                 className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                   depositMethod === 'EARNINGS_DEDUCTION'
                     ? 'bg-white text-slate-900 shadow-xs font-black'
@@ -505,9 +538,27 @@ export default function DeliveryEarningsScreen() {
                     ₹{total.toLocaleString('en-IN')}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  Aapke pocket balance me se cash amount turant deduct ho jayegi aur Cash in Hand clear ho jayega.
-                </p>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Max you can settle from pocket:</span>
+                  <span className="font-mono font-black text-slate-900 text-sm">₹{Math.min((earningsData?.cashInHand || 0), total).toLocaleString('en-IN')}</span>
+                </div>
+                {total <= 0 ? (
+                  <p className="text-[11px] text-rose-700 font-semibold leading-snug">
+                    Pocket balance ₹0 hai. Cash deposit karne ke liye Online UPI use karein.
+                  </p>
+                ) : total < (earningsData?.cashInHand || 0) ? (
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pocket se max ₹{total.toLocaleString('en-IN')} settle hoga. Baaki ₹{Math.round(((earningsData?.cashInHand || 0) - total) * 100) / 100} ke liye{' '}
+                    <button type="button" onClick={() => setDepositMethod('UPI')} className="font-black text-emerald-700 underline cursor-pointer">
+                      Online UPI
+                    </button>{' '}
+                    use karein.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    Aapke pocket balance me se cash amount turant deduct ho jayegi aur Cash in Hand clear ho jayega.
+                  </p>
+                )}
               </div>
             )}
 
@@ -556,10 +607,10 @@ export default function DeliveryEarningsScreen() {
                   <label className="font-bold text-slate-700">Amount to Settle (₹):</label>
                   <button
                     type="button"
-                    onClick={() => setDepositAmount(String(earningsData?.cashInHand || 0))}
+                    onClick={() => setDepositAmount(String((depositMethod === 'EARNINGS_DEDUCTION' ? Math.min((earningsData?.cashInHand || 0), total) : (earningsData?.cashInHand || 0))))}
                     className="text-purple-700 font-black hover:underline cursor-pointer"
                   >
-                    Settle All (₹{earningsData?.cashInHand || 0})
+                    {depositMethod === 'EARNINGS_DEDUCTION' ? 'Use full pocket' : 'Settle All'} (₹{(depositMethod === 'EARNINGS_DEDUCTION' ? Math.min((earningsData?.cashInHand || 0), total) : (earningsData?.cashInHand || 0))})
                   </button>
                 </div>
                 <div className="relative">
@@ -567,7 +618,7 @@ export default function DeliveryEarningsScreen() {
                   <input
                     type="number"
                     min="1"
-                    max={earningsData?.cashInHand || 0}
+                    max={(depositMethod === 'EARNINGS_DEDUCTION' ? Math.min((earningsData?.cashInHand || 0), total) : (earningsData?.cashInHand || 0))}
                     required
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
@@ -579,7 +630,7 @@ export default function DeliveryEarningsScreen() {
 
               {/* Quick Preset Buttons */}
               <div className="flex gap-2">
-                {[500, 1000, earningsData?.cashInHand || 0].filter((amt) => amt > 0 && amt <= (earningsData?.cashInHand || 0)).map((amt, idx) => (
+                {[...new Set([500, 1000, (depositMethod === 'EARNINGS_DEDUCTION' ? Math.min((earningsData?.cashInHand || 0), total) : (earningsData?.cashInHand || 0))])].filter((amt) => amt > 0 && amt <= (depositMethod === 'EARNINGS_DEDUCTION' ? Math.min((earningsData?.cashInHand || 0), total) : (earningsData?.cashInHand || 0))).map((amt, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -593,7 +644,7 @@ export default function DeliveryEarningsScreen() {
 
               <button
                 type="submit"
-                disabled={isDepositing || (earningsData?.cashInHand || 0) <= 0}
+                disabled={isDepositing || (depositMethod === 'EARNINGS_DEDUCTION' ? Math.min((earningsData?.cashInHand || 0), total) : (earningsData?.cashInHand || 0)) <= 0}
                 className="w-full py-3 rounded-2xl bg-slate-950 hover:bg-black text-white font-display font-black text-xs shadow-md active:scale-95 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-[16px]">check_circle</span>
