@@ -1198,7 +1198,9 @@ export default function CartScreen() {
               {activeOrder.riderDetails?.deliveryOtp && !isDelivered && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center space-y-0.5">
                   <p className="text-[10.5px] font-bold text-amber-800 uppercase tracking-wider">
-                    Share OTP with Rider upon Delivery
+                    {activeOrder.fulfillmentType === 'pickup'
+                      ? 'Show this Pickup Code at the Store Counter'
+                      : 'Share OTP with Rider upon Delivery'}
                   </p>
                   <p className="font-mono font-black text-[22px] text-amber-900 tracking-widest">
                     {activeOrder.riderDetails.deliveryOtp}

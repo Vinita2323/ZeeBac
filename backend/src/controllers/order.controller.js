@@ -33,6 +33,17 @@ const safeSocketEmit = (room, event, data) => {
 };
 
 // ─── 1. Create Order (Shopping with Product-Level Cashback & Direct UPI Intent) ───
+// The pickup code is the customer's proof of collection — never send it to the store.
+const hidePickupCodeForVendor = (order) => {
+  if (!order || order.fulfillmentType !== 'pickup') return order;
+  const obj = typeof order.toObject === 'function' ? order.toObject() : { ...order };
+  if (obj.riderDetails) {
+    obj.riderDetails = { ...obj.riderDetails };
+    delete obj.riderDetails.deliveryOtp;
+  }
+  return obj;
+};
+
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   try {
@@ -468,7 +479,7 @@ export const createOrder = async (req, res) => {
     if (!isOnlinePaymentPending) {
       try {
         const vendorPayload = {
-          order: createdOrder,
+          order: hidePickupCodeForVendor(createdOrder),
           orderId,
           storeName: vendor.storeName,
           totalAmount: totalGrossAmount,
@@ -606,7 +617,7 @@ export const verifyOrderUpiPayment = async (req, res) => {
     // ── Emit order:new to Store with full order details and soundbox chime! ──
     try {
       const vendorPayload = {
-        order,
+        order: hidePickupCodeForVendor(order),
         orderId: order.orderId,
         storeName: order.storeName,
         totalAmount: order.totalAmount,
@@ -791,11 +802,27 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Delivery Verification & Automatic Cashback Points Settlement ──
     if (status === 'DELIVERED') {
-      // Verify OTP if provided and present
-      if (order.riderDetails?.deliveryOtp && deliveryOtp) {
-        if (order.riderDetails.deliveryOtp !== deliveryOtp.trim()) {
-          return res.status(400).json({ success: false, message: 'Invalid Delivery OTP' });
+      const expectedOtp = order.riderDetails?.deliveryOtp ? String(order.riderDetails.deliveryOtp) : '';
+      const givenOtp = typeof deliveryOtp === 'string' || typeof deliveryOtp === 'number' ? String(deliveryOtp).trim() : '';
+
+      // Store pickup: the merchant MUST enter the customer's 4-digit pickup code at handover
+      // (admins may override, e.g. for support cases).
+      const isPickup = order.fulfillmentType === 'pickup';
+      const isAdmin = ['admin', 'super_admin'].includes(req.user?.role);
+      if (isPickup && expectedOtp && !isAdmin) {
+        if (!givenOtp) {
+          return res.status(400).json({
+            success: false,
+            code: 'PICKUP_OTP_REQUIRED',
+            message: 'Enter the 4-digit pickup code shown in the customer\'s app to hand over this order.',
+          });
         }
+        if (givenOtp !== expectedOtp) {
+          return res.status(400).json({ success: false, code: 'PICKUP_OTP_INVALID', message: 'Incorrect pickup code. Please check with the customer.' });
+        }
+      } else if (expectedOtp && givenOtp && givenOtp !== expectedOtp) {
+        // Delivery orders: verify OTP if provided (unchanged behaviour)
+        return res.status(400).json({ success: false, message: 'Invalid Delivery OTP' });
       }
 
       const customer = await User.findById(order.customerId);
@@ -904,7 +931,7 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: `Order delivered successfully! ${order.totalCashbackPoints} Zeebac Points credited to customer.`,
-        data: { order },
+        data: { order: hidePickupCodeForVendor(order) },
       });
     }
 
@@ -952,7 +979,7 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: 'Order cancelled successfully',
-        data: { order },
+        data: { order: hidePickupCodeForVendor(order) },
       });
     }
 
@@ -1015,7 +1042,7 @@ export const updateOrderStatus = async (req, res) => {
     res.status(200).json({
       success: true,
       message: `Order status updated to ${status}`,
-      data: { order },
+      data: { order: hidePickupCodeForVendor(order) },
     });
   } catch (error) {
     logger.error(`updateOrderStatus error: ${error.message}`);
@@ -1135,6 +1162,10 @@ export const getVendorOrders = async (req, res) => {
     // Ensure every order has a guaranteed pickupOtp and formatted fields with WMS locations
     const orders = rawOrders.map((ord) => {
       const obj = ord.toObject ? ord.toObject() : ord;
+      if (obj.fulfillmentType === 'pickup' && obj.riderDetails) {
+        obj.riderDetails = { ...obj.riderDetails };
+        delete obj.riderDetails.deliveryOtp;
+      }
       if (!obj.pickupOtp) {
         obj.pickupOtp = obj.riderDetails?.pickupOtp || String(obj.orderId || '').replace(/\D/g, '').slice(-4) || '1234';
       }

@@ -683,13 +683,15 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                       <div className="bg-linear-to-r from-purple-700 to-indigo-700 text-white rounded-2xl p-3 flex items-center justify-between shadow-md">
                         <div className="space-y-0.5">
                           <span className="text-[10px] uppercase font-bold tracking-wider text-purple-200 block">
-                            🔑 Delivery OTP
+                            {isPickup ? '🔑 Pickup Code' : '🔑 Delivery OTP'}
                           </span>
                           <span className="font-mono font-black text-2xl tracking-widest block">
                             {order.riderDetails.deliveryOtp}
                           </span>
                           <p className="text-[10.5px] text-purple-100">
-                            Share with delivery partner upon arrival to complete delivery
+                            {isPickup
+                              ? 'Show this code at the store counter to collect your order'
+                              : 'Share with delivery partner upon arrival to complete delivery'}
                           </p>
                         </div>
                         <button

@@ -551,11 +551,22 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(res4.status).toHaveBeenCalledWith(200);
     expect(res4.json.mock.calls[0][0].data.order.orderStatus).toBe('READY_FOR_PICKUP');
 
-    // 5. Customer collects at counter -> Merchant hands over (DELIVERED) -> Points settled
-    const req5 = {
+    // 5a. Handover without the customer's pickup code is refused
+    const req5a = {
       user: { id: vendor._id.toString(), role: 'vendor' },
       params: { orderId: order.orderId },
       body: { status: 'DELIVERED' },
+    };
+    const res5a = makeRes();
+    await updateOrderStatus(req5a, res5a);
+    expect(res5a.status).toHaveBeenCalledWith(400);
+
+    // 5. Customer shows the pickup code from their app -> Merchant enters it and hands over (DELIVERED) -> Points settled
+    expect(order.riderDetails?.deliveryOtp).toMatch(/^\d{4}$/);
+    const req5 = {
+      user: { id: vendor._id.toString(), role: 'vendor' },
+      params: { orderId: order.orderId },
+      body: { status: 'DELIVERED', deliveryOtp: order.riderDetails.deliveryOtp },
     };
     const res5 = makeRes();
     await updateOrderStatus(req5, res5);

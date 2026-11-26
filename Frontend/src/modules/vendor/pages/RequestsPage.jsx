@@ -45,6 +45,10 @@ export default function RequestsPage() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Store pickup handover: merchant must enter the customer's 4-digit pickup code
+  const [pickupHandover, setPickupHandover] = useState(null); // { orderId, customerName }
+  const [pickupCode, setPickupCode] = useState('');
+  const [pickupCodeError, setPickupCodeError] = useState('');
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
 
   // Store Order Rejection modal
@@ -342,11 +346,14 @@ export default function RequestsPage() {
   }, []);
 
   // ── Vendor Order Actions (Accept, Prepare, Deliver) ──
-  const handleOrderStatusUpdate = async (orderId, newStatus, prepMinutes = null) => {
+  // `extra` lets callers send additional fields (e.g. the customer's pickup code).
+  // `silent` suppresses the alert so a modal can show the error inline instead.
+  // Returns { ok, message }.
+  const handleOrderStatusUpdate = async (orderId, newStatus, prepMinutes = null, { extra = {}, silent = false } = {}) => {
     setIsProcessing(true);
     stopOrderRing();
     try {
-      const payload = { status: newStatus };
+      const payload = { status: newStatus, ...extra };
       if (prepMinutes) {
         payload.prepTimeMinutes = Number(prepMinutes);
       }
@@ -363,10 +370,14 @@ export default function RequestsPage() {
         } else if (newStatus === 'READY_FOR_PICKUP') {
           speakVoice('Order is packed and ready for pickup.');
         }
+        return { ok: true };
       }
+      return { ok: false, message: res.message || 'Failed to update order status' };
     } catch (err) {
       console.error('Failed to update order status', err);
-      alert(err.response?.data?.message || 'Failed to update order status');
+      const message = err.response?.data?.message || 'Failed to update order status';
+      if (!silent) alert(message);
+      return { ok: false, message };
     } finally {
       setIsProcessing(false);
     }
@@ -1137,11 +1148,15 @@ export default function RequestsPage() {
                               {order.fulfillmentType === 'pickup' && (
                                 <button
                                   disabled={isProcessing}
-                                  onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
+                                  onClick={() => {
+                                    setPickupHandover({ orderId: order.orderId, customerName: order.customerName || order.customerId?.name || 'Customer' });
+                                    setPickupCode('');
+                                    setPickupCodeError('');
+                                  }}
                                   className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
                                 >
                                   <span className="material-symbols-outlined text-[15px]">verified</span>
-                                  <span>Handover to Customer (Settle Points)</span>
+                                  <span>Handover to Customer (Enter Pickup Code)</span>
                                 </button>
                               )}
 
@@ -1747,6 +1762,81 @@ export default function RequestsPage() {
             setPickingModalOrder((prev) => (prev && prev.orderId === updated.orderId ? { ...prev, ...updated } : prev));
           }}
         />
+      )}
+
+      {/* Store pickup handover — verify the customer's 4-digit pickup code */}
+      {pickupHandover && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-reveal"
+          onClick={() => !isProcessing && setPickupHandover(null)}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!/^\d{4}$/.test(pickupCode)) {
+                setPickupCodeError('Enter the 4-digit code from the customer\'s app.');
+                return;
+              }
+              const r = await handleOrderStatusUpdate(pickupHandover.orderId, 'DELIVERED', null, {
+                extra: { deliveryOtp: pickupCode },
+                silent: true,
+              });
+              if (r?.ok) setPickupHandover(null);
+              else setPickupCodeError(r?.message || 'Could not hand over the order.');
+            }}
+            className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display font-black text-[16px] text-slate-900">Hand Over Pickup Order</h3>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  Order #{pickupHandover.orderId} · {pickupHandover.customerName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickupHandover(null)}
+                disabled={isProcessing}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer shrink-0"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3 text-[12px] text-purple-900 leading-snug">
+              Ask the customer for the <b>4-digit pickup code</b> shown in their Zeebac app, and enter it below to hand over the order.
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Pickup Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                maxLength={4}
+                value={pickupCode}
+                onChange={(e) => {
+                  setPickupCode(e.target.value.replace(/\D/g, '').slice(0, 4));
+                  setPickupCodeError('');
+                }}
+                placeholder="• • • •"
+                className="w-full text-center tracking-[0.6em] font-mono font-black text-2xl py-3 rounded-2xl border-2 border-slate-200 focus:border-purple-600 focus:outline-none"
+              />
+              {pickupCodeError && <p className="text-[12px] font-bold text-rose-600">{pickupCodeError}</p>}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isProcessing || pickupCode.length !== 4}
+              className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[13px] flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[17px]">verified</span>
+              {isProcessing ? 'Verifying…' : 'Verify & Hand Over'}
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );
