@@ -734,7 +734,7 @@ export default function GSTTaxPage() {
                 <div className="text-center md:text-left">
                   <p className="text-[10px] text-slate-400 uppercase font-sans font-bold">1. Output GST Collected</p>
                   <p className="text-base font-bold text-purple-800">
-                    + ₹{summary.totalOutputGst.toFixed(2)}
+                    + ₹{Number(summary.totalOutputGst || 0).toFixed(2)}
                   </p>
                   <p className="text-[10px] text-slate-500 font-sans">Customer Sales & POS Bills</p>
                 </div>
@@ -744,7 +744,7 @@ export default function GSTTaxPage() {
                 <div className="text-center md:text-left">
                   <p className="text-[10px] text-slate-400 uppercase font-sans font-bold">2. Input Tax Credit (ITC)</p>
                   <p className="text-base font-bold text-indigo-700">
-                    − ₹{summary.totalInputGst.toFixed(2)}
+                    − ₹{Number(summary.totalInputGst || 0).toFixed(2)}
                   </p>
                   <p className="text-[10px] text-slate-500 font-sans">Wholesaler B2B Invoices</p>
                 </div>
@@ -760,7 +760,7 @@ export default function GSTTaxPage() {
                       summary.netGstPayable > 0 ? 'text-amber-700' : 'text-emerald-700'
                     }`}
                   >
-                    = ₹{summary.netGstPayable > 0 ? summary.netGstPayable.toFixed(2) : summary.itcCarryForward.toFixed(2)}
+                    = ₹{summary.netGstPayable > 0 ? Number(summary.netGstPayable || 0).toFixed(2) : Number(summary.itcCarryForward || 0).toFixed(2)}
                   </p>
                   <p className="text-[10px] text-slate-500 font-sans">
                     {summary.netGstPayable > 0 ? 'To pay to Govt' : 'Carried to next month'}
@@ -810,13 +810,13 @@ export default function GSTTaxPage() {
                               {rate}% GST
                             </span>
                           </td>
-                          <td className="py-3 px-4 font-medium">₹{item.purchaseTaxable.toFixed(2)}</td>
-                          <td className="py-3 px-4 font-bold text-indigo-700">₹{item.inputGst.toFixed(2)}</td>
-                          <td className="py-3 px-4 font-medium">₹{item.salesTaxable.toFixed(2)}</td>
-                          <td className="py-3 px-4 font-bold text-purple-700">₹{item.outputGst.toFixed(2)}</td>
+                          <td className="py-3 px-4 font-medium">₹{Number(item.purchaseTaxable || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 font-bold text-indigo-700">₹{Number(item.inputGst || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 font-medium">₹{Number(item.salesTaxable || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 font-bold text-purple-700">₹{Number(item.outputGst || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-mono font-bold">
                             {item.netGst > 0 ? (
-                              <span className="text-amber-700">+₹{item.netGst.toFixed(2)}</span>
+                              <span className="text-amber-700">+₹{Number(item.netGst || 0).toFixed(2)}</span>
                             ) : item.netGst < 0 ? (
                               <span className="text-emerald-700">ITC ₹{Math.abs(item.netGst).toFixed(2)}</span>
                             ) : (
@@ -830,15 +830,15 @@ export default function GSTTaxPage() {
                   <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200 text-slate-900">
                     <tr>
                       <td className="py-3 px-4 font-black">Total</td>
-                      <td className="py-3 px-4">₹{summary.totalPurchasesTaxable.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-indigo-700">₹{summary.totalInputGst.toFixed(2)}</td>
-                      <td className="py-3 px-4">₹{summary.totalSalesTaxable.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-purple-700">₹{summary.totalOutputGst.toFixed(2)}</td>
+                      <td className="py-3 px-4">₹{Number(summary.totalPurchasesTaxable || 0).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-indigo-700">₹{Number(summary.totalInputGst || 0).toFixed(2)}</td>
+                      <td className="py-3 px-4">₹{Number(summary.totalSalesTaxable || 0).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-purple-700">₹{Number(summary.totalOutputGst || 0).toFixed(2)}</td>
                       <td className="py-3 px-4 text-right font-mono">
                         {summary.netGstPayable > 0 ? (
-                          <span className="text-amber-800 font-black">Payable ₹{summary.netGstPayable.toFixed(2)}</span>
+                          <span className="text-amber-800 font-black">Payable ₹{Number(summary.netGstPayable || 0).toFixed(2)}</span>
                         ) : (
-                          <span className="text-emerald-800 font-black">Surplus ₹{summary.itcCarryForward.toFixed(2)}</span>
+                          <span className="text-emerald-800 font-black">Surplus ₹{Number(summary.itcCarryForward || 0).toFixed(2)}</span>
                         )}
                       </td>
                     </tr>
@@ -920,20 +920,20 @@ export default function GSTTaxPage() {
                               year: 'numeric',
                             })}
                           </td>
-                          <td className="py-3 px-4 font-medium">₹{inv.taxableAmount.toFixed(2)}</td>
+                          <td className="py-3 px-4 font-medium">₹{Number(inv.taxableAmount || 0).toFixed(2)}</td>
                           <td className="py-3 px-4">
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
                               {inv.gstRate}%
                             </span>
                           </td>
                           <td className="py-3 px-4 font-black text-indigo-700">
-                            ₹{inv.gstAmount.toFixed(2)}
+                            ₹{Number(inv.gstAmount || 0).toFixed(2)}
                             <div className="text-[9px] text-slate-400 font-normal">
                               CGST: ₹{(inv.cgst || inv.gstAmount / 2).toFixed(1)} | SGST: ₹{(inv.sgst || inv.gstAmount / 2).toFixed(1)}
                             </div>
                           </td>
                           <td className="py-3 px-4 font-bold text-slate-900">
-                            ₹{inv.totalAmount.toFixed(2)}
+                            ₹{Number(inv.totalAmount || 0).toFixed(2)}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold inline-flex items-center gap-0.5">
@@ -1028,20 +1028,20 @@ export default function GSTTaxPage() {
                               year: 'numeric',
                             })}
                           </td>
-                          <td className="py-3 px-4 font-medium">₹{inv.taxableAmount.toFixed(2)}</td>
+                          <td className="py-3 px-4 font-medium">₹{Number(inv.taxableAmount || 0).toFixed(2)}</td>
                           <td className="py-3 px-4">
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
                               {inv.gstRate}%
                             </span>
                           </td>
                           <td className="py-3 px-4 font-black text-purple-700">
-                            ₹{inv.gstAmount.toFixed(2)}
+                            ₹{Number(inv.gstAmount || 0).toFixed(2)}
                             <div className="text-[9px] text-slate-400 font-normal">
                               CGST: ₹{(inv.cgst || inv.gstAmount / 2).toFixed(1)} | SGST: ₹{(inv.sgst || inv.gstAmount / 2).toFixed(1)}
                             </div>
                           </td>
                           <td className="py-3 px-4 font-bold text-slate-900">
-                            ₹{inv.totalAmount.toFixed(2)}
+                            ₹{Number(inv.totalAmount || 0).toFixed(2)}
                           </td>
                         </tr>
                       ))}
@@ -1099,20 +1099,20 @@ export default function GSTTaxPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Gross Sales Taxable:</span>
-                        <span className="font-bold text-slate-800">₹{item.totalSalesTaxable?.toFixed(2)}</span>
+                        <span className="font-bold text-slate-800">₹{Number(item.totalSalesTaxable || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Output GST Collected:</span>
-                        <span className="font-bold text-purple-700">₹{item.totalOutputGst?.toFixed(2)}</span>
+                        <span className="font-bold text-purple-700">₹{Number(item.totalOutputGst || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Input Tax Credit (ITC):</span>
-                        <span className="font-bold text-indigo-700">₹{item.totalInputGst?.toFixed(2)}</span>
+                        <span className="font-bold text-indigo-700">₹{Number(item.totalInputGst || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between pt-1 border-t border-slate-100">
                         <span className="text-slate-600 font-bold">Net Position:</span>
                         <span className="font-black text-slate-900">
-                          {item.netGstPayable > 0 ? `Paid ₹${item.netGstPayable?.toFixed(2)}` : `Surplus ₹${item.itcCarryForward?.toFixed(2)}`}
+                          {item.netGstPayable > 0 ? `Paid ₹${Number(item.netGstPayable || 0).toFixed(2)}` : `Surplus ₹${Number(item.itcCarryForward || 0).toFixed(2)}`}
                         </span>
                       </div>
                     </div>
@@ -1135,7 +1135,7 @@ export default function GSTTaxPage() {
       {/* ─── MODAL: FILE GST RETURN ─── */}
       {showFilingModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center">
@@ -1163,22 +1163,22 @@ export default function GSTTaxPage() {
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Gross Sales Value:</span>
-                  <span className="font-bold text-slate-800">₹{summary.totalSalesTaxable.toFixed(2)}</span>
+                  <span className="font-bold text-slate-800">₹{Number(summary.totalSalesTaxable || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Total Output GST (Liability):</span>
-                  <span className="font-bold text-purple-700">₹{summary.totalOutputGst.toFixed(2)}</span>
+                  <span className="font-bold text-purple-700">₹{Number(summary.totalOutputGst || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Wholesaler Input Credit (ITC):</span>
-                  <span className="font-bold text-indigo-700">₹{summary.totalInputGst.toFixed(2)}</span>
+                  <span className="font-bold text-indigo-700">₹{Number(summary.totalInputGst || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 font-bold text-sm">
                   <span className="text-slate-800">Net GST Liability:</span>
                   <span className={summary.netGstPayable > 0 ? 'text-amber-800' : 'text-emerald-800'}>
                     {summary.netGstPayable > 0
-                      ? `₹${summary.netGstPayable.toFixed(2)} Payable`
-                      : `₹${summary.itcCarryForward.toFixed(2)} ITC Surplus`}
+                      ? `₹${Number(summary.netGstPayable || 0).toFixed(2)} Payable`
+                      : `₹${Number(summary.itcCarryForward || 0).toFixed(2)} ITC Surplus`}
                   </span>
                 </div>
               </div>
@@ -1248,7 +1248,7 @@ export default function GSTTaxPage() {
       {/* ─── MODAL: FILING RECEIPT ─── */}
       {filingReceipt && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-inner">
                 <span className="material-symbols-outlined text-[32px]">verified</span>
@@ -1283,13 +1283,13 @@ export default function GSTTaxPage() {
               <div className="flex justify-between">
                 <span className="text-slate-400">Net Tax Paid:</span>
                 <span className="font-bold text-slate-900">
-                  ₹{filingReceipt.netGstPayable ? filingReceipt.netGstPayable.toFixed(2) : '0.00'}
+                  ₹{filingReceipt.netGstPayable ? Number(filingReceipt.netGstPayable || 0).toFixed(2) : '0.00'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">ITC Carried Forward:</span>
                 <span className="font-bold text-emerald-700">
-                  ₹{filingReceipt.itcCarryForward ? filingReceipt.itcCarryForward.toFixed(2) : '0.00'}
+                  ₹{filingReceipt.itcCarryForward ? Number(filingReceipt.itcCarryForward || 0).toFixed(2) : '0.00'}
                 </span>
               </div>
             </div>

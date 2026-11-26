@@ -4542,27 +4542,32 @@ export const getVendorGSTReport = async (req, res) => {
     const netGstPayable = Math.max(0, Math.round((totalOutputGst - totalInputGst) * 100) / 100);
     const itcCarryForward = Math.max(0, Math.round((totalInputGst - totalOutputGst) * 100) / 100);
 
-    // 4. GST Slabs estimation
-    const slabs = [
-      {
-        slab: '5% (Essentials / Groceries)',
-        taxable: Math.round(totalSalesTaxable * 0.65 * 100) / 100,
-        cgst: Math.round(totalOutputGst * 0.65 * 0.5 * 100) / 100,
-        sgst: Math.round(totalOutputGst * 0.65 * 0.5 * 100) / 100,
-      },
-      {
-        slab: '12% (Standard FMCG / Dairy)',
-        taxable: Math.round(totalSalesTaxable * 0.25 * 100) / 100,
-        cgst: Math.round(totalOutputGst * 0.25 * 0.5 * 100) / 100,
-        sgst: Math.round(totalOutputGst * 0.25 * 0.5 * 100) / 100,
-      },
-      {
-        slab: '18% (General Merchandise)',
-        taxable: Math.round(totalSalesTaxable * 0.10 * 100) / 100,
-        cgst: Math.round(totalOutputGst * 0.10 * 0.5 * 100) / 100,
-        sgst: Math.round(totalOutputGst * 0.10 * 0.5 * 100) / 100,
-      },
-    ];
+    // 4. GST slab breakdown — each invoice is grouped by its actual effective GST rate
+    //    (gst ÷ taxable, snapped to the nearest statutory slab). Shape expected by the vendor app:
+    //    { "0": {...}, "5": {...}, "12": {...}, "18": {...}, "28": {...} }
+    const SLAB_RATES = [0, 5, 12, 18, 28];
+    const slabs = Object.fromEntries(
+      SLAB_RATES.map((r) => [String(r), { purchaseTaxable: 0, inputGst: 0, salesTaxable: 0, outputGst: 0, netGst: 0 }])
+    );
+    const slabFor = (taxable, gst) => {
+      if (!(taxable > 0) || !(gst > 0)) return 0;
+      const pct = (gst / taxable) * 100;
+      return String(SLAB_RATES.reduce((best, r) => (Math.abs(r - pct) < Math.abs(best - pct) ? r : best), 0));
+    };
+    purchaseInvoices.forEach((inv) => {
+      const key = slabFor(inv.taxableAmount, inv.gstAmount);
+      slabs[key].purchaseTaxable += inv.taxableAmount || 0;
+      slabs[key].inputGst += inv.gstAmount || 0;
+    });
+    salesInvoices.forEach((inv) => {
+      const key = slabFor(inv.taxableAmount, inv.gstAmount);
+      slabs[key].salesTaxable += inv.taxableAmount || 0;
+      slabs[key].outputGst += inv.gstAmount || 0;
+    });
+    for (const sl of Object.values(slabs)) {
+      for (const k of ['purchaseTaxable', 'inputGst', 'salesTaxable', 'outputGst']) sl[k] = Math.round(sl[k] * 100) / 100;
+      sl.netGst = Math.round((sl.outputGst - sl.inputGst) * 100) / 100;
+    }
 
     // Check if this period has already been filed
     const existingFiling = await GstFiling.findOne({ vendorId, period: periodKey }).lean();

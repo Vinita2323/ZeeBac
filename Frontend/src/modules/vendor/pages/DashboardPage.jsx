@@ -1420,7 +1420,7 @@ export default function DashboardPage() {
       {/* POS Bill Simulator Modal */}
       {showPosModal && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
-          <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto text-left">
+          <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <button
               onClick={() => { setShowPosModal(false); setGeneratedPosBill(null); }}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"

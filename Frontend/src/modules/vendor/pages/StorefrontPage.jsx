@@ -1719,7 +1719,7 @@ export default function StorefrontPage() {
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
             <form
               onSubmit={handleAddOffer}
-              className="bg-white w-full max-w-[320px] rounded-3xl p-6 shadow-2xl relative mx-auto text-left space-y-4"
+              className="bg-white w-full max-w-[320px] rounded-3xl p-6 shadow-2xl relative mx-auto text-left space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
             >
               <button
                 type="button"

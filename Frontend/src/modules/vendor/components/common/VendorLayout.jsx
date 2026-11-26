@@ -339,8 +339,8 @@ export default function VendorLayout({ children }) {
         </div>
       )}
 
-      {/* Desktop Sidebar (Hidden on mobile) */}
-      <div className={`hidden md:block flex-shrink-0 transition-all duration-300 relative z-20 ${isDesktopCollapsed ? 'w-[88px]' : 'w-[260px]'}`}>
+      {/* Desktop Sidebar (from 1024px; phones & tablets use the bottom nav) */}
+      <div className={`hidden lg:block flex-shrink-0 transition-all duration-300 relative z-20 ${isDesktopCollapsed ? 'w-[88px]' : 'w-[260px]'}`}>
         <VendorSidebar 
           isCollapsed={isDesktopCollapsed} 
           onToggleCollapse={() => setIsDesktopCollapsed(!isDesktopCollapsed)} 
@@ -348,7 +348,7 @@ export default function VendorLayout({ children }) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10 md:mesh-gradient">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10 lg:mesh-gradient">
         {/* Top Bar — only on dashboard for mobile, always for desktop */}
         <div className={isDashboard ? '' : 'hidden md:block'}>
           <VendorTopBar />
@@ -356,7 +356,7 @@ export default function VendorLayout({ children }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto scroll-smooth bg-[#f8f9fc]">
-          <div className="w-full max-w-full sm:max-w-2xl md:max-w-7xl mx-auto px-3 sm:px-4 md:px-8 py-3 sm:py-4 md:py-8 pb-28 md:pb-8 space-y-4 md:space-y-6">
+          <div className="w-full max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6 lg:py-8 pb-28 lg:pb-8 space-y-4 md:space-y-6">
             {children}
           </div>
         </main>

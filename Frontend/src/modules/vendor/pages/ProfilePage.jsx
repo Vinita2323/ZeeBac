@@ -1036,7 +1036,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showOpeningHoursModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-amber-600 text-[22px]">schedule</span>
@@ -1133,7 +1133,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showBankModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-emerald-600 text-[22px]">account_balance</span>
@@ -1231,7 +1231,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showNotificationsModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-blue-600 text-[22px]">notifications_active</span>
@@ -1312,7 +1312,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showSecurityModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-violet-600 text-[22px]">fingerprint</span>
@@ -1371,7 +1371,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showSupportModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-3.5 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-3.5 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-cyan-600 text-[22px]">support_agent</span>
@@ -1442,7 +1442,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showAboutModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-3.5 text-center">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-3.5 text-center max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary via-purple-700 to-indigo-800 text-white flex items-center justify-center mx-auto shadow-md">
               <span className="material-symbols-outlined text-[28px]">store</span>
             </div>
@@ -1477,7 +1477,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl space-y-3 text-center">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl space-y-3 text-center max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-[24px]">logout</span>
             </div>

@@ -751,7 +751,7 @@ export default function MerchantPaymentPage() {
       {/* ================= PIN AUTHORIZATION MODAL ================= */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-reveal text-center">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-reveal text-center max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-[30px]">lock</span>
             </div>

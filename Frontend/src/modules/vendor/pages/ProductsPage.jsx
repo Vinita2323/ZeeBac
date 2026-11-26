@@ -555,7 +555,7 @@ export default function ProductsPage() {
       {/* ── MODAL: ADD NEW CATEGORY ── */}
       {showAddCategoryModal && createPortal(
         <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-gray-100 space-y-4 animate-scale-up text-left">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-gray-100 space-y-4 animate-scale-up text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-700 flex items-center justify-center">

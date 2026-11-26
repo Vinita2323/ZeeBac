@@ -843,7 +843,7 @@ export default function VendorPutawayPage() {
                 </button>
               </div>
 
-              <div className="relative min-w-[240px]">
+              <div className="relative w-full sm:w-auto sm:min-w-[240px]">
                 <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[18px]">
                   search
                 </span>
@@ -1042,7 +1042,7 @@ export default function VendorPutawayPage() {
       ═════════════════════════════════════════════════════════════════════ */}
       {successCelebration && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95 border border-slate-100">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95 border border-slate-100 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-3xl shadow-inner">
               🎉
             </div>
@@ -1097,7 +1097,7 @@ export default function VendorPutawayPage() {
       ═════════════════════════════════════════════════════════════════════ */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-display font-black text-base text-slate-900">
                 Inward New Stock Batch

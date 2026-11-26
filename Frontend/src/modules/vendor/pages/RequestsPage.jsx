@@ -612,7 +612,7 @@ export default function RequestsPage() {
       {/* TAB 1: ONLINE STORE ORDERS & RIDER DELIVERY MANAGEMENT */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'orders' && (
-        <div className="space-y-3 pb-[100px] md:pb-6">
+        <div className="space-y-3 pb-[100px] lg:pb-6">
           {isOrdersLoading ? (
             <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
           ) : filteredOrders.length === 0 ? (
@@ -1263,7 +1263,7 @@ export default function RequestsPage() {
       {/* TAB 2: IN-STORE CLAIMS (CASH / POS BILL VERIFICATION) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'claims' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 pb-[100px] md:pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 pb-[100px] lg:pb-6">
           {isLoading ? (
             <p className="col-span-1 lg:col-span-2 text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading...')}</p>
           ) : pendingRequests.length === 0 ? (
@@ -1353,7 +1353,7 @@ export default function RequestsPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {prepModalOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-purple-700 text-[22px]">timer</span>
@@ -1451,7 +1451,7 @@ export default function RequestsPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {rateRiderModalOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-amber-500 text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
@@ -1596,7 +1596,7 @@ export default function RequestsPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {rejectModalOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-reveal">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-left">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-rose-600 text-[22px]">cancel</span>
@@ -1687,7 +1687,7 @@ export default function RequestsPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl relative text-left"
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl relative text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
           >
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <div className="flex items-center gap-2">

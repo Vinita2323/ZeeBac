@@ -42,7 +42,7 @@ export default function VendorQRModal({ isOpen, onClose }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-reveal m-0">
-      <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto text-left">
+      <div className="bg-white w-full max-w-[340px] rounded-3xl p-4 sm:p-6 shadow-2xl relative mx-auto text-left max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
         <button
           type="button"
           onClick={onClose}

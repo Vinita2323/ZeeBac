@@ -2250,7 +2250,7 @@ export default function B2BBillingPage() {
       {showCustomItemModal &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-5 max-w-[380px] w-full shadow-2xl space-y-4 relative">
+          <div className="bg-white rounded-3xl p-5 max-w-[380px] w-full shadow-2xl space-y-4 relative max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-indigo-700">add_circle</span>
@@ -3027,7 +3027,7 @@ export default function B2BBillingPage() {
       {createdInvoice && !transferSuccessData &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-6 max-w-[380px] w-full shadow-2xl text-center space-y-4 relative">
+          <div className="bg-white rounded-3xl p-6 max-w-[380px] w-full shadow-2xl text-center space-y-4 relative max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setCreatedInvoice(null)}
               className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer hover:bg-slate-200"
@@ -3113,7 +3113,7 @@ export default function B2BBillingPage() {
       {transferSuccessData &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-reveal">
-          <div className="bg-white rounded-3xl p-6 max-w-[400px] w-full shadow-2xl text-center space-y-4">
+          <div className="bg-white rounded-3xl p-6 max-w-[400px] w-full shadow-2xl text-center space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
               <span className="material-symbols-outlined text-[36px]">check_circle</span>
             </div>

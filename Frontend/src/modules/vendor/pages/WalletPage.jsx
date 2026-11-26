@@ -924,7 +924,7 @@ export default function WalletPage() {
       {showClaimSuccessModal && claimReceipt && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowClaimSuccessModal(false)} />
-          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col items-center text-center space-y-4 animate-slideUp">
+          <div className="relative bg-white w-full max-w-[420px] rounded-3xl p-6 shadow-2xl z-10 flex flex-col items-center text-center space-y-4 animate-slideUp max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
               <span className="material-symbols-outlined text-[36px]">check_circle</span>
             </div>
@@ -976,7 +976,7 @@ export default function WalletPage() {
       {showUpiModal && (
         <div className="fixed inset-0 z-50 flex justify-center items-center p-3 sm:p-4 animate-reveal">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isProcessing && setShowUpiModal(false)} />
-          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-5 shadow-2xl z-10 flex flex-col animate-slideUp text-left space-y-4">
+          <div className="relative bg-white w-full max-w-[400px] rounded-3xl p-5 shadow-2xl z-10 flex flex-col animate-slideUp text-left space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">

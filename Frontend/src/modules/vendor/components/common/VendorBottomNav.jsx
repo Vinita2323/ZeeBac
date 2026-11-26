@@ -19,7 +19,7 @@ export default function VendorBottomNav() {
   return (
     <nav
       id="vendor-bottom-nav"
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/98 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] flex justify-around items-center w-full h-[62px] px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+      className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white/98 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] flex justify-around items-center w-full h-[62px] px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
     >
       {navItems.map((item) => {
         const isActive = item.exact
