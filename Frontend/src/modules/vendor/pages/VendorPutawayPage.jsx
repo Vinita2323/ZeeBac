@@ -316,7 +316,7 @@ export default function VendorPutawayPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium">
-                Zepto / Blinkit Shelf Inwarding & Location Verification
+                Shelf Inwarding & Location Verification
               </p>
             </div>
           </div>

@@ -18,6 +18,8 @@ export default function DeliveryGigsScreen() {
   const [days, setDays] = useState([]);
   const [slots, setSlots] = useState([]);
   const [bookedGigs, setBookedGigs] = useState([]);
+  const [globalSurgeBonus, setGlobalSurgeBonus] = useState(0);
+  const [nightSurgeBonus, setNightSurgeBonus] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('book'); // 'book' | 'my_gigs'
@@ -46,6 +48,8 @@ export default function DeliveryGigsScreen() {
         setDays(gigsRes.data.days || []);
         setSlots(gigsRes.data.slots || []);
         setBookedGigs(gigsRes.data.bookedGigs || []);
+        setGlobalSurgeBonus(Number(gigsRes.data.globalSurgeBonus) || 0);
+        setNightSurgeBonus(Number(gigsRes.data.nightSurgeBonus) || 0);
         if (gigsRes.data.days?.length > 0 && !selectedDay) {
           setSelectedDay(gigsRes.data.days[0]);
         }
@@ -125,6 +129,37 @@ export default function DeliveryGigsScreen() {
     }
   };
 
+  // Real incentive values for the promo chips (no hardcoded amounts)
+  const slotSurges = slots.map((s) => Number(s.surgeBonus) || 0).filter((v) => v > 0);
+  const minSlotSurge = slotSurges.length ? Math.min(...slotSurges) : 0;
+  const maxSlotSurge = slotSurges.length ? Math.max(...slotSurges) : 0;
+  const promoChips = [
+    slotSurges.length > 0 && {
+      key: 'peak',
+      title: 'Peak Hour Surge',
+      subtitle:
+        minSlotSurge === maxSlotSurge
+          ? `+₹${maxSlotSurge} / order on surge slots`
+          : `+₹${minSlotSurge} to +₹${maxSlotSurge} / order`,
+      icon: 'trending_up',
+      color: 'bg-purple-50 text-purple-700',
+    },
+    globalSurgeBonus > 0 && {
+      key: 'surge',
+      title: 'Rain & High-Demand Surge',
+      subtitle: `+₹${globalSurgeBonus} / order (active now)`,
+      icon: 'rainy',
+      color: 'bg-blue-50 text-blue-700',
+    },
+    nightSurgeBonus > 0 && {
+      key: 'night',
+      title: 'Night Surge',
+      subtitle: `+₹${nightSurgeBonus} / order at night`,
+      icon: 'dark_mode',
+      color: 'bg-indigo-50 text-indigo-700',
+    },
+  ].filter(Boolean);
+
   // Helper: check if a slot is booked for selected date
   const isSlotBooked = (dateStr, slotId) => {
     return bookedGigs.some(
@@ -200,37 +235,24 @@ export default function DeliveryGigsScreen() {
         </div>
 
         {/* Horizontal Promo Chips */}
-        <div className="flex items-center gap-2.5 overflow-x-auto scroll-hide pb-1">
-          <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs min-w-[210px] shrink-0 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black text-slate-900">Earn extra ₹300</p>
-              <p className="text-[11px] text-slate-400 font-medium">Daily Target Incentive</p>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-xs">
-              <span className="material-symbols-outlined text-[20px]">sell</span>
-            </div>
+        {promoChips.length > 0 && (
+          <div className="flex items-center gap-2.5 overflow-x-auto scroll-hide pb-1">
+            {promoChips.map((chip) => (
+              <div
+                key={chip.key}
+                className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs min-w-[210px] shrink-0 flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-xs font-black text-slate-900">{chip.title}</p>
+                  <p className="text-[11px] text-slate-400 font-medium">{chip.subtitle}</p>
+                </div>
+                <div className={`w-9 h-9 rounded-xl ${chip.color} flex items-center justify-center font-bold text-xs`}>
+                  <span className="material-symbols-outlined text-[20px]">{chip.icon}</span>
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs min-w-[210px] shrink-0 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black text-slate-900">Peak Hour Surge</p>
-              <p className="text-[11px] text-slate-400 font-medium">+₹20 to +₹40 / order</p>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-xs">
-              <span className="material-symbols-outlined text-[20px]">trending_up</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs min-w-[210px] shrink-0 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black text-slate-900">Rain & Bad Weather</p>
-              <p className="text-[11px] text-slate-400 font-medium">+₹15 surge automatic</p>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs">
-              <span className="material-symbols-outlined text-[20px]">rainy</span>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* TAB 1: BOOK GIGS */}
         {activeTab === 'book' && (
@@ -246,7 +268,7 @@ export default function DeliveryGigsScreen() {
             </div>
 
             {/* 7 Days Horizontal Date Selector */}
-            <div className="flex gap-2 overflow-x-auto scroll-hide pb-1">
+            <div className="flex gap-2 overflow-x-auto scroll-hide py-1.5 px-1 -mx-1">
               {days.map((day) => {
                 const isSelected = selectedDay?.date === day.date;
                 const hasBookingOnDay = bookedGigs.some(
@@ -257,13 +279,13 @@ export default function DeliveryGigsScreen() {
                   <button
                     key={day.date}
                     onClick={() => setSelectedDay(day)}
-                    className={`flex flex-col items-center justify-center min-w-[62px] py-2.5 px-2 rounded-2xl border transition-all cursor-pointer ${
+                    className={`flex flex-col items-center justify-center min-w-[62px] shrink-0 py-2.5 px-3 rounded-2xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-md scale-105'
                         : 'bg-white text-slate-800 border-slate-200 hover:border-emerald-300'
                     }`}
                   >
-                    <span className="text-[10px] font-black uppercase tracking-wider opacity-80">
+                    <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap opacity-80">
                       {day.dayName}
                     </span>
                     <span className="text-base font-black font-display my-0.5">
@@ -362,7 +384,6 @@ export default function DeliveryGigsScreen() {
               <h3 className="font-display font-black text-sm text-slate-900">
                 Your Scheduled Shifts ({bookedGigs.length})
               </h3>
-              <span className="text-[10px] text-slate-400 font-bold">Zomato / Zepto Gig Model</span>
             </div>
 
             {bookedGigs.length === 0 ? (
@@ -382,8 +403,7 @@ export default function DeliveryGigsScreen() {
             ) : (
               bookedGigs.map((gig) => {
                 const isCheckedIn = gig.status === 'CHECKED_IN';
-                const now = new Date();
-                const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
                 const isToday = gig.date === todayStr;
 
                 return (

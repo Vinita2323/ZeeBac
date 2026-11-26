@@ -2800,7 +2800,8 @@ export const getRiderGigs = async (req, res) => {
     for (let i = 0; i < 7; i++) {
       const d = new Date(now);
       d.setDate(now.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+      // 'YYYY-MM-DD' in IST (toISOString would give the UTC date, wrong before 05:30 IST)
+      const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       days.push({
         date: dateStr,
         dateNum: d.getDate(),
@@ -2811,6 +2812,7 @@ export const getRiderGigs = async (req, res) => {
     }
 
     const activeBookedGigs = (rider.bookedGigs || []).filter((g) => g.status !== 'CANCELLED');
+    const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
 
     return res.status(200).json({
       success: true,
@@ -2820,6 +2822,9 @@ export const getRiderGigs = async (req, res) => {
         days,
         slots,
         bookedGigs: activeBookedGigs,
+        // Admin-configured surge (rain / bad weather / high demand), added to every delivery
+        globalSurgeBonus: payoutConfig?.surgeBonus || 0,
+        nightSurgeBonus: payoutConfig?.nightSurgeBonus || 0,
       },
     });
   } catch (error) {

@@ -426,7 +426,7 @@ export default function InventoryPage() {
                 Scan & Place Inbound Stock into Racks & Bins
               </h4>
               <p className="text-[11px] text-slate-300 truncate">
-                Zepto-style barcode inwarding, location verification & printable labels
+                Barcode inwarding, location verification & printable labels
               </p>
             </div>
           </div>
