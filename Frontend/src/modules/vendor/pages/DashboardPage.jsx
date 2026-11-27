@@ -394,7 +394,7 @@ export default function DashboardPage() {
       {/* ── STORE IDENTITY CARD ── */}
       <div
         onClick={() => navigate('/vendor/profile')}
-        className="max-w-4xl mx-auto bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 group mt-1"
+        className="w-full bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 group mt-1"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0">
@@ -430,7 +430,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── 3. HERO PROMO BANNER (Matching Reference Screen 1) ── */}
-      <div className="max-w-4xl mx-auto bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 text-white rounded-2xl sm:rounded-3xl px-3.5 py-3 sm:px-5 sm:py-3.5 relative overflow-hidden shadow-md flex items-center justify-between gap-3">
+      <div className="w-full bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 text-white rounded-2xl sm:rounded-3xl px-3.5 py-3 sm:px-5 sm:py-3.5 relative overflow-hidden shadow-md flex items-center justify-between gap-3">
         <div className="relative z-10 max-w-[62%] sm:max-w-[65%] space-y-1">
           <h3 className="font-display font-black text-[15px] sm:text-[17px] leading-tight">
             {isB2B ? 'Grow Your B2B Enterprise with Zeebac' : 'Grow Your Business with Zeebac'}
@@ -454,7 +454,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── 4. TODAY'S OVERVIEW SECTION (Matching Reference Screen 1) ── */}
-      <div className="max-w-4xl mx-auto space-y-3 pt-1">
+      <div className="w-full space-y-3 pt-1">
         <div className="flex items-center justify-between">
           <h3 className="font-display font-black text-[16px] sm:text-[17px] text-slate-900">
             Today's Overview
@@ -623,7 +623,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ADDITIONAL VENDOR ADVANCED PANELS (Kept for Full Functionality) ── */}
-      <div className="max-w-4xl mx-auto space-y-3 pt-2">
+      <div className="w-full space-y-3 pt-2">
         {/* Store Stories Bar */}
         <div className="bg-white rounded-2xl p-3 border border-slate-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">

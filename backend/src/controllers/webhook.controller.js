@@ -10,6 +10,9 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import logger from '../utils/logger.js';
+import Order from '../models/Order.js';
+import PaymentWebhookEvent from '../models/PaymentWebhookEvent.js';
+import { applyCapturedOrderPayment, applyRefundEvent } from '../utils/orderPayment.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 
@@ -42,6 +45,10 @@ export const handleRazorpayWebhook = async (req, res) => {
 
     const { event, payload } = req.body || {};
     logger.info(`[Razorpay Webhook] Received event: ${event}`);
+
+    // ── Centralized cart orders (admin Razorpay account) ──
+    const orderEventResult = await handleCustomerOrderEvent(req, event, payload);
+    if (orderEventResult) return res.status(orderEventResult.status).json(orderEventResult.body);
 
     // 2. Handle payment.captured
     if (event === 'payment.captured' || event === 'order.paid') {
@@ -399,5 +406,56 @@ export const handleRazorpayWebhook = async (req, res) => {
   } catch (error) {
     logger.error(`[Razorpay Webhook] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server Error processing webhook', error: error.message });
+  }
+};
+
+// Returns null if the event isn't about a customer cart order (falls through to
+// the legacy wallet / QR handlers), otherwise { status, body }.
+const handleCustomerOrderEvent = async (req, event, payload) => {
+  const payment = payload?.payment?.entity;
+  const refund = payload?.refund?.entity;
+  let isOrderEvent = false;
+  if (['payment.captured', 'order.paid', 'payment.failed', 'payment.authorized'].includes(event) && payment?.order_id) {
+    isOrderEvent = Boolean(await Order.exists({ 'razorpay.orderId': payment.order_id }));
+  } else if (['refund.processed', 'refund.failed', 'refund.created'].includes(event) && refund?.payment_id) {
+    isOrderEvent = Boolean(await Order.exists({ 'razorpay.paymentId': refund.payment_id }));
+  }
+  if (!isOrderEvent) return null;
+
+  // Event-level de-duplication (Razorpay retries deliveries).
+  const eventId = req.headers['x-razorpay-event-id'] || `${event}:${payment?.id || refund?.id}`;
+  try {
+    await PaymentWebhookEvent.create({ eventId, event, entityId: payment?.id || refund?.id });
+  } catch (err) {
+    if (err.code !== 11000) throw err;
+    const prev = await PaymentWebhookEvent.findOne({ eventId });
+    if (prev?.status === 'PROCESSED') {
+      return { status: 200, body: { success: true, status: 'already_processed' } };
+    }
+    // PROCESSING/FAILED: a previous attempt didn't finish → process again (handlers are idempotent).
+  }
+
+  try {
+    let result;
+    if (event === 'payment.captured' || event === 'order.paid') {
+      result = await applyCapturedOrderPayment({ payment, via: 'WEBHOOK' });
+    } else if (event === 'payment.failed') {
+      await Order.updateOne(
+        { 'razorpay.orderId': payment.order_id, 'razorpay.status': { $ne: 'CAPTURED' } },
+        { $set: { 'razorpay.failureReason': payment.error_description || 'Payment failed' } }
+      );
+      result = { applied: true };
+    } else if (event === 'refund.processed' || event === 'refund.failed') {
+      result = await applyRefundEvent({ refund, event });
+    } else {
+      result = { applied: false, reason: 'acknowledged' };
+    }
+    await PaymentWebhookEvent.updateOne({ eventId }, { $set: { status: 'PROCESSED', processedAt: new Date(), error: result?.reason } });
+    return { status: 200, body: { success: true, message: `Order event ${event} processed`, data: { applied: Boolean(result?.applied), reason: result?.reason } } };
+  } catch (err) {
+    await PaymentWebhookEvent.updateOne({ eventId }, { $set: { status: 'FAILED', error: err.message } }).catch(() => {});
+    logger.error(`[Razorpay Webhook] Order event ${event} failed: ${err.message}`);
+    // 500 → Razorpay retries the delivery
+    return { status: 500, body: { success: false, message: 'Order event processing failed' } };
   }
 };

@@ -330,7 +330,7 @@ export default function ProductsPage() {
     <div className="min-h-screen bg-[#f8f9fc] pb-24 text-left">
       {/* ── TOP HEADER (Matching Reference Screen 2) ── */}
       <header className="sticky top-0 z-30 bg-white px-4 pt-4 pb-3 border-b border-slate-100 shadow-xs">
-        <div className="max-w-2xl mx-auto space-y-3">
+        <div className="w-full space-y-3">
           <div className="flex items-center justify-between">
             <h1 className="font-display font-black text-[22px] text-slate-900 tracking-tight">
               Products
@@ -406,7 +406,7 @@ export default function ProductsPage() {
       </header>
 
       {/* ── PRODUCTS LIST CONTAINER ── */}
-      <main className="max-w-2xl mx-auto px-4 py-4 space-y-3">
+      <main className="w-full px-4 py-4 space-y-3">
         {loading ? (
           <div className="py-20 text-center">
             <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -442,7 +442,7 @@ export default function ProductsPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 md:space-y-0 md:grid md:grid-cols-2 2xl:grid-cols-3 md:gap-3 md:items-start">
             {filteredProducts.map((product) => {
               const isOutOfStock = product.stock <= 0;
               const cashbackPercent = product.cashbackPercentage || currentVendor?.cashbackRate || 5;

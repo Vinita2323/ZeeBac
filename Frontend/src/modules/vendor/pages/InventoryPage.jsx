@@ -366,7 +366,7 @@ export default function InventoryPage() {
     <div className="min-h-screen bg-[#f8f9fc] pb-24 text-left">
       {/* ── TOP HEADER (Screen 3 Design) ── */}
       <header className="sticky top-0 z-30 bg-white px-4 pt-4 pb-3 border-b border-slate-100 shadow-xs">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="w-full flex items-center justify-between">
           <div>
             <h1 className="font-display font-black text-[22px] text-slate-900 tracking-tight">
               Inventory
@@ -408,7 +408,7 @@ export default function InventoryPage() {
       </header>
 
       {/* ── MAIN INVENTORY CONTENT ── */}
-      <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <main className="w-full px-4 py-4 space-y-4">
         {/* Dark Store Putaway Flow Banner */}
         <div className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white rounded-3xl p-4 shadow-sm border border-purple-800/50 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">

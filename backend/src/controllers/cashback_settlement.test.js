@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import mongoose from 'mongoose';
 import { connectTestDb, disconnectTestDb } from '../test/dbSetup.js';
 import Vendor from '../models/Vendor.js';
@@ -16,6 +16,16 @@ import {
 } from '../utils/cashbackSettlement.util.js';
 import { createOrder, updateOrderStatus } from './order.controller.js';
 import { logPurchase, getSmartCashbackSettlement } from './vendor.controller.js';
+
+// Never call the real admin Razorpay account from tests
+vi.mock('../utils/razorpay.util.js', () => ({
+  getRazorpayInstance: () => ({
+    orders: { create: async ({ amount, receipt }) => ({ id: `order_${receipt}`, amount, currency: 'INR' }) },
+    payments: { fetch: async () => null, capture: async () => null, refund: async () => ({ id: 'rfnd_test', status: 'pending' }) },
+  }),
+  verifyRazorpaySignature: () => false,
+  fetchVerifiedPaymentAmount: async () => 0,
+}));
 
 beforeAll(connectTestDb, 60000);
 afterAll(disconnectTestDb, 60000);

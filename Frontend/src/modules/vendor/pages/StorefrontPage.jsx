@@ -857,7 +857,7 @@ export default function StorefrontPage() {
 
         {/* Delivery & Charges Tab (Zomato-style Store Owner Controls) */}
         {activeTab === 'delivery' && (
-          <div className="space-y-6 animate-reveal max-w-4xl mx-auto">
+          <div className="space-y-6 animate-reveal w-full">
             {/* Header Banner */}
             <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -898,48 +898,15 @@ export default function StorefrontPage() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 1. Standard Delivery Fee */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1.5">
-                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wider">
-                    Standard Delivery Fee (₹)
-                  </label>
-                  <p className="text-[11px] text-slate-500">
-                    Base fee charged for delivering an order to customer's address.
-                  </p>
-                  <div className="relative mt-2">
-                    <span className="absolute left-3.5 top-3 text-slate-400 font-bold">₹</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={deliverySettings.deliveryCharge}
-                      onChange={(e) => setDeliverySettings({ ...deliverySettings, deliveryCharge: Math.max(0, parseFloat(e.target.value) || 0) })}
-                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl font-black text-slate-900 focus:outline-none focus:border-purple-600 text-base"
-                      placeholder="e.g. 30"
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Free Delivery Above Threshold */}
-                <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 space-y-1.5">
-                  <label className="block text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1">
-                    <span>Free Delivery Threshold (₹)</span>
-                    <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
-                  </label>
-                  <p className="text-[11px] text-emerald-700">
-                    Orders above this amount qualify for 100% Free Delivery for customers.
-                  </p>
-                  <div className="relative mt-2">
-                    <span className="absolute left-3.5 top-3 text-emerald-600 font-bold">₹</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={deliverySettings.freeDeliveryAbove}
-                      onChange={(e) => setDeliverySettings({ ...deliverySettings, freeDeliveryAbove: Math.max(0, parseFloat(e.target.value) || 0) })}
-                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-emerald-200 rounded-xl font-black text-emerald-900 focus:outline-none focus:border-emerald-600 text-base"
-                      placeholder="e.g. 499"
-                    />
+                {/* Delivery fee is set centrally by ZeeBac admin (it funds the rider) */}
+                <div className="md:col-span-2 bg-indigo-50/60 p-4 rounded-2xl border border-indigo-100 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-indigo-600 text-[22px] shrink-0">two_wheeler</span>
+                  <div className="text-[12px] text-indigo-900 leading-snug">
+                    <p className="font-black uppercase tracking-wider text-[11px]">Delivery fee is set by ZeeBac</p>
+                    <p className="mt-0.5">
+                      ZeeBac sets the delivery fee and pays the rider. Your <b>packaging charge</b> below is added to the bill and
+                      paid to you in full with your item amount. See <b>Settlements</b> for what you will receive per order.
+                    </p>
                   </div>
                 </div>
 
@@ -997,9 +964,7 @@ export default function StorefrontPage() {
                 <div className="bg-white p-3.5 rounded-xl border border-purple-100 text-[12px] space-y-1.5 text-slate-700">
                   <div className="flex justify-between">
                     <span>Delivery Charge:</span>
-                    <span className="font-bold text-slate-900">
-                      ₹{deliverySettings.deliveryCharge} (Free above ₹{deliverySettings.freeDeliveryAbove})
-                    </span>
+                    <span className="font-bold text-slate-900">Set by ZeeBac</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Packaging Fee:</span>

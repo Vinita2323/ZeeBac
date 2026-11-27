@@ -117,7 +117,7 @@ export default function VendorLoanPage() {
       </div>
 
       {/* Pre-Application Form Card */}
-      <div className="max-w-xl mx-auto rounded-3xl bg-white border border-outline-variant/20 p-4 sm:p-6 shadow-sm">
+      <div className="max-w-xl md:max-w-3xl mx-auto rounded-3xl bg-white border border-outline-variant/20 p-4 sm:p-6 shadow-sm">
         {registered ? (
           <div className="py-6 text-center space-y-3 animate-fade-in">
             <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">

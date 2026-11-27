@@ -21,6 +21,10 @@ import { isManufacturerOrWholesaler } from '../utils/vendorApplication.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
+import { computeOrderCharges } from '../utils/orderPricing.util.js';
+import { creditSellerForDeliveredOrder, reverseOrderCredit } from '../utils/sellerSettlement.util.js';
+import { createRazorpayCheckoutOrder, applyCapturedOrderPayment, initiateOrderRefund } from '../utils/orderPayment.util.js';
+import { getRazorpayInstance, verifyRazorpaySignature } from '../utils/razorpay.util.js';
 
 const safeSocketEmit = (room, event, data) => {
   try {
@@ -35,7 +39,7 @@ const safeSocketEmit = (room, event, data) => {
 // ─── 1. Create Order (Shopping with Product-Level Cashback & Direct UPI Intent) ───
 // The pickup code is the customer's proof of collection — never send it to the store.
 const hidePickupCodeForVendor = (order) => {
-  if (!order || order.fulfillmentType !== 'pickup') return order;
+  if (!order) return order;
   const obj = typeof order.toObject === 'function' ? order.toObject() : { ...order };
   if (obj.riderDetails) {
     obj.riderDetails = { ...obj.riderDetails };
@@ -171,34 +175,23 @@ export const createOrder = async (req, res) => {
     // ── Calculate Item Subtotal, Delivery Fee, Packaging Fee & Admin Tax ──
     const itemTotal = totalGrossAmount;
 
-    let deliveryCharge = 0;
-    let packagingCharge = 0;
-    if (fulfillmentType === 'delivery' && vendor.deliverySettings) {
-      const freeAbove = Number(vendor.deliverySettings.freeDeliveryAbove) || 0;
-      if (freeAbove > 0 && itemTotal >= freeAbove) {
-        deliveryCharge = 0;
-      } else {
-        deliveryCharge = Number(vendor.deliverySettings.deliveryCharge || 0);
-      }
-      packagingCharge = Number(vendor.deliverySettings.packagingCharge || 0);
-    }
-
-    // Statutory GST Tax decided by Admin from RewardConfig
+    // Centralized pricing: delivery fee, platform fee & GST set by ADMIN (admin's share);
+    // packaging set by the SELLER (seller's share). See utils/orderPricing.util.js.
     const rewardConfig = await RewardConfig.findOne();
-    const isTaxEnabled = rewardConfig ? Boolean(rewardConfig.enableOrderTax) : false;
-    const rawTaxPercent = rewardConfig?.orderGstTaxPercent;
-    const taxPercentage = isTaxEnabled && rawTaxPercent != null && !isNaN(Number(rawTaxPercent)) ? Number(rawTaxPercent) : 0;
-    const taxAmount = Math.round((itemTotal * (taxPercentage / 100)) * 100) / 100;
-
-    const safeDelivery = Number.isFinite(deliveryCharge) ? deliveryCharge : 0;
-    const safePackaging = Number.isFinite(packagingCharge) ? packagingCharge : 0;
-    const safeTax = Number.isFinite(taxAmount) ? taxAmount : 0;
-
-    const rawTip = Number(req.body.tipAmount) || 0;
-    const tipAmount = fulfillmentType === 'delivery' && rawTip > 0 ? Math.round(rawTip * 100) / 100 : 0;
-
-    // Total gross bill amount (itemTotal + deliveryCharge + packagingCharge + taxAmount + tipAmount)
-    const totalBillAmount = Math.round((itemTotal + safeDelivery + safePackaging + safeTax + tipAmount) * 100) / 100;
+    const charges = computeOrderCharges({
+      itemTotal,
+      fulfillmentType,
+      vendor,
+      rewardConfig,
+      tip: Number(req.body.tipAmount) || 0,
+    });
+    const safeDelivery = charges.deliveryCharge;
+    const safePackaging = charges.packagingCharge;
+    const safeTax = charges.taxAmount;
+    const taxPercentage = charges.taxPercentage;
+    const platformFee = charges.platformFee;
+    const tipAmount = charges.tipAmount;
+    const totalBillAmount = charges.grossTotal;
 
     // ── Smart Cashback & Settlement Redemption Capacity Check ──
     const vendorCapacity = getVendorRedemptionCapacity(vendor);
@@ -320,14 +313,15 @@ export const createOrder = async (req, res) => {
     const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
     const pickupOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // ── Direct UPI Intent Setup ──
-    const payeeVpa = vendor.bankDetails?.upiId || process.env.MERCHANT_UPI_ID || process.env.ADMIN_UPI_ID || 'zeebac@upi';
+    // ── Centralized collection ──
+    // Every online cart payment goes to the ADMIN Razorpay account (no direct-to-seller UPI).
+    // CASH = COD for delivery, or pay-at-store (seller bills in store) for pickup.
+    const payeeVpa = '';
     const payeeName = vendor.storeName || 'ZeeBac Store';
     const txnRef = orderId;
-    const upiNote = `ZeeBac Order ${orderId}`;
-    const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(finalPayableAmount.toFixed(2))}&cu=INR&tr=${encodeURIComponent(txnRef)}&tn=${encodeURIComponent(upiNote)}`;
+    const upiUri = '';
 
-    let resolvedPaymentMethod = paymentMethod;
+    let resolvedPaymentMethod = 'ONLINE';
     let initialPaymentStatus = 'PENDING';
     let initialOrderStatus = 'PLACED';
 
@@ -336,10 +330,25 @@ export const createOrder = async (req, res) => {
       initialPaymentStatus = 'PAID';
     } else if (paymentMethod === 'CASH') {
       resolvedPaymentMethod = 'CASH';
-      initialPaymentStatus = 'PENDING';
-    } else if (paymentMethod === 'ONLINE' || paymentMethod === 'RAZORPAY') {
-      resolvedPaymentMethod = 'ONLINE';
-      initialPaymentStatus = 'PENDING';
+    } else if (finalPayableAmount === 0) {
+      resolvedPaymentMethod = 'ZEEBAC_POINTS';
+      initialPaymentStatus = 'PAID';
+    }
+
+    // Create the Razorpay order up-front so a gateway failure aborts before any points are debited.
+    let razorpayOrder = null;
+    if (resolvedPaymentMethod === 'ONLINE') {
+      try {
+        razorpayOrder = await createRazorpayCheckoutOrder({
+          orderId,
+          amount: finalPayableAmount,
+          vendorId: vendor._id,
+          customerId: customer._id,
+        });
+      } catch (rzpErr) {
+        logger.error(`[createOrder] Razorpay order creation failed for ${orderId}: ${rzpErr.message || rzpErr?.error?.description}`);
+        return res.status(502).json({ success: false, code: 'PAYMENT_GATEWAY_ERROR', message: 'Online payment is unavailable right now. Please try again or choose Cash.' });
+      }
     }
 
     let createdOrder;
@@ -409,6 +418,7 @@ export const createOrder = async (req, res) => {
         deliveryCharge: safeDelivery,
         packagingCharge: safePackaging,
         taxAmount: safeTax,
+        platformFee,
         taxPercentage,
         tipAmount,
         totalAmount: totalGrossAmount,
@@ -441,6 +451,11 @@ export const createOrder = async (req, res) => {
         deliveryPayout: payoutBreakdown.totalPayout,
         deliveryPayoutBreakdown: payoutBreakdown,
         cashbackSettled: false,
+        ...(razorpayOrder ? { razorpay: { orderId: razorpayOrder.id, status: 'CREATED' } } : {}),
+        financials: {
+          commissionPercent: charges.sellerCommissionPercent,
+          settlementStatus: fulfillmentType === 'pickup' && resolvedPaymentMethod === 'CASH' ? 'NOT_APPLICABLE' : 'PENDING',
+        },
       });
 
       if (activeSession) {
@@ -471,9 +486,7 @@ export const createOrder = async (req, res) => {
     // ── Real-time Socket Event & Push Notification to Vendor ──
     // IMPORTANT: For online/UPI payments, do NOT notify the store until payment is verified and confirmed!
     const isOnlinePaymentPending =
-      (createdOrder.paymentMethod === 'UPI' ||
-        createdOrder.paymentMethod === 'UPI_INTENT' ||
-        createdOrder.paymentMethod?.startsWith('UPI')) &&
+      ['ONLINE', 'RAZORPAY', 'UPI', 'UPI_INTENT'].includes(createdOrder.paymentMethod) &&
       createdOrder.paymentStatus !== 'PAID';
 
     if (!isOnlinePaymentPending) {
@@ -531,7 +544,7 @@ export const createOrder = async (req, res) => {
         referenceType: 'Order',
       }).catch(() => {});
     } else {
-      logger.info(`[createOrder] Order #${orderId} created with PENDING UPI payment. Store notification held until payment verification.`);
+      logger.info(`[createOrder] Order #${orderId} created with PENDING UPI payment. Store notification held until Razorpay payment is captured.`);
     }
 
     logger.info(`[Order] Created: ${orderId} | Customer: ${customer.zeebacId} | Payable: ₹${finalPayableAmount} | Points Earned: ${totalCashbackPoints}`);
@@ -541,14 +554,18 @@ export const createOrder = async (req, res) => {
       message: 'Order placed successfully',
       data: {
         order: createdOrder,
-        upiDetails: {
-          upiUri,
-          payeeVpa,
-          payeeName,
-          amount: finalPayableAmount,
-          txnRef,
-          note: upiNote,
-        },
+        upiDetails: null,
+        razorpay: razorpayOrder
+          ? {
+              keyId: process.env.RAZORPAY_KEY_ID,
+              razorpayOrderId: razorpayOrder.id,
+              amount: razorpayOrder.amount,
+              currency: razorpayOrder.currency || 'INR',
+              name: 'ZeeBac',
+              description: `Order ${orderId} · ${vendor.storeName || 'ZeeBac Store'}`,
+              prefill: { name: customer.name || '', contact: customer.phone || '' },
+            }
+          : null,
         pointsSummary: {
           pointsRedeemed: pointsToRedeem,
           totalCashbackPoints,
@@ -748,6 +765,65 @@ export const assignRider = async (req, res) => {
   }
 };
 
+// ── Order status rules for the store (admin may override anything) ──
+// Rider-driven stages (assigned → at store → picked up → on the way → at customer → delivered)
+// are set only by the rider app. The store moves its own stages forward.
+const RIDER_STAGES = ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'FAILED_DELIVERY'];
+const VENDOR_TRANSITIONS = {
+  PLACED: ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'CANCELLED', 'DELIVERED'],
+  CONFIRMED: ['PREPARING', 'READY_FOR_PICKUP', 'DELIVERED'],
+  PREPARING: ['READY_FOR_PICKUP', 'DELIVERED'],
+  READY_FOR_PICKUP: ['DELIVERED'],
+};
+// A platform rider (riderDetails.riderId) owns the order once assigned. A store's own
+// delivery boy added via "assign rider" has no riderId, so the store can still complete it.
+const hasPlatformRider = (order) => Boolean(order.riderDetails?.riderId);
+
+const vendorStatusError = (order, status) => {
+  if (RIDER_STAGES.includes(status)) {
+    return { code: 'RIDER_ONLY_STATUS', message: 'This status is updated by the delivery partner app.' };
+  }
+  if (status === 'DELIVERED' && order.fulfillmentType === 'delivery' && hasPlatformRider(order)) {
+    return {
+      code: 'RIDER_OWNS_DELIVERY',
+      message: 'A ZeeBac delivery partner has this order. It is marked delivered when the rider enters the customer code. Contact support if there is a problem.',
+    };
+  }
+  if (status === 'CANCELLED' && order.orderStatus !== 'PLACED') {
+    return { code: 'ALREADY_ACCEPTED', message: 'Order already accepted and in progress. Accepted orders cannot be rejected.' };
+  }
+  // Store's own delivery boy (no platform rider): the store completes the delivery itself.
+  if (status === 'DELIVERED' && !hasPlatformRider(order) && RIDER_STAGES.includes(order.orderStatus)) return null;
+  const allowed = VENDOR_TRANSITIONS[order.orderStatus] || [];
+  if (!allowed.includes(status)) {
+    return { code: 'INVALID_TRANSITION', message: `Order is ${order.orderStatus.replaceAll('_', ' ').toLowerCase()} and cannot be changed to ${status.replaceAll('_', ' ').toLowerCase()}.` };
+  }
+  return null;
+};
+
+// Tell everyone who follows this order (customer, store, assigned rider, admins, order room).
+const broadcastOrderStatus = (order, extra = {}) => {
+  const payload = {
+    orderId: order.orderId,
+    _id: order._id,
+    orderStatus: order.orderStatus,
+    paymentStatus: order.paymentStatus,
+    updatedBy: extra.updatedBy,
+    ...extra,
+  };
+  const riderId = order.riderDetails?.riderId?._id || order.riderDetails?.riderId;
+  const rooms = [
+    `user_${order.customerId}`,
+    `vendor_${order.vendorId}`,
+    `vendor:${order.vendorId}`,
+    `order:${order.orderId}`,
+    `order:${order._id}`,
+    'admins',
+    ...(riderId ? [`rider_${riderId}`, `rider:${riderId}`] : []),
+  ];
+  for (const room of rooms) safeSocketEmit(room, 'order:status_update', payload);
+};
+
 // ─── 4. Update Order Status (Vendor / Rider / Admin) ───
 // When status becomes 'DELIVERED':
 // Automatic payout of decided product cashback points to Customer
@@ -783,9 +859,18 @@ export const updateOrderStatus = async (req, res) => {
     );
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    // Ensure authorized vendor or admin
+    // Only the store that owns the order, or an admin, may change it here
+    // (riders use /delivery routes; customers cannot change status).
+    const isAdminActor = ['admin', 'super_admin'].includes(req.user.role);
+    if (!isAdminActor && req.user.role !== 'vendor') {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
     if (req.user.role === 'vendor' && order.vendorId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+    if (req.user.role === 'vendor' && order.orderStatus !== status) {
+      const err = ['DELIVERED', 'CANCELLED'].includes(order.orderStatus) ? null : vendorStatusError(order, status);
+      if (err) return res.status(400).json({ success: false, ...err });
     }
 
     // Business Rule: Once an order is accepted by the merchant, it CANNOT be rejected or cancelled
@@ -820,6 +905,11 @@ export const updateOrderStatus = async (req, res) => {
         if (givenOtp !== expectedOtp) {
           return res.status(400).json({ success: false, code: 'PICKUP_OTP_INVALID', message: 'Incorrect pickup code. Please check with the customer.' });
         }
+      }
+
+      // Online (admin Razorpay) orders can only be delivered once the payment is captured.
+      if (['ONLINE', 'RAZORPAY'].includes(order.paymentMethod) && order.razorpay?.status !== 'CAPTURED' && !isAdmin) {
+        return res.status(400).json({ success: false, code: 'ONLINE_PAYMENT_PENDING', message: 'Online payment for this order has not been received yet.' });
       }
 
       // Store pickup: payment confirmation and handover are SEPARATE actions.
@@ -896,6 +986,9 @@ export const updateOrderStatus = async (req, res) => {
           order.settledAt = new Date();
         }
 
+        // 3. Centralized settlement: credit seller's share (online → available, COD → on hold)
+        await creditSellerForDeliveredOrder(order, { session });
+
         await order.save({ session });
       });
 
@@ -915,6 +1008,7 @@ export const updateOrderStatus = async (req, res) => {
           orderStatus: 'DELIVERED',
         });
       } catch (_) {}
+      broadcastOrderStatus(order, { updatedBy: req.user.role });
 
       // Push notification to Customer
       sendNotification({
@@ -977,6 +1071,16 @@ export const updateOrderStatus = async (req, res) => {
         await order.save({ session });
       });
 
+      // Online-paid (admin Razorpay) order cancelled → refund the customer in full.
+      if (order.razorpay?.status === 'CAPTURED' && order.paymentStatus === 'PAID') {
+        try {
+          await initiateOrderRefund({ order, reason: `Order cancelled: ${order.cancellationReason}`, actorId: req.user.id });
+          await order.save();
+        } catch (refundErr) {
+          logger.error(`[Order] Auto-refund failed for cancelled order ${order.orderId}: ${refundErr.message}`);
+        }
+      }
+
       try {
         const cancelPayload = {
           orderId: order.orderId,
@@ -988,7 +1092,13 @@ export const updateOrderStatus = async (req, res) => {
         getIO().to(`user_${order.customerId}`).emit('order:cancelled', cancelPayload);
         getIO().to(`vendor_${order.vendorId}`).emit('order:cancelled', cancelPayload);
         getIO().to(`vendor:${order.vendorId}`).emit('order:cancelled', cancelPayload);
+        const cancelRiderId = order.riderDetails?.riderId;
+        if (cancelRiderId) {
+          getIO().to(`rider_${cancelRiderId}`).emit('order:cancelled', cancelPayload);
+          getIO().to(`rider:${cancelRiderId}`).emit('order:cancelled', cancelPayload);
+        }
       } catch (_) {}
+      broadcastOrderStatus(order, { updatedBy: req.user.role, cancellationReason: order.cancellationReason });
 
       return res.status(200).json({
         success: true,
@@ -1022,6 +1132,13 @@ export const updateOrderStatus = async (req, res) => {
         orderId: order.orderId,
         orderStatus: status,
       });
+      const statusRiderId = order.riderDetails?.riderId;
+      if (statusRiderId) {
+        const riderPayload = { orderId: order.orderId, orderStatus: status, message: `Store updated order #${order.orderId} to ${status.replaceAll('_', ' ')}` };
+        getIO().to(`rider_${statusRiderId}`).emit('order:status_update', riderPayload);
+        getIO().to(`rider:${statusRiderId}`).emit('order:status_update', riderPayload);
+      }
+      getIO().to('admins').emit('order:status_update', { orderId: order.orderId, orderStatus: status, updatedBy: req.user.role });
       if (['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(status) && order.fulfillmentType === 'delivery') {
         const vendorDoc = await Vendor.findById(order.vendorId)
           .select('storeName phone address location storeLogo city')
@@ -1158,9 +1275,10 @@ export const getVendorOrders = async (req, res) => {
     const query = {
       vendorId: req.user.id,
       // Strictly exclude online UPI orders that have not been verified/paid yet
+      // Unpaid online (Razorpay) orders stay hidden until the payment is captured
       $or: [
-        { paymentStatus: 'PAID' },
-        { paymentMethod: { $in: ['CASH', 'ZEEBAC_POINTS', 'ONLINE'] } },
+        { paymentStatus: { $in: ['PAID', 'REFUNDED'] } },
+        { paymentMethod: { $in: ['CASH', 'ZEEBAC_POINTS'] } },
       ],
     };
     if (status) query.orderStatus = status;
@@ -1176,7 +1294,7 @@ export const getVendorOrders = async (req, res) => {
     // Ensure every order has a guaranteed pickupOtp and formatted fields with WMS locations
     const orders = rawOrders.map((ord) => {
       const obj = ord.toObject ? ord.toObject() : ord;
-      if (obj.fulfillmentType === 'pickup' && obj.riderDetails) {
+      if (obj.riderDetails) {
         obj.riderDetails = { ...obj.riderDetails };
         delete obj.riderDetails.deliveryOtp;
       }
@@ -1929,5 +2047,79 @@ export const confirmStoreBillPayment = async (req, res) => {
   } catch (error) {
     logger.error(`confirmStoreBillPayment error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// ─── Razorpay (admin account) checkout: client-side confirmation ───
+// The webhook is the source of truth; this endpoint just lets the app confirm
+// immediately. Both paths go through applyCapturedOrderPayment (idempotent).
+export const verifyOrderRazorpayPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id: rzpOrderId, razorpay_payment_id: rzpPaymentId, razorpay_signature: signature } = req.body || {};
+    if (!rzpOrderId || !rzpPaymentId || !signature) {
+      return res.status(400).json({ success: false, message: 'razorpay_order_id, razorpay_payment_id and razorpay_signature are required' });
+    }
+    const order = await findOrderByAnyId(req.params.orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.customerId.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Unauthorized' });
+    if (order.razorpay?.orderId !== rzpOrderId) {
+      return res.status(400).json({ success: false, code: 'ORDER_MISMATCH', message: 'Payment does not belong to this order' });
+    }
+    if (!verifyRazorpaySignature(rzpOrderId, rzpPaymentId, signature)) {
+      return res.status(400).json({ success: false, code: 'INVALID_SIGNATURE', message: 'Payment signature verification failed' });
+    }
+    if (order.razorpay?.status === 'CAPTURED' && order.razorpay.paymentId === rzpPaymentId) {
+      return res.status(200).json({ success: true, message: 'Payment already confirmed', data: { order } });
+    }
+
+    // Never trust client amounts: fetch the payment from Razorpay.
+    const rzp = getRazorpayInstance();
+    let payment = await rzp.payments.fetch(rzpPaymentId);
+    if (payment.order_id !== rzpOrderId) {
+      return res.status(400).json({ success: false, code: 'ORDER_MISMATCH', message: 'Payment does not belong to this order' });
+    }
+    if (payment.status === 'authorized') {
+      payment = await rzp.payments.capture(rzpPaymentId, payment.amount, payment.currency || 'INR');
+      if (payment.fee == null) payment = await rzp.payments.fetch(rzpPaymentId);
+    }
+
+    const result = await applyCapturedOrderPayment({ payment, via: 'CLIENT_VERIFY' });
+    const fresh = result.order || (await Order.findById(order._id));
+    if (!result.applied && !result.duplicate) {
+      return res.status(400).json({ success: false, code: 'PAYMENT_NOT_APPLIED', message: `Payment could not be confirmed: ${result.reason}`, data: { order: fresh } });
+    }
+    return res.status(200).json({ success: true, message: 'Payment confirmed', data: { order: fresh } });
+  } catch (error) {
+    logger.error(`verifyOrderRazorpayPayment error: ${error.message || error?.error?.description}`);
+    res.status(500).json({ success: false, message: 'Could not verify payment. If money was deducted it will be confirmed automatically.' });
+  }
+};
+
+// GET /orders/:orderId/razorpay/checkout: lets the customer reopen payment for an unpaid
+// online order. Reuses the same Razorpay order so one order can only be paid once.
+export const getOrderRazorpayCheckout = async (req, res) => {
+  try {
+    const order = await findOrderByAnyId(req.params.orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.customerId.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Unauthorized' });
+    if (!order.razorpay?.orderId || order.paymentStatus === 'PAID' || order.orderStatus === 'CANCELLED') {
+      return res.status(400).json({ success: false, code: 'NOT_PAYABLE', message: 'This order does not need an online payment.' });
+    }
+    const customer = await User.findById(order.customerId).select('name phone').lean();
+    res.json({
+      success: true,
+      data: {
+        keyId: process.env.RAZORPAY_KEY_ID,
+        razorpayOrderId: order.razorpay.orderId,
+        amount: Math.round(Number(order.finalPayableAmount || 0) * 100),
+        currency: 'INR',
+        name: 'ZeeBac',
+        description: `Order ${order.orderId} · ${order.storeName || 'ZeeBac Store'}`,
+        prefill: { name: customer?.name || '', contact: customer?.phone || '' },
+      },
+    });
+  } catch (error) {
+    logger.error(`getOrderRazorpayCheckout error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

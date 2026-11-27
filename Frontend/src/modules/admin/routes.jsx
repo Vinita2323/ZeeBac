@@ -23,6 +23,8 @@ import AdminNotificationsPage from './pages/AdminNotificationsPage';
 import SubscriptionPlansPage from './pages/SubscriptionPlansPage';
 import LegalContentManagerPage from './pages/LegalContentManagerPage';
 import AdminSupplyChainPage from './pages/AdminSupplyChainPage';
+import SellerSettlementsPage from './pages/SellerSettlementsPage';
+import AdminProfilePage from './pages/AdminProfilePage';
 
 export default function AdminRoutes() {
   return (
@@ -30,6 +32,8 @@ export default function AdminRoutes() {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/payouts" element={<PayoutsPage />} />
+        <Route path="/seller-settlements" element={<SellerSettlementsPage />} />
+        <Route path="/profile" element={<AdminProfilePage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/vendors/:id" element={<VendorApplicationDetailPage />} />

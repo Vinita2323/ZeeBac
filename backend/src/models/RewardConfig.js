@@ -55,6 +55,14 @@ const rewardConfigSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  // ── Centralized order pricing (admin-controlled; these amounts go to admin) ──
+  orderDeliveryCharge: { type: Number, default: 40, min: 0 },
+  orderFreeDeliveryAbove: { type: Number, default: 0, min: 0 }, // 0 = never free
+  orderPlatformFeeFixed: { type: Number, default: 0, min: 0 },
+  orderPlatformFeePercent: { type: Number, default: 0, min: 0, max: 50 },
+  // Commission admin keeps from the seller's share (item total + packaging)
+  sellerCommissionPercent: { type: Number, default: 0, min: 0, max: 50 },
+  sellerMinPayoutRequest: { type: Number, default: 100, min: 1 },
   customerWalletPayCommissionPercent: {
     type: Number,
     default: 0, // 0% convenience fee - zero extra charges when paying merchant from wallet

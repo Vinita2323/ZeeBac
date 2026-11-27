@@ -301,7 +301,7 @@ export default function VendorPutawayPage() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans pb-16">
       {/* ── TOP HEADER & WMS TELEMETRY STRIP ── */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="w-full px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#7c3aed] to-[#9333ea] text-white flex items-center justify-center shadow-md shadow-purple-500/20">
               <span className="material-symbols-outlined text-[22px]">shelves</span>
@@ -348,7 +348,7 @@ export default function VendorPutawayPage() {
         </div>
 
         {/* ── METRICS OVERVIEW STRIP ── */}
-        <div className="max-w-6xl mx-auto px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs gap-3 overflow-x-auto">
+        <div className="w-full px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs gap-3 overflow-x-auto">
           <div className="flex items-center gap-6 min-w-max">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
@@ -422,7 +422,7 @@ export default function VendorPutawayPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-4 space-y-6">
+      <main className="w-full p-4 space-y-6">
         {/* ═════════════════════════════════════════════════════════════════════
             TAB 1: PUTAWAY STATION (THE VIDEO FLOW)
         ═════════════════════════════════════════════════════════════════════ */}

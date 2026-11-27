@@ -43,6 +43,8 @@ export const initSocket = (httpServer) => {
       if (socket.user.role === 'vendor') {
         socket.join(`vendor_${socket.user.id}`);
         socket.join(`vendor:${socket.user.id}`);
+      } else if (socket.user.role === 'admin' || socket.user.role === 'super_admin') {
+        socket.join('admins');
       } else if (socket.user.role === 'delivery_partner' || socket.user.role === 'delivery') {
         socket.join(`rider_${socket.user.id}`);
         socket.join(`rider:${socket.user.id}`);

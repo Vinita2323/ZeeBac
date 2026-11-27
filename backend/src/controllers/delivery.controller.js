@@ -11,6 +11,7 @@ import { touchRiderLastSeen } from '../utils/riderPresence.util.js';
 import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
 import logger from '../utils/logger.js';
+import { creditSellerForDeliveredOrder } from '../utils/sellerSettlement.util.js';
 import { getIO } from '../socket/index.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
 
@@ -962,10 +963,13 @@ export const acceptDeliveryOrder = async (req, res) => {
       currentLocation: rider.currentLocation,
       message: `Delivery partner ${rider.name} accepted order #${order.orderId}!`,
     };
-    safeSocketEmit(`vendor:${order.vendorId}`, 'order:rider_assigned', riderAssignedPayload);
-    safeSocketEmit(`vendor_${order.vendorId}`, 'order:rider_assigned', riderAssignedPayload);
-    safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', riderAssignedPayload);
-    safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', riderAssignedPayload);
+    // The store must not receive the customer's delivery code.
+    const { deliveryOtp: _customerCode, ...storeRiderPayload } = riderAssignedPayload;
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:rider_assigned', storeRiderPayload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:rider_assigned', storeRiderPayload);
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:status_update', storeRiderPayload);
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:status_update', storeRiderPayload);
+    safeSocketEmit('admins', 'order:status_update', storeRiderPayload);
     safeSocketEmit(`order:${order.orderId}`, 'order:rider_assigned', riderAssignedPayload);
     safeSocketEmit(`order:${order._id}`, 'order:rider_assigned', riderAssignedPayload);
     safeSocketEmit(`order:${order.orderId}`, 'order:status_update', riderAssignedPayload);
@@ -1325,6 +1329,8 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         order.paymentStatus = 'PAID';
         rider.cashInHand = Math.round(((rider.cashInHand || 0) + collectedCash) * 100) / 100;
       }
+      // Centralized settlement: credit seller's share (COD stays on hold until admin confirms collection)
+      await creditSellerForDeliveredOrder(order);
       await order.save();
 
       // Check if Cash in Hand reaches or exceeds limit

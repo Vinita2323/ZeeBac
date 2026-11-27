@@ -117,7 +117,7 @@ export default function CustomersPage() {
   }, [customers]);
 
   return (
-    <div className="animate-reveal text-left max-w-5xl mx-auto space-y-6 pb-20">
+    <div className="animate-reveal text-left w-full space-y-6 pb-20">
       
       {/* Mobile Header */}
       <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-2.5 sm:py-3 flex items-center border-b border-outline-variant/10 shadow-sm mb-3 sm:mb-4">

@@ -81,6 +81,25 @@ import {
   adminGetRiderEarningsLedger,
 } from '../controllers/delivery.controller.js';
 
+import {
+  adminGetSettlementSummary,
+  adminGetSellerLedger,
+  adminGetOrderFinancials,
+  adminGetOrderFinancialDetail,
+  adminGetCodPending,
+  adminConfirmCodCollection,
+  adminRecordPayout,
+  adminRecordAdjustment,
+  adminListPayoutRequests,
+  adminRejectPayoutRequest,
+  adminRefundOrder,
+  adminGetReconciliation,
+  adminGetAuditLogs,
+  adminGetPricingConfig,
+  adminUpdatePricingConfig,
+} from '../controllers/settlement.controller.js';
+
+import { getAdminProfile, updateAdminProfile, changeAdminPassword } from '../controllers/adminProfile.controller.js';
 const router = express.Router();
 
 // All routes require authentication and admin/super_admin role
@@ -214,5 +233,27 @@ router.post('/delivery/operations/cancel-assignment', adminCancelDeliveryAssignm
 // Dynamic Payout Configuration
 router.get('/delivery/payout-config', getAdminDeliveryPayoutConfig);
 router.put('/delivery/payout-config', updateAdminDeliveryPayoutConfig);
+
+// ─── Centralized Payment Collection & Seller Settlements ───
+router.get('/settlements/summary', adminGetSettlementSummary);
+router.get('/settlements/config', adminGetPricingConfig);
+router.put('/settlements/config', adminUpdatePricingConfig);
+router.get('/settlements/reconciliation', adminGetReconciliation);
+router.get('/settlements/audit-logs', adminGetAuditLogs);
+router.get('/settlements/orders', adminGetOrderFinancials);
+router.get('/settlements/orders/:orderId', adminGetOrderFinancialDetail);
+router.post('/settlements/orders/:orderId/refund', adminRefundOrder);
+router.get('/settlements/cod-pending', adminGetCodPending);
+router.post('/settlements/cod/confirm', adminConfirmCodCollection);
+router.get('/settlements/payout-requests', adminListPayoutRequests);
+router.post('/settlements/payout-requests/:id/reject', adminRejectPayoutRequest);
+router.get('/settlements/vendors/:vendorId/ledger', adminGetSellerLedger);
+router.post('/settlements/vendors/:vendorId/payout', adminRecordPayout);
+router.post('/settlements/vendors/:vendorId/adjustment', adminRecordAdjustment);
+
+// ─── Logged-in admin's own profile & credentials ───
+router.get('/me', getAdminProfile);
+router.put('/me', updateAdminProfile);
+router.put('/me/password', changeAdminPassword);
 
 export default router;

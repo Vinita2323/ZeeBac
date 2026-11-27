@@ -231,6 +231,58 @@ const orderSchema = new mongoose.Schema(
       paidAt: Date,
     },
 
+    // Admin platform / convenience fee (set by admin, goes to admin)
+    platformFee: { type: Number, default: 0, min: 0 },
+
+    // ── Centralized collection: Razorpay (admin account) payment for cart orders ──
+    razorpay: {
+      orderId: { type: String, index: { unique: true, sparse: true } },
+      paymentId: { type: String, index: { unique: true, sparse: true } },
+      status: { type: String, enum: ['CREATED', 'CAPTURED', 'FAILED'] },
+      method: String,
+      amountPaid: Number,
+      fee: Number, // total Razorpay fee incl. GST (₹)
+      tax: Number, // GST portion of the fee (₹)
+      capturedAt: Date,
+      capturedVia: { type: String, enum: ['CLIENT_VERIFY', 'WEBHOOK'] },
+      failureReason: String,
+    },
+    refunds: [
+      {
+        refundId: String,
+        amount: Number,
+        status: { type: String, enum: ['PENDING', 'PROCESSED', 'FAILED'], default: 'PENDING' },
+        reason: String,
+        sellerReversal: Number,
+        initiatedBy: { type: mongoose.Schema.Types.ObjectId },
+        createdAt: { type: Date, default: Date.now },
+        processedAt: Date,
+      },
+    ],
+    refundedAmount: { type: Number, default: 0 },
+
+    // ── Order-wise financial breakdown & seller settlement state ──
+    financials: {
+      grossTotal: Number, // everything the bill adds up to (before points)
+      customerPaid: Number, // money actually collected (online or COD)
+      sellerGross: Number, // itemTotal + packagingCharge
+      pointsRedeemed: Number, // settled via existing cashback ledger, not here
+      commissionPercent: Number,
+      commissionAmount: Number,
+      gatewayFee: Number, // Razorpay fee incl. GST, borne by seller (online only)
+      sellerPayable: Number, // credited to seller ledger
+      adminShare: Number, // delivery + platform fee + GST + tip − gateway fee retained by admin
+      settlementStatus: {
+        type: String,
+        enum: ['NOT_APPLICABLE', 'PENDING', 'ON_HOLD', 'CREDITED', 'REVERSED'],
+        default: 'PENDING',
+        index: true,
+      },
+      creditedAt: Date,
+      codConfirmedAt: Date,
+      codConfirmedBy: { type: mongoose.Schema.Types.ObjectId },
+    },
+
     // ── Store Pickup: in-store billing by merchant (pay directly to seller UPI or cash) ──
     // Payment confirmation is a separate step from handover (DELIVERED).
     storeBill: {

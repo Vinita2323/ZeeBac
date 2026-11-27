@@ -69,6 +69,8 @@ export default function CartScreen() {
     minOrderAmount: 0,
     isDeliveryAvailable: true,
     platformTaxPercent: 5,
+    platformFeeFixed: 0,
+    platformFeePercent: 0,
   });
 
   // Saved Delivery Addresses (Zomato-style step-by-step management)
@@ -288,6 +290,8 @@ export default function CartScreen() {
             minOrderAmount: Number(v.deliverySettings?.minOrderAmount ?? 0),
             isDeliveryAvailable: v.deliverySettings?.isDeliveryAvailable !== false,
             platformTaxPercent: Number(v.platformTaxPercent ?? 5),
+            platformFeeFixed: Number(v.platformFee?.fixed ?? 0),
+            platformFeePercent: Number(v.platformFee?.percent ?? 0),
           });
         }
       } catch (e) {
@@ -364,11 +368,15 @@ export default function CartScreen() {
   // ── Financial Calculations (Zomato Breakdown) ──
   const itemTotal = totalAmount;
   const isPickup = fulfillmentType === 'pickup';
-  const qualifiesForFreeDelivery = isPickup || itemTotal >= storeDeliveryConfig.freeDeliveryAbove;
+  // Mirrors backend utils/orderPricing.util.js: delivery/platform fee/GST by admin, packaging by seller
+  const qualifiesForFreeDelivery =
+    isPickup || (storeDeliveryConfig.freeDeliveryAbove > 0 && itemTotal >= storeDeliveryConfig.freeDeliveryAbove);
   const deliveryFee = isPickup ? 0 : qualifiesForFreeDelivery ? 0 : storeDeliveryConfig.deliveryCharge;
   const packagingFee = isPickup ? 0 : storeDeliveryConfig.packagingCharge;
   const taxRate = storeDeliveryConfig.platformTaxPercent;
   const taxAmount = Math.round(itemTotal * (taxRate / 100) * 100) / 100;
+  const platformFee =
+    Math.round((storeDeliveryConfig.platformFeeFixed + (itemTotal * storeDeliveryConfig.platformFeePercent) / 100) * 100) / 100;
 
   // Rider Tip State (100% passed to delivery partner)
   const [riderTip, setRiderTip] = useState(0);
@@ -377,7 +385,7 @@ export default function CartScreen() {
   const safeTip = !isPickup && riderTip > 0 ? Number(riderTip) : 0;
 
   // Gross total bill before points redemption
-  const grossBillTotal = Math.round((itemTotal + deliveryFee + packagingFee + taxAmount + safeTip) * 100) / 100;
+  const grossBillTotal = Math.round((itemTotal + deliveryFee + packagingFee + platformFee + taxAmount + safeTip) * 100) / 100;
 
   // Smart Cashback Redemption Capacity Check for effectiveVendor
   const vendorCapacity = effectiveVendor?.redemptionCapacity;
@@ -391,8 +399,10 @@ export default function CartScreen() {
   const finalPayableAmount = Math.max(0, Math.round((grossBillTotal - pointsRedeemed) * 100) / 100);
 
   // Checkout states
-  // 'UPI' | 'Points' | 'Cash'
-  const [paymentMethod, setPaymentMethod] = useState(finalPayableAmount === 0 && walletBalance >= grossBillTotal ? 'Points' : 'UPI');
+  // 'Online' (Razorpay into admin account) | 'Cash' (COD / pay at store) | 'Points'
+  const [paymentMethod, setPaymentMethod] = useState(finalPayableAmount === 0 && walletBalance >= grossBillTotal ? 'Points' : 'Online');
+  // Razorpay checkout data kept so the customer can retry if they close the payment sheet
+  const [pendingRazorpay, setPendingRazorpay] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Direct UPI Intent Modal state
@@ -436,7 +446,7 @@ export default function CartScreen() {
     if (finalPayableAmount === 0 && pointsRedeemed > 0) {
       setPaymentMethod('Points');
     } else if (paymentMethod === 'Points' && finalPayableAmount > 0) {
-      setPaymentMethod('UPI');
+      setPaymentMethod('Online');
     }
   }, [finalPayableAmount, pointsRedeemed]);
 
@@ -740,6 +750,68 @@ export default function CartScreen() {
   // ─────────────────────────────────────────────────────────────
   // Core Checkout: End-to-End Direct UPI Intent & Points Handler
   // ─────────────────────────────────────────────────────────────
+  const loadRazorpayScript = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+  // Opens Razorpay checkout. The webhook is the source of truth; the handler
+  // below only confirms instantly. Retrying reuses the same Razorpay order, so
+  // the customer can never be charged twice for one order.
+  const openRazorpayCheckout = async (rzp) => {
+    const loaded = await loadRazorpayScript();
+    if (!loaded) {
+      alert('Could not load the payment page. Please check your internet and tap "Complete Payment".');
+      return;
+    }
+    const instance = new window.Razorpay({
+      key: rzp.keyId,
+      order_id: rzp.razorpayOrderId,
+      amount: rzp.amount,
+      currency: rzp.currency || 'INR',
+      name: rzp.name || 'ZeeBac',
+      description: rzp.description,
+      prefill: rzp.prefill,
+      theme: { color: '#6d28d9' },
+      handler: async (response) => {
+        try {
+          const v = await OrderAPI.verifyRazorpayPayment(rzp.orderId, response);
+          if (v.success) {
+            setActiveOrder(v.data.order);
+            setPendingRazorpay(null);
+            playNotificationChime('incoming');
+          }
+        } catch (err) {
+          // The webhook will still confirm it; live polling picks the update up.
+          console.warn('Payment verification pending', err);
+        }
+      },
+    });
+    instance.on('payment.failed', (resp) => {
+      alert(resp?.error?.description || 'Payment failed. You can try again with "Complete Payment".');
+    });
+    instance.open();
+  };
+
+  const retryOnlinePayment = async (order) => {
+    try {
+      if (pendingRazorpay && pendingRazorpay.orderId === order.orderId) return openRazorpayCheckout(pendingRazorpay);
+      const res = await OrderAPI.getRazorpayCheckout(order.orderId);
+      if (res.success) {
+        const rzp = { ...res.data, orderId: order.orderId };
+        setPendingRazorpay(rzp);
+        openRazorpayCheckout(rzp);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not start payment. Please try again.');
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (items.length === 0 || isProcessing) return;
 
@@ -777,9 +849,7 @@ export default function CartScreen() {
             ? 'ZEEBAC_POINTS'
             : paymentMethod === 'Cash'
             ? 'CASH'
-            : paymentMethod === 'Online'
-            ? 'ONLINE'
-            : 'UPI_INTENT',
+            : 'ONLINE',
         tipAmount: isPickup ? 0 : safeTip,
         redeemPoints: usePoints ? pointsRedeemed : 0,
         items: items.map((item) => ({
@@ -841,11 +911,14 @@ export default function CartScreen() {
         return;
       }
 
-      // ── CASE 3: ONLINE PAYMENT (CARDS / NETBANKING / WALLETS) ──
-      if (order.paymentMethod === 'ONLINE' || order.paymentMethod === 'RAZORPAY') {
+      // ── CASE 3: ONLINE PAYMENT via Razorpay (collected into ZeeBac admin account) ──
+      if ((order.paymentMethod === 'ONLINE' || order.paymentMethod === 'RAZORPAY') && res.data.razorpay) {
+        const rzp = { ...res.data.razorpay, orderId: order.orderId };
         clearCart();
         setActiveOrder(order);
+        setPendingRazorpay(rzp);
         setIsProcessing(false);
+        openRazorpayCheckout(rzp);
         return;
       }
 
@@ -1210,8 +1283,26 @@ export default function CartScreen() {
                 </div>
               )}
 
+              {/* Online order not paid yet: let the customer reopen Razorpay */}
+              {['ONLINE', 'RAZORPAY'].includes(activeOrder.paymentMethod) &&
+                activeOrder.paymentStatus === 'PENDING' &&
+                activeOrder.orderStatus !== 'CANCELLED' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                    <p className="text-[12px] font-bold text-amber-900">
+                      Payment pending: your order is sent to the store once payment is received.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => retryOnlinePayment(activeOrder)}
+                      className="w-full py-2.5 rounded-xl bg-purple-700 text-white font-black text-[12.5px]"
+                    >
+                      Complete Payment ₹{formatCurrency(activeOrder.finalPayableAmount)}
+                    </button>
+                  </div>
+                )}
+
               {/* Store Pickup: Pay at Store (merchant bills, customer pays seller directly) */}
-              {activeOrder.fulfillmentType === 'pickup' && !isDelivered && Number(activeOrder.finalPayableAmount) > 0 && (
+              {activeOrder.fulfillmentType === 'pickup' && activeOrder.paymentMethod === 'CASH' && !isDelivered && Number(activeOrder.finalPayableAmount) > 0 && (
                 <PayAtStoreCard order={activeOrder} />
               )}
 
@@ -2047,7 +2138,7 @@ export default function CartScreen() {
           </div>
 
           {/* Free delivery upsell message */}
-          {!isPickup && !qualifiesForFreeDelivery && (
+          {!isPickup && !qualifiesForFreeDelivery && storeDeliveryConfig.freeDeliveryAbove > 0 && (
             <p className="text-[10.5px] text-purple-700 font-medium bg-purple-50/70 px-2.5 py-1 rounded-lg">
               Add ₹{formatCurrency(storeDeliveryConfig.freeDeliveryAbove - itemTotal)} more to get <strong>FREE Delivery</strong>!
             </p>
@@ -2058,6 +2149,14 @@ export default function CartScreen() {
             <div className="flex justify-between items-center text-slate-600">
               <span>Packaging & Handling Fee</span>
               <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(packagingFee)}</span>
+            </div>
+          )}
+
+          {/* Platform fee (set by admin) */}
+          {platformFee > 0 && (
+            <div className="flex justify-between items-center text-slate-600">
+              <span>Platform Fee</span>
+              <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(platformFee)}</span>
             </div>
           )}
 
@@ -2218,55 +2317,17 @@ export default function CartScreen() {
                 {t('Select Payment Method')}
               </h3>
               <span className="text-[11px] font-bold text-slate-500">
-                {paymentMethod === 'UPI'
-                  ? 'UPI Selected'
-                  : paymentMethod === 'Cash'
-                  ? 'COD Selected'
+                {paymentMethod === 'Cash'
+                  ? isPickup
+                    ? 'Pay at Store Selected'
+                    : 'COD Selected'
                   : paymentMethod === 'Online'
-                  ? 'Card/Online Selected'
+                  ? 'Online Selected'
                   : 'Points Selected'}
               </span>
             </div>
 
             <div className="space-y-2.5">
-              {/* 1. Direct UPI Intent (Default) */}
-              {finalPayableAmount > 0 && (
-                <label
-                  onClick={() => setPaymentMethod('UPI')}
-                  className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
-                    paymentMethod === 'UPI'
-                      ? 'border-primary bg-purple-50/50 shadow-xs ring-1 ring-primary/20'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                        paymentMethod === 'UPI' ? 'bg-primary text-white shadow-xs' : 'bg-purple-100 text-primary'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">bolt</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-[13px] text-slate-900">Direct UPI Intent</p>
-                        <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
-                          Fast & 1-Tap
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500">Google Pay, PhonePe, Paytm, BHIM</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      paymentMethod === 'UPI' ? 'border-primary' : 'border-slate-300'
-                    }`}
-                  >
-                    {paymentMethod === 'UPI' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                  </div>
-                </label>
-              )}
-
               {/* 2. Cash on Delivery (COD) / Pay on Delivery */}
               {finalPayableAmount > 0 && (
                 <label
@@ -2331,12 +2392,12 @@ export default function CartScreen() {
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-[13px] text-slate-900">Cards, Netbanking & Wallets</p>
+                        <p className="font-bold text-[13px] text-slate-900">Pay Online</p>
                         <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
-                          Online
+                          Secure via Razorpay
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Credit / Debit Card, Netbanking, Wallets</p>
+                      <p className="text-[11px] text-slate-500">UPI (GPay, PhonePe, Paytm), Cards, Netbanking, Wallets</p>
                     </div>
                   </div>
                   <div

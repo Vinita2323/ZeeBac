@@ -1,3 +1,4 @@
+import { getPricingConfig } from '../utils/orderPricing.util.js';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
@@ -283,9 +284,17 @@ export const lookupVendorById = async (req, res) => {
     vendorObj.reviewCount = totalReviews;
 
     // Attach Admin configured Order GST Tax Percentage
-    const rewardConfig = (await RewardConfig.findOne()) || {};
-    const isTaxEnabled = rewardConfig.enableOrderTax !== false;
-    vendorObj.platformTaxPercent = isTaxEnabled ? Number(rewardConfig.orderGstTaxPercent ?? 5) : 0;
+    // Same pricing source the backend uses when creating the order (utils/orderPricing.util.js):
+    // delivery fee / platform fee / GST are set by admin; packaging by the seller.
+    const rewardConfig = await RewardConfig.findOne();
+    const pricing = getPricingConfig(rewardConfig);
+    vendorObj.platformTaxPercent = pricing.taxPercent;
+    vendorObj.platformFee = { fixed: pricing.platformFeeFixed, percent: pricing.platformFeePercent };
+    vendorObj.deliverySettings = {
+      ...(vendorObj.deliverySettings || {}),
+      deliveryCharge: pricing.deliveryCharge,
+      freeDeliveryAbove: pricing.freeDeliveryAbove,
+    };
 
     res.status(200).json({ success: true, data: vendorObj });
   } catch (error) {

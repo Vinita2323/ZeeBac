@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import WalletPage from './pages/WalletPage';
 import PassbookPage from './pages/PassbookPage';
+import SettlementPage from './pages/SettlementPage';
 import CustomersPage from './pages/CustomersPage';
 import ProfilePage from './pages/ProfilePage';
 import RatingsPage from './pages/RatingsPage';
@@ -71,6 +72,7 @@ export default function VendorRoutes() {
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="wallet" element={<WalletPage />} />
             <Route path="passbook" element={<PassbookPage />} />
+            <Route path="settlements" element={<SettlementPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="documents" element={<ProfilePage openDocs={true} />} />

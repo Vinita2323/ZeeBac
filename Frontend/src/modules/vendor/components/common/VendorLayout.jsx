@@ -356,7 +356,7 @@ export default function VendorLayout({ children }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto scroll-smooth bg-[#f8f9fc]">
-          <div className="w-full max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6 lg:py-8 pb-28 lg:pb-8 space-y-4 md:space-y-6">
+          <div className="w-full max-w-full sm:max-w-none lg:max-w-7xl 2xl:max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6 lg:py-8 pb-28 lg:pb-8 space-y-4 md:space-y-6">
             {children}
           </div>
         </main>

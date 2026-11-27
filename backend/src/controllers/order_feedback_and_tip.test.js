@@ -9,6 +9,16 @@ import DeliveryPartner from '../models/DeliveryPartner.js';
 import { createOrder, submitOrderFeedback } from './order.controller.js';
 import { updateDeliveryOrderStatus } from './delivery.controller.js';
 
+// Never call the real admin Razorpay account from tests
+vi.mock('../utils/razorpay.util.js', () => ({
+  getRazorpayInstance: () => ({
+    orders: { create: async ({ amount, receipt }) => ({ id: `order_${receipt}`, amount, currency: 'INR' }) },
+    payments: { fetch: async () => null, capture: async () => null, refund: async () => ({ id: 'rfnd_test', status: 'pending' }) },
+  }),
+  verifyRazorpaySignature: () => false,
+  fetchVerifiedPaymentAmount: async () => 0,
+}));
+
 beforeAll(connectTestDb, 60000);
 afterAll(disconnectTestDb, 60000);
 afterEach(clearCollections);
@@ -104,9 +114,9 @@ describe('Order Tip and Feedback System', () => {
     expect(createRes.data.success).toBe(true);
     const orderData = createRes.data.data.order;
     expect(orderData.tipAmount).toBe(20);
-    // itemTotal = 120, delivery = 30, packaging = 10, tip = 20 => finalPayable = 180
+    // itemTotal = 120, delivery = 40 (admin), packaging = 10 (seller), tip = 20 => finalPayable = 190
     expect(orderData.itemTotal).toBe(120);
-    expect(orderData.finalPayableAmount).toBe(180);
+    expect(orderData.finalPayableAmount).toBe(190);
 
     // 6. Assign rider and test delivery with rider tip payout
     const order = await Order.findOne({ orderId: orderData.orderId });

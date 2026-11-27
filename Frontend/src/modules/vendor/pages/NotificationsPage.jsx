@@ -70,7 +70,7 @@ export default function NotificationsPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-lg mx-auto space-y-3 pb-16">
+      <main className="flex-1 w-full max-w-4xl mx-auto space-y-3 pb-16">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
             <div className="w-8 h-8 border-2 border-[#4c1d95] border-t-transparent rounded-full animate-spin" />

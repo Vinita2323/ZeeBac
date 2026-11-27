@@ -246,6 +246,28 @@ export const AuthAPI = {
 
 // ── Admin Service ──
 export const AdminAPI = {
+  // ── Logged-in admin's own profile ──
+  getMyProfile: async () => (await apiClient.get('/admin/me')).data,
+  updateMyProfile: async (data) => (await apiClient.put('/admin/me', data)).data,
+  changeMyPassword: async (data) => (await apiClient.put('/admin/me/password', data)).data,
+  // ── Centralized collection & seller settlements ──
+  getSettlementSummary: async () => (await apiClient.get('/admin/settlements/summary')).data,
+  getSellerSettlementLedger: async (vendorId, params = {}) => (await apiClient.get(`/admin/settlements/vendors/${vendorId}/ledger`, { params })).data,
+  recordSellerPayout: async (vendorId, data, idempotencyKey) =>
+    (await apiClient.post(`/admin/settlements/vendors/${vendorId}/payout`, data, idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined)).data,
+  recordSellerAdjustment: async (vendorId, data, idempotencyKey) =>
+    (await apiClient.post(`/admin/settlements/vendors/${vendorId}/adjustment`, data, idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined)).data,
+  getSettlementPayoutRequests: async (params = {}) => (await apiClient.get('/admin/settlements/payout-requests', { params })).data,
+  rejectSettlementPayoutRequest: async (id, reason) => (await apiClient.post(`/admin/settlements/payout-requests/${id}/reject`, { reason })).data,
+  getCodPendingOrders: async (params = {}) => (await apiClient.get('/admin/settlements/cod-pending', { params })).data,
+  confirmCodCollection: async (orderIds) => (await apiClient.post('/admin/settlements/cod/confirm', { orderIds })).data,
+  getOrderFinancials: async (params = {}) => (await apiClient.get('/admin/settlements/orders', { params })).data,
+  getOrderFinancialDetail: async (orderId) => (await apiClient.get(`/admin/settlements/orders/${orderId}`)).data,
+  refundOrder: async (orderId, data) => (await apiClient.post(`/admin/settlements/orders/${orderId}/refund`, data)).data,
+  getSettlementReconciliation: async (params = {}) => (await apiClient.get('/admin/settlements/reconciliation', { params })).data,
+  getSettlementAuditLogs: async (params = {}) => (await apiClient.get('/admin/settlements/audit-logs', { params })).data,
+  getOrderPricingConfig: async () => (await apiClient.get('/admin/settlements/config')).data,
+  updateOrderPricingConfig: async (data) => (await apiClient.put('/admin/settlements/config', data)).data,
   // Delivery Partner Management & Operations
   getDeliveryStats: async () => {
     const res = await apiClient.get('/admin/delivery/stats');
@@ -580,6 +602,10 @@ export const AdminAPI = {
 
 // ── Vendor Service ──
 export const VendorAPI = {
+  // ── Settlement balance owed by ZeeBac (online + COD orders) ──
+  getSettlement: async (params = {}) => (await apiClient.get('/vendor/settlement', { params })).data,
+  requestSettlementPayout: async (amount, note) => (await apiClient.post('/vendor/settlement/withdraw', { amount, note })).data,
+  cancelSettlementRequest: async (id) => (await apiClient.post(`/vendor/settlement/requests/${id}/cancel`)).data,
   getProfile: async () => {
     const res = await apiClient.get('/vendor/me');
     return res.data;
@@ -1278,6 +1304,8 @@ export const SupportAPI = {
 
 // ── Order & Delivery Service (Direct UPI Intent & Product-Level Cashback) ──
 export const OrderAPI = {
+  verifyRazorpayPayment: async (orderId, data) => (await apiClient.post(`/orders/${orderId}/razorpay/verify`, data)).data,
+  getRazorpayCheckout: async (orderId) => (await apiClient.get(`/orders/${orderId}/razorpay/checkout`)).data,
   createOrder: async (data) => {
     const res = await apiClient.post('/orders', data);
     return res.data;

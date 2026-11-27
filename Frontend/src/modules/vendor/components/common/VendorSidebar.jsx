@@ -37,7 +37,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Dashboard', icon: 'dashboard', path: '/vendor' },
     { label: 'Products', icon: 'grid_view', path: '/vendor/products' },
     { label: 'Inventory', icon: 'inventory_2', path: '/vendor/inventory' },
-    { label: 'Putaway (Dark Store)', icon: 'shelves', path: '/vendor/putaway', badge: 'WMS' },
+    { label: 'Putaway', icon: 'shelves', path: '/vendor/putaway', badge: 'WMS' },
     {
       label: isWholesaleMerchant ? 'Wholesale POS' : 'Retail POS',
       icon: 'point_of_sale',
@@ -60,6 +60,7 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
     { label: 'Chat', icon: 'chat', path: '/vendor/chat' },
     { label: 'Wallet', icon: 'account_balance_wallet', path: '/vendor/wallet' },
     { label: 'Passbook', icon: 'receipt_long', path: '/vendor/passbook' },
+    { label: 'Settlements', icon: 'account_balance', path: '/vendor/settlements' },
     {
       label: isWholesaleMerchant ? 'Retailer Network' : 'Customers',
       icon: 'groups',
@@ -81,16 +82,16 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   return (
     <aside className="h-full bg-white/80 backdrop-blur-xl border-r border-outline-variant/20 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       {/* Logo Area */}
-      <div className={`h-20 flex items-center ${isCollapsed ? 'justify-center' : 'px-6 justify-between'} border-b border-outline-variant/10 relative`}>
-        <div className="flex items-center justify-center w-full">
+      <div className={`h-20 flex items-center ${isCollapsed ? 'justify-center' : 'pl-5 pr-12'} border-b border-outline-variant/10 relative`}>
+        <div className={`flex items-center w-full ${isCollapsed ? 'justify-center' : 'justify-start gap-2.5'}`}>
           <img
             alt="Zeebac Logo"
-            className={`object-contain transition-all duration-300 cursor-pointer ${isCollapsed ? 'h-5 max-w-[64px]' : 'h-7'}`}
+            className={`object-contain transition-all duration-300 cursor-pointer ${isCollapsed ? 'h-9 max-w-[56px]' : 'h-12'}`}
             src="/Logo (6).png"
             onClick={() => navigate('/vendor')}
           />
           {!isCollapsed && (
-            <span className={`ml-2 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap ${
+            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap ${
               isManufacturer
                 ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
                 : isWholesaleMerchant
@@ -133,29 +134,25 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
               className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${isActive
                   ? 'bg-primary text-white shadow-sm shadow-primary/20'
                   : isHighlight
-                    ? 'bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/5 text-emerald-800 border border-emerald-500/30 hover:bg-emerald-500/20 font-bold'
+                    ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                     : 'text-on-surface-variant hover:bg-primary/5 hover:text-primary'
                 }`}
               title={isCollapsed ? item.label : undefined}
             >
               <span
-                className={`material-symbols-outlined text-[20px] ${!isActive && isHighlight ? 'text-[#25D366]' : ''}`}
+                className={`material-symbols-outlined text-[20px] w-5 shrink-0 ${!isActive && isHighlight ? 'text-emerald-600' : ''}`}
                 style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
               >
                 {item.icon}
               </span>
               {!isCollapsed && (
-                <span className={`font-title-md text-[14px] ${isActive || isHighlight ? 'font-bold' : 'font-medium'}`}>
+                <span className={`flex-1 min-w-0 text-left truncate text-[14px] leading-5 ${isActive ? 'font-semibold' : 'font-medium'}`}>
                   {t(item.label)}
                 </span>
               )}
               {!isCollapsed && item.badge && (
-                <span className={`ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                  isActive 
-                    ? 'bg-white/20 text-white' 
-                    : isHighlight
-                      ? 'bg-emerald-600 text-white animate-pulse shadow-sm'
-                      : 'bg-amber-400/20 text-amber-600 border border-amber-300/40'
+                <span className={`shrink-0 text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md leading-none ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
                   {t(item.badge)}
                 </span>

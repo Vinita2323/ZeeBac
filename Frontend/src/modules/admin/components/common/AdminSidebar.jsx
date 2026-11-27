@@ -6,6 +6,7 @@ import useAuthStore from '../../../../store/useAuthStore';
 
 export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileClose }) {
   const navigate = useNavigate();
+  const currentAdmin = useAuthStore((state) => state.adminUser);
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
@@ -29,6 +30,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
     { label: 'Users', icon: 'group', path: '/admin/users' },
     { label: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
+    { label: 'Vendor Settlements', icon: 'account_balance', path: '/admin/seller-settlements' },
     {
       label: 'Delivery Partners',
       icon: 'two_wheeler',
@@ -222,8 +224,8 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
       {/* Bottom Profile Area */}
       <div className={`p-4 border-t border-[#cbbedf] bg-[#dad0ed] flex ${isCollapsed ? 'justify-center' : ''}`}>
         <div 
-          onClick={isCollapsed ? handleLogoutClick : undefined}
-          title={isCollapsed ? "Click to Log Out" : undefined}
+          onClick={() => navigate('/admin/profile')}
+          title="My Profile"
           className={`flex items-center gap-3 ${isCollapsed ? 'p-1 justify-center' : 'p-2'} rounded-xl hover:bg-[#ccbfeb] transition-colors cursor-pointer w-full`}
         >
           <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold text-base flex-shrink-0 border border-red-500/20">
@@ -232,12 +234,12 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
           {!isCollapsed && (
             <>
               <div className="flex-1 text-left min-w-0">
-                <p className="font-title-md font-bold text-[13px] text-[#381a6c] truncate">Super Admin</p>
-                <p className="text-[11px] text-[#70549c] truncate">God Mode Active</p>
+                <p className="font-title-md font-bold text-[13px] text-[#381a6c] truncate">{currentAdmin?.name || 'Admin'}</p>
+                <p className="text-[11px] text-[#70549c] truncate">View profile</p>
               </div>
               <button 
                 type="button"
-                onClick={handleLogoutClick} 
+                onClick={(e) => { e.stopPropagation(); handleLogoutClick(e); }}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-[#70549c] hover:text-red-600 transition-colors cursor-pointer"
                 title="Log Out"
               >

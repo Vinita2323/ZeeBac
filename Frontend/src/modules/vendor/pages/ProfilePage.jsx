@@ -14,7 +14,8 @@ import {
   describeBiometricUnsupportedReason,
   registerBiometricCredential,
 } from '../../../utils/biometric.util';
-import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
+
 import useSupportConfig, { toTelHref } from '../../../hooks/useSupportConfig';
 import {
   getStoreTimingStatus,
@@ -498,7 +499,7 @@ export default function ProfilePage({ openDocs = false }) {
   };
 
   return (
-    <div className="animate-reveal text-left max-w-xl mx-auto pb-12">
+    <div className="animate-reveal text-left w-full max-w-xl md:max-w-3xl lg:max-w-5xl mx-auto pb-12">
       {/* Hidden File Input for Avatar Photo */}
       <input
         ref={fileInputRef}
@@ -511,9 +512,9 @@ export default function ProfilePage({ openDocs = false }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. TOP PURPLE HERO HEADER (Matching Reference Screen 5) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-purple-800 via-purple-900 to-indigo-950 text-white rounded-b-3xl px-4 pt-3 pb-8 -mx-3 -mt-3 sm:-mx-4 sm:-mt-4 md:mx-0 md:mt-0 shadow-md text-center relative">
+      <div className="bg-gradient-to-r from-purple-800 via-purple-900 to-indigo-950 text-white rounded-b-3xl md:rounded-3xl px-4 pt-3 pb-8 md:pt-5 md:pb-12 -mx-3 -mt-3 sm:-mx-4 sm:-mt-4 md:mx-0 md:mt-0 shadow-md text-center relative">
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between max-w-md mx-auto mb-3">
+        <div className="flex items-center justify-between max-w-md md:max-w-2xl lg:max-w-4xl mx-auto mb-3">
           <button
             type="button"
             onClick={() => safeNavigateBack(navigate, '/vendor')}
@@ -593,7 +594,7 @@ export default function ProfilePage({ openDocs = false }) {
       {/* 2. FLOATING WALLET BALANCE CARD (Matching Reference Screen 5) */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="px-3 sm:px-4 space-y-3">
-        <div className="-mt-6 max-w-md mx-auto bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-md hover:shadow-lg transition-all flex items-center justify-between gap-3 relative z-10">
+        <div className="-mt-6 max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white rounded-2xl p-3.5 sm:p-4 md:p-5 border border-slate-100 shadow-md hover:shadow-lg transition-all flex items-center justify-between gap-3 relative z-10">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0 border border-purple-100/80">
               <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
@@ -620,12 +621,12 @@ export default function ProfilePage({ openDocs = false }) {
         {/* ───────────────────────────────────────────────────────────── */}
         {/* 3. COMPACT MENU LIST (Clean, modern single-line rows) */}
         {/* ───────────────────────────────────────────────────────────── */}
-        <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-100 shadow-xs divide-y divide-slate-100 overflow-hidden text-left">
+        <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white rounded-2xl border border-slate-100 shadow-xs divide-y divide-slate-100 overflow-hidden text-left">
           {/* 1. My Business Details */}
           <button
             type="button"
             onClick={() => setShowBusinessDetailsModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
@@ -644,7 +645,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowOpeningHoursModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
@@ -677,7 +678,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowDocsModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -708,7 +709,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowStoriesModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center shrink-0">
@@ -727,7 +728,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => navigate('/vendor/subscription')}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
@@ -751,7 +752,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowBankModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -770,7 +771,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowNotificationsModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -789,7 +790,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowSecurityModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
@@ -808,7 +809,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowSupportModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
@@ -827,7 +828,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => navigate('/terms')}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
@@ -846,7 +847,7 @@ export default function ProfilePage({ openDocs = false }) {
           <button
             type="button"
             onClick={() => setShowAboutModal(true)}
-            className="w-full px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
@@ -886,7 +887,7 @@ export default function ProfilePage({ openDocs = false }) {
         {/* ───────────────────────────────────────────────────────────── */}
         <a
           href={toTelHref(helplinePhone)}
-          className="max-w-md mx-auto bg-purple-50 hover:bg-purple-100/80 border border-purple-200/80 rounded-2xl p-3 flex items-center justify-between transition-colors cursor-pointer shadow-2xs group"
+          className="max-w-md md:max-w-2xl lg:max-w-4xl w-full mx-auto bg-purple-50 hover:bg-purple-100/80 border border-purple-200/80 rounded-2xl p-3 flex items-center justify-between transition-colors cursor-pointer shadow-2xs group"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-700 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">

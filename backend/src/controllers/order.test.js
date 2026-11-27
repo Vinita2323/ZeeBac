@@ -15,6 +15,14 @@ import {
   confirmStoreBillPayment,
 } from './order.controller.js';
 
+// Admin Razorpay account (never hit the real API from tests)
+vi.mock('../utils/razorpay.util.js', () => ({
+  getRazorpayInstance: () => ({
+    orders: { create: vi.fn(async ({ amount, receipt }) => ({ id: `order_${receipt}`, amount, currency: 'INR' })) },
+    payments: { fetch: vi.fn(), capture: vi.fn(), refund: vi.fn() },
+  }),
+  verifyRazorpaySignature: () => false,
+}));
 vi.mock('../services/notification.service.js', () => ({ sendNotification: vi.fn().mockResolvedValue(true) }));
 vi.mock('../socket/socket.js', () => ({
   getIO: vi.fn().mockReturnValue({
@@ -94,7 +102,7 @@ const setupStoreAndCustomer = async () => {
 };
 
 describe('Order System & Product-Level Cashback Model', () => {
-  it('creates order with per-product cashback calculation and Direct UPI Intent', async () => {
+  it('creates order with per-product cashback and an admin Razorpay checkout (centralized collection)', async () => {
     const { vendor, customer, productA, productB } = await setupStoreAndCustomer();
 
     const req = {
@@ -118,18 +126,20 @@ describe('Order System & Product-Level Cashback Model', () => {
 
     expect(data.order.totalAmount).toBe(1000); // 800 + 200
     expect(data.order.totalCashbackPoints).toBe(90); // 80 + 10 points
-    expect(data.order.packagingCharge).toBe(10);
-    expect(data.order.deliveryCharge).toBe(0);
-    expect(data.order.finalPayableAmount).toBe(1010);
+    expect(data.order.packagingCharge).toBe(10); // set by seller
+    expect(data.order.deliveryCharge).toBe(40); // set by admin (seller's own delivery setting is ignored)
+    expect(data.order.finalPayableAmount).toBe(1050);
     expect(data.order.items[0].cashbackPercentage).toBe(10);
     expect(data.order.items[0].cashbackPoints).toBe(80);
     expect(data.order.items[1].cashbackPercentage).toBe(5);
     expect(data.order.items[1].cashbackPoints).toBe(10);
 
-    // Verify Direct UPI Intent URL
-    expect(data.upiDetails.upiUri).toContain('upi://pay?');
-    expect(data.upiDetails.payeeVpa).toBe('supermarket@upi');
-    expect(data.upiDetails.amount).toBe(1010);
+    // Online payment goes to the ADMIN Razorpay account, never straight to the seller's UPI
+    expect(data.order.paymentMethod).toBe('ONLINE');
+    expect(data.upiDetails).toBeNull();
+    expect(data.razorpay.razorpayOrderId).toBe(`order_${data.order.orderId}`);
+    expect(data.razorpay.amount).toBe(105000);
+    expect(data.order.razorpay.status).toBe('CREATED');
   });
 
   it('allows redeeming Zeebac Points at checkout (1 Point = ₹1 purchase discount)', async () => {
@@ -152,10 +162,10 @@ describe('Order System & Product-Level Cashback Model', () => {
 
     expect(data.order.totalAmount).toBe(400);
     expect(data.order.packagingCharge).toBe(10);
-    expect(data.order.deliveryCharge).toBe(30);
+    expect(data.order.deliveryCharge).toBe(40);
     expect(data.order.pointsRedeemed).toBe(150);
-    expect(data.order.finalPayableAmount).toBe(290); // (₹400 + 30 + 10) - 150 = ₹290 payable via UPI
-    expect(data.upiDetails.amount).toBe(290);
+    expect(data.order.finalPayableAmount).toBe(300); // (₹400 + 40 + 10) - 150 = ₹300 payable online
+    expect(data.razorpay.amount).toBe(30000);
 
     // Verify customer wallet was debited by 150 points
     const updatedCustomerWallet = await Wallet.findById(customerWallet._id);
@@ -264,11 +274,12 @@ describe('Order System & Product-Level Cashback Model', () => {
   it('delivers order: credits customer Zeebac Points & debits merchant prepaid pool', async () => {
     const { vendor, vendorWallet, customer, customerWallet, productA } = await setupStoreAndCustomer();
 
-    // Create order: ₹400 @ 10% = 40 points
+    // Create order: ₹400 @ 10% = 40 points (COD)
     const createReq = {
       user: { id: customer._id.toString(), role: 'customer' },
       body: {
         vendorZeebacId: vendor.zeebacId,
+        paymentMethod: 'CASH',
         items: [{ productId: productA._id, quantity: 1 }],
       },
     };

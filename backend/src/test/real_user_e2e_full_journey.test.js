@@ -48,6 +48,16 @@ import {
   createPosBill,
 } from '../controllers/pos.controller.js';
 
+// Never call the real admin Razorpay account from tests
+vi.mock('../utils/razorpay.util.js', () => ({
+  getRazorpayInstance: () => ({
+    orders: { create: async ({ amount, receipt }) => ({ id: `order_${receipt}`, amount, currency: 'INR' }) },
+    payments: { fetch: async () => null, capture: async () => null, refund: async () => ({ id: 'rfnd_test', status: 'pending' }) },
+  }),
+  verifyRazorpaySignature: () => false,
+  fetchVerifiedPaymentAmount: async () => 0,
+}));
+
 vi.mock('../services/notification.service.js', () => ({
   sendNotification: vi.fn().mockResolvedValue(true),
 }));

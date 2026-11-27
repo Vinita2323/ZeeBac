@@ -63,6 +63,8 @@ import { protect, requireRole, requireApprovedVendor } from '../middlewares/auth
 import { pinLimiter, searchLimiter } from '../middlewares/rateLimit.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
 
+import { vendorGetSettlement, vendorRequestPayout, vendorCancelPayoutRequest } from '../controllers/settlement.controller.js';
+
 const router = express.Router();
 
 // Apply auth middleware to all routes in this file
@@ -194,5 +196,10 @@ router.get('/support', getUserTickets);
 
 // FCM Token — open regardless of approval status (needed to receive the approval push)
 router.post('/fcm-token', saveVendorFcmToken);
+
+// ── Centralized settlement: admin owes seller for online/COD orders ──
+router.get('/settlement', vendorGetSettlement);
+router.post('/settlement/withdraw', requireApprovedVendor, vendorRequestPayout);
+router.post('/settlement/requests/:id/cancel', vendorCancelPayoutRequest);
 
 export default router;

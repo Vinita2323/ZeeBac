@@ -293,7 +293,7 @@ export default function GSTTaxPage() {
     <div className="min-h-screen bg-slate-50/70 pb-20 font-sans text-slate-800">
       {/* ─── Top Header (Mobile & Desktop) ─── */}
       <div className="bg-gradient-to-r from-purple-800 via-indigo-900 to-purple-900 text-white px-4 pt-4 pb-6 sm:px-6 sm:pb-8 shadow-md">
-        <div className="max-w-6xl mx-auto">
+        <div className="w-full">
           {/* Top Navbar Row */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -432,7 +432,7 @@ export default function GSTTaxPage() {
       </div>
 
       {/* ─── Main Content Container ─── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-3">
+      <div className="w-full px-4 sm:px-6 -mt-3">
         {/* Period Selector Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 sm:p-4 mb-4 flex flex-col md:flex-row items-center justify-between gap-3">
           {/* Period type toggle */}

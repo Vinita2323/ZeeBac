@@ -177,13 +177,19 @@ export default function RequestsPage() {
                 ? {
                     ...o,
                     orderStatus: data.orderStatus || 'RIDER_ASSIGNED',
-                    riderDetails: data.rider || o.riderDetails,
+                    riderDetails: data.rider || {
+                      ...(o.riderDetails || {}),
+                      riderId: data.riderId || o.riderDetails?.riderId,
+                      name: data.riderName || o.riderDetails?.name,
+                      phone: data.riderPhone || o.riderDetails?.phone,
+                      vehicleNo: data.vehicleNo || o.riderDetails?.vehicleNo,
+                    },
                   }
                 : o
             )
           );
           playNotificationChime('incoming');
-          speakVoice(`Delivery partner ${data.rider?.name || 'Rider'} assigned to order!`, 300, 'en-IN');
+          speakVoice(`Delivery partner ${data.rider?.name || data.riderName || 'Rider'} assigned to order!`, 300, 'en-IN');
         }
       };
 
@@ -522,7 +528,7 @@ export default function RequestsPage() {
   });
 
   return (
-    <div className="animate-reveal text-left max-w-2xl mx-auto pb-12">
+    <div className="animate-reveal text-left w-full pb-12">
       {/* ── INCOMING ORDER SOUNDBOX ALERT BANNER ── */}
       {ringingOrder && (
         <div className="sticky top-1 z-40 mb-3 mx-2 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white rounded-2xl p-3.5 shadow-xl border-2 border-white animate-pulse flex items-center justify-between gap-3">
@@ -625,11 +631,11 @@ export default function RequestsPage() {
       {/* TAB 1: ONLINE STORE ORDERS & RIDER DELIVERY MANAGEMENT */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'orders' && (
-        <div className="space-y-3 pb-[100px] lg:pb-6">
+        <div className="space-y-3 xl:space-y-0 xl:grid xl:grid-cols-2 xl:gap-3 xl:items-start pb-[100px] lg:pb-6">
           {isOrdersLoading ? (
-            <p className="text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
+            <p className="xl:col-span-2 text-[13px] text-on-surface-variant text-center py-8 font-bold">{t('Loading orders...')}</p>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 p-6 shadow-2xs">
+            <div className="xl:col-span-2 text-center py-12 bg-white rounded-3xl border border-slate-100 p-6 shadow-2xs">
               <div className="w-16 h-16 bg-purple-50 text-primary rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="material-symbols-outlined text-[30px]">shopping_bag</span>
               </div>
@@ -643,7 +649,9 @@ export default function RequestsPage() {
           ) : (
             filteredOrders.map((order) => {
               const isDelivered = order.orderStatus === 'DELIVERED';
-              const isRiderAssigned = ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.orderStatus);
+              const isRiderAssigned = ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(order.orderStatus);
+              // A ZeeBac delivery partner (vs the store's own delivery boy) owns the delivery step
+              const hasPlatformRider = Boolean(order.riderDetails?.riderId);
               const isExpanded = expandedOrderIds.has(order._id || order.orderId);
 
               const statusBadgeText =
@@ -823,39 +831,68 @@ export default function RequestsPage() {
                         <span className="text-[10.5px] font-black uppercase text-slate-400 tracking-wider block">
                           Delivery Lifecycle Status
                         </span>
-                        <div className="grid grid-cols-5 gap-1.5 text-center text-[10.5px]">
-                          {[
-                            { id: 'PLACED', label: '1. Placed', icon: 'receipt' },
-                            { id: 'PREPARING', label: '2. Preparing', icon: 'soup_kitchen' },
-                            { id: 'ARRIVED_AT_PICKUP', label: '3. At Store', icon: 'store' },
-                            { id: 'OUT_FOR_DELIVERY', label: '4. On the Way', icon: 'two_wheeler' },
-                            { id: 'DELIVERED', label: '5. Delivered', icon: 'check_circle' },
-                          ].map((step, idx) => {
-                            const stageOrder = ['PLACED', 'PREPARING', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED'];
-                            const currIdx = stageOrder.indexOf(order.orderStatus);
-                            const isDone = currIdx >= idx;
-                            const isCurrent = currIdx === idx;
-                            return (
-                              <div
-                                key={step.id}
-                                className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-all ${
-                                  isCurrent
-                                    ? 'bg-purple-700 text-white font-bold shadow-xs'
-                                    : isDone
-                                    ? 'bg-emerald-100 text-emerald-900 font-bold'
-                                    : 'bg-white text-slate-400 border border-slate-100'
-                                }`}
-                              >
-                                <span className="material-symbols-outlined text-[16px]">{step.icon}</span>
-                                <span className="leading-tight text-[10px]">{step.label}</span>
+                        {(() => {
+                          const steps = [
+                            { label: 'Placed', icon: 'receipt' },
+                            { label: 'Preparing', icon: 'soup_kitchen' },
+                            { label: 'Packed', icon: 'inventory_2' },
+                            { label: 'Rider', icon: 'sports_motorsports' },
+                            { label: 'On the Way', icon: 'two_wheeler' },
+                            { label: 'Delivered', icon: 'check_circle' },
+                          ];
+                          const stageOf = {
+                            PLACED: 0, CONFIRMED: 1, PREPARING: 1, READY_FOR_PICKUP: 2,
+                            RIDER_ASSIGNED: 3, ARRIVED_AT_PICKUP: 3,
+                            PICKED_UP: 4, OUT_FOR_DELIVERY: 4, ARRIVED_AT_CUSTOMER: 4, DELIVERED: 5,
+                          };
+                          const detail = {
+                            PLACED: 'New order, waiting for you to accept',
+                            CONFIRMED: 'Accepted',
+                            PREPARING: 'You are preparing the order',
+                            READY_FOR_PICKUP: order.riderDetails?.name ? 'Packed, rider is on the way to your store' : 'Packed, finding a delivery partner',
+                            RIDER_ASSIGNED: `${order.riderDetails?.name || 'Rider'} accepted and is coming to your store`,
+                            ARRIVED_AT_PICKUP: `${order.riderDetails?.name || 'Rider'} is at your store`,
+                            PICKED_UP: `${order.riderDetails?.name || 'Rider'} picked up the order`,
+                            OUT_FOR_DELIVERY: `${order.riderDetails?.name || 'Rider'} is on the way to the customer`,
+                            ARRIVED_AT_CUSTOMER: `${order.riderDetails?.name || 'Rider'} reached the customer`,
+                            DELIVERED: 'Delivered to the customer',
+                            FAILED_DELIVERY: 'Delivery failed',
+                          };
+                          const currIdx = stageOf[order.orderStatus] ?? -1;
+                          return (
+                            <>
+                              <div className="grid grid-cols-6 gap-1.5 text-center">
+                                {steps.map((step, idx) => {
+                                  const isCurrent = currIdx === idx;
+                                  const isDone = currIdx > idx;
+                                  return (
+                                    <div
+                                      key={step.label}
+                                      className={`p-1.5 rounded-xl flex flex-col items-center gap-0.5 transition-all ${
+                                        isCurrent
+                                          ? 'bg-purple-700 text-white font-bold shadow-xs'
+                                          : isDone
+                                          ? 'bg-emerald-100 text-emerald-900 font-semibold'
+                                          : 'bg-white text-slate-400 border border-slate-100'
+                                      }`}
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">{isDone ? 'check' : step.icon}</span>
+                                      <span className="leading-tight text-[10px]">{step.label}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
-                        </div>
+                              <p className="text-[11.5px] font-semibold text-slate-700 flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${order.orderStatus === 'DELIVERED' ? 'bg-emerald-500' : 'bg-purple-600 animate-pulse'}`} />
+                                {detail[order.orderStatus] || order.orderStatus}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {/* ─── LIVE GPS RIDER TRACKING BUTTON (MERCHANT VIEW) ─── */}
-                      {['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'OUT_FOR_DELIVERY'].includes(order.orderStatus) && (
+                      {['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
                         <button
                           type="button"
                           onClick={() => setTrackingOrder(order)}
@@ -996,10 +1033,13 @@ export default function RequestsPage() {
                           <span className="material-symbols-outlined text-primary text-[20px]">two_wheeler</span>
                           <div>
                             <p className="font-bold text-slate-900">
-                              Rider: {order.riderDetails.name} ({order.riderDetails.phone})
+                              {order.riderDetails.name}
+                              <span className="ml-1.5 text-[10px] font-semibold text-purple-700 bg-white border border-purple-200 px-1.5 py-0.5 rounded">
+                                {hasPlatformRider ? 'ZeeBac Rider' : 'Store Delivery'}
+                              </span>
                             </p>
-                            <p className="text-[10.5px] text-slate-500">
-                              Vehicle: {order.riderDetails.vehicleNo || 'N/A'} • OTP: <strong>{order.riderDetails.deliveryOtp}</strong>
+                            <p className="text-[11px] text-slate-600">
+                              📞 {order.riderDetails.phone || 'N/A'} · 🛵 {order.riderDetails.vehicleNo || 'Vehicle N/A'}
                             </p>
                           </div>
                         </div>
@@ -1202,7 +1242,13 @@ export default function RequestsPage() {
                       </div>
                     )}
 
-                    {(order.orderStatus === 'RIDER_ASSIGNED' || order.orderStatus === 'OUT_FOR_DELIVERY') && (
+                    {hasPlatformRider && ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
+                      <p className="text-[11.5px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                        The delivery partner marks this order delivered after the customer shares their code. Status updates here automatically.
+                      </p>
+                    )}
+
+                    {!hasPlatformRider && ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           disabled={isProcessing}
