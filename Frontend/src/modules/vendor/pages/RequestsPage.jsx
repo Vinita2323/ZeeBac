@@ -17,6 +17,7 @@ import {
 } from '../../../utils/voiceUtils';
 import LiveOrderTrackingModal from '../../../components/common/LiveOrderTrackingModal';
 import DarkStorePickerModal from '../../../components/vendor/DarkStorePickerModal';
+import StoreBillingModal from '../../../components/vendor/StoreBillingModal';
 import { formatDisplayAddress } from '../../../utils/addressUtils';
 
 export default function RequestsPage() {
@@ -47,6 +48,7 @@ export default function RequestsPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   // Store pickup handover: merchant must enter the customer's 4-digit pickup code
   const [pickupHandover, setPickupHandover] = useState(null); // { orderId, customerName }
+  const [billingOrder, setBillingOrder] = useState(null); // store pickup in-store billing
   const [pickupCode, setPickupCode] = useState('');
   const [pickupCodeError, setPickupCodeError] = useState('');
   const [viewReceiptUrl, setViewReceiptUrl] = useState(null);
@@ -1145,15 +1147,39 @@ export default function RequestsPage() {
                                 <span>Order Packed & Ready for Pickup</span>
                               </span>
 
-                              {order.fulfillmentType === 'pickup' && (
+                              {order.fulfillmentType === 'pickup' && order.paymentStatus !== 'PAID' && (
                                 <button
                                   disabled={isProcessing}
+                                  onClick={() => setBillingOrder(order)}
+                                  className="py-2 px-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">receipt_long</span>
+                                  <span>
+                                    {order.storeBill?.status === 'GENERATED' ? 'Bill Generated · Collect' : 'Generate Bill'} ₹
+                                    {Number(order.finalPayableAmount || 0).toFixed(2)}
+                                  </span>
+                                </button>
+                              )}
+
+                              {order.fulfillmentType === 'pickup' && order.paymentStatus === 'PAID' && (
+                                <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl">
+                                  <span className="material-symbols-outlined text-[15px]">paid</span>
+                                  <span>
+                                    Paid{order.storeBill?.paidVia ? ` · ${order.storeBill.paidVia === 'CASH' ? 'Cash' : 'UPI'}` : ''}
+                                  </span>
+                                </span>
+                              )}
+
+                              {order.fulfillmentType === 'pickup' && (
+                                <button
+                                  disabled={isProcessing || order.paymentStatus !== 'PAID'}
+                                  title={order.paymentStatus !== 'PAID' ? 'Confirm payment first' : undefined}
                                   onClick={() => {
                                     setPickupHandover({ orderId: order.orderId, customerName: order.customerName || order.customerId?.name || 'Customer' });
                                     setPickupCode('');
                                     setPickupCodeError('');
                                   }}
-                                  className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                  className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <span className="material-symbols-outlined text-[15px]">verified</span>
                                   <span>Handover to Customer (Enter Pickup Code)</span>
@@ -1760,6 +1786,25 @@ export default function RequestsPage() {
           onOrderUpdated={(updated) => {
             setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? { ...o, ...updated } : o)));
             setPickingModalOrder((prev) => (prev && prev.orderId === updated.orderId ? { ...prev, ...updated } : prev));
+          }}
+        />
+      )}
+
+      {/* Store pickup in-store billing — UPI QR to seller / cash; confirms payment only */}
+      {billingOrder && (
+        <StoreBillingModal
+          order={billingOrder}
+          onOrderUpdated={(updated) => {
+            if (!updated) return;
+            setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? { ...o, ...updated } : o)));
+            setBillingOrder((prev) => (prev && prev.orderId === updated.orderId ? { ...prev, ...updated } : prev));
+          }}
+          onClose={(result) => {
+            setBillingOrder(null);
+            if (result?.paid) {
+              playNotificationChime('incoming');
+              speakVoice('Payment received. Now hand over the order with the pickup code.');
+            }
           }}
         />
       )}

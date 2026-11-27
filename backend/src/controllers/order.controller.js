@@ -820,7 +820,19 @@ export const updateOrderStatus = async (req, res) => {
         if (givenOtp !== expectedOtp) {
           return res.status(400).json({ success: false, code: 'PICKUP_OTP_INVALID', message: 'Incorrect pickup code. Please check with the customer.' });
         }
-      } else if (expectedOtp && givenOtp && givenOtp !== expectedOtp) {
+      }
+
+      // Store pickup: payment confirmation and handover are SEPARATE actions.
+      // The merchant must first confirm payment (UPI / Cash) via the store-bill API.
+      if (isPickup && !isAdmin && order.paymentStatus !== 'PAID') {
+        return res.status(400).json({
+          success: false,
+          code: 'PICKUP_PAYMENT_PENDING',
+          message: 'Collect and confirm payment (UPI Received / Cash Received) before handing over this order.',
+        });
+      }
+
+      if (!isPickup && expectedOtp && givenOtp && givenOtp !== expectedOtp) {
         // Delivery orders: verify OTP if provided (unchanged behaviour)
         return res.status(400).json({ success: false, message: 'Invalid Delivery OTP' });
       }
@@ -831,7 +843,9 @@ export const updateOrderStatus = async (req, res) => {
       await session.withTransaction(async () => {
         // 1. Mark order delivered
         order.orderStatus = 'DELIVERED';
-        order.paymentStatus = 'PAID'; // Delivered means payment completed
+        // Delivery orders: delivered means payment completed.
+        // Pickup orders: payment is confirmed separately by the merchant (store bill).
+        if (!isPickup || isAdmin) order.paymentStatus = 'PAID';
         if (!order.riderDetails) order.riderDetails = {};
         order.riderDetails.deliveredAt = new Date();
 
@@ -1772,5 +1786,148 @@ export const finishOrderPacking = async (req, res) => {
   } catch (error) {
     logger.error(`Error in finishOrderPacking: ${error.message}`);
     return res.status(500).json({ success: false, message: error.message || 'Server error finishing packing' });
+  }
+};
+
+// ─── Store Pickup: In-Store Billing ("Merchant Billing Karega") ───
+// Flow: merchant generates bill → customer pays seller's UPI QR directly (or cash)
+// → merchant confirms payment → (separately) merchant enters pickup code → DELIVERED.
+const findOrderByAnyId = (orderId) =>
+  Order.findOne(mongoose.isValidObjectId(orderId) ? { $or: [{ _id: orderId }, { orderId }] } : { orderId });
+
+const loadVendorPickupOrder = async (req, res) => {
+  const order = await findOrderByAnyId(req.params.orderId);
+  if (!order) {
+    res.status(404).json({ success: false, message: 'Order not found' });
+    return null;
+  }
+  if (order.vendorId.toString() !== req.user.id) {
+    res.status(403).json({ success: false, message: 'Unauthorized' });
+    return null;
+  }
+  if (order.fulfillmentType !== 'pickup') {
+    res.status(400).json({ success: false, code: 'NOT_PICKUP_ORDER', message: 'In-store billing is only available for store pickup orders.' });
+    return null;
+  }
+  if (['DELIVERED', 'CANCELLED'].includes(order.orderStatus)) {
+    res.status(400).json({ success: false, message: `Order is already ${order.orderStatus}` });
+    return null;
+  }
+  return order;
+};
+
+const emitStoreBillUpdate = (order) => {
+  const payload = { orderId: order.orderId, _id: order._id, storeBill: order.storeBill, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod };
+  safeSocketEmit(`user_${order.customerId}`, 'order:store_bill', payload);
+  safeSocketEmit(`user:${order.customerId}`, 'order:store_bill', payload);
+  safeSocketEmit(`vendor_${order.vendorId}`, 'order:store_bill', payload);
+};
+
+export const generateStoreBill = async (req, res) => {
+  try {
+    const order = await loadVendorPickupOrder(req, res);
+    if (!order) return;
+
+    if (order.paymentStatus === 'PAID') {
+      return res.status(400).json({ success: false, code: 'ALREADY_PAID', message: 'Payment for this order is already confirmed.' });
+    }
+
+    const vendor = await Vendor.findById(order.vendorId).select('storeName upiId bankDetails.upiId');
+    const payeeVpa = (vendor?.upiId || vendor?.bankDetails?.upiId || '').trim();
+    if (!payeeVpa) {
+      return res.status(400).json({
+        success: false,
+        code: 'SELLER_UPI_MISSING',
+        message: 'Add your UPI ID in your store profile to generate a UPI bill. You can still accept cash.',
+      });
+    }
+
+    const amount = Math.round(Number(order.finalPayableAmount || 0) * 100) / 100;
+    const payeeName = vendor.storeName || order.storeName || 'ZeeBac Store';
+    const billRef = `${order.orderId}-B${Date.now().toString().slice(-5)}`;
+    const upiUri = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amount.toFixed(2))}&cu=INR&tr=${encodeURIComponent(billRef)}&tn=${encodeURIComponent(`ZeeBac Bill ${order.orderId}`)}`;
+
+    order.storeBill = {
+      status: 'GENERATED',
+      billRef,
+      amount,
+      payeeVpa,
+      payeeName,
+      upiUri,
+      generatedAt: new Date(),
+    };
+    await order.save();
+    emitStoreBillUpdate(order);
+
+    res.status(200).json({ success: true, message: 'Bill generated', data: { order: hidePickupCodeForVendor(order), storeBill: order.storeBill } });
+  } catch (error) {
+    logger.error(`generateStoreBill error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
+// Marks payment as received. Does NOT change orderStatus — handover (DELIVERED) is a separate action.
+export const confirmStoreBillPayment = async (req, res) => {
+  try {
+    const { method, amountReceived, utr } = req.body;
+    const paidVia = String(method || '').toUpperCase();
+    if (!['UPI', 'CASH'].includes(paidVia)) {
+      return res.status(400).json({ success: false, message: "method must be 'UPI' or 'CASH'" });
+    }
+
+    const order = await loadVendorPickupOrder(req, res);
+    if (!order) return;
+
+    if (order.paymentStatus === 'PAID') {
+      return res.status(400).json({ success: false, code: 'ALREADY_PAID', message: 'Payment for this order is already confirmed.' });
+    }
+
+    const amount = Math.round(Number(order.finalPayableAmount || 0) * 100) / 100;
+    if (paidVia === 'UPI' && order.storeBill?.status !== 'GENERATED') {
+      return res.status(400).json({ success: false, code: 'BILL_NOT_GENERATED', message: 'Generate the bill before confirming a UPI payment.' });
+    }
+
+    let received = amount;
+    if (amountReceived !== undefined && amountReceived !== null && amountReceived !== '') {
+      received = Math.round(Number(amountReceived) * 100) / 100;
+      if (!Number.isFinite(received) || received < amount) {
+        return res.status(400).json({ success: false, code: 'AMOUNT_SHORT', message: `Amount received must be at least ₹${amount.toFixed(2)}.` });
+      }
+    }
+
+    const cleanUtr = typeof utr === 'string' ? utr.trim().slice(0, 40) : '';
+
+    order.storeBill = {
+      ...(order.storeBill?.toObject ? order.storeBill.toObject() : order.storeBill || {}),
+      status: 'PAID',
+      amount: order.storeBill?.amount ?? amount,
+      paidVia,
+      amountReceived: received,
+      utr: cleanUtr || undefined,
+      confirmedAt: new Date(),
+      confirmedBy: req.user.id,
+    };
+    order.paymentMethod = paidVia === 'UPI' ? 'UPI_INTENT' : 'CASH';
+    order.paymentStatus = 'PAID';
+    if (paidVia === 'UPI') {
+      if (!order.upiDetails) order.upiDetails = {};
+      order.upiDetails.payeeVpa = order.storeBill.payeeVpa;
+      order.upiDetails.payeeName = order.storeBill.payeeName;
+      order.upiDetails.txnRef = order.storeBill.billRef;
+      order.upiDetails.upiUri = order.storeBill.upiUri;
+      if (cleanUtr) order.upiDetails.utr = cleanUtr;
+      order.upiDetails.paidAt = new Date();
+    }
+    await order.save();
+    emitStoreBillUpdate(order);
+
+    res.status(200).json({
+      success: true,
+      message: paidVia === 'UPI' ? 'UPI payment confirmed' : 'Cash payment recorded',
+      data: { order: hidePickupCodeForVendor(order), storeBill: order.storeBill, change: Math.round((received - amount) * 100) / 100 },
+    });
+  } catch (error) {
+    logger.error(`confirmStoreBillPayment error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 };

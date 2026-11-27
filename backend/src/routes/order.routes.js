@@ -14,6 +14,8 @@ import {
   startOrderPicking,
   pickOrderItem,
   finishOrderPacking,
+  generateStoreBill,
+  confirmStoreBillPayment,
 } from '../controllers/order.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
@@ -31,6 +33,10 @@ router.get('/vendor/list', protect, requireRole('vendor'), getVendorOrders);
 router.patch('/:orderId/assign-rider', protect, requireRole('vendor'), assignRider);
 router.patch('/:orderId/status', protect, updateOrderStatus);
 router.post('/:orderId/rate-rider', protect, requireRole('vendor'), rateRiderByVendor);
+
+// ── Store Pickup: In-Store Billing (pay directly to seller UPI / cash) ──
+router.post('/:orderId/store-bill', protect, requireRole('vendor'), generateStoreBill);
+router.post('/:orderId/store-bill/confirm', protect, requireRole('vendor'), confirmStoreBillPayment);
 
 // ── Dark Store WMS Picking & Packing Routes (Zepto / Blinkit Flow) ──
 router.post('/:orderId/start-picking', protect, requireRole('vendor'), startOrderPicking);

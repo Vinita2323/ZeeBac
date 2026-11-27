@@ -6,6 +6,7 @@ import useAuthStore from '../../../store/useAuthStore';
 import useCartStore from '../../../store/useCartStore';
 import useLanguageStore from '../../../store/useLanguageStore';
 import BottomNavBar from '../components/common/BottomNavBar';
+import PayAtStoreCard from '../components/PayAtStoreCard';
 import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 import { getStoreTimingStatus } from '../../../utils/storeTiming';
 import { getSocket } from '../../../services/socket';
@@ -494,7 +495,21 @@ export default function CartScreen() {
       }
     };
 
+    // Store pickup: merchant generated the bill / confirmed payment
+    const handleStoreBill = (data) => {
+      if (data?.orderId === activeOrder.orderId) {
+        setActiveOrder((prev) => ({
+          ...prev,
+          storeBill: data.storeBill,
+          paymentStatus: data.paymentStatus,
+          paymentMethod: data.paymentMethod,
+        }));
+        if (data.paymentStatus === 'PAID') playNotificationChime('incoming');
+      }
+    };
+
     if (socket) {
+      socket.on('order:store_bill', handleStoreBill);
       socket.on('order:status_update', handleStatusUpdate);
       socket.on('order:rider_assigned', handleRiderAssigned);
       socket.on('order:delivered', handleDelivered);
@@ -515,6 +530,7 @@ export default function CartScreen() {
 
     return () => {
       if (socket) {
+        socket.off('order:store_bill', handleStoreBill);
         socket.off('order:status_update', handleStatusUpdate);
         socket.off('order:rider_assigned', handleRiderAssigned);
         socket.off('order:delivered', handleDelivered);
@@ -1192,6 +1208,11 @@ export default function CartScreen() {
                     <span className="material-symbols-outlined text-[12px]">open_in_new</span>
                   </a>
                 </div>
+              )}
+
+              {/* Store Pickup: Pay at Store (merchant bills, customer pays seller directly) */}
+              {activeOrder.fulfillmentType === 'pickup' && !isDelivered && Number(activeOrder.finalPayableAmount) > 0 && (
+                <PayAtStoreCard order={activeOrder} />
               )}
 
               {/* Delivery OTP Badge */}

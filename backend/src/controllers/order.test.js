@@ -12,6 +12,7 @@ import {
   updateOrderStatus,
   createVendorCashbackReserveUpiIntent,
   claimVendorCashbackReserveUpi,
+  confirmStoreBillPayment,
 } from './order.controller.js';
 
 vi.mock('../services/notification.service.js', () => ({ sendNotification: vi.fn().mockResolvedValue(true) }));
@@ -560,6 +561,14 @@ describe('Order System & Product-Level Cashback Model', () => {
     const res5a = makeRes();
     await updateOrderStatus(req5a, res5a);
     expect(res5a.status).toHaveBeenCalledWith(400);
+
+    // 5b. Merchant records in-store payment (separate step from handover)
+    const resPay = makeRes();
+    await confirmStoreBillPayment(
+      { user: { id: vendor._id.toString(), role: 'vendor' }, params: { orderId: order.orderId }, body: { method: 'CASH' } },
+      resPay
+    );
+    expect(resPay.status).toHaveBeenCalledWith(200);
 
     // 5. Customer shows the pickup code from their app -> Merchant enters it and hands over (DELIVERED) -> Points settled
     expect(order.riderDetails?.deliveryOtp).toMatch(/^\d{4}$/);

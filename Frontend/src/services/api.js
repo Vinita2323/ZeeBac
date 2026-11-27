@@ -1314,6 +1314,15 @@ export const OrderAPI = {
     const res = await apiClient.post(`/orders/${orderId}/rate-rider`, ratingData);
     return res.data;
   },
+  // Store pickup in-store billing
+  generateStoreBill: async (orderId) => {
+    const res = await apiClient.post(`/orders/${orderId}/store-bill`);
+    return res.data;
+  },
+  confirmStoreBillPayment: async (orderId, data) => {
+    const res = await apiClient.post(`/orders/${orderId}/store-bill/confirm`, data);
+    return res.data;
+  },
   createVendorCashbackReserveUpiIntent: async (amount) => {
     const res = await apiClient.post('/orders/vendor/cashback-reserve/upi-intent', { amount });
     return res.data;

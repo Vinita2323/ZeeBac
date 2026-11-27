@@ -231,6 +231,23 @@ const orderSchema = new mongoose.Schema(
       paidAt: Date,
     },
 
+    // ── Store Pickup: in-store billing by merchant (pay directly to seller UPI or cash) ──
+    // Payment confirmation is a separate step from handover (DELIVERED).
+    storeBill: {
+      status: { type: String, enum: ['NONE', 'GENERATED', 'PAID'], default: 'NONE' },
+      billRef: String,
+      amount: Number,
+      payeeVpa: String,
+      payeeName: String,
+      upiUri: String,
+      generatedAt: Date,
+      paidVia: { type: String, enum: ['UPI', 'CASH'] },
+      amountReceived: Number,
+      utr: String,
+      confirmedAt: Date,
+      confirmedBy: { type: mongoose.Schema.Types.ObjectId },
+    },
+
     orderStatus: {
       type: String,
       enum: [
