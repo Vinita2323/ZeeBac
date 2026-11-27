@@ -3,6 +3,9 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
+// DB transactions on an in-memory replica set can exceed the default 5s under full-suite load
+vi.setConfig({ testTimeout: 30000 });
+
 // ── Mock the admin Razorpay account ──
 const rzp = {
   payments: new Map(),

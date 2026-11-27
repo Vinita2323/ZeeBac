@@ -316,11 +316,28 @@ export default function DeliveryDashboardScreen() {
       toast(data?.message || 'You were set Offline due to inactivity.', { icon: '⏸️' });
     };
 
+    // Admin assigned an order to this rider, or the store changed / cancelled the current one
+    const handleAssigned = (data) => {
+      setRingingOrderAlert(null);
+      toast.success(data?.message || 'A new delivery was assigned to you');
+      fetchDashboardData();
+    };
+    const handleOrderChanged = (data) => {
+      if (data?.message) toast(data.message, { icon: 'ℹ️' });
+      fetchDashboardData();
+    };
+
     socket.on('delivery:new_order', handleNewOrder);
     socket.on('delivery:auto_offline', handleAutoOffline);
+    socket.on('delivery:assigned', handleAssigned);
+    socket.on('order:status_update', handleOrderChanged);
+    socket.on('order:cancelled', handleOrderChanged);
     return () => {
       socket.off('delivery:new_order', handleNewOrder);
       socket.off('delivery:auto_offline', handleAutoOffline);
+      socket.off('delivery:assigned', handleAssigned);
+      socket.off('order:status_update', handleOrderChanged);
+      socket.off('order:cancelled', handleOrderChanged);
     };
   }, [isOnline, activeOrder, fetchDashboardData, setOnlineStatus]);
 

@@ -665,6 +665,9 @@ export const getDeliveryOrders = async (req, res) => {
         await rider.save();
         activeOrder = null;
       } else if (activeOrder) {
+        if (!activeOrder.riderDetails?.riderId) {
+          await Order.updateOne({ _id: activeOrder._id }, { $set: { 'riderDetails.riderId': rider._id } });
+        }
         activeOrder.vendor = activeOrder.vendorId;
         const vendorCoords = activeOrder.vendorId?.location?.coordinates;
         if (riderLat && riderLng && Array.isArray(vendorCoords) && vendorCoords.length === 2) {
@@ -696,6 +699,8 @@ export const getDeliveryOrders = async (req, res) => {
       const rawOrders = await Order.find({
         fulfillmentType: 'delivery',
         _id: { $nin: rider.rejectedOrders || [] },
+        // COD / points orders, or online orders whose payment has been received
+        $nor: [{ paymentMethod: { $in: ['ONLINE', 'RAZORPAY', 'UPI_INTENT'] }, paymentStatus: { $ne: 'PAID' } }],
         $or: [
           { orderStatus: 'PLACED', 'riderDetails.name': { $in: [null, ''] } },
           { orderStatus: 'CONFIRMED', 'riderDetails.name': { $in: [null, ''] } },
@@ -937,6 +942,7 @@ export const acceptDeliveryOrder = async (req, res) => {
     order.pickupOtp = pickupOtp;
     order.orderStatus = 'RIDER_ASSIGNED';
     order.riderDetails = {
+      riderId: rider._id,
       name: rider.name,
       phone: rider.phone,
       vehicleNo: rider.vehicleNo,
@@ -1980,14 +1986,34 @@ export const adminAssignDeliveryOrder = async (req, res) => {
     if (rider.applicationStatus !== 'APPROVED') {
       return res.status(400).json({ success: false, message: 'Selected rider is not approved' });
     }
+    if (rider.activeOrderId && String(rider.activeOrderId) !== String(order._id)) {
+      return res.status(400).json({ success: false, code: 'RIDER_BUSY', message: `${rider.name} is already on another delivery. Choose a free rider.` });
+    }
+    if (order.fulfillmentType !== 'delivery' || ['DELIVERED', 'CANCELLED', 'FAILED_DELIVERY'].includes(order.orderStatus)) {
+      return res.status(400).json({ success: false, message: `Order is ${order.orderStatus} and cannot be assigned` });
+    }
+    if (['ONLINE', 'RAZORPAY', 'UPI_INTENT'].includes(order.paymentMethod) && order.paymentStatus !== 'PAID') {
+      return res.status(400).json({ success: false, code: 'PAYMENT_PENDING', message: 'Online payment for this order has not been received yet.' });
+    }
+    if (order.riderDetails?.riderId && String(order.riderDetails.riderId) !== String(rider._id)) {
+      // Re-assigning: free the previous rider
+      await DeliveryPartner.updateOne(
+        { _id: order.riderDetails.riderId, activeOrderId: order._id },
+        { $set: { activeOrderId: null, status: 'AVAILABLE' } }
+      );
+    }
 
-    const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
+    const deliveryOtp = order.riderDetails?.deliveryOtp || String(Math.floor(1000 + Math.random() * 9000));
+    const pickupOtp = order.pickupOtp || order.riderDetails?.pickupOtp || String(Math.floor(1000 + Math.random() * 9000));
 
+    order.pickupOtp = pickupOtp;
     order.orderStatus = 'RIDER_ASSIGNED';
     order.riderDetails = {
+      riderId: rider._id,
       name: rider.name,
       phone: rider.phone,
       vehicleNo: rider.vehicleNo,
+      pickupOtp,
       deliveryOtp,
       assignedAt: new Date(),
     };
@@ -1997,21 +2023,29 @@ export const adminAssignDeliveryOrder = async (req, res) => {
     rider.status = 'BUSY';
     await rider.save();
 
-    safeSocketEmit(`vendor:${order.vendorId}`, 'order:rider_assigned', {
+    // Store gets rider details (never the customer's delivery code)
+    const storePayload = {
       orderId: order.orderId,
+      orderStatus: 'RIDER_ASSIGNED',
+      riderId: String(rider._id),
       riderName: rider.name,
       riderPhone: rider.phone,
       vehicleNo: rider.vehicleNo,
-      deliveryOtp,
-    });
-
-    safeSocketEmit(`order:${order.orderId}`, 'order:rider_assigned', {
-      orderId: order.orderId,
-      riderName: rider.name,
-      riderPhone: rider.phone,
-      vehicleNo: rider.vehicleNo,
-      deliveryOtp,
-    });
+      pickupOtp,
+      message: `Admin assigned ${rider.name} to order #${order.orderId}`,
+    };
+    for (const room of [`vendor:${order.vendorId}`, `vendor_${order.vendorId}`]) {
+      safeSocketEmit(room, 'order:rider_assigned', storePayload);
+      safeSocketEmit(room, 'order:status_update', storePayload);
+    }
+    safeSocketEmit('admins', 'order:status_update', storePayload);
+    // Customer: rider details + their own delivery code
+    safeSocketEmit(`user_${order.customerId}`, 'order:rider_assigned', { ...storePayload, pickupOtp: undefined, deliveryOtp });
+    safeSocketEmit(`order:${order.orderId}`, 'order:rider_assigned', { ...storePayload, pickupOtp: undefined });
+    // Rider: the order appears as their active delivery
+    for (const room of [`rider_${rider._id}`, `rider:${rider._id}`]) {
+      safeSocketEmit(room, 'delivery:assigned', { orderId: order.orderId, message: `Admin assigned you order #${order.orderId} from ${order.storeName}` });
+    }
 
     logger.info(`[Admin] Order ${order.orderId} manually assigned to ${rider.name}`);
 
