@@ -93,10 +93,11 @@ describe('Store pickup handover requires the customer pickup code', () => {
     for (const o of pickupOrders) expect(o.riderDetails?.deliveryOtp).toBeUndefined();
   });
 
-  it('delivery orders are unchanged: can complete without a code', async () => {
+  it('delivery orders cannot be completed by the store (ZeeBac rider only)', async () => {
     const id = await makeOrder('delivery');
     const r = await call(updateOrderStatus, vendorReq(id, { status: 'DELIVERED' }));
-    expect(r.code).toBe(200);
+    expect(r.code).toBe(400);
+    expect(r.body.code).toBe('RIDER_OWNS_DELIVERY');
   });
 });
 

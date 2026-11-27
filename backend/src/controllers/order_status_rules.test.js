@@ -69,7 +69,7 @@ describe('Store status rules', () => {
     expect((await vendorSets(id, 'OUT_FOR_DELIVERY')).body.code).toBe('RIDER_ONLY_STATUS');
   });
 
-  it('store cannot mark a ZeeBac rider order delivered; the assigned rider is notified of store updates', async () => {
+  it('store cannot mark a delivery order delivered; the assigned rider is notified of store updates', async () => {
     const id = await makeOrder({ orderStatus: 'PREPARING', riderDetails: { riderId, name: 'R', phone: '9000000000', deliveryOtp: '9999' } });
     const r = await vendorSets(id, 'DELIVERED');
     expect(r.body.code).toBe('RIDER_OWNS_DELIVERY');
@@ -78,9 +78,11 @@ describe('Store status rules', () => {
     expect(emitted.some((e) => e.room === `rider_${riderId}` && e.event === 'order:status_update')).toBe(true);
   });
 
-  it("store's own delivery boy (no ZeeBac rider): store can complete delivery", async () => {
-    const id = await makeOrder({ orderStatus: 'RIDER_ASSIGNED', riderDetails: { name: 'Own Boy', phone: '9000000001' } });
-    expect((await vendorSets(id, 'DELIVERED')).code).toBe(200);
+  it('store cannot self-deliver, with or without a rider on the order', async () => {
+    const noRider = await makeOrder({ orderStatus: 'READY_FOR_PICKUP' });
+    expect((await vendorSets(noRider, 'DELIVERED')).body.code).toBe('RIDER_OWNS_DELIVERY');
+    const ownBoy = await makeOrder({ orderStatus: 'RIDER_ASSIGNED', riderDetails: { name: 'Own Boy', phone: '9000000001' } });
+    expect((await vendorSets(ownBoy, 'DELIVERED')).body.code).toBe('RIDER_OWNS_DELIVERY');
   });
 
   it('admin can override; customers cannot change status', async () => {

@@ -238,7 +238,7 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(onlineOrder.paymentStatus).toBe('PENDING');
   });
 
-  it('assigns rider and moves order status', async () => {
+  it('stores can no longer assign their own delivery boy (every delivery goes via a ZeeBac rider)', async () => {
     const { vendor, customer, productA } = await setupStoreAndCustomer();
 
     const createReq = {
@@ -264,11 +264,10 @@ describe('Order System & Product-Level Cashback Model', () => {
     const assignRes = makeRes();
     await assignRider(assignReq, assignRes);
 
-    expect(assignRes.status).toHaveBeenCalledWith(200);
+    expect(assignRes.status).toHaveBeenCalledWith(410);
     const updatedOrder = await Order.findOne({ orderId: order.orderId });
-    expect(updatedOrder.orderStatus).toBe('RIDER_ASSIGNED');
-    expect(updatedOrder.riderDetails.name).toBe('Amit Kumar');
-    expect(updatedOrder.riderDetails.phone).toBe('9876543210');
+    expect(updatedOrder.orderStatus).toBe('PLACED');
+    expect(updatedOrder.riderDetails?.name || null).toBeNull();
   });
 
   it('delivers order: credits customer Zeebac Points & debits merchant prepaid pool', async () => {
@@ -288,8 +287,17 @@ describe('Order System & Product-Level Cashback Model', () => {
     const order = createRes.json.mock.calls[0][0].data.order;
 
     // Delivery completion
+    // The store cannot mark a delivery order delivered…
+    const storeRes = makeRes();
+    await updateOrderStatus(
+      { user: { id: vendor._id.toString(), role: 'vendor' }, params: { orderId: order.orderId }, body: { status: 'DELIVERED' } },
+      storeRes
+    );
+    expect(storeRes.status).toHaveBeenCalledWith(400);
+
+    // …admin (or the ZeeBac rider) completes it
     const deliverReq = {
-      user: { id: vendor._id.toString(), role: 'vendor' },
+      user: { id: '507f1f77bcf86cd799439011', role: 'admin' },
       params: { orderId: order.orderId },
       body: { status: 'DELIVERED' },
     };
@@ -647,7 +655,7 @@ describe('Order System & Product-Level Cashback Model', () => {
     expect(res3.status).toHaveBeenCalledWith(200);
     expect(res3.json.mock.calls[0][0].data.order.orderStatus).toBe('READY_FOR_PICKUP');
 
-    // 4. Assign Rider
+    // 4. Store can no longer assign its own rider
     const req4 = {
       user: { id: vendor._id.toString(), role: 'vendor' },
       params: { orderId: order.orderId },
@@ -659,17 +667,13 @@ describe('Order System & Product-Level Cashback Model', () => {
     };
     const res4 = makeRes();
     await assignRider(req4, res4);
-    expect(res4.status).toHaveBeenCalledWith(200);
+    expect(res4.status).toHaveBeenCalledWith(410);
 
-    // 5. Rider marks DELIVERED with OTP
-    const assignedOrder = res4.json.mock.calls[0][0].data.order;
+    // 5. Delivery is completed by the ZeeBac side (admin override here; rider app in production)
     const req5 = {
-      user: { id: vendor._id.toString(), role: 'vendor' },
+      user: { id: '507f1f77bcf86cd799439011', role: 'admin' },
       params: { orderId: order.orderId },
-      body: {
-        status: 'DELIVERED',
-        deliveryOtp: assignedOrder.riderDetails.deliveryOtp,
-      },
+      body: { status: 'DELIVERED' },
     };
     const res5 = makeRes();
     await updateOrderStatus(req5, res5);

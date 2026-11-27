@@ -708,62 +708,14 @@ export const verifyOrderUpiPayment = async (req, res) => {
 };
 
 // ─── 3. Assign Rider to Order (Vendor Action) ───
-export const assignRider = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { name, phone, vehicleNo } = req.body;
-
-    if (!name || !phone) {
-      return res.status(400).json({ success: false, message: 'Rider Name and Phone are required' });
-    }
-
-    const vendor = await Vendor.findById(req.user.id);
-    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
-
-    const order = await Order.findOne({ orderId, vendorId: vendor._id });
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-    order.riderDetails = {
-      name: name.trim(),
-      phone: phone.trim(),
-      vehicleNo: (vehicleNo || '').trim(),
-      deliveryOtp: order.riderDetails?.deliveryOtp || Math.floor(1000 + Math.random() * 9000).toString(),
-      assignedAt: new Date(),
-    };
-    order.orderStatus = 'RIDER_ASSIGNED';
-    await order.save();
-
-    // Real-time alerts
-    try {
-      getIO().to(`user_${order.customerId}`).emit('order:rider_assigned', {
-        orderId: order.orderId,
-        rider: order.riderDetails,
-        orderStatus: order.orderStatus,
-      });
-    } catch (_) {}
-
-    sendNotification({
-      recipientId: order.customerId,
-      recipientType: 'customer',
-      type: 'system',
-      title: 'Rider Assigned! 🛵',
-      message: `${name} has been assigned for your order #${order.orderId}.`,
-      referenceId: order._id,
-      referenceType: 'Order',
-    }).catch(() => {});
-
-    logger.info(`[Order] Rider assigned: ${order.orderId} -> Rider: ${name}`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Rider assigned successfully',
-      data: { order },
-    });
-  } catch (error) {
-    logger.error(`assignRider error: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
-  }
-};
+export const assignRider = async (req, res) =>
+  // Stores can no longer assign their own delivery boy: every delivery goes through a
+  // ZeeBac rider so COD collection and seller settlement stay consistent.
+  res.status(410).json({
+    success: false,
+    code: 'OWN_RIDER_DISABLED',
+    message: 'Store-assigned delivery is no longer available. A ZeeBac delivery partner will pick up this order.',
+  });
 
 // ── Order status rules for the store (admin may override anything) ──
 // Rider-driven stages (assigned → at store → picked up → on the way → at customer → delivered)
@@ -775,25 +727,22 @@ const VENDOR_TRANSITIONS = {
   PREPARING: ['READY_FOR_PICKUP', 'DELIVERED'],
   READY_FOR_PICKUP: ['DELIVERED'],
 };
-// A platform rider (riderDetails.riderId) owns the order once assigned. A store's own
-// delivery boy added via "assign rider" has no riderId, so the store can still complete it.
-const hasPlatformRider = (order) => Boolean(order.riderDetails?.riderId);
+// Delivery orders are always completed by a ZeeBac rider (with the customer's code), so the
+// COD cash and settlement always flow through admin. Stores cannot self-deliver.
 
 const vendorStatusError = (order, status) => {
   if (RIDER_STAGES.includes(status)) {
     return { code: 'RIDER_ONLY_STATUS', message: 'This status is updated by the delivery partner app.' };
   }
-  if (status === 'DELIVERED' && order.fulfillmentType === 'delivery' && hasPlatformRider(order)) {
+  if (status === 'DELIVERED' && order.fulfillmentType === 'delivery') {
     return {
       code: 'RIDER_OWNS_DELIVERY',
-      message: 'A ZeeBac delivery partner has this order. It is marked delivered when the rider enters the customer code. Contact support if there is a problem.',
+      message: 'Delivery orders are completed by the ZeeBac delivery partner when the customer shares their code. Contact support if there is a problem.',
     };
   }
   if (status === 'CANCELLED' && order.orderStatus !== 'PLACED') {
     return { code: 'ALREADY_ACCEPTED', message: 'Order already accepted and in progress. Accepted orders cannot be rejected.' };
   }
-  // Store's own delivery boy (no platform rider): the store completes the delivery itself.
-  if (status === 'DELIVERED' && !hasPlatformRider(order) && RIDER_STAGES.includes(order.orderStatus)) return null;
   const allowed = VENDOR_TRANSITIONS[order.orderStatus] || [];
   if (!allowed.includes(status)) {
     return { code: 'INVALID_TRANSITION', message: `Order is ${order.orderStatus.replaceAll('_', ' ').toLowerCase()} and cannot be changed to ${status.replaceAll('_', ' ').toLowerCase()}.` };

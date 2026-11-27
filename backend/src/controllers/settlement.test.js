@@ -55,6 +55,9 @@ const admin = (body = {}, params = {}, query = {}, headers = {}) => ({
   body, params, query, headers, ip: '127.0.0.1', user: { id: new mongoose.Types.ObjectId().toString(), role: 'admin' },
 });
 const vendorReq = (body = {}, params = {}) => ({ body, params, query: {}, headers: {}, user: { id: vendor._id.toString(), role: 'vendor' } });
+// Delivery orders are completed by the ZeeBac side (rider app / admin), never the store
+const deliverAsAdmin = (orderId) =>
+  call(updateOrderStatus, { body: { status: 'DELIVERED' }, params: { orderId }, query: {}, headers: {}, user: { id: new mongoose.Types.ObjectId().toString(), role: 'admin' } });
 
 // The example from the spec: items 500, packaging 10, delivery 40, platform fee + GST 60 → 610
 const makeOrder = async (over = {}) => {
@@ -166,7 +169,9 @@ describe('Pricing: delivery/platform/GST by admin, packaging by seller', () => {
 describe('COD flow', () => {
   it('credits seller ON_HOLD at delivery, releases only after admin confirms collection (once)', async () => {
     const order = await makeOrder();
-    const r = await call(updateOrderStatus, vendorReq({ status: 'DELIVERED' }, { orderId: order.orderId }));
+    const storeTry = await call(updateOrderStatus, vendorReq({ status: 'DELIVERED' }, { orderId: order.orderId }));
+    expect(storeTry.body.code).toBe('RIDER_OWNS_DELIVERY');
+    const r = await deliverAsAdmin(order.orderId);
     expect(r.code).toBe(200);
     const saved = await Order.findOne({ orderId: order.orderId });
     expect(saved.financials.settlementStatus).toBe('ON_HOLD');
@@ -213,9 +218,9 @@ describe('Online flow (admin Razorpay)', () => {
     const payment = capturedPayment(order);
     rzp.payments.set(payment.id, payment);
 
-    // Delivery is blocked before payment
+    // The store can never complete a delivery order
     const early = await call(updateOrderStatus, vendorReq({ status: 'DELIVERED' }, { orderId: order.orderId }));
-    expect(early.body.code).toBe('ONLINE_PAYMENT_PENDING');
+    expect(early.body.code).toBe('RIDER_OWNS_DELIVERY');
 
     const v = await call(verifyOrderRazorpayPayment, {
       params: { orderId: order.orderId },
@@ -232,7 +237,7 @@ describe('Online flow (admin Razorpay)', () => {
     expect(again.applied).toBe(false);
     expect(again.duplicate).toBe(true);
 
-    const d = await call(updateOrderStatus, vendorReq({ status: 'DELIVERED' }, { orderId: order.orderId }));
+    const d = await deliverAsAdmin(order.orderId);
     expect(d.code).toBe(200);
     order = await Order.findOne({ orderId: order.orderId });
     expect(order.financials.settlementStatus).toBe('CREDITED');
@@ -296,7 +301,7 @@ describe('Online flow (admin Razorpay)', () => {
     order.razorpay = { orderId: `order_${order.orderId}`, status: 'CREATED' };
     await order.save();
     await applyCapturedOrderPayment({ payment: capturedPayment(order), via: 'WEBHOOK' });
-    await call(updateOrderStatus, vendorReq({ status: 'DELIVERED' }, { orderId: order.orderId }));
+    await deliverAsAdmin(order.orderId);
 
     const r = await call(S.adminRefundOrder, admin({ amount: 100, reason: 'Damaged item', sellerReversal: 100 }, { orderId: order.orderId }));
     expect(r.code).toBe(200);

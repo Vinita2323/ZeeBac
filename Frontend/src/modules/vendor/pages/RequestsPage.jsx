@@ -650,8 +650,6 @@ export default function RequestsPage() {
             filteredOrders.map((order) => {
               const isDelivered = order.orderStatus === 'DELIVERED';
               const isRiderAssigned = ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(order.orderStatus);
-              // A ZeeBac delivery partner (vs the store's own delivery boy) owns the delivery step
-              const hasPlatformRider = Boolean(order.riderDetails?.riderId);
               const isExpanded = expandedOrderIds.has(order._id || order.orderId);
 
               const statusBadgeText =
@@ -1035,7 +1033,7 @@ export default function RequestsPage() {
                             <p className="font-bold text-slate-900">
                               {order.riderDetails.name}
                               <span className="ml-1.5 text-[10px] font-semibold text-purple-700 bg-white border border-purple-200 px-1.5 py-0.5 rounded">
-                                {hasPlatformRider ? 'ZeeBac Rider' : 'Store Delivery'}
+                                ZeeBac Rider
                               </span>
                             </p>
                             <p className="text-[11px] text-slate-600">
@@ -1227,14 +1225,10 @@ export default function RequestsPage() {
                               )}
 
                               {order.fulfillmentType === 'delivery' && !isRiderAssigned && (
-                                <button
-                                  disabled={isProcessing}
-                                  onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
-                                  className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                                >
-                                  <span className="material-symbols-outlined text-[15px]">verified</span>
-                                  <span>Store Self-Delivered (Settle Points)</span>
-                                </button>
+                                <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                                  <span className="material-symbols-outlined text-[15px] animate-pulse">two_wheeler</span>
+                                  <span>Waiting for a ZeeBac delivery partner to accept</span>
+                                </span>
                               )}
                             </div>
                           )}
@@ -1242,46 +1236,10 @@ export default function RequestsPage() {
                       </div>
                     )}
 
-                    {hasPlatformRider && ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
+                    {['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
                       <p className="text-[11.5px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                         The delivery partner marks this order delivered after the customer shares their code. Status updates here automatically.
                       </p>
-                    )}
-
-                    {!hasPlatformRider && ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'].includes(order.orderStatus) && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          disabled={isProcessing}
-                          onClick={() => handleOrderStatusUpdate(order.orderId, 'DELIVERED')}
-                          className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">verified</span>
-                          <span>Mark Delivered (Settle Cashback Points)</span>
-                        </button>
-
-                        {order.riderDetails?.name && (
-                          order.riderFeedbackFromVendor ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-[11.5px] font-bold">
-                              <span className="material-symbols-outlined text-amber-500 text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                              <span>Rated Rider: {order.riderFeedbackFromVendor.rating}/5 ★</span>
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRateRiderModalOrder(order);
-                                setRiderStarRating(5);
-                                setRiderComment('');
-                                setRiderSelectedTags([]);
-                              }}
-                              className="py-2.5 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[12px] flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                            >
-                              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                              <span>Rate Delivery Rider</span>
-                            </button>
-                          )
-                        )}
-                      </div>
                     )}
 
                     {isDelivered && (
