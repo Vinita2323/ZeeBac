@@ -15,6 +15,7 @@ import { sendNotification } from '../services/notification.service.js';
 import { creditSellerForDeliveredOrder } from '../utils/sellerSettlement.util.js';
 import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
 import { cancelOrder, CancellationError } from '../utils/orderCancellation.util.js';
+import { settleDeliveredOrderCoins } from '../utils/coinFlows.util.js';
 import { LATE_CANCEL_STAGES } from '../utils/pointsPolicy.util.js';
 import { getIO } from '../socket/index.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
@@ -1389,54 +1390,10 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       order.orderStatus = 'DELIVERED';
       order.riderDetails.deliveredAt = new Date();
 
-      // ── ATOMIC SETTLEMENT: Credit Customer Zeebac Points & Debit Vendor Reserve Pool ──
-      if (!order.cashbackSettled && order.totalCashbackPoints > 0) {
-        const customer = await User.findById(order.customerId);
-        const vendor = await Vendor.findById(order.vendorId);
-
-        if (customer) {
-          await creditWallet({
-            ownerId: customer._id,
-            ownerType: 'User',
-            ownerZeebacId: customer.zeebacId,
-            amount: order.totalCashbackPoints,
-            category: 'cashback',
-            description: `🪙 +${order.totalCashbackPoints} Zeebac Points earned on Order #${order.orderId}`,
-            referenceId: order._id,
-            referenceType: 'Order',
-          });
-
-          safeSocketEmit(`user:${customer._id}`, 'cashback:credited', {
-            amount: order.totalCashbackPoints,
-            orderId: order.orderId,
-          });
-        }
-
-        if (vendor) {
-          await debitWallet({
-            ownerId: vendor._id,
-            ownerType: 'Vendor',
-            amount: order.totalCashbackPoints,
-            category: 'cashback_payout',
-            description: `🪙 ${order.totalCashbackPoints} Zeebac Points deducted from reserve pool for Order #${order.orderId}`,
-            referenceId: order._id,
-            referenceType: 'Order',
-            allowNegativeBalance: true,
-          });
-
-          await recordCashbackIssuance({
-            vendorId: vendor._id,
-            amount: order.totalCashbackPoints,
-            customer,
-            orderId: order.orderId,
-            paymentMethod: order.paymentMethod,
-            eligiblePaidAmount: order.finalPayableAmount,
-            referenceId: order._id,
-            referenceType: 'Order',
-          });
-        }
-
-        order.cashbackSettled = true;
+      // ── Coins: cashback (store coins → customer, stops at zero) + redeemed points → store. Atomic & idempotent ──
+      const coinResult = await settleDeliveredOrderCoins(order);
+      if (coinResult.cashbackIssued > 0) {
+        safeSocketEmit(`user:${order.customerId}`, 'cashback:credited', { amount: coinResult.cashbackIssued, orderId: order.orderId });
       }
 
       // Update Rider earnings & ledger with dynamic distance payout

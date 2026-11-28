@@ -38,6 +38,14 @@ const walletSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // ── Vendor coin buckets (bucketsVersion >= 1). balance = purchasedPoints + earnedCoins + cashEarnings ──
+    // purchasedPoints : coins the vendor bought (Razorpay / admin-approved UPI). Usable for cashback; withdrawable.
+    // earnedCoins     : coins customers spent at this store (+ cashback the vendor itself received). Cashback only; never withdrawable.
+    // cashEarnings    : real money received (customer QR / B2B payments). Withdrawable; never used for cashback.
+    earnedCoins: { type: Number, default: 0 },
+    cashEarnings: { type: Number, default: 0 },
+    // 0/absent = legacy single-balance wallet (pre-migration behaviour); 1 = buckets enforced, no negatives
+    bucketsVersion: { type: Number, default: 0 },
     lastCashoutAt: {
       type: Date,
     },

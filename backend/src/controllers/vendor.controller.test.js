@@ -332,7 +332,8 @@ describe('Vendor Bank Account Management with OTP Verification', () => {
     await requestWithdrawal(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json.mock.calls[0][0].message).toContain('link and verify your bank account');
+    // Since 5883dae vendors without a bank account withdraw to UPI, so a UPI ID is required.
+    expect(res.json.mock.calls[0][0].message).toContain('valid UPI ID');
   });
 
   it('snapshots verified bank details upon withdrawal and logs destination in ledger', async () => {
@@ -348,10 +349,10 @@ describe('Vendor Bank Account Management with OTP Verification', () => {
       },
     });
 
-    // Credit vendor wallet first
+    // Vendor bought 1,000 coins (only purchased coins are withdrawable, since 5883dae)
     await Wallet.findOneAndUpdate(
       { ownerId: vendor._id },
-      { $inc: { balance: 1000 } },
+      { $inc: { balance: 1000, purchasedPoints: 1000 } },
       { upsert: true }
     );
 
@@ -363,14 +364,15 @@ describe('Vendor Bank Account Management with OTP Verification', () => {
     expect(res.status).toHaveBeenCalledWith(201);
     const createdReq = res.json.mock.calls[0][0].data;
     expect(createdReq.amount).toBe(400);
-    expect(createdReq.bankDetailsSnapshot.bankName).toBe('Axis Bank');
+    // Vendor has a UPI ID → paid out to UPI; bank details are still snapshotted for the record
+    expect(createdReq.bankDetailsSnapshot.payoutMethod).toBe('UPI');
+    expect(createdReq.bankDetailsSnapshot.upiId).toBe('pooja@axisbank');
     expect(createdReq.bankDetailsSnapshot.accountNumber).toBe('912345678901');
     expect(createdReq.bankDetailsSnapshot.accountHolderName).toBe('Pooja Sharma');
 
     const tx = await WalletTransaction.findOne({ referenceId: createdReq._id });
     expect(tx).not.toBeNull();
-    expect(tx.description).toContain('Withdrawal to Axis Bank');
-    expect(tx.description).toContain('8901');
+    expect(tx.description).toContain('pooja@axisbank');
   });
 
   describe('updateProfile - Shop Opening Hours & Timing Synchronization', () => {

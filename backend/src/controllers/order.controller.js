@@ -26,6 +26,9 @@ import { creditSellerForDeliveredOrder, reverseOrderCredit } from '../utils/sell
 import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
 import { cancelOrder, CancellationError } from '../utils/orderCancellation.util.js';
 import { deductOrderStock } from '../utils/orderStock.util.js';
+import { settleDeliveredOrderCoins } from '../utils/coinFlows.util.js';
+import { submitTopupRequest, TopupError } from '../utils/pointsTopup.util.js';
+import PointsTopupRequest from '../models/PointsTopupRequest.js';
 import { runInTransaction } from '../utils/sellerSettlement.util.js';
 import { computeLateCancellationPenalty, getMinRedeemablePoints, redemptionBlockedReason, LATE_CANCEL_STAGES } from '../utils/pointsPolicy.util.js';
 import { createRazorpayCheckoutOrder, applyCapturedOrderPayment, initiateOrderRefund } from '../utils/orderPayment.util.js';
@@ -905,52 +908,9 @@ export const updateOrderStatus = async (req, res) => {
         if (!order.riderDetails) order.riderDetails = {};
         order.riderDetails.deliveredAt = new Date();
 
-        // 2. Settle Cashback Points if not already settled
-        if (!order.cashbackSettled && order.totalCashbackPoints > 0) {
-          // A) Credit Customer with Zeebac Points (1 Point = 1 INR)
-          await creditWallet({
-            session,
-            ownerId: customer._id,
-            ownerType: 'User',
-            ownerZeebacId: customer.zeebacId,
-            amount: order.totalCashbackPoints,
-            category: 'cashback',
-            description: `Earned ${order.totalCashbackPoints} Zeebac Points on Order ${order.orderId}`,
-            referenceId: order._id,
-            referenceType: 'Order',
-          });
-
-          // B) Debit Merchant's Prepaid Cashback Reserve Pool (Zeebac Advance Account)
-          await debitWallet({
-            session,
-            ownerId: vendor._id,
-            ownerType: 'Vendor',
-            amount: order.totalCashbackPoints,
-            category: 'cashback_payout',
-            description: `Cashback points deducted for Order ${order.orderId}`,
-            referenceId: order._id,
-            referenceType: 'Order',
-            allowNegativeBalance: true, // Guarantees customer always receives promised cashback even if vendor pool dips
-          });
-
-          // C) Record Cashback Issuance in Smart Settlement Ledger
-          if (vendor) {
-            await recordCashbackIssuance({
-              vendorId: vendor._id,
-              amount: order.totalCashbackPoints,
-              customer,
-              orderId: order.orderId,
-              paymentMethod: order.paymentMethod,
-              eligiblePaidAmount: order.finalPayableAmount,
-              referenceId: order._id,
-              referenceType: 'Order',
-              session,
-            });
-          }
-
-          order.cashbackSettled = true;
-          order.settledAt = new Date();
-        }
+        // 2. Coins: cashback from the store's coin wallet to the customer (stops at zero coins),
+        //    and redeemed points credited to this store's earned coins. Idempotent.
+        await settleDeliveredOrderCoins(order, { session });
 
         // 3. Centralized settlement: credit seller's share (online → available, COD → on hold)
         await creditSellerForDeliveredOrder(order, { session });
@@ -966,11 +926,11 @@ export const updateOrderStatus = async (req, res) => {
         getIO().to(`user_${order.customerId}`).emit('order:delivered', {
           orderId: order.orderId,
           orderStatus: 'DELIVERED',
-          cashbackEarned: order.totalCashbackPoints,
-          message: `Order #${order.orderId} delivered! ₹${order.totalCashbackPoints} Zeebac Points credited.`,
+          cashbackEarned: (order.cashbackIssued ?? order.totalCashbackPoints),
+          message: `Order #${order.orderId} delivered! ₹${(order.cashbackIssued ?? order.totalCashbackPoints)} Zeebac Points credited.`,
         });
         getIO().to(`user_${order.customerId}`).emit('cashback:credited', {
-          points: order.totalCashbackPoints,
+          points: (order.cashbackIssued ?? order.totalCashbackPoints),
         });
         getIO().to(`vendor_${order.vendorId}`).emit('order:delivered', {
           orderId: order.orderId,
@@ -986,7 +946,7 @@ export const updateOrderStatus = async (req, res) => {
         fcmTokens: customer?.fcmTokens || [],
         type: 'credit',
         title: 'Order Delivered! 🎉',
-        message: `Your order #${order.orderId} was delivered. You earned ${order.totalCashbackPoints} Zeebac Points!`,
+        message: `Your order #${order.orderId} was delivered. You earned ${(order.cashbackIssued ?? order.totalCashbackPoints)} Zeebac Points!`,
         referenceId: order._id,
         referenceType: 'Order',
       }).catch(() => {});
@@ -998,16 +958,16 @@ export const updateOrderStatus = async (req, res) => {
         fcmTokens: vendor?.fcmTokens || [],
         type: 'system',
         title: 'Order Delivered Successfully',
-        message: `Order #${order.orderId} completed. ${order.totalCashbackPoints} points deducted from your cashback reserve.`,
+        message: `Order #${order.orderId} completed. ${(order.cashbackIssued ?? order.totalCashbackPoints)} points deducted from your cashback reserve.`,
         referenceId: order._id,
         referenceType: 'Order',
       }).catch(() => {});
 
-      logger.info(`[Order] Delivered: ${order.orderId} | Points Settled: ${order.totalCashbackPoints}`);
+      logger.info(`[Order] Delivered: ${order.orderId} | Points Settled: ${(order.cashbackIssued ?? order.totalCashbackPoints)}`);
 
       return res.status(200).json({
         success: true,
-        message: `Order delivered successfully! ${order.totalCashbackPoints} Zeebac Points credited to customer.`,
+        message: `Order delivered successfully! ${(order.cashbackIssued ?? order.totalCashbackPoints)} Zeebac Points credited to customer.`,
         data: { order: hidePickupCodeForVendor(order) },
       });
     }
@@ -1340,65 +1300,32 @@ export const createVendorCashbackReserveUpiIntent = async (req, res) => {
 
 // ─── 9. Claim Merchant Cashback Reserve Deposit via 12-digit UTR ───
 export const claimVendorCashbackReserveUpi = async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    const { utr, amount } = req.body;
-    const cleanUtr = (utr || '').toString().trim();
-    if (!/^\d{12}$/.test(cleanUtr)) {
-      return res.status(400).json({ success: false, message: 'Invalid UPI Reference ID / UTR. Must be exactly 12 digits.' });
-    }
-
-    const depositAmount = Number(amount);
-    if (!depositAmount || depositAmount < 1) {
-      return res.status(400).json({ success: false, message: 'Invalid amount' });
-    }
-
-    const vendor = await Vendor.findById(req.user.id);
+    const vendor = await Vendor.findById(req.user.id).select('zeebacId storeName phone');
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
-
-    // Check UTR duplicate
-    const existingTx = await WalletTransaction.findOne({ 'gateway.utr': cleanUtr });
-    if (existingTx) {
-      return res.status(409).json({ success: false, message: 'This UPI Reference ID has already been credited to a wallet.' });
-    }
-
-    let updatedWallet;
-    await session.withTransaction(async () => {
-      updatedWallet = await creditWallet({
-        session,
-        ownerId: vendor._id,
-        ownerType: 'Vendor',
-        ownerZeebacId: vendor.zeebacId,
-        amount: depositAmount,
-        category: 'reserve_topup',
-        description: `Zeebac Points Purchase via UPI Intent (UTR: ${cleanUtr})`,
-        gateway: {
-          gatewayName: 'None',
-          utr: cleanUtr,
-        },
-      });
-
-      // Explicitly credit purchased points
-      updatedWallet.purchasedPoints = (updatedWallet.purchasedPoints || 0) + depositAmount;
-      await updatedWallet.save({ session });
-    });
-
-    logger.info(`[Zeebac Points Purchase] Vendor ${vendor.zeebacId} purchased ${depositAmount} points via UTR ${cleanUtr}`);
-
-    res.status(200).json({
+    const request = await submitTopupRequest({ ownerType: 'Vendor', owner: vendor, utr: req.body.utr, amount: req.body.amount, refId: req.body.refId });
+    logger.info(`[Coin Top-up] Vendor ${vendor.zeebacId} submitted UTR ${request.utr} for ₹${request.amount} — pending admin approval`);
+    res.status(202).json({
       success: true,
-      message: `🎉 ${depositAmount} Zeebac Points purchased and added to your wallet successfully!`,
-      data: {
-        balance: updatedWallet.balance,
-        purchasedPoints: updatedWallet.purchasedPoints,
-        redeemedPoints: updatedWallet.redeemedPoints || 0,
-      },
+      pending: true,
+      message: `Payment submitted for verification. ${request.amount} coins will be added after Zeebac confirms UTR ${request.utr}.`,
+      data: { request },
     });
   } catch (error) {
+    if (error instanceof TopupError) return res.status(error.status).json({ success: false, code: error.code, message: error.message });
     logger.error(`claimVendorCashbackReserveUpi error: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
-  } finally {
-    session.endSession();
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// GET /orders/vendor/cashback-reserve/requests — the vendor's UPI coin top-up requests
+export const getVendorTopupRequests = async (req, res) => {
+  try {
+    const requests = await PointsTopupRequest.find({ ownerType: 'Vendor', ownerId: req.user.id }).sort({ createdAt: -1 }).limit(50);
+    res.status(200).json({ success: true, data: requests });
+  } catch (error) {
+    logger.error(`getVendorTopupRequests error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 

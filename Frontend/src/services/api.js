@@ -267,6 +267,12 @@ export const AdminAPI = {
   getSettlementReconciliation: async (params = {}) => (await apiClient.get('/admin/settlements/reconciliation', { params })).data,
   getSettlementAuditLogs: async (params = {}) => (await apiClient.get('/admin/settlements/audit-logs', { params })).data,
   getOrderPricingConfig: async () => (await apiClient.get('/admin/settlements/config')).data,
+  // Zeebac coins
+  getCoinTopups: async (params = {}) => (await apiClient.get('/admin/coins/topups', { params })).data,
+  approveCoinTopup: async (id, note = '') => (await apiClient.post(`/admin/coins/topups/${id}/approve`, { note })).data,
+  rejectCoinTopup: async (id, note) => (await apiClient.post(`/admin/coins/topups/${id}/reject`, { note })).data,
+  getVendorCoinOverview: async (params = {}) => (await apiClient.get('/admin/coins/vendors', { params })).data,
+  getVendorCoinTransactions: async (vendorId, params = {}) => (await apiClient.get(`/admin/coins/vendors/${vendorId}/transactions`, { params })).data,
   updateOrderPricingConfig: async (data) => (await apiClient.put('/admin/settlements/config', data)).data,
   // Delivery Partner Management & Operations
   getDeliveryStats: async () => {

@@ -30,7 +30,9 @@ import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 import { buildSnapshot, diffSnapshots, validateApplicationComplete, isManufacturerOrWholesaler } from '../utils/vendorApplication.util.js';
 import { calculateCashback, validateVendorCashbackRate } from '../utils/cashback.util.js';
-import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
+import { debitWallet, creditWallet, debitVendorCashbackCoins, getVendorCoinSummary, debitVendorWithdrawableBuckets, isBucketedWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
+import { creditStoreForRedemption } from '../utils/coinFlows.util.js';
+import PointsTopupRequest from '../models/PointsTopupRequest.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
 import { signQrToken, verifyQrToken, looksLikeQrToken, VENDOR_QR_TTL_SECONDS } from '../utils/qr.util.js';
@@ -337,7 +339,8 @@ export const resubmitApplication = async (req, res) => {
 const getOrCreateWallet = async (ownerId, ownerType, zeebacId) => {
   let wallet = await Wallet.findOne({ ownerId, ownerType });
   if (!wallet) {
-    wallet = await Wallet.create({ ownerId, ownerType, ownerZeebacId: zeebacId });
+    // New vendor wallets start empty with coin buckets enforced.
+    wallet = await Wallet.create({ ownerId, ownerType, ownerZeebacId: zeebacId, ...(ownerType === 'Vendor' ? { bucketsVersion: 1 } : {}) });
   }
   return wallet;
 };
@@ -970,9 +973,22 @@ export const requestWithdrawal = async (req, res) => {
       await vendor.save();
     }
 
-    // CRITICAL USER REQUIREMENT:
-    // "Aur sirf purchased points hi claim honge. Redeem points claim nhi honge"
-    let effectivePurchasedPoints = wallet.purchasedPoints;
+    // Withdrawable = purchased coins + real cash earnings. Earned coins (redeemed by customers at
+    // this store) and coins already given out as cashback can never be withdrawn.
+    const bucketed = isBucketedWallet(wallet);
+    if (bucketed) {
+      const coin = getVendorCoinSummary(wallet);
+      if (amount > coin.withdrawable) {
+        return res.status(400).json({
+          success: false,
+          code: 'EXCEEDS_WITHDRAWABLE',
+          message: `You can withdraw up to ₹${coin.withdrawable} (purchased coins ₹${coin.purchasedCoins} + cash earnings ₹${coin.cashEarnings}). Coins earned from customer redemptions (${coin.earnedCoins}) can only be used for cashback.`,
+          data: coin,
+        });
+      }
+    }
+    // Legacy (not yet migrated) wallets keep the previous rule.
+    let effectivePurchasedPoints = bucketed ? Infinity : wallet.purchasedPoints;
     if (effectivePurchasedPoints === undefined || effectivePurchasedPoints === null) {
       effectivePurchasedPoints = Math.max(0, (wallet.balance || 0) - (wallet.redeemedPoints || 0));
     }
@@ -1051,20 +1067,28 @@ export const requestWithdrawal = async (req, res) => {
     let withdrawalReq;
     try {
       await session.withTransaction(async () => {
-        const updatedWallet = await Wallet.findOneAndUpdate(
-          { _id: wallet._id, balance: { $gte: amount } },
-          {
-            $inc: {
-              balance: -amount,
-              purchasedPoints: -amount,
+        let bucketSplit;
+        if (bucketed) {
+          const res = await debitVendorWithdrawableBuckets({ walletId: wallet._id, amount, session });
+          if (!res) throw new InsufficientBalanceError('Insufficient withdrawable balance');
+          bucketSplit = { purchasedPoints: res.split.purchasedPoints || 0, cashEarnings: res.split.cashEarnings || 0 };
+          wallet = Wallet.hydrate(res.wallet);
+        } else {
+          const updatedWallet = await Wallet.findOneAndUpdate(
+            { _id: wallet._id, balance: { $gte: amount } },
+            {
+              $inc: {
+                balance: -amount,
+                purchasedPoints: -amount,
+              },
             },
-          },
-          { returnDocument: 'after', session, runValidators: true }
-        );
-        if (!updatedWallet) {
-          throw new InsufficientBalanceError('Insufficient wallet balance for withdrawal');
+            { returnDocument: 'after', session, runValidators: true }
+          );
+          if (!updatedWallet) {
+            throw new InsufficientBalanceError('Insufficient wallet balance for withdrawal');
+          }
+          wallet = updatedWallet;
         }
-        wallet = updatedWallet;
 
         const createdReq = await WithdrawalRequest.create([{
           vendorId: vendor._id,
@@ -1079,6 +1103,7 @@ export const requestWithdrawal = async (req, res) => {
           status: 'Pending',
           bankDetailsSnapshot: bankSnapshot,
           idempotencyKey,
+          ...(bucketSplit ? { bucketSplit } : {}),
         }], { session });
         withdrawalReq = createdReq[0];
 
@@ -1088,6 +1113,7 @@ export const requestWithdrawal = async (req, res) => {
           ownerType: 'Vendor',
           type: 'debit',
           category: 'withdrawal',
+          ...(bucketSplit ? { bucketSplit } : {}),
           amount: amount,
           withdrawalFee,
           platformFee,
@@ -2060,7 +2086,8 @@ export const logPurchase = async (req, res) => {
       }
     }
 
-    const cashbackAmount = actualPaidAmount <= 0
+    // promisedCashback = what the bill earns; cashbackAmount = what the store's coins could fund
+    let cashbackAmount = actualPaidAmount <= 0
       ? 0
       : (hasItemSpecificCashback && computedCashback > 0
           ? Math.round(computedCashback * 100) / 100
@@ -2096,7 +2123,9 @@ export const logPurchase = async (req, res) => {
     let tx;
     let referralAward = null;
 
+    const promisedCashback = cashbackAmount;
     const executePurchase = async (activeSession) => {
+      cashbackAmount = promisedCashback; // reset on transaction retry / standalone fallback
       // 1. Deduct stock for inventory products in items
       for (const it of sanitizedItems) {
         if (it.productId && it.quantity > 0) {
@@ -2167,22 +2196,39 @@ export const logPurchase = async (req, res) => {
           notes: `Customer redeemed ${pointsToRedeem} points on POS Bill #${generatedBillNo}`,
           session: activeSession,
         });
+
+        // The coins the customer spent here are credited to this store's earned coins.
+        await creditStoreForRedemption({
+          vendorId: vendor._id,
+          coins: pointsToRedeem,
+          key: `TX:${tx._id}`,
+          description: `${pointsToRedeem} coins redeemed by ${customer.name || 'customer'} on Bill #${generatedBillNo}`,
+          referenceId: tx._id,
+          referenceType: 'Transaction',
+          session: activeSession,
+        });
       }
 
-      // 4. If Cashback was earned on net paid amount, credit customer, debit vendor & record in Merchant Ledger
+      // 4. Cashback: funded from the store's coins (earned first, then purchased); stops when coins run out
       if (cashbackAmount > 0) {
-        await debitWallet({
+        const funded = await debitVendorCashbackCoins({
           session: activeSession,
-          ownerId: vendor._id,
-          ownerType: 'Vendor',
+          vendorId: vendor._id,
+          ownerZeebacId: vendor.zeebacId,
           amount: cashbackAmount,
           category: 'cashback',
           description: `Cashback given to ${customer.name} (Bill #${generatedBillNo})`,
           referenceId: tx._id,
           referenceType: 'Transaction',
-          allowNegativeBalance: true,
+          allowNegativeBalance: true, // legacy (unmigrated) wallets only
         });
-
+        if (funded.amount < cashbackAmount) {
+          cashbackAmount = funded.amount;
+          await Transaction.updateOne({ _id: tx._id }, { $set: { cashbackAmount } }, activeSession ? { session: activeSession } : {});
+          tx.cashbackAmount = cashbackAmount;
+        }
+      }
+      if (cashbackAmount > 0) {
         await creditWallet({
           session: activeSession,
           ownerId: customer._id,
@@ -2349,14 +2395,15 @@ export const getVendorWallet = async (req, res) => {
     // Calculate total customer cashback distributed by this store
     const totalCashbackGiven = smartSettlementCapacity.cashbackIssued;
 
-    // Calculate purchased vs redeemed points breakdown
-    let purchasedPoints = wallet.purchasedPoints;
-    let redeemedPoints = wallet.redeemedPoints || 0;
+    // Coin breakdown. Migrated wallets: purchased / earned / cash are tracked separately.
+    // Legacy wallets: purchasedPoints is derived for display only — never written back on a read.
+    const coins = getVendorCoinSummary(wallet);
+    let purchasedPoints = coins.bucketed ? coins.purchasedCoins : wallet.purchasedPoints;
+    const redeemedPoints = coins.bucketed ? coins.earnedCoins : wallet.redeemedPoints || 0;
     if (purchasedPoints === undefined || purchasedPoints === null) {
       purchasedPoints = Math.max(0, (wallet.balance || 0) - redeemedPoints);
-      wallet.purchasedPoints = purchasedPoints;
-      await wallet.save();
     }
+    const topupRequests = await PointsTopupRequest.find({ ownerType: 'Vendor', ownerId: vendor._id }).sort({ createdAt: -1 }).limit(10).lean();
 
     const upiId = vendor.bankDetails?.upiId || vendor.upiId || '';
 
@@ -2370,6 +2417,8 @@ export const getVendorWallet = async (req, res) => {
         },
         purchasedPoints,
         redeemedPoints,
+        coins,
+        topupRequests,
         upiId,
         ledger,
         bankDetails: vendor.bankDetails || {},
@@ -2570,6 +2619,10 @@ export const verifyRazorpayPayment = async (req, res) => {
           vendorName: vendor.storeName,
         },
       });
+      // Legacy (unmigrated) wallets: count Razorpay top-ups as purchased coins too.
+      if (!isBucketedWallet(wallet)) {
+        await Wallet.updateOne({ _id: wallet._id }, { $inc: { purchasedPoints: verifiedAmount } }, { session });
+      }
     });
 
     res.status(200).json({ success: true, message: 'Payment successful, wallet recharged!', data: { balance: wallet.balance } });
@@ -3415,7 +3468,8 @@ export const paySubscriptionFromWallet = async (req, res) => {
 
     // Check wallet balance
     const wallet = await Wallet.findOne({ ownerId: vendor._id, ownerType: { $in: ['vendor', 'Vendor'] } });
-    const currentBalance = wallet ? (wallet.balance || 0) : 0;
+    // Subscriptions are paid with money: cash earnings + purchased coins (never earned coins).
+    const currentBalance = wallet ? getVendorCoinSummary(wallet).withdrawable : 0;
 
     if (currentBalance < planInfo.price) {
       return res.status(400).json({
@@ -4070,22 +4124,7 @@ export const processMerchantPayment = async (req, res) => {
         referenceType: 'Transaction',
       });
 
-      // 2. Payer: Credit cashback earned into wallet
-      if (cashbackAmount > 0) {
-        await creditWallet({
-          session,
-          ownerId: payer._id,
-          ownerType: 'Vendor',
-          ownerZeebacId: payer.zeebacId,
-          amount: cashbackAmount,
-          category: 'cashback',
-          description: `B2B Cashback earned from ${recipient.storeName}`,
-          referenceId: txn._id,
-          referenceType: 'Transaction',
-        });
-      }
-
-      // 3. Recipient: Credit bill payment received
+      // 2. Recipient: Credit bill payment received (wallet value paid by the payer → cash earnings)
       await creditWallet({
         session,
         ownerId: recipient._id,
@@ -4098,18 +4137,39 @@ export const processMerchantPayment = async (req, res) => {
         referenceType: 'Transaction',
       });
 
-      // 4. Recipient: Debit cashback given to purchasing merchant
+      // 3. Recipient funds cashback from its coins (earned, then purchased) — stops at zero coins.
+      let fundedCashback = 0;
       if (cashbackAmount > 0) {
-        await debitWallet({
+        const funded = await debitVendorCashbackCoins({
           session,
-          ownerId: recipient._id,
-          ownerType: 'Vendor',
+          vendorId: recipient._id,
+          ownerZeebacId: recipient.zeebacId,
           amount: cashbackAmount,
           category: 'cashback',
           description: `B2B Cashback given to ${payer.storeName}`,
           referenceId: txn._id,
           referenceType: 'Transaction',
-          allowNegativeBalance: true,
+          allowNegativeBalance: true, // legacy (unmigrated) wallets only
+        });
+        fundedCashback = funded.amount;
+        if (fundedCashback < cashbackAmount) {
+          await Transaction.updateOne({ _id: txn._id }, { $set: { cashbackAmount: fundedCashback } }, { session });
+          txn.cashbackAmount = fundedCashback;
+        }
+      }
+
+      // 4. Payer: the funded cashback lands in its earned coins
+      if (fundedCashback > 0) {
+        await creditWallet({
+          session,
+          ownerId: payer._id,
+          ownerType: 'Vendor',
+          ownerZeebacId: payer.zeebacId,
+          amount: fundedCashback,
+          category: 'cashback',
+          description: `B2B Cashback earned from ${recipient.storeName}`,
+          referenceId: txn._id,
+          referenceType: 'Transaction',
         });
       }
 
@@ -4176,7 +4236,7 @@ export const processMerchantPayment = async (req, res) => {
       fcmTokens: payer.fcmTokens || [],
       type: 'cashback',
       title: '✅ B2B Payment Successful!',
-      message: `₹${parsedAmount} paid to ${recipient.storeName}. ₹${cashbackAmount} cashback credited to your wallet!`,
+      message: `₹${parsedAmount} paid to ${recipient.storeName}. ₹${txn.cashbackAmount} cashback credited to your wallet!`,
       icon: 'verified',
       referenceId: txn._id,
       referenceType: 'transaction',
@@ -4211,7 +4271,7 @@ export const processMerchantPayment = async (req, res) => {
         transactionId: txn.transactionId,
         amountPaid: parsedAmount,
         billAmount: parsedAmount,
-        cashbackEarned: cashbackAmount,
+        cashbackEarned: txn.cashbackAmount,
         newBalance: updatedPayerWallet?.balance,
         newPayerBalance: updatedPayerWallet?.balance,
       },
@@ -4355,31 +4415,37 @@ export const verifyMerchantPayment = async (req, res) => {
         gateway: { gatewayName: 'Razorpay', gatewayOrderId: razorpay_order_id, gatewayPaymentId: razorpay_payment_id },
       });
 
-      // 2. Recipient debited for cashback
-      await debitWallet({
+      // 2. Recipient funds cashback from its coins (earned, then purchased) — stops at zero coins.
+      const funded = await debitVendorCashbackCoins({
         session,
-        ownerId: recipient._id,
-        ownerType: 'Vendor',
+        vendorId: recipient._id,
+        ownerZeebacId: recipient.zeebacId,
         amount: cashbackAmount,
         category: 'cashback',
         description: `B2B Cashback given to ${payer.storeName}`,
         referenceId: txn._id,
         referenceType: 'Transaction',
-        allowNegativeBalance: true,
+        allowNegativeBalance: true, // legacy (unmigrated) wallets only
       });
+      if (funded.amount < cashbackAmount) {
+        await Transaction.updateOne({ _id: txn._id }, { $set: { cashbackAmount: funded.amount } }, { session });
+        txn.cashbackAmount = funded.amount;
+      }
 
-      // 3. Payer credited for cashback
-      await creditWallet({
-        session,
-        ownerId: payer._id,
-        ownerType: 'Vendor',
-        ownerZeebacId: payer.zeebacId,
-        amount: cashbackAmount,
-        category: 'cashback',
-        description: `B2B Cashback earned from ${recipient.storeName}`,
-        referenceId: txn._id,
-        referenceType: 'Transaction',
-      });
+      // 3. Payer credited with the funded cashback (lands in its earned coins)
+      if (funded.amount > 0) {
+        await creditWallet({
+          session,
+          ownerId: payer._id,
+          ownerType: 'Vendor',
+          ownerZeebacId: payer.zeebacId,
+          amount: funded.amount,
+          category: 'cashback',
+          description: `B2B Cashback earned from ${recipient.storeName}`,
+          referenceId: txn._id,
+          referenceType: 'Transaction',
+        });
+      }
 
       await Vendor.findByIdAndUpdate(recipient._id, { $inc: { 'stats.totalRevenue': verifiedAmount } }, { session });
     });
@@ -4392,7 +4458,7 @@ export const verifyMerchantPayment = async (req, res) => {
       data: {
         transaction: txn,
         billAmount: verifiedAmount,
-        cashbackEarned: cashbackAmount,
+        cashbackEarned: txn.cashbackAmount,
         newBalance: payerWallet?.balance,
       },
     });

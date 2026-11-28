@@ -25,7 +25,7 @@ const walletTransactionSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription', 'mobile_recharge', 'platform_fee', 'recharge', 'reserve_topup', 'order_payment', 'extra_order_fee', 'extra_order_fee_reversal', 'cancellation_penalty'],
+      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription', 'mobile_recharge', 'platform_fee', 'recharge', 'reserve_topup', 'order_payment', 'extra_order_fee', 'extra_order_fee_reversal', 'cancellation_penalty', 'cashin', 'points_redeemed', 'migration_adjustment'],
     },
     amount: {
       type: Number,
@@ -67,6 +67,12 @@ const walletTransactionSchema = new mongoose.Schema(
     // both pass the "any recent duplicate?" pre-check before either has
     // committed — the second insert hits this index and fails cleanly
     // instead of creating a second Pending withdrawal.
+    // Vendor bucket movement for this row (positive numbers; direction = type)
+    bucketSplit: {
+      purchasedPoints: { type: Number, default: 0 },
+      earnedCoins: { type: Number, default: 0 },
+      cashEarnings: { type: Number, default: 0 },
+    },
     idempotencyKey: {
       type: String,
       index: { unique: true, sparse: true },

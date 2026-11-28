@@ -1486,6 +1486,11 @@ export const processPayout = async (req, res) => {
               description: `Withdrawal request for ₹${reqDoc.amount} rejected and refunded to wallet`,
               referenceId: reqDoc._id,
               referenceType: 'WithdrawalRequest',
+              // Return the money to exactly the buckets it was taken from (cash earnings / purchased coins).
+              // Requests made before the bucket migration have no split → back to purchased coins.
+              ...(reqDoc.bucketSplit && Math.round(((reqDoc.bucketSplit.purchasedPoints || 0) + (reqDoc.bucketSplit.cashEarnings || 0)) * 100) / 100 === Math.round(reqDoc.amount * 100) / 100
+                ? { split: { purchasedPoints: reqDoc.bucketSplit.purchasedPoints || 0, cashEarnings: reqDoc.bucketSplit.cashEarnings || 0 } }
+                : { bucket: 'purchasedPoints' }),
             });
           });
         } catch (txErr) {

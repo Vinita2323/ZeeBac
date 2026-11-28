@@ -121,6 +121,16 @@ describe('ZEEBAC – SMART CASHBACK & SETTLEMENT SYSTEM SUITE', () => {
       balance: 500,
     });
 
+    // Store has bought 1,000 Zeebac coins (cashback is funded from the store's coins)
+    await Wallet.create({
+      ownerId: vendor._id,
+      ownerType: 'Vendor',
+      ownerZeebacId: vendor.zeebacId,
+      balance: 1000,
+      purchasedPoints: 1000,
+      bucketsVersion: 1,
+    });
+
     // Product 1: 10% Cashback Rate
     product1 = await Product.create({
       vendorId: vendor._id,
@@ -282,10 +292,14 @@ describe('ZEEBAC – SMART CASHBACK & SETTLEMENT SYSTEM SUITE', () => {
     const pendingOrder = await Order.findOne({ pointsRedeemed: 400, totalCashbackPoints: 45 });
     expect(pendingOrder).toBeDefined();
 
+    // Store pickup: the merchant confirms payment (store bill) before handover
+    await Order.updateOne({ _id: pendingOrder._id }, { $set: { paymentStatus: 'PAID' } });
+
     const req = {
       user: { id: vendor._id.toString(), role: 'vendor' },
       params: { orderId: pendingOrder.orderId },
-      body: { status: 'DELIVERED' },
+      // Store pickup handover requires the customer's 4-digit pickup code (commit c3970a6)
+      body: { status: 'DELIVERED', deliveryOtp: pendingOrder.riderDetails?.deliveryOtp },
     };
 
     let responseStatus;
@@ -305,6 +319,10 @@ describe('ZEEBAC – SMART CASHBACK & SETTLEMENT SYSTEM SUITE', () => {
     // Customer wallet received 45 cashback points (balance was 0 after test 5, now 45)
     const deliveredCustWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
     expect(deliveredCustWallet.balance).toBe(45);
+
+    // The 45 coins came out of the store's purchased coins
+    const vendorWalletAfter = await Wallet.findOne({ ownerId: vendor._id, ownerType: 'Vendor' });
+    expect(vendorWalletAfter.purchasedPoints).toBe(955);
 
     // Vendor cashbackIssued incremented by 45
     const deliveredVendor = await Vendor.findById(vendor._id);
@@ -389,6 +407,8 @@ describe('ZEEBAC – SMART CASHBACK & SETTLEMENT SYSTEM SUITE', () => {
   it('8. POS Billing (logPurchase) calculates cashback on net paid amount and updates ledger', async () => {
     // Test POS billing with 20 points redeemed on ₹200 purchase with 10% cashback
     // Net Paid = ₹180 -> 10% cashback = ₹18 (NOT ₹20!)
+    // Customer needs ≥ 100 points before redeeming anything (minimum redemption rule)
+    await Wallet.updateOne({ ownerId: customer._id, ownerType: 'User' }, { $inc: { balance: 100 } });
     const req = {
       user: { id: vendor._id.toString() },
       body: {

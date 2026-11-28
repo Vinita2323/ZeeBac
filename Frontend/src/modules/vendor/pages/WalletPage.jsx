@@ -41,6 +41,9 @@ export default function WalletPage() {
   const [copyVpaSuccess, setCopyVpaSuccess] = useState(false);
 
   const [smartSettlement, setSmartSettlement] = useState(null);
+  // Coin buckets (purchased / earned / cash) and UPI top-up requests from the server
+  const [coins, setCoins] = useState(null);
+  const [topupRequests, setTopupRequests] = useState([]);
 
   const fetchWallet = async () => {
     try {
@@ -53,6 +56,8 @@ export default function WalletPage() {
         if (res.data.smartSettlement) {
           setSmartSettlement(res.data.smartSettlement);
         }
+        setCoins(res.data.coins || null);
+        setTopupRequests(res.data.topupRequests || []);
         updateBalance(res.data.wallet.balance);
 
         const formattedLedger = (res.data.ledger || []).map((act) => ({
@@ -79,9 +84,14 @@ export default function WalletPage() {
 
   const totalPoints = wallet ? (wallet.balance || 0) : (globalBalance || 0);
   const redeemedPoints = wallet?.redeemedPoints || 0;
-  const purchasedPoints = wallet?.purchasedPoints !== undefined
+  const isBucketed = Boolean(coins?.bucketed);
+  // Withdrawable: purchased coins + cash earnings (migrated wallets); legacy rule otherwise.
+  const purchasedPoints = isBucketed
+    ? coins.withdrawable
+    : wallet?.purchasedPoints !== undefined
     ? wallet.purchasedPoints
     : Math.max(0, totalPoints - redeemedPoints);
+  const pendingTopups = topupRequests.filter((r) => r.status === 'PENDING');
 
   // ─── PURCHASE ZEEBAC POINTS VIA DIRECT UPI INTENT ───
   const handleGeneratePurchaseIntent = async () => {
@@ -120,8 +130,12 @@ export default function WalletPage() {
         setUpiPurchaseData(null);
         setPurchaseAmount('');
         setPurchaseUtr('');
-        setActionSuccess(`🎉 ${upiPurchaseData.amount} Zeebac Points purchased and added to your wallet!`);
-        setTimeout(() => setActionSuccess(''), 6000);
+        setActionSuccess(
+          res.pending
+            ? `⏳ Payment submitted. ${upiPurchaseData.amount} coins will be added once Zeebac verifies UTR ${cleanUtr} (usually within a few hours).`
+            : `🎉 ${upiPurchaseData.amount} Zeebac Points purchased and added to your wallet!`
+        );
+        setTimeout(() => setActionSuccess(''), 9000);
         await fetchWallet();
       } else {
         alert(res.message || 'Verification failed. Please re-check UTR.');
@@ -144,7 +158,7 @@ export default function WalletPage() {
     }
 
     if (pts > purchasedPoints) {
-      alert(`Aap maximum ${purchasedPoints} purchased points hi claim kar sakte hain. Customer redeemed points claim nahi kiye ja sakte.`);
+      alert(`You can withdraw up to ${purchasedPoints} (purchased coins + cash earnings). Coins earned from customer redemptions can only be used for cashback.`);
       return;
     }
 
@@ -264,28 +278,47 @@ export default function WalletPage() {
                   </p>
                 </div>
 
-                {/* Points Breakdown: Purchased (Claimable) vs Redeemed (Non-claimable) */}
-                <div className="relative z-10 mt-1 pt-2 border-t border-white/15 grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="bg-white/10 rounded-xl px-2.5 py-1.5 backdrop-blur-xs">
-                    <p className="text-[9.5px] uppercase tracking-wider text-emerald-300 font-black flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      Purchased (Claimable)
-                    </p>
-                    <p className="text-[14px] font-mono font-black text-white mt-0.5">
-                      {Math.floor(purchasedPoints).toLocaleString('en-IN')} Pts
-                    </p>
+                {/* Balance breakdown */}
+                {isBucketed ? (
+                  <div className="relative z-10 mt-1 pt-2 border-t border-white/15 grid grid-cols-3 gap-1.5 text-[11px]">
+                    <div className="bg-white/10 rounded-xl px-2 py-1.5 backdrop-blur-xs min-w-0">
+                      <p className="text-[9px] uppercase tracking-wider text-emerald-300 font-black leading-tight">Purchased coins</p>
+                      <p className="text-[13px] font-mono font-black text-white mt-0.5 truncate">{Math.floor(coins.purchasedCoins).toLocaleString('en-IN')}</p>
+                      <p className="text-[9px] text-white/60 leading-tight">Cashback · withdrawable</p>
+                    </div>
+                    <div className="bg-white/10 rounded-xl px-2 py-1.5 backdrop-blur-xs min-w-0">
+                      <p className="text-[9px] uppercase tracking-wider text-amber-300 font-black leading-tight">Earned coins</p>
+                      <p className="text-[13px] font-mono font-black text-white mt-0.5 truncate">{Math.floor(coins.earnedCoins).toLocaleString('en-IN')}</p>
+                      <p className="text-[9px] text-white/60 leading-tight">Cashback only</p>
+                    </div>
+                    <div className="bg-white/10 rounded-xl px-2 py-1.5 backdrop-blur-xs min-w-0">
+                      <p className="text-[9px] uppercase tracking-wider text-sky-300 font-black leading-tight">Cash earnings</p>
+                      <p className="text-[13px] font-mono font-black text-white mt-0.5 truncate">₹{Math.floor(coins.cashEarnings).toLocaleString('en-IN')}</p>
+                      <p className="text-[9px] text-white/60 leading-tight">Withdrawable</p>
+                    </div>
                   </div>
-
-                  <div className="bg-white/10 rounded-xl px-2.5 py-1.5 backdrop-blur-xs">
-                    <p className="text-[9.5px] uppercase tracking-wider text-amber-300 font-black flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                      Redeemed (Non-claimable)
-                    </p>
-                    <p className="text-[14px] font-mono font-black text-white mt-0.5">
-                      {Math.floor(redeemedPoints).toLocaleString('en-IN')} Pts
-                    </p>
+                ) : (
+                  <div className="relative z-10 mt-1 pt-2 border-t border-white/15 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-white/10 rounded-xl px-2.5 py-1.5 backdrop-blur-xs">
+                      <p className="text-[9.5px] uppercase tracking-wider text-emerald-300 font-black flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        Purchased (Claimable)
+                      </p>
+                      <p className="text-[14px] font-mono font-black text-white mt-0.5">
+                        {Math.floor(purchasedPoints).toLocaleString('en-IN')} Pts
+                      </p>
+                    </div>
+                    <div className="bg-white/10 rounded-xl px-2.5 py-1.5 backdrop-blur-xs">
+                      <p className="text-[9.5px] uppercase tracking-wider text-amber-300 font-black flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        Redeemed (Non-claimable)
+                      </p>
+                      <p className="text-[14px] font-mono font-black text-white mt-0.5">
+                        {Math.floor(redeemedPoints).toLocaleString('en-IN')} Pts
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Card Footer */}
                 <div className="relative z-10 flex justify-between items-end opacity-80 pt-1 text-[10px]">
@@ -293,6 +326,31 @@ export default function WalletPage() {
                   <div className="font-bold uppercase tracking-wider">{currentUser?.storeName || 'Vendor Store'}</div>
                 </div>
               </div>
+
+              {/* UPI coin purchases waiting for Zeebac verification */}
+              {topupRequests.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    UPI coin purchases {pendingTopups.length > 0 && <span className="text-amber-600">· {pendingTopups.length} pending</span>}
+                  </p>
+                  {topupRequests.slice(0, 5).map((r) => (
+                    <div key={r._id} className="flex items-center justify-between gap-2 text-[12px]">
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-800">{Number(r.amount).toLocaleString('en-IN')} coins</p>
+                        <p className="text-[10.5px] text-slate-500 font-mono truncate">UTR {r.utr} · {new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
+                        {r.status === 'REJECTED' && r.adminNote && <p className="text-[10.5px] text-red-600">{r.adminNote}</p>}
+                      </div>
+                      <span
+                        className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                          r.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {r.status === 'PENDING' ? 'Verifying' : r.status === 'APPROVED' ? 'Added' : 'Rejected'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Quick Actions: Purchase Points | Claim Points | Passbook */}
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -374,10 +432,10 @@ export default function WalletPage() {
                     <div className="pt-2 border-t border-gray-200/60 text-[11px] text-gray-500 space-y-0.5">
                       <p className="text-emerald-700 font-semibold flex items-center gap-1">
                         <span className="material-symbols-outlined text-[13px]">verified</span>
-                        Claimable Purchased Points: {Math.floor(purchasedPoints).toLocaleString('en-IN')} Pts
+                        {isBucketed ? 'Withdrawable (purchased coins + cash earnings)' : 'Claimable Purchased Points'}: {Math.floor(purchasedPoints).toLocaleString('en-IN')} {isBucketed ? '' : 'Pts'}
                       </p>
                       <p className="text-amber-700 font-medium">
-                        • Customer redeemed points ({Math.floor(redeemedPoints).toLocaleString('en-IN')} Pts) claim nahi ho sakte.
+                        • {isBucketed ? 'Earned coins' : 'Customer redeemed points'} ({Math.floor(redeemedPoints).toLocaleString('en-IN')}) {isBucketed ? 'can only be used for cashback, not withdrawn.' : 'claim nahi ho sakte.'}
                       </p>
                     </div>
                   </div>
@@ -823,7 +881,7 @@ export default function WalletPage() {
               {/* Points Eligibility Notice */}
               <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-2xl space-y-2">
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="font-bold text-emerald-900">Claimable Purchased Points:</span>
+                  <span className="font-bold text-emerald-900">{isBucketed ? 'Withdrawable:' : 'Claimable Purchased Points:'}</span>
                   <span className="font-mono font-black text-emerald-700 text-sm">{Math.floor(purchasedPoints)} Points</span>
                 </div>
                 <div className="flex justify-between items-center text-[11px]">

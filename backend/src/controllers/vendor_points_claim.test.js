@@ -86,9 +86,13 @@ describe('Vendor Zeebac Points Wallet, Purchase & UPI Claim Suite', () => {
 
     await claimVendorCashbackReserveUpi(req, res);
 
-    expect(res.statusCode).toBe(200);
+    // Pending until admin approves
+    expect(res.statusCode).toBe(202);
     expect(res.data.success).toBe(true);
+    expect((await Wallet.findOne({ ownerId: vendor._id })).balance).toBe(1500);
 
+    const { approveTopupRequest } = await import('../utils/pointsTopup.util.js');
+    await approveTopupRequest({ requestId: res.data.data.request._id, adminId: vendor._id });
     const updatedWallet = await Wallet.findOne({ ownerId: vendor._id });
     expect(updatedWallet.balance).toBe(2300); // 1500 + 800
     expect(updatedWallet.purchasedPoints).toBe(1800); // 1000 + 800

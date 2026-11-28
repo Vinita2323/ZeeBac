@@ -238,9 +238,10 @@ describe('POS Auto Billing & Customer Instant Payment Flows', () => {
     const updatedBill = await PosBill.findOne({ billCode: 'BILL-UTR01' });
     expect(updatedBill.status).toBe('CLAIMED');
 
-    // Customer should have received 5% of 400 = 20 cashback: 50 + 20 = 70
+    // The store has no coins, so no cashback can be funded — it is never created from nothing.
     const updatedWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
-    expect(updatedWallet.balance).toBe(70);
+    expect(updatedWallet.balance).toBe(50);
+    expect(updatedBill.cashbackAmount).toBe(0);
   });
 
   it('5. logPurchase successfully redeems customer points on offline bill & calculates cashback only on net paid', async () => {

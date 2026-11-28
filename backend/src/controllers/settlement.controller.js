@@ -18,6 +18,11 @@ import { initiateOrderRefund } from '../utils/orderPayment.util.js';
 import { r2 } from '../utils/orderPricing.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import logger from '../utils/logger.js';
+import Wallet from '../models/Wallet.js';
+import WalletTransaction from '../models/WalletTransaction.js';
+import PointsTopupRequest from '../models/PointsTopupRequest.js';
+import { getVendorCoinSummary } from '../utils/wallet.util.js';
+import { approveTopupRequest, rejectTopupRequest, TopupError } from '../utils/pointsTopup.util.js';
 import { reverseOrderUsage, getVendorUsageSummary, getVendorCycleHistory } from '../utils/orderUsage.util.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 
@@ -696,5 +701,169 @@ export const vendorCancelPayoutRequest = async (req, res) => {
     res.json({ success: true, message: 'Request cancelled', data: { request } });
   } catch (err) {
     sendError(res, err, 'vendor cancel request');
+  }
+};
+
+// ═══════════════════════════ ZEEBAC COINS (admin) ═══════════════════════════
+
+const escapeRx = (v) => new RegExp(String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+// GET /admin/coins/topups?status=PENDING&ownerType=Vendor&page=1&search=
+export const adminListTopupRequests = async (req, res) => {
+  try {
+    const q = {};
+    if (['PENDING', 'APPROVED', 'REJECTED'].includes(req.query.status)) q.status = req.query.status;
+    if (['Vendor', 'User'].includes(req.query.ownerType)) q.ownerType = req.query.ownerType;
+    if (req.query.search) {
+      const rx = escapeRx(req.query.search);
+      q.$or = [{ utr: rx }, { ownerName: rx }, { ownerZeebacId: rx }, { ownerPhone: rx }];
+    }
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Number(req.query.limit) || 25);
+    const [rows, total, pendingAgg] = await Promise.all([
+      PointsTopupRequest.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      PointsTopupRequest.countDocuments(q),
+      PointsTopupRequest.aggregate([{ $match: { status: 'PENDING' } }, { $group: { _id: null, n: { $sum: 1 }, amount: { $sum: '$amount' } } }]),
+    ]);
+    res.json({ success: true, data: { rows, total, page, limit, pending: { count: pendingAgg[0]?.n || 0, amount: r2(pendingAgg[0]?.amount || 0) } } });
+  } catch (err) {
+    sendError(res, err, 'list top-ups');
+  }
+};
+
+// POST /admin/coins/topups/:id/approve { note? }
+export const adminApproveTopup = async (req, res) => {
+  try {
+    const { request, balance } = await approveTopupRequest({ requestId: req.params.id, adminId: req.user.id, note: req.body?.note });
+    await writeAudit(req, {
+      action: 'COIN_TOPUP_APPROVED',
+      entityType: 'PointsTopupRequest',
+      entityId: String(request._id),
+      vendorId: request.ownerType === 'Vendor' ? request.ownerId : undefined,
+      amount: request.amount,
+      meta: { utr: request.utr, ownerType: request.ownerType, ownerId: String(request.ownerId), note: req.body?.note },
+    });
+    sendNotification({
+      recipientId: request.ownerId,
+      recipientType: request.ownerType === 'Vendor' ? 'vendor' : 'customer',
+      type: 'credit',
+      title: 'UPI top-up approved',
+      message: `₹${request.amount} (UTR ${request.utr}) has been verified and added to your wallet.`,
+      referenceId: request._id,
+    }).catch(() => {});
+    res.json({ success: true, message: `Approved — ${request.amount} credited`, data: { request, balance } });
+  } catch (err) {
+    if (err instanceof TopupError) return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    sendError(res, err, 'approve top-up');
+  }
+};
+
+// POST /admin/coins/topups/:id/reject { note }
+export const adminRejectTopup = async (req, res) => {
+  try {
+    const request = await rejectTopupRequest({ requestId: req.params.id, adminId: req.user.id, note: req.body?.note });
+    await writeAudit(req, {
+      action: 'COIN_TOPUP_REJECTED',
+      entityType: 'PointsTopupRequest',
+      entityId: String(request._id),
+      vendorId: request.ownerType === 'Vendor' ? request.ownerId : undefined,
+      amount: request.amount,
+      meta: { utr: request.utr, ownerType: request.ownerType, reason: request.adminNote },
+    });
+    sendNotification({
+      recipientId: request.ownerId,
+      recipientType: request.ownerType === 'Vendor' ? 'vendor' : 'customer',
+      type: 'system',
+      title: 'UPI top-up rejected',
+      message: `Your top-up of ₹${request.amount} (UTR ${request.utr}) could not be verified: ${request.adminNote}`,
+      referenceId: request._id,
+    }).catch(() => {});
+    res.json({ success: true, message: 'Rejected', data: { request } });
+  } catch (err) {
+    if (err instanceof TopupError) return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    sendError(res, err, 'reject top-up');
+  }
+};
+
+// GET /admin/coins/vendors?search= — per-vendor coin & cash position
+export const adminGetVendorCoinOverview = async (req, res) => {
+  try {
+    const vq = {};
+    if (req.query.search) {
+      const rx = escapeRx(req.query.search);
+      vq.$or = [{ storeName: rx }, { zeebacId: rx }, { phone: rx }];
+    }
+    const vendors = await Vendor.find(vq).select('storeName zeebacId phone').lean();
+    const ids = vendors.map((v) => v._id);
+    const [wallets, flows, pending] = await Promise.all([
+      Wallet.find({ ownerId: { $in: ids }, ownerType: { $in: ['Vendor', 'vendor'] } }).lean(),
+      WalletTransaction.aggregate([
+        { $match: { ownerId: { $in: ids }, ownerType: { $in: ['Vendor', 'vendor'] } } },
+        {
+          $group: {
+            _id: '$ownerId',
+            purchased: { $sum: { $cond: [{ $and: [{ $eq: ['$type', 'credit'] }, { $in: ['$category', ['settlement', 'reserve_topup', 'cashin']] }, { $ne: ['$referenceType', 'WithdrawalRequest'] }] }, '$amount', 0] } },
+            cashbackGiven: { $sum: { $cond: [{ $and: [{ $eq: ['$type', 'debit'] }, { $in: ['$category', ['cashback', 'cashback_payout']] }] }, '$amount', 0] } },
+            redeemedAtStore: { $sum: { $cond: [{ $and: [{ $eq: ['$type', 'credit'] }, { $eq: ['$category', 'points_redeemed'] }] }, '$amount', 0] } },
+            cashReceived: { $sum: { $cond: [{ $and: [{ $eq: ['$type', 'credit'] }, { $eq: ['$category', 'payment_received'] }] }, '$amount', 0] } },
+            withdrawn: { $sum: { $cond: [{ $and: [{ $eq: ['$type', 'debit'] }, { $eq: ['$category', 'withdrawal'] }] }, '$amount', 0] } },
+          },
+        },
+      ]),
+      PointsTopupRequest.aggregate([
+        { $match: { ownerType: 'Vendor', status: 'PENDING', ownerId: { $in: ids } } },
+        { $group: { _id: '$ownerId', amount: { $sum: '$amount' }, n: { $sum: 1 } } },
+      ]),
+    ]);
+    const wBy = new Map(wallets.map((w) => [String(w.ownerId), w]));
+    const fBy = new Map(flows.map((f) => [String(f._id), f]));
+    const pBy = new Map(pending.map((p) => [String(p._id), p]));
+    const rows = vendors.map((v) => {
+      const w = wBy.get(String(v._id));
+      const f = fBy.get(String(v._id)) || {};
+      const coin = getVendorCoinSummary(w || {});
+      return {
+        vendorId: v._id,
+        storeName: v.storeName,
+        zeebacId: v.zeebacId,
+        phone: v.phone,
+        migrated: coin.bucketed,
+        balance: coin.balance,
+        purchasedCoins: coin.purchasedCoins,
+        earnedCoins: coin.earnedCoins,
+        cashEarnings: coin.cashEarnings,
+        cashbackCoinsAvailable: coin.cashbackCoinsAvailable,
+        withdrawable: coin.withdrawable,
+        totals: {
+          purchased: r2(f.purchased),
+          cashbackGiven: r2(f.cashbackGiven),
+          redeemedAtStore: r2(f.redeemedAtStore),
+          cashReceived: r2(f.cashReceived),
+          withdrawn: r2(f.withdrawn),
+        },
+        pendingTopups: { count: pBy.get(String(v._id))?.n || 0, amount: r2(pBy.get(String(v._id))?.amount || 0) },
+      };
+    });
+    rows.sort((a, b) => b.balance - a.balance);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    sendError(res, err, 'coin overview');
+  }
+};
+
+// GET /admin/coins/vendors/:vendorId/transactions?page=
+export const adminGetVendorCoinTransactions = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.vendorId)) return res.status(400).json({ success: false, message: 'Invalid vendor id' });
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Number(req.query.limit) || 50);
+    const q = { ownerId: new mongoose.Types.ObjectId(req.params.vendorId), ownerType: { $in: ['Vendor', 'vendor'] } };
+    const [rows, total] = await Promise.all([
+      WalletTransaction.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      WalletTransaction.countDocuments(q),
+    ]);
+    res.json({ success: true, data: { rows, total, page, limit } });
+  } catch (err) {
+    sendError(res, err, 'coin transactions');
   }
 };

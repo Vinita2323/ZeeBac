@@ -1777,7 +1777,18 @@ function AddFundsSubView({ balance, currentUser, onBack, setBalance, onSuccess }
 
     try {
       const res = await UserAPI.claimWalletUpiUtr(clean, amountNum);
-      if (res.success) {
+      if (res.success && res.pending) {
+        // UPI top-ups are added only after Zeebac verifies the UTR — balance unchanged for now.
+        setShowQrModal(false);
+        setSuccessReceipt({
+          amount: amountNum,
+          newBalance: null,
+          pending: true,
+          method: 'UPI — verification pending',
+          refId: clean,
+          date: new Date().toLocaleString(),
+        });
+      } else if (res.success) {
         const newBal = res.data.balance;
         const newTx = {
           id: `TX-${Date.now()}`,
@@ -1833,16 +1844,22 @@ function AddFundsSubView({ balance, currentUser, onBack, setBalance, onSuccess }
 
           <div className="space-y-1">
             <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-full uppercase tracking-wider">
-              {t('Funds Added Successfully')}
+              {successReceipt.pending ? t('Payment Submitted') : t('Funds Added Successfully')}
             </span>
             <h1 className="text-4xl font-black text-gray-900 pt-2">₹{successReceipt.amount.toFixed(2)}</h1>
-            <p className="text-sm text-gray-500">{t('Credited to your ZeeBac Wallet')}</p>
+            <p className="text-sm text-gray-500">
+              {successReceipt.pending
+                ? t('Will be added to your wallet after Zeebac verifies your UPI payment')
+                : t('Credited to your ZeeBac Wallet')}
+            </p>
           </div>
 
           <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-100 p-5 shadow-sm text-left space-y-3">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-gray-500">{t('Updated Balance')}</span>
-              <span className="font-bold text-emerald-600 text-sm">₹{successReceipt.newBalance.toFixed(2)}</span>
+              <span className="text-gray-500">{successReceipt.pending ? t('Status') : t('Updated Balance')}</span>
+              <span className="font-bold text-emerald-600 text-sm">
+                {successReceipt.pending ? t('Verification pending') : `₹${successReceipt.newBalance.toFixed(2)}`}
+              </span>
             </div>
             <div className="flex justify-between items-center text-xs">
               <span className="text-gray-500">{t('Payment Method')}</span>

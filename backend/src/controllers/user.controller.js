@@ -24,7 +24,10 @@ import { sendNotification } from '../services/notification.service.js';
 import { getIO } from '../socket/socket.js';
 import { checkAndNotifyFraud, notifyAdmins } from '../utils/adminNotification.js';
 import { calculateCashback } from '../utils/cashback.util.js';
-import { debitWallet, creditWallet, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
+import { creditStoreForRedemption } from '../utils/coinFlows.util.js';
+import { submitTopupRequest, TopupError } from '../utils/pointsTopup.util.js';
+import { getMinRedeemablePoints, redemptionBlockedReason } from '../utils/pointsPolicy.util.js';
+import { debitWallet, creditWallet, debitVendorCashbackCoins, InsufficientBalanceError, DuplicatePaymentError, assertGatewayPaymentNotProcessed } from '../utils/wallet.util.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature, fetchVerifiedPaymentAmount } from '../utils/razorpay.util.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
@@ -862,29 +865,35 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
       }], { session });
       txn = created[0];
 
-      await creditWallet({
-        session, ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId,
-        amount: cashbackAmount, category: 'cashback',
-        description: `Cashback from ${vendor.storeName}`,
-        referenceId: txn._id, referenceType: 'Transaction',
-        gateway: { gatewayName: 'Razorpay', gatewayOrderId: razorpay_order_id, gatewayPaymentId: razorpay_payment_id },
-      });
-
-      // Vendor receives the bill amount as an in-app wallet credit, then the
-      // cashback is deducted straight back out of that same wallet.
+      // Real money received → the store's cash earnings (withdrawable). This row carries the
+      // Razorpay payment id, whose unique index blocks any second credit for the same payment.
       await creditWallet({
         session, ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId,
         amount: verifiedAmount, category: 'payment_received',
         description: `Payment received from ${customer.name} (Razorpay)`,
         referenceId: txn._id, referenceType: 'Transaction',
+        gateway: { gatewayName: 'Razorpay', gatewayOrderId: razorpay_order_id, gatewayPaymentId: razorpay_payment_id },
       });
 
-      await debitWallet({
-        session, ownerId: vendor._id, ownerType: 'Vendor',
+      // Cashback is funded from the store's coins only (earned, then purchased) and stops at zero.
+      const funded = await debitVendorCashbackCoins({
+        session, vendorId: vendor._id, ownerZeebacId: vendor.zeebacId,
         amount: cashbackAmount, category: 'cashback',
         description: `Cashback given to ${customer.name}`,
         referenceId: txn._id, referenceType: 'Transaction',
       });
+      if (funded.amount < cashbackAmount) {
+        await Transaction.updateOne({ _id: txn._id }, { $set: { cashbackAmount: funded.amount } }, { session });
+        txn.cashbackAmount = funded.amount;
+      }
+      if (funded.amount > 0) {
+        await creditWallet({
+          session, ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId,
+          amount: funded.amount, category: 'cashback',
+          description: `Cashback from ${vendor.storeName}`,
+          referenceId: txn._id, referenceType: 'Transaction',
+        });
+      }
 
       await Vendor.findByIdAndUpdate(vendor._id, { $inc: { 'stats.totalRevenue': verifiedAmount } }, { session });
 
@@ -926,7 +935,7 @@ export const verifyRazorpayAndCreateTransaction = async (req, res) => {
           status: txn.status,
           timestamp: txn.timestamp,
         },
-        cashbackEarned: cashbackAmount,
+        cashbackEarned: txn.cashbackAmount,
         newWalletBalance: customerWallet?.balance,
         vendorName: vendor.storeName
       }
@@ -2092,7 +2101,8 @@ export const processWalletPayment = async (req, res) => {
     const commissionPercent = rewardConfig.vendorPaymentCommissionPercent !== undefined
       ? rewardConfig.vendorPaymentCommissionPercent
       : 0;
-    const platformFee = Math.round(((parseFloat(amount) * commissionPercent) / 100) * 100) / 100;
+    // Option B: Zeebac commission only on cash. This payment is made entirely in coins → no vendor fee.
+    const platformFee = 0;
 
     // Configurable Customer Wallet Payment Fee (0% extra charge on transfer to merchant)
     const customerFeePercent = rewardConfig.customerWalletPayCommissionPercent !== undefined ? rewardConfig.customerWalletPayCommissionPercent : 0;
@@ -2102,6 +2112,9 @@ export const processWalletPayment = async (req, res) => {
 
     // Verify customer wallet has enough balance for Bill + Convenience Fee
     const customerWalletCheck = await Wallet.findOne({ ownerId: customer._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
+    const minRedeemable = await getMinRedeemablePoints();
+    const minBlocked = redemptionBlockedReason(customerWalletCheck?.balance || 0, minRedeemable);
+    if (minBlocked) return res.status(400).json({ success: false, code: 'MIN_REDEEM_BALANCE', message: minBlocked });
     if (!customerWalletCheck || (customerWalletCheck.balance || 0) < totalCustomerDebit) {
       return res.status(400).json({
         success: false,
@@ -2163,28 +2176,35 @@ export const processWalletPayment = async (req, res) => {
         });
       }
 
-      await creditWallet({
-        session, ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId,
-        amount: cashbackAmount, category: 'cashback',
-        description: `Cashback from ${vendor.storeName}`,
-        referenceId: txn._id, referenceType: 'Transaction',
+      // Store: the customer paid in coins → credited to the store's earned coins (not money, not withdrawable).
+      await creditStoreForRedemption({
+        vendorId: vendor._id,
+        coins: parseFloat(amount),
+        key: `TX:${txn._id}`,
+        description: `${parseFloat(amount)} coins received from ${customer.name || 'customer'} (wallet payment)`,
+        referenceId: txn._id,
+        referenceType: 'Transaction',
+        session,
       });
-
-      // Vendor: credit the bill amount, then debit the cashback given.
-      await creditWallet({
-        session, ownerId: vendor._id, ownerType: 'Vendor', ownerZeebacId: vendor.zeebacId,
-        amount: parseFloat(amount), category: 'payment_received',
-        description: `Payment received from ${customer.name} (Wallet)`,
-        referenceId: txn._id, referenceType: 'Transaction',
-      });
-
-      await debitWallet({
-        session, ownerId: vendor._id, ownerType: 'Vendor',
+      // Cashback: funded from the store's coins (earned first, then purchased); stops at zero.
+      const funded = await debitVendorCashbackCoins({
+        session, vendorId: vendor._id, ownerZeebacId: vendor.zeebacId,
         amount: cashbackAmount, category: 'cashback',
         description: `Cashback given to ${customer.name}`,
         referenceId: txn._id, referenceType: 'Transaction',
       });
-
+      if (funded.amount < cashbackAmount) {
+        await Transaction.updateOne({ _id: txn._id }, { $set: { cashbackAmount: funded.amount } }, { session });
+        txn.cashbackAmount = funded.amount;
+      }
+      if (funded.amount > 0) {
+        await creditWallet({
+          session, ownerId: customer._id, ownerType: 'User', ownerZeebacId: customer.zeebacId,
+          amount: funded.amount, category: 'cashback',
+          description: `Cashback from ${vendor.storeName}`,
+          referenceId: txn._id, referenceType: 'Transaction',
+        });
+      }
       if (platformFee > 0) {
         await debitWallet({
           session, ownerId: vendor._id, ownerType: 'Vendor',
@@ -2237,7 +2257,7 @@ export const processWalletPayment = async (req, res) => {
         billAmount: parseFloat(amount),
         convenienceFee: customerFee,
         totalPaid: totalCustomerDebit,
-        cashbackEarned: cashbackAmount,
+        cashbackEarned: txn.cashbackAmount,
         newBalance: customerWallet?.balance,
       }
     });
@@ -2738,62 +2758,20 @@ export const getWalletDynamicUpiQr = async (req, res) => {
 
 // 4. Claim Direct UPI Payment via 12-digit UTR
 export const claimWalletUpiPayment = async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    const { utr, amount } = req.body;
-    const cleanUtr = (utr || '').toString().trim();
-    if (!/^\d{12}$/.test(cleanUtr)) {
-      return res.status(400).json({ success: false, message: 'Invalid UPI Reference ID / UTR. Must be exactly 12 digits.' });
-    }
-
-    const rechargeAmount = Number(amount);
-    if (!rechargeAmount || rechargeAmount < 1) {
-      return res.status(400).json({ success: false, message: 'Invalid amount' });
-    }
-
-    const customer = await User.findById(req.user.id);
+    const customer = await User.findById(req.user.id).select('zeebacId name phone');
     if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
-
-    // Check if this UTR has already been credited to any wallet
-    const existingTx = await WalletTransaction.findOne({
-      $or: [
-        { gatewayPaymentId: cleanUtr },
-        { gatewayPaymentId: `${cleanUtr}_claim` },
-        { 'gateway.utr': cleanUtr },
-      ],
-    });
-    if (existingTx) {
-      return res.status(400).json({ success: false, message: 'This UPI Reference ID / UTR has already been claimed or processed.' });
-    }
-
-    let wallet;
-    await session.withTransaction(async () => {
-      wallet = await creditWallet({
-        session,
-        ownerId: customer._id,
-        ownerType: 'User',
-        ownerZeebacId: customer.zeebacId,
-        amount: rechargeAmount,
-        category: 'recharge',
-        description: `Wallet Recharge via Dynamic UPI QR (UTR: ${cleanUtr})`,
-        gateway: {
-          gatewayName: 'UPI_DIRECT',
-          gatewayPaymentId: cleanUtr,
-          utr: cleanUtr,
-        },
-      });
-    });
-
-    res.status(200).json({
+    const request = await submitTopupRequest({ ownerType: 'User', owner: customer, utr: req.body.utr, amount: req.body.amount });
+    res.status(202).json({
       success: true,
-      message: `₹${rechargeAmount} successfully added to your wallet!`,
-      data: { balance: wallet.balance, utr: cleanUtr },
+      pending: true,
+      message: `Payment submitted for verification. ₹${request.amount} will be added after Zeebac confirms UTR ${request.utr}.`,
+      data: { request, utr: request.utr },
     });
   } catch (error) {
-    logger.error(`Error in claimWalletUpiPayment: ${error.message}`);
-    res.status(500).json({ success: false, message: error.message || 'Failed to claim UPI payment' });
-  } finally {
-    session.endSession();
+    if (error instanceof TopupError) return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+    logger.error(`claimWalletUpiPayment error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to submit UPI payment' });
   }
 };
 

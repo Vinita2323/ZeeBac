@@ -9,6 +9,7 @@ import {
   getVendorOrders,
   createVendorCashbackReserveUpiIntent,
   claimVendorCashbackReserveUpi,
+  getVendorTopupRequests,
   submitOrderFeedback,
   rateRiderByVendor,
   startOrderPicking,
@@ -54,5 +55,6 @@ router.post('/:orderId/finish-packing', protect, requireRole('vendor'), finishOr
 // ── Merchant Prepaid Cashback Reserve Pool Routes ──
 router.post('/vendor/cashback-reserve/upi-intent', protect, requireRole('vendor'), createVendorCashbackReserveUpiIntent);
 router.post('/vendor/cashback-reserve/claim-upi', protect, requireRole('vendor'), claimVendorCashbackReserveUpi);
+router.get('/vendor/cashback-reserve/requests', protect, requireRole('vendor'), getVendorTopupRequests);
 
 export default router;

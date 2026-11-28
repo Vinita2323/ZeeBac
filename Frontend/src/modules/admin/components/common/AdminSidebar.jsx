@@ -31,6 +31,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Users', icon: 'group', path: '/admin/users' },
     { label: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
     { label: 'Vendor Settlements', icon: 'account_balance', path: '/admin/seller-settlements' },
+    { label: 'Zeebac Coins', icon: 'toll', path: '/admin/coins' },
     {
       label: 'Delivery Partners',
       icon: 'two_wheeler',

@@ -94,6 +94,11 @@ import {
   adminRejectPayoutRequest,
   adminRefundOrder,
   adminReverseOrderUsage,
+  adminListTopupRequests,
+  adminApproveTopup,
+  adminRejectTopup,
+  adminGetVendorCoinOverview,
+  adminGetVendorCoinTransactions,
   adminGetVendorOrderUsage,
   adminGetReconciliation,
   adminGetAuditLogs,
@@ -246,6 +251,13 @@ router.get('/settlements/orders', adminGetOrderFinancials);
 router.get('/settlements/orders/:orderId', adminGetOrderFinancialDetail);
 router.post('/settlements/orders/:orderId/refund', adminRefundOrder);
 router.post('/settlements/orders/:orderId/reverse-usage', adminReverseOrderUsage);
+
+// ─── Zeebac Coins ───
+router.get('/coins/topups', adminListTopupRequests);
+router.post('/coins/topups/:id/approve', adminApproveTopup);
+router.post('/coins/topups/:id/reject', adminRejectTopup);
+router.get('/coins/vendors', adminGetVendorCoinOverview);
+router.get('/coins/vendors/:vendorId/transactions', adminGetVendorCoinTransactions);
 router.get('/settlements/vendors/:vendorId/order-usage', adminGetVendorOrderUsage);
 router.get('/settlements/cod-pending', adminGetCodPending);
 router.post('/settlements/cod/confirm', adminConfirmCodCollection);

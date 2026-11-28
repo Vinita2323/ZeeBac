@@ -488,6 +488,11 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
     settledAt: Date,
+    // Coins actually funded by the store at delivery (cashback stops when the store has no coins)
+    cashbackIssued: { type: Number, default: null },
+    cashbackShortfall: { type: Number, default: 0 },
+    // Coins credited to this store's earnedCoins for points the customer redeemed on this order
+    redemptionCoinsCredited: { type: Number, default: null },
   },
   {
     timestamps: true,

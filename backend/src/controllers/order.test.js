@@ -344,9 +344,20 @@ describe('Order System & Product-Level Cashback Model', () => {
     const claimRes = makeRes();
     await claimVendorCashbackReserveUpi(claimReq, claimRes);
 
-    expect(claimRes.status).toHaveBeenCalledWith(200);
+    // UPI top-ups are no longer credited instantly: pending until admin verifies the UTR
+    expect(claimRes.status).toHaveBeenCalledWith(202);
+    expect((await Wallet.findById(vendorWallet._id)).balance).toBe(5000);
+
+    const { approveTopupRequest } = await import('../utils/pointsTopup.util.js');
+    const request = claimRes.json.mock.calls[0][0].data.request;
+    await approveTopupRequest({ requestId: request._id, adminId: vendor._id });
     const updatedVendorWallet = await Wallet.findById(vendorWallet._id);
-    expect(updatedVendorWallet.balance).toBe(7000); // 5000 + 2000 = 7000
+    expect(updatedVendorWallet.balance).toBe(7000); // 5000 + 2000 after approval
+
+    // The same UTR can never be used again
+    const dupRes = makeRes();
+    await claimVendorCashbackReserveUpi(claimReq, dupRes);
+    expect(dupRes.status).toHaveBeenCalledWith(409);
   });
 
   it('safely creates order with demo products (string IDs) and address object without CastError', async () => {

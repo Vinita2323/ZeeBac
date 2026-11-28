@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { verifyWebhookSignature } from '../utils/webhook.util.js';
-import { debitWallet, creditWallet, assertGatewayPaymentNotProcessed, DuplicatePaymentError, InsufficientBalanceError } from '../utils/wallet.util.js';
+import { debitWallet, creditWallet, assertGatewayPaymentNotProcessed, DuplicatePaymentError, InsufficientBalanceError, debitVendorCashbackCoins, isBucketedWallet } from '../utils/wallet.util.js';
 import { calculateCashback } from '../utils/cashback.util.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getVendorSubscriptionState } from '../utils/subscription.util.js';
@@ -98,6 +98,10 @@ export const handleRazorpayWebhook = async (req, res) => {
               description: `Vendor wallet recharge via Razorpay (Webhook ${paymentId})`,
               gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId, gatewayPaymentId: paymentId },
             });
+            // Legacy (unmigrated) wallets: count Razorpay top-ups as purchased coins too.
+            if (!isBucketedWallet(creditedWallet)) {
+              await Wallet.updateOne({ _id: creditedWallet._id }, { $inc: { purchasedPoints: verifiedAmount } }, { session });
+            }
 
             result = { type: 'vendor_recharge', walletBalance: creditedWallet.balance };
           } else if (isCustomerRecharge && notes.customerId) {
@@ -162,20 +166,24 @@ export const handleRazorpayWebhook = async (req, res) => {
               const vendorBalance = vendorWallet ? (vendorWallet.balance || 0) : 0;
               const subState = getVendorSubscriptionState(vendor, vendorBalance);
               const cashbackRate = vendor.cashbackRate || 0;
-              const cashbackAmount = calculateCashback(verifiedAmount, cashbackRate);
-              const canGiveCashback = !subState.cashbackBlocked && cashbackAmount > 0;
+              let cashbackAmount = calculateCashback(verifiedAmount, cashbackRate);
+              let canGiveCashback = !subState.cashbackBlocked && cashbackAmount > 0;
 
               if (canGiveCashback) {
-                // Deduct cashback from vendor wallet
-                await debitWallet({
+                // Fund cashback from the store's coins (earned, then purchased); stops at zero coins.
+                const funded = await debitVendorCashbackCoins({
                   session,
-                  ownerId: vendor._id,
-                  ownerType: 'Vendor',
+                  vendorId: vendor._id,
+                  ownerZeebacId: vendor.zeebacId,
                   amount: cashbackAmount,
                   category: 'cashback',
                   description: `Cashback paid to customer ${customer.name || customer.phone} (Webhook ${paymentId})`,
-                  gateway: { gatewayName: 'Razorpay', gatewayOrderId: orderId },
                 });
+                cashbackAmount = funded.amount;
+                canGiveCashback = cashbackAmount > 0;
+              }
+
+              if (canGiveCashback) {
 
                 // Credit customer wallet with cashback
                 await creditWallet({

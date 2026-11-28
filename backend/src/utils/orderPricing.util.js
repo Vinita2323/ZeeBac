@@ -43,16 +43,20 @@ export const computeOrderCharges = ({ itemTotal, fulfillmentType, vendor, reward
 
 // Seller share of an order (money admin owes the seller).
 //   sellerGross   = itemTotal + packaging
-//   − pointsRedeemed (already compensated through the existing cashback settlement ledger)
-//   − admin commission (% of sellerGross)
+//   − pointsRedeemed (paid to the store as coins in its wallet — see coinFlows.util.js)
+//   − admin commission (% of the CASH part only: sellerGross − coin-paid part)
 //   − Razorpay fee incl. GST (online only)
 // Admin keeps: delivery + platform fee + GST + tip, minus the gateway fee it recovers from the seller.
 export const computeSellerShare = ({ order, gatewayFee = 0, commissionPercent = 0 }) => {
   const sellerGross = r2(Number(order.itemTotal || 0) + Number(order.packagingCharge || 0));
   const points = r2(order.pointsRedeemed || 0);
-  const commissionAmount = r2((sellerGross * Number(commissionPercent || 0)) / 100);
+  // Coin-paid part of the store's share is credited to the store as coins (coinFlows.util),
+  // so only the cash part is settled in money — and commission applies to that cash part only.
+  const coinPortion = r2(Math.min(points, sellerGross));
+  const cashPortion = r2(sellerGross - coinPortion);
+  const commissionAmount = r2((cashPortion * Number(commissionPercent || 0)) / 100);
   const fee = r2(gatewayFee);
-  const sellerPayable = Math.max(0, r2(sellerGross - points - commissionAmount - fee));
+  const sellerPayable = Math.max(0, r2(cashPortion - commissionAmount - fee));
   const grossTotal = r2(
     Number(order.itemTotal || 0) +
       Number(order.packagingCharge || 0) +
@@ -63,5 +67,5 @@ export const computeSellerShare = ({ order, gatewayFee = 0, commissionPercent = 
   );
   const customerPaid = r2(order.finalPayableAmount || 0);
   const adminShare = r2(customerPaid - fee - sellerPayable);
-  return { sellerGross, pointsRedeemed: points, commissionPercent: Number(commissionPercent || 0), commissionAmount, gatewayFee: fee, sellerPayable, grossTotal, customerPaid, adminShare };
+  return { sellerGross, pointsRedeemed: points, coinPortion, cashPortion, commissionPercent: Number(commissionPercent || 0), commissionAmount, gatewayFee: fee, sellerPayable, grossTotal, customerPaid, adminShare };
 };

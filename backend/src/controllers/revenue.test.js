@@ -196,13 +196,14 @@ describe('Phase 6 Revenue Model & User Withdrawal Limits', () => {
     const customerWallet = await Wallet.findOne({ ownerId: customer._id });
     expect(customerWallet.balance).toBe(908);
 
-    // Vendor: 1000 + 100 (received) - 10 (cashback given) - 2 (platform fee) = 1088
+    // Vendor: 1000 + 100 (coins received) - 10 (cashback given). No vendor platform fee:
+    // commission applies only to cash, and this payment was made entirely in coins (Option B).
     const vendorWallet = await Wallet.findOne({ ownerId: vendor._id });
-    expect(vendorWallet.balance).toBe(1088);
+    expect(vendorWallet.balance).toBe(1090);
 
-    // Admin receives customer convenience fee (2) + vendor platform fee (2) = 4
+    // Admin receives only the customer convenience fee (2)
     const adminWallet = await Wallet.findOne({ ownerId: admin._id });
-    expect(adminWallet.balance).toBe(4);
+    expect(adminWallet.balance).toBe(2);
   });
 
   it('splits payment with 0% ZeeBac fee: ₹1000 payment -> ₹50 user cashback, ₹950 net to vendor, ₹0 to ZeeBac', async () => {

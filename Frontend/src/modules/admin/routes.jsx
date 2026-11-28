@@ -24,6 +24,7 @@ import SubscriptionPlansPage from './pages/SubscriptionPlansPage';
 import LegalContentManagerPage from './pages/LegalContentManagerPage';
 import AdminSupplyChainPage from './pages/AdminSupplyChainPage';
 import SellerSettlementsPage from './pages/SellerSettlementsPage';
+import CoinsPage from './pages/CoinsPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 
 export default function AdminRoutes() {
@@ -33,6 +34,7 @@ export default function AdminRoutes() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/payouts" element={<PayoutsPage />} />
         <Route path="/seller-settlements" element={<SellerSettlementsPage />} />
+        <Route path="/coins" element={<CoinsPage />} />
         <Route path="/profile" element={<AdminProfilePage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/vendors" element={<VendorsPage />} />

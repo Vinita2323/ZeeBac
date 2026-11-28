@@ -4,7 +4,9 @@ import Vendor from '../models/Vendor.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import Transaction from '../models/Transaction.js';
-import { creditWallet, debitWallet } from '../utils/wallet.util.js';
+import { creditWallet, debitWallet, debitVendorCashbackCoins } from '../utils/wallet.util.js';
+import { creditStoreForRedemption } from '../utils/coinFlows.util.js';
+import { runInTransaction } from '../utils/sellerSettlement.util.js';
 import { calculateCashback } from '../utils/cashback.util.js';
 import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getVendorSubscriptionState } from '../utils/subscription.util.js';
@@ -695,7 +697,8 @@ export const payPosBillIntent = async (req, res) => {
     const vendor = posBill.vendor;
     const billAmount = posBill.amount;
     const cashbackRate = posBill.cashbackRate || vendor?.cashbackRate || 10;
-    const cashbackEarned = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
+    const promisedCashback = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
+    let cashbackEarned = promisedCashback;
 
     let createdTx = null;
     const minRedeemable = paymentMethod === 'Wallet' ? await getMinRedeemablePoints() : 0;
@@ -722,9 +725,33 @@ export const payPosBillIntent = async (req, res) => {
           description: `Paid for bill ${posBill.billCode} at ${vendor.storeName}`,
           referenceId: posBill._id,
         });
+
+        // The coins the customer paid with are credited to this store's earned coins.
+        await creditStoreForRedemption({
+          vendorId: vendor._id,
+          coins: billAmount,
+          key: `POSBILL:${posBill._id}`,
+          description: `${billAmount} coins received for bill ${posBill.billCode}`,
+          referenceId: posBill._id,
+          referenceType: 'Transaction',
+          session: activeSession,
+        });
       }
 
-      // 2. Credit cashback to customer wallet
+      // 2. Cashback is funded from the store's coins (earned, then purchased) — never created from nothing.
+      cashbackEarned = promisedCashback;
+      if (cashbackEarned > 0) {
+        const funded = await debitVendorCashbackCoins({
+          session: activeSession,
+          vendorId: vendor._id,
+          ownerZeebacId: vendor.zeebacId,
+          amount: cashbackEarned,
+          category: 'cashback',
+          description: `Cashback on POS bill ${posBill.billCode}`,
+          referenceId: posBill._id,
+        });
+        cashbackEarned = funded.amount;
+      }
       if (cashbackEarned > 0) {
         await creditWallet({
           session: activeSession,
@@ -935,19 +962,38 @@ export const autoConfirmPosBillUtr = async (req, res) => {
     const vendor = posBill.vendor;
     const billAmount = posBill.amount;
     const cashbackRate = posBill.cashbackRate || vendor?.cashbackRate || 10;
-    const cashbackEarned = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
+    let cashbackEarned = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
 
-    // Credit customer if registered
+    // Credit customer if registered — cashback funded from the store's coins in one transaction
     if (customer && cashbackEarned > 0) {
-      await creditWallet({
-        ownerId: customer._id,
-        ownerType: 'User',
-        ownerZeebacId: customer.zeebacId,
-        amount: cashbackEarned,
-        category: 'cashback',
-        description: `Cashback earned (${cashbackRate}%) on POS bill ${posBill.billCode} via UPI`,
-        referenceId: posBill._id,
+      const promised = cashbackEarned;
+      await runInTransaction(async (s) => {
+        cashbackEarned = promised;
+        const funded = await debitVendorCashbackCoins({
+          session: s,
+          vendorId: vendor._id,
+          ownerZeebacId: vendor.zeebacId,
+          amount: promised,
+          category: 'cashback',
+          description: `Cashback on POS bill ${posBill.billCode} (UPI)`,
+          referenceId: posBill._id,
+        });
+        cashbackEarned = funded.amount;
+        if (funded.amount > 0) {
+          await creditWallet({
+            session: s,
+            ownerId: customer._id,
+            ownerType: 'User',
+            ownerZeebacId: customer.zeebacId,
+            amount: funded.amount,
+            category: 'cashback',
+            description: `Cashback earned (${cashbackRate}%) on POS bill ${posBill.billCode} via UPI`,
+            referenceId: posBill._id,
+          });
+        }
       });
+    }
+    if (customer && cashbackEarned > 0) {
 
       try {
         await recordCashbackIssuance({

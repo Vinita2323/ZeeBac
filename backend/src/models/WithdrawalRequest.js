@@ -42,6 +42,11 @@ const withdrawalRequestSchema = new mongoose.Schema({
     enum: ['Pending', 'Approved', 'Rejected'],
     default: 'Pending',
   },
+  // Which vendor wallet buckets funded this withdrawal (restored exactly on rejection)
+  bucketSplit: {
+    purchasedPoints: { type: Number, default: 0 },
+    cashEarnings: { type: Number, default: 0 },
+  },
   bankDetailsSnapshot: {
     type: Object, // Store the bank details at the time of request just in case they change it later
     default: {},

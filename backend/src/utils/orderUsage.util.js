@@ -17,7 +17,7 @@ import mongoose from 'mongoose';
 import Vendor from '../models/Vendor.js';
 import OrderUsage from '../models/OrderUsage.js';
 import SubscriptionCycle from '../models/SubscriptionCycle.js';
-import { debitWallet, creditWallet } from './wallet.util.js';
+import { debitWallet, creditWallet, InsufficientBalanceError } from './wallet.util.js';
 import { runInTransaction } from './sellerSettlement.util.js';
 import { r2 } from './orderPricing.util.js';
 import logger from './logger.js';
@@ -265,17 +265,24 @@ const chargeUsage = async (usage, session) => {
     opts(session, { new: true })
   );
   if (!flipped) return false;
-  await debitWallet({
-    session,
-    ownerId: usage.vendorId,
-    ownerType: 'Vendor',
-    amount: usage.chargeAmount,
-    category: 'extra_order_fee',
-    description: `Extra order charge for Order ${usage.orderCode} (free order limit exceeded)`,
-    referenceId: usage.orderId,
-    referenceType: 'Order',
-    allowNegativeBalance: true,
-  });
+  try {
+    await debitWallet({
+      session,
+      ownerId: usage.vendorId,
+      ownerType: 'Vendor',
+      amount: usage.chargeAmount,
+      category: 'extra_order_fee', // cash earnings first, then purchased coins; never earned coins
+      description: `Extra order charge for Order ${usage.orderCode} (free order limit exceeded)`,
+      referenceId: usage.orderId,
+      referenceType: 'Order',
+      allowNegativeBalance: true, // legacy (unmigrated) wallets only
+    });
+  } catch (err) {
+    if (!(err instanceof InsufficientBalanceError)) throw err;
+    // Migrated wallets never go negative: leave the charge PENDING; syncVendorUsage collects it later.
+    await OrderUsage.updateOne({ _id: usage._id }, { $set: { chargeStatus: 'PENDING' }, $unset: { chargedAt: 1 } }, opts(session));
+    return false;
+  }
   usage.chargeStatus = 'DEDUCTED';
   usage.chargedAt = flipped.chargedAt;
   return true;
