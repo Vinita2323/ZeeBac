@@ -75,7 +75,7 @@ const stockMovementSchema = new mongoose.Schema({
   },
   reason: {
     type: String,
-    enum: ['B2B_SALE', 'B2B_PURCHASE', 'ORDER_DELIVERY', 'MANUAL_ADJUSTMENT', 'INITIAL_IMPORT', 'PUTAWAY_CONFIRMED'],
+    enum: ['B2B_SALE', 'B2B_PURCHASE', 'ORDER_DELIVERY', 'MANUAL_ADJUSTMENT', 'INITIAL_IMPORT', 'PUTAWAY_CONFIRMED', 'ORDER_ACCEPTED', 'ORDER_RETURN'],
     required: true,
   },
   referenceId: {

@@ -401,6 +401,43 @@ const orderSchema = new mongoose.Schema(
     },
     cancelledAt: Date,
 
+    // ── Inventory reduced when the store accepted the order (restored on cancel / return) ──
+    stockDeduction: {
+      deducted: { type: Boolean, default: false },
+      deductedAt: Date,
+      restored: { type: Boolean, default: false },
+      restoredAt: Date,
+      items: [
+        {
+          _id: false,
+          productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+          name: String,
+          ordered: Number, // quantity on the order
+          quantity: Number, // quantity actually taken from stock
+        },
+      ],
+    },
+
+    // ── Online payment kept (not refunded) when the rider returns the order after Out for Delivery ──
+    paymentForfeited: {
+      forfeited: { type: Boolean, default: false },
+      amount: { type: Number, default: 0 },
+      reason: String,
+      at: Date,
+    },
+
+    // ── Zeebac points deducted for a COD cancel / return after Out for Delivery ──
+    lateCancellationPenalty: {
+      applied: { type: Boolean, default: false },
+      amount: { type: Number, default: 0 },
+      basis: { type: String, enum: ['ENTIRE_ORDER', 'DELIVERY_CHARGE', null], default: null },
+      stage: String, // orderStatus at the moment of cancel/return
+      actor: String, // CUSTOMER | RIDER | ADMIN
+      reason: String,
+      appliedAt: Date,
+      balanceAfter: Number,
+    },
+
     // ── Rider Dynamic Payout & Distance ──
     deliveryDistanceKm: {
       type: Number,

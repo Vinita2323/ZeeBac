@@ -571,7 +571,7 @@ export const adminGetAuditLogs = async (req, res) => {
 };
 
 // GET/PUT /admin/settlements/config — order pricing & commission
-const CONFIG_FIELDS = ['orderDeliveryCharge', 'orderFreeDeliveryAbove', 'orderPlatformFeeFixed', 'orderPlatformFeePercent', 'sellerCommissionPercent', 'sellerMinPayoutRequest', 'orderGstTaxPercent', 'enableOrderTax'];
+const CONFIG_FIELDS = ['orderDeliveryCharge', 'orderFreeDeliveryAbove', 'orderPlatformFeeFixed', 'orderPlatformFeePercent', 'sellerCommissionPercent', 'sellerMinPayoutRequest', 'orderGstTaxPercent', 'enableOrderTax', 'minRedeemablePoints'];
 const pickConfig = (c) => Object.fromEntries(CONFIG_FIELDS.map((k) => [k, c?.[k]]));
 
 export const adminGetPricingConfig = async (req, res) => {

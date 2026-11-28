@@ -25,6 +25,36 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [copyFeedback, setCopyFeedback] = useState(null);
   const [trackingOrder, setTrackingOrder] = useState(null);
+  // Cancel flow: { order, preview, loading, submitting, error, reason }
+  const [cancelState, setCancelState] = useState(null);
+  const updateBalance = useAuthStore((state) => state.updateBalance);
+
+  const openCancel = async (order) => {
+    setCancelState({ order, preview: null, loading: true, submitting: false, error: '', reason: '' });
+    try {
+      const res = await OrderAPI.getCancelPreview(order.orderId);
+      setCancelState((s) => s && { ...s, loading: false, preview: res.data });
+    } catch (err) {
+      setCancelState((s) => s && { ...s, loading: false, error: err.response?.data?.message || 'Could not load cancellation details.' });
+    }
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelState?.order) return;
+    setCancelState((s) => ({ ...s, submitting: true, error: '' }));
+    try {
+      const res = await OrderAPI.cancelOrder(cancelState.order.orderId, cancelState.reason || 'Cancelled by customer');
+      if (res.success) {
+        if (typeof res.data?.balanceAfter === 'number' && updateBalance) updateBalance(res.data.balanceAfter);
+        setCancelState(null);
+        fetchOrders();
+      } else {
+        setCancelState((s) => ({ ...s, submitting: false, error: res.message || 'Could not cancel the order.' }));
+      }
+    } catch (err) {
+      setCancelState((s) => ({ ...s, submitting: false, error: err.response?.data?.message || 'Could not cancel the order.' }));
+    }
+  };
 
   // Feedback Modal State
   const [feedbackModal, setFeedbackModal] = useState({
@@ -996,6 +1026,17 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
                     </button>
 
                     <div className="flex items-center gap-1.5">
+                      {/* Cancel (customer) only until the store accepts */}
+                      {order.orderStatus === 'PLACED' && (
+                        <button
+                          onClick={() => openCancel(order)}
+                          className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">cancel</span>
+                          <span>Cancel</span>
+                        </button>
+                      )}
+
                       {/* View Bill Invoice */}
                       <button
                         onClick={() => setSelectedOrderForInvoice(order)}
@@ -1341,6 +1382,83 @@ export default function OnlineOrdersSubView({ onBack, t = (k, d) => d || k }) {
         </div>,
         document.body
       )}
+      {/* ─── CANCEL ORDER CONFIRMATION ─── */}
+      {cancelState &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/50 flex items-end sm:items-center justify-center p-3">
+            <div className="bg-white w-full max-w-md rounded-3xl p-5 space-y-4 max-h-[90dvh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-[16px] text-slate-900">Cancel order #{cancelState.order.orderId}?</h3>
+                <button
+                  onClick={() => !cancelState.submitting && setCancelState(null)}
+                  className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              {cancelState.loading ? (
+                <div className="h-20 rounded-2xl bg-slate-100 animate-pulse" />
+              ) : cancelState.preview ? (
+                cancelState.preview.pointsDeduction > 0 ? (
+                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-[12.5px] text-red-900 space-y-1.5">
+                    <p className="font-black text-[13.5px]">{cancelState.preview.pointsDeduction} Zeebac Points will be deducted</p>
+                    <p>
+                      {cancelState.preview.basis === 'ENTIRE_ORDER'
+                        ? 'This restaurant order is already out for delivery, so the full order amount is deducted as points.'
+                        : 'This order is already out for delivery, so the delivery charge is deducted as points.'}
+                    </p>
+                    {cancelState.preview.pointsRefund > 0 && (
+                      <p>{cancelState.preview.pointsRefund} points you used on this order will be returned.</p>
+                    )}
+                    <p>
+                      Balance after cancelling:{' '}
+                      <strong className={cancelState.preview.balanceAfter < 0 ? 'text-red-700' : ''}>
+                        {cancelState.preview.balanceAfter} points
+                      </strong>
+                      {cancelState.preview.balanceAfter < 0 && ' (negative balance, recovered from your future cashback)'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-[12.5px] text-emerald-900">
+                    No points will be deducted for cancelling now.
+                    {cancelState.preview.pointsRefund > 0 &&
+                      ` ${cancelState.preview.pointsRefund} points you used on this order will be returned.`}
+                  </div>
+                )
+              ) : null}
+
+              <textarea
+                rows={2}
+                value={cancelState.reason}
+                onChange={(e) => setCancelState((s) => ({ ...s, reason: e.target.value }))}
+                placeholder="Reason (optional)"
+                className="w-full p-3 rounded-xl border border-slate-200 text-[13px] focus:outline-none focus:border-purple-500"
+              />
+
+              {cancelState.error && <p className="text-[12px] text-red-600 font-semibold">{cancelState.error}</p>}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCancelState(null)}
+                  disabled={cancelState.submitting}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-[13px] cursor-pointer disabled:opacity-50"
+                >
+                  Keep order
+                </button>
+                <button
+                  onClick={confirmCancel}
+                  disabled={cancelState.submitting || cancelState.loading || cancelState.preview?.canCancel === false}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[13px] cursor-pointer disabled:opacity-50"
+                >
+                  {cancelState.submitting ? 'Cancelling…' : 'Cancel order'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {/* ─── LIVE GPS ORDER & RIDER TRACKING MODAL (MATCHING SCREENSHOT) ─── */}
       {trackingOrder && (
         <LiveOrderTrackingModal

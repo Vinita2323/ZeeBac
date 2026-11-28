@@ -32,6 +32,8 @@ export default function DashboardPage() {
   const [generatedPosBill, setGeneratedPosBill] = useState(null);
   const [isGeneratingPos, setIsGeneratingPos] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  // Orders a rider is bringing back (customer unavailable / refused)
+  const [returningOrders, setReturningOrders] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -211,6 +213,12 @@ export default function DashboardPage() {
       }
     };
 
+    const handleOrderReturning = (data) => {
+      if (!data?.orderId) return;
+      setReturningOrders((prev) => [data, ...prev.filter((r) => r.orderId !== data.orderId)]);
+      setDashboardOrders((prev) => prev.map((o) => (o.orderId === data.orderId ? { ...o, orderStatus: 'FAILED_DELIVERY' } : o)));
+    };
+
     const handleNewCashRequest = (data) => {
       setPendingRequests(prev => {
         const newCustId = data.customerId?._id || data.customerId || data.customerName;
@@ -249,6 +257,7 @@ export default function DashboardPage() {
     socket.on('order:rider_assigned', handleRiderAssigned);
     socket.on('delivery:rider_declined', handleRiderDeclined);
     socket.on('order:cancelled', handleOrderCancelled);
+    socket.on('order:returning', handleOrderReturning);
     socket.on('new_cash_request', handleNewCashRequest);
     socket.on('cash_request_verified', handleCashVerified);
 
@@ -259,6 +268,7 @@ export default function DashboardPage() {
       socket.off('order:rider_assigned', handleRiderAssigned);
       socket.off('delivery:rider_declined', handleRiderDeclined);
       socket.off('order:cancelled', handleOrderCancelled);
+      socket.off('order:returning', handleOrderReturning);
       socket.off('new_cash_request', handleNewCashRequest);
       socket.off('cash_request_verified', handleCashVerified);
     };
@@ -657,6 +667,37 @@ export default function DashboardPage() {
           <span className="material-symbols-outlined text-purple-300">chevron_right</span>
         </div>
       </div>
+
+      {/* Packages coming back to the store */}
+      {returningOrders.map((r) => (
+        <div key={r.orderId} className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 flex items-start gap-3">
+          <span className="material-symbols-outlined text-amber-700 text-[24px]">assignment_return</span>
+          <div className="flex-1 min-w-0 text-[13px] text-amber-950">
+            <p className="font-black">Order #{r.orderId} is being returned to your store</p>
+            <p className="mt-0.5">{r.reason}</p>
+            {r.items?.length > 0 && (
+              <p className="mt-1 text-[12px] text-amber-900">
+                {r.items.map((i) => `${i.quantity} × ${i.name}`).join(', ')}
+              </p>
+            )}
+            <p className="mt-1 text-[12px]">
+              Rider: <strong>{r.riderName}</strong>
+              {r.riderPhone && (
+                <a href={`tel:${r.riderPhone}`} className="ml-2 font-bold text-amber-800 underline">
+                  Call
+                </a>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={() => setReturningOrders((prev) => prev.filter((x) => x.orderId !== r.orderId))}
+            className="w-8 h-8 rounded-full hover:bg-amber-100 flex items-center justify-center cursor-pointer shrink-0"
+            aria-label="Dismiss"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      ))}
 
       {/* Monthly free-order usage for the current billing cycle */}
       {subscriptionInfo?.isSubActive && <OrderUsageCard compact />}

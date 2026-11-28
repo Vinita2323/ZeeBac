@@ -758,6 +758,7 @@ function PricingTab() {
           </div>
           {field('sellerCommissionPercent', 'Seller commission (% of items + packaging)', 'Deducted from the seller share on online and COD orders.')}
           {field('sellerMinPayoutRequest', 'Minimum seller withdrawal (₹)')}
+          {field('minRedeemablePoints', 'Minimum Zeebac Points to redeem', 'Customers need at least this many points before they can use points at checkout, POS, wallet pay or recharge.')}
           <p className="text-[11px] text-slate-500">Packaging is set by each seller in their store settings and is paid to the seller.</p>
           <button disabled={busy} className="w-full py-2.5 rounded-xl bg-[#7c3aed] text-white font-black text-[13px] disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
         </form>

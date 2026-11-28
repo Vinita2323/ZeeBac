@@ -1342,6 +1342,8 @@ export const OrderAPI = {
     const res = await apiClient.get(`/orders/${id}`);
     return res.data;
   },
+  getCancelPreview: async (orderId) => (await apiClient.get(`/orders/${orderId}/cancel-preview`)).data,
+  cancelOrder: async (orderId, reason) => (await apiClient.post(`/orders/${orderId}/cancel`, { reason })).data,
   submitOrderFeedback: async (orderId, feedbackData) => {
     const res = await apiClient.post(`/orders/${orderId}/feedback`, feedbackData);
     return res.data;

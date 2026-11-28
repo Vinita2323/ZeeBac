@@ -63,6 +63,8 @@ const rewardConfigSchema = new mongoose.Schema({
   // Commission admin keeps from the seller's share (item total + packaging)
   sellerCommissionPercent: { type: Number, default: 0, min: 0, max: 50 },
   sellerMinPayoutRequest: { type: Number, default: 100, min: 1 },
+  // Customer must hold at least this many Zeebac Points before any redemption is allowed
+  minRedeemablePoints: { type: Number, default: 100, min: 0 },
   customerWalletPayCommissionPercent: {
     type: Number,
     default: 0, // 0% convenience fee - zero extra charges when paying merchant from wallet

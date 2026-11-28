@@ -545,6 +545,40 @@ export default function DeliveryDashboardScreen() {
     }
   };
 
+  // Customer not reachable / not found / not available / refused (after Out for Delivery)
+  const [returnSheetOpen, setReturnSheetOpen] = useState(false);
+  const [returnReasonCode, setReturnReasonCode] = useState('');
+  const [returnNote, setReturnNote] = useState('');
+  const RETURN_REASONS = [
+    { code: 'NOT_ANSWERING', label: 'Customer not answering calls', icon: 'phone_missed' },
+    { code: 'ADDRESS_NOT_FOUND', label: 'Could not find customer / address', icon: 'wrong_location' },
+    { code: 'NOT_AVAILABLE', label: 'Customer not available at location', icon: 'person_off' },
+    { code: 'REFUSED', label: 'Customer refused to take the order', icon: 'block' },
+  ];
+
+  const handleCustomerRefused = async () => {
+    if (!activeOrder || !returnReasonCode) return;
+    setActionLoadingId(activeOrder._id);
+    try {
+      const res = await DeliveryAPI.updateOrderStatus(activeOrder._id, {
+        status: 'FAILED_DELIVERY',
+        reasonCode: returnReasonCode,
+        reason: returnNote.trim(),
+      });
+      if (res.success) {
+        toast.success(res.message || 'Order marked as returned');
+        setReturnSheetOpen(false);
+        setReturnReasonCode('');
+        setReturnNote('');
+        setActiveOrder(null);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to mark the order as returned');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   // Step 2: Confirm Store Pickup via 4-Digit Pickup OTP
   const handleVerifyPickupOtp = async () => {
     const enteredOtp = pickupOtpDigits.join('').trim();
@@ -1239,6 +1273,63 @@ export default function DeliveryDashboardScreen() {
                             />
                             <span>I have collected exact ₹{orderTotal} cash from customer</span>
                           </label>
+                        </div>
+                      )}
+
+                      {/* Customer not reachable / refused → return order */}
+                      {!returnSheetOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => setReturnSheetOpen(true)}
+                          className="w-full py-2.5 rounded-xl border border-red-300 bg-red-50 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">assignment_return</span>
+                          <span>Can't deliver? Return order</span>
+                        </button>
+                      ) : (
+                        <div className="p-3.5 rounded-2xl border-2 border-red-200 bg-red-50/60 space-y-2.5 text-left">
+                          <p className="font-black text-sm text-slate-900">Why can't you deliver?</p>
+                          <div className="space-y-1.5">
+                            {RETURN_REASONS.map((r) => (
+                              <button
+                                key={r.code}
+                                type="button"
+                                onClick={() => setReturnReasonCode(r.code)}
+                                className={`w-full px-3 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 cursor-pointer ${
+                                  returnReasonCode === r.code ? 'border-red-500 bg-white text-red-700 ring-2 ring-red-500/20' : 'border-slate-200 bg-white text-slate-700'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">{r.icon}</span>
+                                <span className="text-left">{r.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            value={returnNote}
+                            onChange={(e) => setReturnNote(e.target.value)}
+                            placeholder="Note (optional)"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-red-400"
+                          />
+                          <p className="text-[11px] text-slate-600">
+                            You still get paid for this trip. Take the package back to the store.
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setReturnSheetOpen(false); setReturnReasonCode(''); }}
+                              className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs cursor-pointer"
+                            >
+                              Back
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCustomerRefused}
+                              disabled={!returnReasonCode || actionLoadingId === activeOrder._id}
+                              className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
+                            >
+                              {actionLoadingId === activeOrder._id ? 'Saving…' : 'Confirm return'}
+                            </button>
+                          </div>
                         </div>
                       )}
 

@@ -3,6 +3,7 @@ import Recharge from '../models/Recharge.js';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import logger from '../utils/logger.js';
+import { getMinRedeemablePoints, redemptionBlockedReason } from '../utils/pointsPolicy.util.js';
 import { debitWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
 import { sendNotification } from '../services/notification.service.js';
 
@@ -119,6 +120,11 @@ export const processMobileRecharge = async (req, res) => {
     }).session(session);
 
     const currentBalance = userWallet?.balance || 0;
+    const minBlocked = redemptionBlockedReason(currentBalance, await getMinRedeemablePoints());
+    if (minBlocked) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, code: 'MIN_REDEEM_BALANCE', message: minBlocked });
+    }
     if (currentBalance < rechargeAmount) {
       await session.abortTransaction();
       return res.status(400).json({

@@ -24,6 +24,10 @@ import logger from '../utils/logger.js';
 import { computeOrderCharges } from '../utils/orderPricing.util.js';
 import { creditSellerForDeliveredOrder, reverseOrderCredit } from '../utils/sellerSettlement.util.js';
 import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
+import { cancelOrder, CancellationError } from '../utils/orderCancellation.util.js';
+import { deductOrderStock } from '../utils/orderStock.util.js';
+import { runInTransaction } from '../utils/sellerSettlement.util.js';
+import { computeLateCancellationPenalty, getMinRedeemablePoints, redemptionBlockedReason, LATE_CANCEL_STAGES } from '../utils/pointsPolicy.util.js';
 import { createRazorpayCheckoutOrder, applyCapturedOrderPayment, initiateOrderRefund } from '../utils/orderPayment.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature } from '../utils/razorpay.util.js';
 
@@ -202,6 +206,15 @@ export const createOrder = async (req, res) => {
     const availablePoints = customerWallet ? Math.max(0, customerWallet.balance || 0) : 0;
 
     let pointsToRedeem = Math.max(0, Number(redeemPoints) || 0);
+
+    // Minimum balance before any redemption (default 100 points)
+    if (pointsToRedeem > 0) {
+      const minRedeemable = await getMinRedeemablePoints();
+      const blocked = redemptionBlockedReason(customerWallet?.balance || 0, minRedeemable);
+      if (blocked) {
+        return res.status(400).json({ success: false, code: 'MIN_REDEEM_BALANCE', message: blocked, minRedeemablePoints: minRedeemable });
+      }
+    }
 
     // If customer attempted redemption but merchant capacity is exhausted
     if (pointsToRedeem > 0 && vendorCapacity.remainingCapacity <= 0) {
@@ -881,6 +894,9 @@ export const updateOrderStatus = async (req, res) => {
       const vendor = await Vendor.findById(order.vendorId);
 
       await session.withTransaction(async () => {
+        // 0. Accepted straight from PLACED (e.g. pickup handed over at once) → take items out of stock
+        await deductOrderStock(order, { session });
+
         // 1. Mark order delivered
         order.orderStatus = 'DELIVERED';
         // Delivery orders: delivered means payment completed.
@@ -999,39 +1015,16 @@ export const updateOrderStatus = async (req, res) => {
     // ── Handle Order Cancellation ──
     if (status === 'CANCELLED') {
       const reason = req.body.cancellationReason || req.body.reason || 'Store is unable to accept this order at the moment';
-      order.orderStatus = 'CANCELLED';
-      order.cancellationReason = reason.trim();
-      order.cancelledBy = req.user.role === 'vendor' ? 'VENDOR' : req.user.role === 'admin' ? 'ADMIN' : 'CUSTOMER';
-      order.cancelledAt = new Date();
-
-      await session.withTransaction(async () => {
-        // Refund redeemed Zeebac points if any
-        if (order.pointsRedeemed > 0) {
-          const customer = await User.findById(order.customerId);
-          await creditWallet({
-            session,
-            ownerId: customer._id,
-            ownerType: 'User',
-            ownerZeebacId: customer.zeebacId,
-            amount: order.pointsRedeemed,
-            category: 'refund',
-            description: `Refund of ${order.pointsRedeemed} Zeebac Points for cancelled Order ${order.orderId}`,
-            referenceId: order._id,
-            referenceType: 'Order',
-          });
+      const cancelledByRole = req.user.role === 'vendor' ? 'VENDOR' : isAdminActor ? 'ADMIN' : 'CUSTOMER';
+      // Admin cancelling on the customer's behalf after Out for Delivery can apply the points penalty.
+      const chargeCustomer = isAdminActor && (req.body.chargeCustomer === true || req.body.chargeCustomer === 'true');
+      try {
+        await cancelOrder({ order, cancelledBy: cancelledByRole, reason, chargeCustomer, actor: 'ADMIN', actorId: req.user.id });
+      } catch (cancelErr) {
+        if (cancelErr instanceof CancellationError) {
+          return res.status(cancelErr.status).json({ success: false, code: cancelErr.code, message: cancelErr.message });
         }
-
-        await order.save({ session });
-      });
-
-      // Online-paid (admin Razorpay) order cancelled → refund the customer in full.
-      if (order.razorpay?.status === 'CAPTURED' && order.paymentStatus === 'PAID') {
-        try {
-          await initiateOrderRefund({ order, reason: `Order cancelled: ${order.cancellationReason}`, actorId: req.user.id });
-          await order.save();
-        } catch (refundErr) {
-          logger.error(`[Order] Auto-refund failed for cancelled order ${order.orderId}: ${refundErr.message}`);
-        }
+        throw cancelErr;
       }
 
       try {
@@ -1040,6 +1033,7 @@ export const updateOrderStatus = async (req, res) => {
           reason: order.cancellationReason,
           cancelledBy: order.cancelledBy === 'VENDOR' ? 'Store' : 'Admin',
           refundedPoints: order.pointsRedeemed || 0,
+          pointsDeducted: order.lateCancellationPenalty?.applied ? order.lateCancellationPenalty.amount : 0,
           message: `Your order #${order.orderId} was cancelled by ${order.cancelledBy === 'VENDOR' ? 'Store' : 'Admin'}: "${order.cancellationReason}"`,
         };
         getIO().to(`user_${order.customerId}`).emit('order:cancelled', cancelPayload);
@@ -1061,12 +1055,21 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     // ── Regular Status Update (CONFIRMED, PREPARING, OUT_FOR_DELIVERY) ──
+    const isAcceptance = order.orderStatus === 'PLACED' && status !== 'PLACED';
     order.orderStatus = status;
     if (['CONFIRMED', 'PREPARING'].includes(status) && (req.body.prepTimeMinutes || req.body.estimatedPrepTime)) {
       order.estimatedPrepTime = Math.max(5, Math.min(120, Number(req.body.prepTimeMinutes || req.body.estimatedPrepTime) || 15));
       order.prepTimeSelectedAt = new Date();
     }
-    await order.save();
+    if (isAcceptance) {
+      // Store accepted the order → take the items out of stock (same transaction as the status change).
+      await runInTransaction(async (s) => {
+        await deductOrderStock(order, { session: s });
+        await order.save(s ? { session: s } : {});
+      });
+    } else {
+      await order.save();
+    }
 
     try {
       getIO().to(`user_${order.customerId}`).emit('order:status_update', {
@@ -2073,6 +2076,102 @@ export const getOrderRazorpayCheckout = async (req, res) => {
     });
   } catch (error) {
     logger.error(`getOrderRazorpayCheckout error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+// ─── Customer: cancel an order ───
+// GET  /orders/:orderId/cancel-preview → what cancelling now would cost in points
+// POST /orders/:orderId/cancel { reason }
+// COD delivery orders cancelled after Out for Delivery lose points (delivery charge, or the
+// whole order for restaurants). Before Out for Delivery there is no deduction.
+const loadCustomerOrder = async (req) => {
+  const order = await findOrderByAnyId(req.params.orderId);
+  if (!order) return { error: [404, 'Order not found'] };
+  if (String(order.customerId) !== String(req.user.id)) return { error: [403, 'Unauthorized'] };
+  return { order };
+};
+
+export const getCustomerCancelPreview = async (req, res) => {
+  try {
+    const { order, error } = await loadCustomerOrder(req);
+    if (error) return res.status(error[0]).json({ success: false, message: error[1] });
+    // Customers may cancel only until the store accepts the order.
+    const closed = order.orderStatus !== 'PLACED';
+    const vendor = await Vendor.findById(order.vendorId).select('category subCategory');
+    const penalty = computeLateCancellationPenalty(order, vendor);
+    const wallet = await Wallet.findOne({ ownerId: order.customerId, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } }).select('balance');
+    const balance = Math.round((wallet?.balance || 0) * 100) / 100;
+    res.status(200).json({
+      success: true,
+      data: {
+        canCancel: !closed,
+        orderStatus: order.orderStatus,
+        pointsDeduction: penalty.applies ? penalty.amount : 0,
+        basis: penalty.basis,
+        reason: penalty.reason,
+        pointsRefund: order.pointsRedeemed || 0,
+        currentBalance: balance,
+        balanceAfter: Math.round((balance + (order.pointsRedeemed || 0) - (penalty.applies ? penalty.amount : 0)) * 100) / 100,
+      },
+    });
+  } catch (error) {
+    logger.error(`getCustomerCancelPreview error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const cancelOrderByCustomer = async (req, res) => {
+  try {
+    const { order, error } = await loadCustomerOrder(req);
+    if (error) return res.status(error[0]).json({ success: false, message: error[1] });
+    if (order.orderStatus !== 'PLACED') {
+      return res.status(400).json({
+        success: false,
+        code: 'STORE_ALREADY_ACCEPTED',
+        message: 'The store has already accepted this order, so it can no longer be cancelled. Please contact support.',
+      });
+    }
+    const reason = String(req.body?.reason || 'Cancelled by customer').trim().slice(0, 300);
+    const { penalty, pointsRefunded } = await cancelOrder({
+      order,
+      cancelledBy: 'CUSTOMER',
+      reason,
+      chargeCustomer: true,
+      actor: 'CUSTOMER',
+      actorId: req.user.id,
+    });
+
+    const payload = {
+      orderId: order.orderId,
+      reason: order.cancellationReason,
+      cancelledBy: 'Customer',
+      refundedPoints: pointsRefunded,
+      pointsDeducted: penalty.applied ? penalty.amount : 0,
+      message: `Order #${order.orderId} was cancelled by the customer${reason ? `: "${reason}"` : ''}`,
+    };
+    safeSocketEmit(`vendor_${order.vendorId}`, 'order:cancelled', payload);
+    safeSocketEmit(`vendor:${order.vendorId}`, 'order:cancelled', payload);
+    const riderId = order.riderDetails?.riderId;
+    if (riderId) {
+      safeSocketEmit(`rider_${riderId}`, 'order:cancelled', payload);
+      safeSocketEmit(`rider:${riderId}`, 'order:cancelled', payload);
+    }
+    broadcastOrderStatus(order, { updatedBy: 'customer', cancellationReason: order.cancellationReason });
+
+    res.status(200).json({
+      success: true,
+      message: penalty.applied
+        ? `Order cancelled. ${penalty.amount} Zeebac Points were deducted because the order was already out for delivery.`
+        : 'Order cancelled successfully',
+      data: { order, pointsDeducted: penalty.applied ? penalty.amount : 0, pointsRefunded, balanceAfter: penalty.balanceAfter },
+    });
+  } catch (error) {
+    if (error instanceof CancellationError) {
+      return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+    }
+    logger.error(`cancelOrderByCustomer error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

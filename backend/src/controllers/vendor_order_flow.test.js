@@ -5,6 +5,9 @@ import { updateOrderStatus, rateRiderByVendor } from './order.controller.js';
 import Vendor from '../models/Vendor.js';
 import Order from '../models/Order.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
+// This suite runs without a database: stub out the stock step taken on store acceptance.
+vi.mock('../utils/orderStock.util.js', () => ({ deductOrderStock: vi.fn(async () => ({})), restoreOrderStock: vi.fn(async () => ({})) }));
+vi.mock('../utils/sellerSettlement.util.js', async (orig) => ({ ...(await orig()), runInTransaction: vi.fn(async (fn) => fn(null)) }));
 
 describe('Vendor Order Management & Delivery Flow Suite', () => {
   beforeEach(() => {

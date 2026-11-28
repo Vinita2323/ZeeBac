@@ -11,8 +11,11 @@ import { touchRiderLastSeen } from '../utils/riderPresence.util.js';
 import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
 import logger from '../utils/logger.js';
+import { sendNotification } from '../services/notification.service.js';
 import { creditSellerForDeliveredOrder } from '../utils/sellerSettlement.util.js';
 import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
+import { cancelOrder, CancellationError } from '../utils/orderCancellation.util.js';
+import { LATE_CANCEL_STAGES } from '../utils/pointsPolicy.util.js';
 import { getIO } from '../socket/index.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
 
@@ -1094,6 +1097,136 @@ export const updateDeliveryOrderStatus = async (req, res) => {
 
     if (String(order.riderDetails?.phone) !== String(rider.phone)) {
       return res.status(403).json({ success: false, message: 'You are not assigned to this order' });
+    }
+
+    // ── CUSTOMER REFUSED / RETURNED AT THE DOOR ──
+    // Only once the order is out for delivery. COD orders: points are deducted from the
+    // customer (delivery charge, or the full order for restaurants) — see pointsPolicy.util.js.
+    if (status === 'FAILED_DELIVERY') {
+      if (!LATE_CANCEL_STAGES.includes(order.orderStatus)) {
+        return res.status(400).json({ success: false, code: 'NOT_OUT_FOR_DELIVERY', message: 'You can mark a return only after the order is out for delivery.' });
+      }
+      const REASONS = {
+        NOT_ANSWERING: 'Customer not answering calls',
+        ADDRESS_NOT_FOUND: 'Could not find the customer / address',
+        NOT_AVAILABLE: 'Customer not available at location',
+        REFUSED: 'Customer refused to take the order',
+      };
+      const code = String(req.body?.reasonCode || '').toUpperCase();
+      const note = String(req.body?.reason || '').trim().slice(0, 200);
+      if (!REASONS[code] && note.length < 3) {
+        return res.status(400).json({ success: false, message: 'Select why the order could not be delivered.' });
+      }
+      const reason = REASONS[code] ? `${REASONS[code]}${note ? ` — ${note}` : ''}` : note;
+      try {
+        const { penalty } = await cancelOrder({
+          order,
+          cancelledBy: 'CUSTOMER',
+          reason: `Returned at delivery: ${reason}`,
+          chargeCustomer: true,
+          finalStatus: 'FAILED_DELIVERY',
+          actor: 'RIDER',
+          actorId: rider._id,
+          refundOnline: false, // online-paid: full amount forfeited; COD: full amount deducted as points
+        });
+        // The rider did the trip: record the payout exactly like a delivered order so admin pays it
+        // in the normal rider payout run (no customer tip, the customer did not take the order).
+        const payoutConfig = await DeliveryPayoutConfig.getEffectiveConfig();
+        let tripPayout = Number(order.deliveryPayout);
+        if (!tripPayout || tripPayout <= 0) {
+          const info = calculateDeliveryPayout(order.deliveryDistanceKm || 2.0, payoutConfig);
+          tripPayout = info.totalPayout;
+          order.deliveryPayout = tripPayout;
+          order.deliveryDistanceKm = info.distanceKm;
+          order.deliveryPayoutBreakdown = info;
+          await order.save();
+        }
+        tripPayout = Math.round(tripPayout * 100) / 100;
+        // Atomic + idempotent: only pushes if this order has no DELIVERY_PAYOUT entry yet.
+        await DeliveryPartner.updateOne(
+          { _id: rider._id, earningsLedger: { $not: { $elemMatch: { orderId: order.orderId, type: 'DELIVERY_PAYOUT' } } } },
+          {
+            $push: {
+              earningsLedger: {
+                $each: [
+                  {
+                    orderId: order.orderId,
+                    amount: tripPayout,
+                    type: 'DELIVERY_PAYOUT',
+                    description: `Return trip payout for Order #${order.orderId} (${order.storeName}) • ${reason}`,
+                    distanceKm: order.deliveryDistanceKm || 2.0,
+                    breakdown: { ...(order.deliveryPayoutBreakdown || {}), tipAmount: 0, failedDelivery: true },
+                    date: new Date(),
+                  },
+                ],
+                $position: 0,
+              },
+            },
+            $inc: { totalEarnings: tripPayout },
+          }
+        );
+        await DeliveryPartner.updateOne(
+          { _id: rider._id },
+          { $set: { activeOrderId: null, status: rider.isOnline ? 'AVAILABLE' : 'OFFLINE' } }
+        );
+        const updatedRider = await DeliveryPartner.findById(rider._id).select('totalEarnings');
+        rider.totalEarnings = updatedRider?.totalEarnings;
+
+        const payload = {
+          orderId: order.orderId,
+          _id: order._id,
+          orderStatus: 'FAILED_DELIVERY',
+          reason: order.cancellationReason,
+          pointsDeducted: penalty.applied ? penalty.amount : 0,
+          message: `Order #${order.orderId} was not accepted by the customer and is being returned.`,
+        };
+        for (const room of [`user_${order.customerId}`, `user:${order.customerId}`, `vendor_${order.vendorId}`, `vendor:${order.vendorId}`, `order:${order.orderId}`, `order:${order._id}`, 'admins']) {
+          safeSocketEmit(room, 'order:status_update', payload);
+        }
+
+        // Tell the store the package is coming back.
+        const returningPayload = {
+          orderId: order.orderId,
+          _id: order._id,
+          riderName: rider.name,
+          riderPhone: rider.phone,
+          reason,
+          items: (order.items || []).map((i) => ({ name: i.name, quantity: i.quantity })),
+          message: `Order #${order.orderId} could not be delivered (${reason}). Rider ${rider.name} is bringing the package back to your store.`,
+        };
+        safeSocketEmit(`vendor_${order.vendorId}`, 'order:returning', returningPayload);
+        safeSocketEmit(`vendor:${order.vendorId}`, 'order:returning', returningPayload);
+        sendNotification({
+          recipientId: order.vendorId,
+          recipientType: 'vendor',
+          type: 'system',
+          title: `Order #${order.orderId} is being returned`,
+          message: returningPayload.message,
+          referenceId: order._id,
+          referenceType: 'Order',
+        }).catch(() => {});
+        sendNotification({
+          recipientId: order.customerId,
+          recipientType: 'customer',
+          type: 'system',
+          title: `Order #${order.orderId} could not be delivered`,
+          message: order.paymentForfeited?.forfeited
+            ? `The order was returned (${reason}). As per policy the paid amount of ₹${order.paymentForfeited.amount} is not refundable.`
+            : penalty.applied
+            ? `The order was returned (${reason}). ${penalty.amount} Zeebac Points were deducted as per the COD return policy.`
+            : `The order was returned (${reason}).`,
+          referenceId: order._id,
+          referenceType: 'Order',
+        }).catch(() => {});
+        return res.status(200).json({
+          success: true,
+          message: `Order marked as returned. ₹${tripPayout} added to your earnings. Bring the package back to the store.`,
+          data: { order, pointsDeducted: payload.pointsDeducted, earnedAmount: tripPayout, totalEarnings: rider.totalEarnings },
+        });
+      } catch (err) {
+        if (err instanceof CancellationError) return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+        throw err;
+      }
     }
 
     // ── STEP A: ARRIVED AT PICKUP STORE ──

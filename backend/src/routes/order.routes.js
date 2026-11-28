@@ -18,6 +18,8 @@ import {
   confirmStoreBillPayment,
   verifyOrderRazorpayPayment,
   getOrderRazorpayCheckout,
+  getCustomerCancelPreview,
+  cancelOrderByCustomer,
 } from '../controllers/order.controller.js';
 import { protect, requireRole } from '../middlewares/auth.middleware.js';
 
@@ -30,6 +32,8 @@ router.post('/:orderId/feedback', protect, requireRole('customer'), submitOrderF
 router.post('/:orderId/verify-upi', protect, verifyOrderUpiPayment);
 router.get('/:orderId/razorpay/checkout', protect, requireRole('customer'), getOrderRazorpayCheckout);
 router.post('/:orderId/razorpay/verify', protect, requireRole('customer'), verifyOrderRazorpayPayment);
+router.get('/:orderId/cancel-preview', protect, requireRole('customer'), getCustomerCancelPreview);
+router.post('/:orderId/cancel', protect, requireRole('customer'), cancelOrderByCustomer);
 router.get('/:id', protect, getOrderById);
 
 // ── Vendor Order & Delivery Management Routes ──

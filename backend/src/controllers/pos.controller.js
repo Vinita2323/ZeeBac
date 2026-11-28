@@ -10,6 +10,7 @@ import { claimFirstPurchaseReferralBonus } from '../utils/referral.util.js';
 import { getVendorSubscriptionState } from '../utils/subscription.util.js';
 import { cleanIndianPhoneNumber } from '../utils/phone.util.js';
 import logger from '../utils/logger.js';
+import { getMinRedeemablePoints, redemptionBlockedReason } from '../utils/pointsPolicy.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { recordCashbackIssuance, getVendorSettlementSummary } from '../utils/cashbackSettlement.util.js';
 import { getIO } from '../socket/socket.js';
@@ -697,6 +698,7 @@ export const payPosBillIntent = async (req, res) => {
     const cashbackEarned = Math.round(billAmount * (cashbackRate / 100) * 100) / 100;
 
     let createdTx = null;
+    const minRedeemable = paymentMethod === 'Wallet' ? await getMinRedeemablePoints() : 0;
 
     const executePayment = async (activeSession) => {
       const sessOpt = activeSession ? { session: activeSession } : {};
@@ -704,6 +706,8 @@ export const payPosBillIntent = async (req, res) => {
       // 1. If paymentMethod is Wallet, deduct customer wallet
       if (paymentMethod === 'Wallet') {
         const customerWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' }, null, sessOpt);
+        const minBlocked = redemptionBlockedReason(customerWallet?.balance || 0, minRedeemable);
+        if (minBlocked) throw new Error(minBlocked);
         if (!customerWallet || (customerWallet.balance || 0) < billAmount) {
           throw new Error(`Insufficient wallet balance. Required: ₹${billAmount}, Available: ₹${customerWallet?.balance || 0}`);
         }

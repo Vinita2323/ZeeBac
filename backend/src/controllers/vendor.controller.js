@@ -24,6 +24,7 @@ import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
 import { getVendorSubscriptionState, resolvePlanPrice, calculateNewSubscriptionDates } from '../utils/subscription.util.js';
+import { getMinRedeemablePoints, redemptionBlockedReason } from '../utils/pointsPolicy.util.js';
 import { buildPlanSnapshot, syncOpenCycleWithPlan, getVendorUsageSummary, getVendorCycleHistory, getCycleOrders } from '../utils/orderUsage.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
@@ -1886,6 +1887,7 @@ export const lookupCustomerByPhone = async (req, res) => {
     const customerWallet = await Wallet.findOne({ ownerId: user._id, ownerType: { $in: ['User', 'user', 'Customer', 'customer'] } });
     const vendor = await Vendor.findById(req.user?.id);
     const vendorCapacity = getVendorSettlementSummary(vendor);
+    const minRedeemable = await getMinRedeemablePoints();
 
     res.status(200).json({
       success: true,
@@ -1897,6 +1899,9 @@ export const lookupCustomerByPhone = async (req, res) => {
         role: user.role,
         status: user.status,
         walletPoints: customerWallet ? Math.max(0, customerWallet.balance || 0) : 0,
+        walletBalance: customerWallet ? Math.round((customerWallet.balance || 0) * 100) / 100 : 0,
+        minRedeemablePoints: minRedeemable,
+        meetsMinRedeemBalance: (customerWallet?.balance || 0) >= minRedeemable,
         canRedeemPoints: vendorCapacity.canRedeemPoints,
         merchantRemainingCapacity: vendorCapacity.remainingCapacity,
         merchantTotalCapacity: vendorCapacity.totalCapacity,
@@ -1999,6 +2004,15 @@ export const logPurchase = async (req, res) => {
     const availableCustomerPoints = customerWallet ? Math.max(0, customerWallet.balance || 0) : 0;
 
     let pointsToRedeem = Math.max(0, Number(redeemPoints) || 0);
+
+    // Minimum balance before any redemption (default 100 points)
+    if (pointsToRedeem > 0) {
+      const minRedeemable = await getMinRedeemablePoints();
+      const blocked = redemptionBlockedReason(customerWallet?.balance || 0, minRedeemable);
+      if (blocked) {
+        return res.status(400).json({ success: false, code: 'MIN_REDEEM_BALANCE', message: blocked, minRedeemablePoints: minRedeemable });
+      }
+    }
 
     if (pointsToRedeem > 0 && vendorCapacity.remainingCapacity <= 0) {
       return res.status(400).json({

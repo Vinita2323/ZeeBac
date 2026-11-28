@@ -394,8 +394,11 @@ export default function CartScreen() {
 
   // Points redemption (1 Point = ₹1) capped to store remaining redemption limit
   const [usePoints, setUsePoints] = useState(false);
+  // Server enforces the same minimum (RewardConfig.minRedeemablePoints, default 100).
+  const MIN_REDEEMABLE_POINTS = 100;
+  const meetsMinRedeem = walletBalance >= MIN_REDEEMABLE_POINTS;
   const maxRedeemablePoints = Math.max(0, Math.round(Math.min(walletBalance, grossBillTotal, storeRemainingCapacity) * 100) / 100);
-  const pointsRedeemed = (usePoints && canStoreRedeem) ? maxRedeemablePoints : 0;
+  const pointsRedeemed = (usePoints && canStoreRedeem && meetsMinRedeem) ? maxRedeemablePoints : 0;
   const finalPayableAmount = Math.max(0, Math.round((grossBillTotal - pointsRedeemed) * 100) / 100);
 
   // Checkout states
@@ -1954,23 +1957,28 @@ export default function CartScreen() {
               <div>
                 <p className="font-black text-[13px] text-slate-900">Use Zeebac Points</p>
                 <p className="text-[11px] text-slate-500">
-                  Wallet: <strong className="text-primary">{formatCurrency(walletBalance)} Points</strong> (₹{formatCurrency(walletBalance)})
+                  Wallet: <strong className={walletBalance < 0 ? 'text-red-600' : 'text-primary'}>{formatCurrency(walletBalance)} Points</strong>
                 </p>
+                {!meetsMinRedeem && (
+                  <p className="text-[10.5px] text-amber-700 font-semibold mt-0.5">
+                    Minimum {MIN_REDEEMABLE_POINTS} points needed to redeem
+                  </p>
+                )}
               </div>
             </div>
 
             <button
-              disabled={walletBalance <= 0 || !canStoreRedeem}
+              disabled={!meetsMinRedeem || !canStoreRedeem}
               onClick={() => setUsePoints(!usePoints)}
               className={`px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all cursor-pointer ${
-                walletBalance <= 0 || !canStoreRedeem
+                !meetsMinRedeem || !canStoreRedeem
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   : usePoints
                   ? 'btn-primary-gradient text-white shadow-xs'
                   : 'bg-purple-50 text-primary hover:bg-purple-100'
               }`}
             >
-              {!canStoreRedeem ? 'Limit Reached' : usePoints ? 'Points Applied ✓' : 'Apply Points'}
+              {!meetsMinRedeem ? `Min ${MIN_REDEEMABLE_POINTS} pts` : !canStoreRedeem ? 'Limit Reached' : usePoints ? 'Points Applied ✓' : 'Apply Points'}
             </button>
           </div>
 

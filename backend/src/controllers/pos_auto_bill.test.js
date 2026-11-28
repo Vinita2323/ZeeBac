@@ -274,13 +274,24 @@ describe('POS Auto Billing & Customer Instant Payment Flows', () => {
       password: 'hash',
     });
 
-    // Seed customer with 50 points
-    await Wallet.create({
+    // Below the 100-point minimum, redemption is refused
+    const lowWallet = await Wallet.create({
       ownerId: customer._id,
       ownerType: 'User',
       ownerZeebacId: customer.zeebacId,
       balance: 50,
     });
+    const lowRes = mockRes();
+    await logPurchase(
+      { user: { id: vendor._id }, body: { customerZeebacId: 'ZBC-5266', amount: 250, redeemPoints: 50, paymentMethod: 'Cash', billNumber: 'BILL-LOW01', items: [] } },
+      lowRes
+    );
+    expect(lowRes.statusCode).toBe(400);
+    expect(lowRes.body.code).toBe('MIN_REDEEM_BALANCE');
+
+    // Seed customer with 150 points (meets the minimum)
+    lowWallet.balance = 150;
+    await lowWallet.save();
 
     const req = {
       user: { id: vendor._id },
@@ -307,9 +318,9 @@ describe('POS Auto Billing & Customer Instant Payment Flows', () => {
     // Cashback 10% on ₹200 net paid = ₹20 (not on 250!)
     expect(tx.cashbackAmount).toBe(20);
 
-    // Customer wallet: 50 initial - 50 redeemed + 20 cashback = 20
+    // Customer wallet: 150 initial - 50 redeemed + 20 cashback = 120
     const custWallet = await Wallet.findOne({ ownerId: customer._id, ownerType: 'User' });
-    expect(custWallet.balance).toBe(20);
+    expect(custWallet.balance).toBe(120);
 
     // Vendor cashbackRedeemed increased by 50
     const updatedVendor = await Vendor.findById(vendor._id);
