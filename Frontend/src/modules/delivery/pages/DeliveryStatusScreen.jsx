@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { toast } from 'react-hot-toast';
+import LogoutConfirmModal from '../../../components/common/LogoutConfirmModal';
 
 export default function DeliveryStatusScreen() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function DeliveryStatusScreen() {
   const [statusData, setStatusData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Full Resubmission Wizard Modal State
   const [showResubmitModal, setShowResubmitModal] = useState(false);
@@ -647,10 +649,7 @@ export default function DeliveryStatusScreen() {
       {/* Bottom Actions */}
       <footer className="py-4 text-center space-y-2">
         <button
-          onClick={() => {
-            logout();
-            navigate('/delivery/login');
-          }}
+          onClick={() => setShowLogoutConfirm(true)}
           className="text-xs font-bold text-slate-500 hover:text-red-600 transition-colors cursor-pointer"
         >
           Sign Out of Partner Account
@@ -1476,6 +1475,19 @@ export default function DeliveryStatusScreen() {
           </div>
         </div>
       )}
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          logout();
+          navigate('/delivery/login');
+        }}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of your Delivery Partner account?"
+        confirmLabel="Log Out"
+      />
     </div>
   );
 }

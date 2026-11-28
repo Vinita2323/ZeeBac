@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
 import useLanguageStore from '../../../../store/useLanguageStore';
+import LogoutConfirmModal from '../../../../components/common/LogoutConfirmModal';
 
 export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const { t } = useLanguageStore();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const isWholesaleMerchant = ['manufacturer', 'wholesaler', 'distributor'].includes(
     String(currentUser?.businessType || '').trim().toLowerCase()
@@ -189,7 +192,10 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
               </div>
               <button 
                 type="button"
-                onClick={handleLogout} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowLogoutConfirm(true);
+                }} 
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors cursor-pointer"
                 title={t('Log Out')}
               >
@@ -201,7 +207,10 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
         {isCollapsed && (
           <button 
             type="button"
-            onClick={handleLogout} 
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLogoutConfirm(true);
+            }} 
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-outline hover:text-red-500 transition-colors cursor-pointer"
             title={t('Log Out')}
           >
@@ -209,6 +218,18 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
           </button>
         )}
       </div>
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          handleLogout();
+        }}
+        title={t('Confirm Logout')}
+        message="Are you sure you want to log out of your vendor account?"
+        confirmLabel={t('Log Out')}
+        cancelLabel={t('Cancel')}
+      />
     </aside>
   );
 }

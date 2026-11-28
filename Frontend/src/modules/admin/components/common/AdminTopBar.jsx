@@ -37,14 +37,24 @@ export default function AdminTopBar({ onMenuClick }) {
     };
     initPush();
 
-    // 3. Listen for foreground messages
+    // 3. Listen for foreground messages + instant read/unread sync across admin notification views
     const unsubscribe = onForegroundMessage((payload) => {
       // Refresh count when a new notification comes in while app is open
       fetchUnread();
     });
 
+    const handleSyncUnread = (e) => {
+      if (typeof e?.detail?.unreadCount === 'number') {
+        setUnreadCount(e.detail.unreadCount);
+      } else {
+        fetchUnread();
+      }
+    };
+    window.addEventListener('zeebac-notifications-updated', handleSyncUnread);
+
     return () => {
       if (unsubscribe) unsubscribe();
+      window.removeEventListener('zeebac-notifications-updated', handleSyncUnread);
     };
   }, []);
 

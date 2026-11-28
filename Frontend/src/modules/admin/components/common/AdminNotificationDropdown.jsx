@@ -13,7 +13,7 @@ const TYPE_ROUTES = {
 
 export default function AdminNotificationDropdown({ onClose }) {
   const navigate = useNavigate();
-  const { notifications, isLoading, markAsRead, fetchNotifications } = useNotifications();
+  const { notifications, isLoading, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
 
   useEffect(() => {
     fetchNotifications();
@@ -25,18 +25,31 @@ export default function AdminNotificationDropdown({ onClose }) {
   };
 
   const topFive = (notifications || []).slice(0, 5);
+  const hasUnread = (notifications || []).some((n) => !n.isRead);
 
   return (
     <div className="absolute top-[50px] right-4 w-[340px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-outline-variant/20 z-50 overflow-hidden flex flex-col max-h-[440px]">
 
       <div className="px-4 py-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest">
         <h3 className="font-bold text-on-surface text-[14px]">Notifications</h3>
-        <button
-          onClick={() => { onClose(); navigate('/admin/notifications'); }}
-          className="text-[12px] text-primary hover:underline font-bold cursor-pointer"
-        >
-          View All
-        </button>
+        <div className="flex items-center gap-3">
+          {hasUnread && (
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              className="text-[12px] text-slate-600 hover:text-primary font-semibold cursor-pointer"
+            >
+              Mark all read
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate('/admin/notifications'); }}
+            className="text-[12px] text-primary hover:underline font-bold cursor-pointer"
+          >
+            View All
+          </button>
+        </div>
       </div>
 
       <div className="overflow-y-auto flex-1 p-2.5 space-y-2">

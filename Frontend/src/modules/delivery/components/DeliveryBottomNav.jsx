@@ -55,11 +55,18 @@ export default function DeliveryBottomNav() {
     const socket = getSocket?.();
     const onNew = (n) => n?.recipientType === 'delivery' && setUnread((u) => u + 1);
     socket?.on('new_notification', onNew);
-    window.addEventListener('rider-notifications-read', refresh);
+    const handleRiderNotifRead = (e) => {
+      if (typeof e?.detail?.unread === 'number') {
+        setUnread(e.detail.unread);
+      } else {
+        refresh();
+      }
+    };
+    window.addEventListener('rider-notifications-read', handleRiderNotifRead);
     return () => {
       alive = false;
       socket?.off('new_notification', onNew);
-      window.removeEventListener('rider-notifications-read', refresh);
+      window.removeEventListener('rider-notifications-read', handleRiderNotifRead);
     };
   }, [location.pathname]);
 

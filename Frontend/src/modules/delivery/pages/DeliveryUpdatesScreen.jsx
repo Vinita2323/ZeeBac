@@ -79,22 +79,24 @@ export default function DeliveryUpdatesScreen() {
 
   const markAll = async () => {
     if (!unread) return toast.success('All caught up');
+    setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnread(0);
+    window.dispatchEvent(new CustomEvent('rider-notifications-read', { detail: { unread: 0 } }));
     try {
       await DeliveryAPI.markAllNotificationsRead();
-      setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnread(0);
-      window.dispatchEvent(new Event('rider-notifications-read'));
     } catch {
       toast.error('Could not update notifications');
+      load();
     }
   };
 
   const openNotif = async (n) => {
     if (!n.isRead) {
+      const nextUnread = Math.max(0, unread - 1);
       setNotifs((prev) => prev.map((x) => (x._id === n._id ? { ...x, isRead: true } : x)));
-      setUnread((u) => Math.max(0, u - 1));
+      setUnread(nextUnread);
+      window.dispatchEvent(new CustomEvent('rider-notifications-read', { detail: { unread: nextUnread } }));
       DeliveryAPI.markNotificationRead(n._id).catch(() => {});
-      window.dispatchEvent(new Event('rider-notifications-read'));
     }
     if (n.data?.url && String(n.data.url).startsWith('/')) navigate(n.data.url);
     else if (n.type === 'rider_order') navigate('/delivery/dashboard');

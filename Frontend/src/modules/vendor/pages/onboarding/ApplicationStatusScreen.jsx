@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../../services/api';
 import useAuthStore from '../../../../store/useAuthStore';
 import useLanguageStore from '../../../../store/useLanguageStore';
+import LogoutConfirmModal from '../../../../components/common/LogoutConfirmModal';
 
 const STATUS_META = {
   DRAFT: { icon: 'edit_note', color: 'text-gray-500', bg: 'bg-gray-100', label: 'Draft', message: 'Your application is not yet submitted. Continue where you left off.' },
@@ -17,6 +18,7 @@ export default function ApplicationStatusScreen() {
   const logout = useAuthStore((s) => s.logout);
   const [vendor, setVendor] = useState(useAuthStore.getState().currentUser);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     VendorAPI.getProfile().then((res) => {
@@ -106,12 +108,24 @@ export default function ApplicationStatusScreen() {
         )}
 
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className="w-full h-11 rounded-xl border border-gray-200 text-gray-500 font-bold text-[13px] hover:bg-gray-50 transition-colors cursor-pointer"
         >
           {t('Log Out')}
         </button>
       </div>
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          handleLogout();
+        }}
+        title={t('Confirm Logout')}
+        message="Are you sure you want to log out of your vendor account?"
+        confirmLabel={t('Log Out')}
+        cancelLabel={t('Cancel')}
+      />
     </div>
   );
 }

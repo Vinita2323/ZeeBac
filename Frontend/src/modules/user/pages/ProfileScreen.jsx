@@ -7,6 +7,7 @@ import { shareContent, downloadImage } from '../../../utils/exportUtils';
 import useQrCode from '../../../hooks/useQrCode';
 import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
+import LogoutConfirmModal from '../../../components/common/LogoutConfirmModal';
 import useLanguageStore from '../../../store/useLanguageStore';
 import StoreBillsSubView from '../components/StoreBillsSubView';
 import OnlineOrdersSubView from '../components/OnlineOrdersSubView';
@@ -57,6 +58,13 @@ export default function ProfileScreen({ forcedSection = null }) {
   }, [location.key, section]);
 
   const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleConfirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout('customer');
+    window.location.replace('/login');
+  };
   
   // Profile state
   const [profile, setProfile] = useState({
@@ -607,10 +615,7 @@ export default function ProfileScreen({ forcedSection = null }) {
 
         {/* Logout (desktop: lives in the left column) */}
         <button
-          onClick={() => {
-            logout('customer');
-            window.location.replace('/login');
-          }}
+          onClick={() => setShowLogoutConfirm(true)}
           className="hidden lg:flex w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer items-center justify-center gap-sm shadow-sm"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
@@ -776,10 +781,7 @@ export default function ProfileScreen({ forcedSection = null }) {
 
         {/* Logout (mobile / tablet) */}
         <button 
-          onClick={() => {
-            logout('customer');
-            window.location.replace('/login');
-          }}
+          onClick={() => setShowLogoutConfirm(true)}
           className="lg:hidden w-full h-13 rounded-xl bg-red-50 hover:bg-red-100/60 text-red-600 font-bold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-sm shadow-sm"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
@@ -840,6 +842,15 @@ export default function ProfileScreen({ forcedSection = null }) {
         onClose={() => setShowLoanModal(false)}
       />
 
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        title={t('Confirm Logout')}
+        message="Are you sure you want to log out of your ZeeBac account?"
+        confirmLabel={t('Log Out')}
+        cancelLabel={t('Cancel')}
+      />
 
       <BottomNavBar />
     </div>
@@ -2200,45 +2211,37 @@ function PendingAuditsSubView({ onBack, onSelectRequest, t }) {
         </div>
       </header>
 
-      <main className="flex-grow app-container px-container-margin py-md space-y-md text-left">
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-          <button
-            type="button"
-            onClick={() => setFilter('pending')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filter === 'pending'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
-            }`}
-          >
-            <span>{t ? t('Pending Audits') : 'Pending Audits'}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${filter === 'pending' ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
-              {pendingCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              filter === 'all'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
-            }`}
-          >
-            {t ? t('All Requests') : 'All Requests'} ({requests.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('approved')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              filter === 'approved'
-                ? 'bg-primary text-white shadow-xs'
-                : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-slate-50'
-            }`}
-          >
-            {t ? t('Approved') : 'Approved'} ({approvedCount})
-          </button>
+      <main className="flex-grow app-container px-container-margin py-4 space-y-4 text-left">
+        {/* Sleek Segmented App Tabs */}
+        <div className="bg-slate-100/90 p-1 rounded-2xl border border-slate-200/70 grid grid-cols-3 gap-1">
+          {[
+            { id: 'pending', label: t ? t('Pending') : 'Pending', count: pendingCount, badgeActive: 'bg-emerald-50 text-emerald-700', dot: 'text-emerald-700' },
+            { id: 'all', label: t ? t('All') : 'All', count: requests.length, badgeActive: 'bg-purple-50 text-primary', dot: 'text-primary' },
+            { id: 'approved', label: t ? t('Approved') : 'Approved', count: approvedCount, badgeActive: 'bg-emerald-50 text-emerald-700', dot: 'text-emerald-700' },
+          ].map((tab) => {
+            const isActive = filter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id)}
+                className={`h-9 px-2 rounded-xl text-[12px] font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  isActive
+                    ? `bg-white ${tab.dot} shadow-xs`
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                    isActive ? tab.badgeActive : 'bg-slate-200/70 text-slate-600'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Requests List */}
@@ -2248,11 +2251,11 @@ function PendingAuditsSubView({ onBack, onSelectRequest, t }) {
             <p className="text-xs text-on-surface-variant font-medium">{t ? t('Loading...') : 'Loading your cashback requests...'}</p>
           </div>
         ) : filteredRequests.length === 0 ? (
-          <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-outline-variant/30 p-6 space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-              <span className="material-symbols-outlined text-[32px]">fact_check</span>
+          <div className="py-14 text-center bg-white rounded-2xl border border-dashed border-outline-variant/30 p-6 space-y-2.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[26px]">fact_check</span>
             </div>
-            <h3 className="font-bold text-sm text-on-surface">{filter === 'pending' ? (t ? t('No Pending Requests Found') : 'No Pending Requests Found') : (t ? t('No Requests Found') : 'No Requests Found')}</h3>
+            <h3 className="font-semibold text-sm text-on-surface">{filter === 'pending' ? (t ? t('No Pending Requests Found') : 'No Pending Requests Found') : (t ? t('No Requests Found') : 'No Requests Found')}</h3>
             <p className="text-xs text-on-surface-variant max-w-xs mx-auto leading-relaxed">
               {t ? t('When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.', 'When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.') : 'When you pay cash at merchant stores or upload bill receipts, your cashback requests will appear here for audit tracking.'}
             </p>
@@ -2264,65 +2267,64 @@ function PendingAuditsSubView({ onBack, onSelectRequest, t }) {
               const isApproved = req.status === 'Approved';
               const isHeld = req.status === 'Held';
               const isRejected = req.status === 'Rejected';
-              const isPending = req.status === 'Pending';
 
               return (
                 <div
                   key={req._id}
                   onClick={() => onSelectRequest(req._id)}
-                  className="bg-white rounded-2xl border border-outline-variant/20 hover:border-primary/40 shadow-xs hover:shadow-md transition-all p-4 cursor-pointer active:scale-[0.99] space-y-3"
+                  className="bg-white rounded-2xl border border-slate-200/70 hover:border-primary/40 shadow-[0_1px_6px_rgba(15,23,42,0.04)] hover:shadow-md transition-all p-3.5 cursor-pointer active:scale-[0.99] space-y-3"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-base flex-shrink-0">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 text-primary flex items-center justify-center font-bold text-sm shrink-0">
                         {vendor.storeName?.charAt(0) || 'S'}
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-sm text-on-surface truncate">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-semibold text-[13.5px] text-slate-900 truncate">
                           {vendor.storeName || 'Partner Store'}
                         </h4>
-                        <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5 mt-0.5">
-                          <span className="uppercase font-semibold tracking-wider">
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
+                          <span className="font-medium text-slate-600">
                             {req.requestType === 'cash_claim' ? (t ? t('Cash Claim') : 'Cash Claim') : (t ? t('Bill Receipt') : 'Bill Receipt')}
                           </span>
-                          <span>•</span>
+                          <span className="text-slate-300">•</span>
                           <span>{new Date(req.createdAt).toLocaleDateString()}</span>
                         </p>
                       </div>
                     </div>
 
                     {/* Status Badge */}
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 flex-shrink-0 ${
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex items-center gap-1 shrink-0 ${
                       isApproved
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/40'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'
                         : isHeld
-                        ? 'bg-blue-100 text-blue-800 border border-blue-300/40'
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200/70'
                         : isRejected
-                        ? 'bg-rose-100 text-rose-800 border border-rose-300/40'
-                        : 'bg-amber-100 text-amber-800 border border-amber-300/40'
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200/70'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200/70'
                     }`}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                      {isApproved ? (t ? t('Approved') : 'Approved') : isHeld ? (t ? t('Held (Review)') : 'Held (Review)') : isRejected ? (t ? t('Declined') : 'Declined') : (t ? t('Pending Audit') : 'Pending Audit')}
+                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                      {isApproved ? (t ? t('Approved') : 'Approved') : isHeld ? (t ? t('Held') : 'Held') : isRejected ? (t ? t('Declined') : 'Declined') : (t ? t('Pending Audit') : 'Pending Audit')}
                     </span>
                   </div>
 
                   {/* Amounts Row */}
-                  <div className="flex items-center justify-between p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50/90 rounded-xl border border-slate-100 text-xs">
                     <div>
-                      <span className="text-[10px] text-on-surface-variant block uppercase font-bold tracking-wider">{t ? t('Bill Amount') : 'Bill Amount'}</span>
-                      <span className="font-bold text-on-surface font-mono">₹{req.amount}</span>
+                      <span className="text-[10px] text-slate-400 block font-medium">{t ? t('Bill Amount') : 'Bill Amount'}</span>
+                      <span className="font-bold text-slate-900 text-[13px] font-mono">₹{req.amount}</span>
                     </div>
                     {req.cashbackAmount && (
                       <div className="text-right">
-                        <span className="text-[10px] text-emerald-700 block uppercase font-bold tracking-wider">{t ? t('Cashback') : 'Cashback'}</span>
-                        <span className="font-black text-emerald-700 font-mono">+₹{req.cashbackAmount}</span>
+                        <span className="text-[10px] text-emerald-600 block font-medium">{t ? t('Cashback') : 'Cashback'}</span>
+                        <span className="font-bold text-emerald-600 text-[13px] font-mono">+₹{req.cashbackAmount}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Footer link to timeline */}
-                  <div className="flex items-center justify-between pt-1 text-primary text-xs font-bold">
-                    <span className="flex items-center gap-1">
+                  <div className="flex items-center justify-between pt-0.5 text-primary text-[12px] font-semibold">
+                    <span className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">timeline</span>
                       {t ? t('Track Verification Timeline') : 'Track Verification Timeline'}
                     </span>

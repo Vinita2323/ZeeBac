@@ -137,12 +137,10 @@ export default function VendorTopBar() {
             aria-label="Notifications"
           >
             <span className="material-symbols-outlined text-[22px]">notifications</span>
-            {unreadCount > 0 ? (
+            {unreadCount > 0 && (
               <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-rose-500 rounded-full flex items-center justify-center text-white text-[9.5px] font-black px-1 border-[1.5px] border-white shadow-xs">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
-            ) : (
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
             )}
           </button>
         </div>

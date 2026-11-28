@@ -4,6 +4,7 @@ import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { toast } from 'react-hot-toast';
 import { playDeliveryOrderAlarm } from '../../../utils/voiceUtils';
+import LogoutConfirmModal from '../../../components/common/LogoutConfirmModal';
 
 import useSupportConfig, { toTelHref } from '../../../hooks/useSupportConfig';
 
@@ -18,6 +19,8 @@ export default function DeliveryProfileScreen() {
   const [fullProfile, setFullProfile] = useState(null);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Edit fields
   const [editName, setEditName] = useState(rider?.name || '');
@@ -72,11 +75,15 @@ export default function DeliveryProfileScreen() {
   };
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     // Go offline on the server first so the rider stops receiving orders after logout
     try {
       await DeliveryAPI.logout();
     } catch {
       // Ignore network errors — local logout must still happen
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
     }
     logout();
     toast.success('Logged out successfully');
@@ -414,7 +421,7 @@ export default function DeliveryProfileScreen() {
         {/* ─── 7. LOGOUT BUTTON ─── */}
         <div className="pt-2">
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full py-3 rounded-2xl border-2 border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-display font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer shadow-2xs"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
@@ -539,6 +546,16 @@ export default function DeliveryProfileScreen() {
           </div>
         </div>
       )}
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogout}
+        isLoading={isLoggingOut}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of your Delivery Partner account?"
+        confirmLabel="Log Out"
+      />
     </div>
   );
 }

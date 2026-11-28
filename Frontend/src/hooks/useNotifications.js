@@ -3,22 +3,64 @@ import { apiClient } from '../services/api';
 import { connectSocket, getSocket } from '../services/socket';
 import useAuthStore from '../store/useAuthStore';
 
+// Module-level shared store so unread badge updates propagate immediately
+// between the notification drawer/page and the header bell icon across panels.
+const sharedState = {
+  notifications: [],
+  unreadCount: 0,
+};
+const subscribers = new Set();
+
+function publish(next) {
+  if (typeof next.notifications !== 'undefined') {
+    sharedState.notifications = next.notifications;
+  }
+  if (typeof next.unreadCount !== 'undefined') {
+    sharedState.unreadCount = Math.max(0, Number(next.unreadCount) || 0);
+  }
+  const snapshot = {
+    notifications: sharedState.notifications,
+    unreadCount: sharedState.unreadCount,
+  };
+  subscribers.forEach((fn) => fn(snapshot));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('zeebac-notifications-updated', {
+        detail: { unreadCount: sharedState.unreadCount },
+      })
+    );
+  }
+}
+
 /**
  * Custom hook for notification management
  * - Fetches notifications from backend
- * - Tracks unread count
- * - Mark as read / Mark all as read
+ * - Tracks unread count (shared across all mounted consumers)
+ * - Mark as read / Mark all as read (optimistic + immediate badge sync)
  */
 export default function useNotifications() {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [state, setState] = useState(() => ({
+    notifications: sharedState.notifications,
+    unreadCount: sharedState.unreadCount,
+  }));
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    subscribers.add(setState);
+    setState({
+      notifications: sharedState.notifications,
+      unreadCount: sharedState.unreadCount,
+    });
+    return () => {
+      subscribers.delete(setState);
+    };
+  }, []);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await apiClient.get('/notifications/unread-count');
-      setUnreadCount(res.data?.count || 0);
-    } catch (err) {
+      publish({ unreadCount: res.data?.count || 0 });
+    } catch {
       // Silently fail — don't block UI
     }
   }, []);
@@ -27,11 +69,12 @@ export default function useNotifications() {
     setIsLoading(true);
     try {
       const res = await apiClient.get('/notifications?limit=30');
-      setNotifications(res.data?.data || []);
-      setUnreadCount(
-        (res.data?.data || []).filter((n) => !n.isRead).length
-      );
-    } catch (err) {
+      const rows = res.data?.data || [];
+      publish({
+        notifications: rows,
+        unreadCount: rows.filter((n) => !n.isRead).length,
+      });
+    } catch {
       // Silently fail
     } finally {
       setIsLoading(false);
@@ -39,33 +82,45 @@ export default function useNotifications() {
   }, []);
 
   const markAsRead = useCallback(async (id) => {
+    const target = sharedState.notifications.find((n) => n._id === id);
+    const wasUnread = target ? !target.isRead : true;
+    publish({
+      notifications: sharedState.notifications.map((n) =>
+        n._id === id ? { ...n, isRead: true } : n
+      ),
+      unreadCount: wasUnread
+        ? Math.max(0, sharedState.unreadCount - 1)
+        : sharedState.unreadCount,
+    });
+
     try {
       await apiClient.patch(`/notifications/${id}/read`);
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (err) {}
-  }, []);
+    } catch {
+      fetchUnreadCount();
+    }
+  }, [fetchUnreadCount]);
 
   const markAllAsRead = useCallback(async () => {
+    publish({
+      notifications: sharedState.notifications.map((n) => ({ ...n, isRead: true })),
+      unreadCount: 0,
+    });
+
     try {
       await apiClient.patch('/notifications/read-all');
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (err) {}
-  }, []);
+    } catch {
+      fetchNotifications();
+    }
+  }, [fetchNotifications]);
 
   // Fetch unread count on mount (lightweight)
   useEffect(() => {
     fetchUnreadCount();
-    // Poll every 60 seconds as a fallback in case the socket drops
     const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
 
   // Live updates: push new notifications instantly over the socket
-  // instead of waiting on the 60s poll.
   useEffect(() => {
     const token = useAuthStore.getState().accessToken;
     if (!token) return;
@@ -75,8 +130,12 @@ export default function useNotifications() {
     if (!socket) return;
 
     const handleNewNotification = (notif) => {
-      setNotifications((prev) => [notif, ...prev]);
-      setUnreadCount((prev) => prev + 1);
+      const alreadyExists = sharedState.notifications.some((n) => n._id === notif?._id);
+      if (alreadyExists) return;
+      publish({
+        notifications: [notif, ...sharedState.notifications],
+        unreadCount: sharedState.unreadCount + 1,
+      });
     };
 
     socket.on('new_notification', handleNewNotification);
@@ -84,8 +143,8 @@ export default function useNotifications() {
   }, []);
 
   return {
-    notifications,
-    unreadCount,
+    notifications: state.notifications,
+    unreadCount: state.unreadCount,
     isLoading,
     fetchNotifications,
     markAsRead,
