@@ -93,6 +93,8 @@ import {
   adminListPayoutRequests,
   adminRejectPayoutRequest,
   adminRefundOrder,
+  adminReverseOrderUsage,
+  adminGetVendorOrderUsage,
   adminGetReconciliation,
   adminGetAuditLogs,
   adminGetPricingConfig,
@@ -243,6 +245,8 @@ router.get('/settlements/audit-logs', adminGetAuditLogs);
 router.get('/settlements/orders', adminGetOrderFinancials);
 router.get('/settlements/orders/:orderId', adminGetOrderFinancialDetail);
 router.post('/settlements/orders/:orderId/refund', adminRefundOrder);
+router.post('/settlements/orders/:orderId/reverse-usage', adminReverseOrderUsage);
+router.get('/settlements/vendors/:vendorId/order-usage', adminGetVendorOrderUsage);
 router.get('/settlements/cod-pending', adminGetCodPending);
 router.post('/settlements/cod/confirm', adminConfirmCodCollection);
 router.get('/settlements/payout-requests', adminListPayoutRequests);

@@ -63,24 +63,15 @@ describe('Vendor Subscription End-to-End & Payment Flow', () => {
   });
 
   // 1. Basic Plan Seeding & Discovery Visibility
-  it('correctly seeds default 1 Month, 3 Months, and Yearly plans', async () => {
-    const plans = await SubscriptionPlan.find().sort({ durationDays: 1 });
-    expect(plans.length).toBe(3);
-
-    expect(plans[0].planType).toBe('1 Month');
-    expect(plans[0].durationDays).toBe(30);
-    expect(plans[0].pricing.independentStore).toBe(499);
-    expect(plans[0].pricing.chainBrand).toBe(999);
-
-    expect(plans[1].planType).toBe('3 Months');
-    expect(plans[1].durationDays).toBe(90);
-    expect(plans[1].pricing.independentStore).toBe(1299);
-    expect(plans[1].pricing.chainBrand).toBe(2699);
-
-    expect(plans[2].planType).toBe('Yearly');
-    expect(plans[2].durationDays).toBe(365);
-    expect(plans[2].pricing.independentStore).toBe(4999);
-    expect(plans[2].pricing.chainBrand).toBe(9999);
+  it('seeds the four monthly order-based tiers (Independent / Established / Enterprise / Brand)', async () => {
+    const plans = await SubscriptionPlan.find().sort({ sortOrder: 1 });
+    expect(plans.length).toBe(4);
+    expect(plans.map((p) => [p.tierCode, p.durationDays, p.pricing.independentStore, p.pricing.chainBrand, p.freeOrdersPerMonth, p.extraChargePerOrder])).toEqual([
+      ['INDEPENDENT', 30, 499, 499, 150, 6],
+      ['ESTABLISHED', 30, 799, 799, 200, 5],
+      ['ENTERPRISE', 30, 999, 999, 300, 4],
+      ['BRAND', 30, 1499, 1499, 500, 4],
+    ]);
   });
 
   it('hides vendors without an active subscription (status NONE) from search', async () => {

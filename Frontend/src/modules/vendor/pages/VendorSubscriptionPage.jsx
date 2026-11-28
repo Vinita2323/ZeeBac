@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { VendorAPI } from '../../../services/api';
 import useAuthStore from '../../../store/useAuthStore';
 import useLanguageStore from '../../../store/useLanguageStore';
+import OrderUsageCard from '../components/OrderUsageCard';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -26,7 +27,6 @@ export default function VendorSubscriptionPage() {
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState([]);
   const [subStatus, setSubStatus] = useState(null);
-  const [billingCycle, setBillingCycle] = useState('Monthly'); // 'Monthly' or 'Yearly'
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -92,6 +92,7 @@ export default function VendorSubscriptionPage() {
       }
 
       const orderRes = await VendorAPI.createSubscriptionRazorpayOrder({
+        planId: paymentModalPlan._id,
         planType: paymentModalPlan.planType,
       });
 
@@ -118,11 +119,12 @@ export default function VendorSubscriptionPage() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
+              planId: paymentModalPlan._id,
               planType,
             });
 
             if (verifyRes.success) {
-              setSuccessMessage(`🎉 Subscription Activated! Your ${planType} plan is now active.`);
+              setSuccessMessage(`🎉 Subscription Activated! Your ${paymentModalPlan.name || planType} plan is now active.`);
               updateProfile({ subscription: verifyRes.data });
               closePaymentModal();
               await loadData();
@@ -188,11 +190,12 @@ export default function VendorSubscriptionPage() {
 
     try {
       const res = await VendorAPI.paySubscriptionFromWallet({
+        planId: paymentModalPlan._id,
         planType: paymentModalPlan.planType,
       });
 
       if (res.success) {
-        setSuccessMessage(`🎉 Success! Your ${paymentModalPlan.planType} plan was purchased from your wallet.`);
+        setSuccessMessage(`🎉 Success! Your ${paymentModalPlan.name || paymentModalPlan.planType} plan was purchased from your wallet.`);
         updateProfile({ subscription: res.data?.subscription });
         closePaymentModal();
         await loadData();
@@ -228,47 +231,10 @@ export default function VendorSubscriptionPage() {
 
   const isBonusEligible = Boolean(subStatus?.isNewUserBonusEligible);
 
-  const oneMonthPlan = plans.find((p) => p.planType === '1 Month' || p.planType === 'Monthly') || {
-    planType: '1 Month',
-    name: '1 Month Plan',
-    price: isBrand ? 999 : 499,
-    durationDays: 30,
-    features: [
-      'Store listed on Customer Map & Search',
-      'Offer Cashbacks to ZeeBac users',
-      'QR Code & In-Store Payments',
-      'Real-Time Analytics & Reports',
-      'Standard Vendor Support',
-    ],
-  };
-
-  const threeMonthPlan = plans.find((p) => p.planType === '3 Months' || p.planType === '3 Month') || {
-    planType: '3 Months',
-    name: '3 Months Plan',
-    price: isBrand ? 2699 : 1299,
-    durationDays: 90,
-    features: [
-      'All 1 Month Plan Features',
-      'Save ~13% on Quarterly Billing',
-      'Priority Listing in Search Results',
-      'Enhanced Business Analytics',
-      'Priority Merchant Support',
-    ],
-  };
-
-  const yearlyPlan = plans.find((p) => p.planType === 'Yearly') || {
-    planType: 'Yearly',
-    name: 'Yearly Plan',
-    price: isBrand ? 9999 : 4999,
-    durationDays: 365,
-    features: [
-      'All 3 Months Plan Features',
-      '2 Months Free (Save ~17%)',
-      'Top Priority Placement in Search',
-      'Dedicated Account Manager',
-      'Promotional Banners on ZeeBac',
-    ],
-  };
+  // Order-based tiers (sorted by the server). Legacy duration plans only show if no tier exists.
+  const tierPlans = plans.filter((p) => p.tierCode);
+  const visiblePlans = tierPlans.length ? tierPlans : plans;
+  const isCurrentPlan = (p) => isSubActive && Boolean(p.tierCode) && p.tierCode === subStatus?.tierCode;
 
   return (
     <div className="w-full space-y-6 pb-12 animate-reveal text-left">
@@ -347,7 +313,7 @@ export default function VendorSubscriptionPage() {
               {isSubActive ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  {t('Active')} · {t(`${subStatus?.planType} Plan`)}
+                  {t('Active')} · {subStatus?.planName || t(`${subStatus?.planType} Plan`)}
                 </span>
               ) : inGrace ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
@@ -429,178 +395,93 @@ export default function VendorSubscriptionPage() {
         )}
       </div>
 
-      {/* 3 Plan Cards Grid */}
-      <div className="grid md:grid-cols-3 gap-6 pt-2">
-        {/* 1 Month Plan */}
-        <div className={`bg-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${billingCycle === 'Monthly' || billingCycle === '1 Month' ? 'border-primary/50 ring-2 ring-primary/10' : 'border-gray-200/80 hover:border-gray-300'}`}>
-          <div className="space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-gray-100 text-gray-700">
-                  {t('Flexible Option')}
-                </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">{t('1 Month Plan')}</h3>
-                <p className="text-[12.5px] text-gray-500">{t('Pay month-to-month with complete flexibility.')}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-[26px] font-black text-gray-900">₹{oneMonthPlan.price}</span>
-                <span className="text-[11.5px] text-gray-400 font-bold block">{t('/ 30 Days')}</span>
-              </div>
-            </div>
+      {/* Current cycle order usage */}
+      {isSubActive && <OrderUsageCard />}
 
-            {isBonusEligible && (
-              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
-                <span className="text-[11.5px] font-bold text-emerald-800">
-                  {t('+10 Days Bonus = 40 Days Total')}
-                </span>
-              </div>
-            )}
-
-            <hr className="border-gray-100" />
-
-            <div className="space-y-2.5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
-              {oneMonthPlan.features.map((feat, idx) => (
-                <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
-                  <span className="material-symbols-outlined text-emerald-600 text-[18px]">check_circle</span>
-                  <span>{t(feat)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-6">
-            <button
-              onClick={() => openPaymentModal(oneMonthPlan)}
-              className="w-full py-3 rounded-2xl bg-gray-900 text-white font-bold text-[14px] hover:bg-black active:scale-[0.98] transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+      {/* Plan Cards Grid */}
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5 pt-2">
+        {visiblePlans.map((plan) => {
+          const current = isCurrentPlan(plan);
+          return (
+            <div
+              key={plan._id || plan.planType}
+              className={`bg-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${
+                current ? 'border-emerald-400 ring-2 ring-emerald-500/15' : 'border-gray-200/80 hover:border-gray-300'
+              }`}
             >
-              <span className="material-symbols-outlined text-[18px]">payment</span>
-              <span>
-                {isSubActive && (subStatus?.planType === '1 Month' || subStatus?.planType === 'Monthly')
-                  ? `${t('Renew 1 Month Plan')} (₹${oneMonthPlan.price})`
-                  : `${t('Choose 1 Month Plan')} (₹${oneMonthPlan.price})`}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* 3 Months Plan */}
-        <div className="bg-gradient-to-b from-indigo-50/50 to-white rounded-3xl p-6 border-2 border-indigo-200 hover:border-indigo-400 transition-all flex flex-col justify-between shadow-sm relative ring-2 ring-indigo-500/10">
-          <div className="absolute -top-3 right-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
-            {t('Most Popular · Save ~13%')}
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-indigo-100 text-indigo-700">
-                  {t('Quarterly Boost')}
-                </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">{t('3 Months Plan')}</h3>
-                <p className="text-[12.5px] text-gray-500">{t('Steady customer footfall with quarterly savings.')}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-[26px] font-black text-indigo-900">₹{threeMonthPlan.price}</span>
-                <span className="text-[11.5px] text-indigo-500 font-bold block">{t('/ 90 Days')}</span>
-              </div>
-            </div>
-
-            {isBonusEligible && (
-              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
-                <span className="text-[11.5px] font-bold text-emerald-800">
-                  {t('+10 Days Bonus = 100 Days Total')}
-                </span>
-              </div>
-            )}
-
-            <hr className="border-indigo-100" />
-
-            <div className="space-y-2.5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
-              {threeMonthPlan.features.map((feat, idx) => (
-                <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
-                  <span className="material-symbols-outlined text-indigo-600 text-[18px]">check_circle</span>
-                  <span>{t(feat)}</span>
+              {current && (
+                <div className="absolute -top-3 right-6 bg-emerald-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
+                  {t('Your Plan')}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-6">
-            <button
-              onClick={() => openPaymentModal(threeMonthPlan)}
-              className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[14px] active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">trending_up</span>
-              <span>
-                {isSubActive && (subStatus?.planType === '3 Months' || subStatus?.planType === '3 Month')
-                  ? `${t('Renew 3 Months Plan')} (₹${threeMonthPlan.price})`
-                  : `${t('Choose 3 Months Plan')} (₹${threeMonthPlan.price})`}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Yearly Plan */}
-        <div className={`bg-gradient-to-b from-purple-50/50 to-white rounded-3xl p-6 border-2 transition-all flex flex-col justify-between shadow-sm relative ${billingCycle === 'Yearly' ? 'border-primary ring-2 ring-primary/20' : 'border-purple-200 hover:border-purple-300'}`}>
-          <div className="absolute -top-3 right-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[10.5px] font-black tracking-wider uppercase px-3 py-0.5 rounded-full shadow-md">
-            {t('Best Value · 2 Mo Free')}
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider uppercase bg-purple-100 text-purple-700">
-                  {t('Full Year Growth')}
-                </span>
-                <h3 className="text-[20px] font-black text-gray-900 mt-2">{t('Yearly Plan')}</h3>
-                <p className="text-[12.5px] text-gray-500">{t('Uninterrupted listing with priority discovery boost.')}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-[26px] font-black text-purple-700">₹{yearlyPlan.price}</span>
-                <span className="text-[11.5px] text-purple-500 font-bold block">{t('/ 365 Days')}</span>
-              </div>
-            </div>
-
-            {isBonusEligible && (
-              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
-                <span className="text-[11.5px] font-bold text-emerald-800">
-                  {t('+10 Days Bonus = 375 Days Total')}
-                </span>
-              </div>
-            )}
-
-            <hr className="border-purple-100" />
-
-            <div className="space-y-2.5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
-              {yearlyPlan.features.map((feat, idx) => (
-                <div key={idx} className="flex items-center gap-2.5 text-[13px] text-gray-700">
-                  <span className="material-symbols-outlined text-purple-600 text-[18px]">check_circle</span>
-                  <span>{t(feat)}</span>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-[18px] font-black text-gray-900">{t(plan.name)}</h3>
+                  <div className="mt-1">
+                    <span className="text-[26px] font-black text-gray-900">₹{Number(plan.price).toLocaleString('en-IN')}</span>
+                    <span className="text-[11.5px] text-gray-400 font-bold">
+                      {' / '}
+                      {plan.durationDays === 30 ? t('month') : `${plan.durationDays} ${t('Days')}`}
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="pt-6">
-            <button
-              onClick={() => openPaymentModal(yearlyPlan)}
-              className="w-full py-3 rounded-2xl btn-primary-gradient text-white font-bold text-[14px] active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">stars</span>
-              <span>
-                {isSubActive && subStatus?.planType === 'Yearly'
-                  ? `${t('Renew Yearly Plan')} (₹${yearlyPlan.price})`
-                  : `${t('Choose Yearly Plan')} (₹${yearlyPlan.price})`}
-              </span>
-            </button>
-          </div>
-        </div>
+                {plan.tierCode && (
+                  <div className="p-3 rounded-2xl bg-purple-50 border border-purple-100 space-y-1">
+                    <div className="flex justify-between text-[12.5px]">
+                      <span className="text-gray-600">{t('Free orders / month')}</span>
+                      <strong className="text-gray-900">{plan.freeOrdersPerMonth}</strong>
+                    </div>
+                    <div className="flex justify-between text-[12.5px]">
+                      <span className="text-gray-600">{t('After limit, per order')}</span>
+                      <strong className="text-purple-700">₹{plan.extraChargePerOrder}</strong>
+                    </div>
+                  </div>
+                )}
+
+                {isBonusEligible && (
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-emerald-600 text-[18px]">card_giftcard</span>
+                    <span className="text-[11.5px] font-bold text-emerald-800">
+                      +10 {t('Days Bonus')} = {(plan.durationDays || 30) + 10} {t('Days Total')}
+                    </span>
+                  </div>
+                )}
+
+                <hr className="border-gray-100" />
+
+                <div className="space-y-2.5">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t('Plan Highlights')}</p>
+                  {(plan.features || []).map((feat, i) => (
+                    <div key={i} className="flex items-start gap-2.5 text-[13px] text-gray-700">
+                      <span className="material-symbols-outlined text-emerald-600 text-[18px]">check_circle</span>
+                      <span>{t(feat)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={() => openPaymentModal(plan)}
+                  className="w-full py-3 rounded-2xl bg-gray-900 text-white font-bold text-[14px] hover:bg-black active:scale-[0.98] transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">payment</span>
+                  <span>
+                    {current ? t('Renew') : t('Choose')} (₹{Number(plan.price).toLocaleString('en-IN')})
+                  </span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      <p className="text-[12px] text-gray-500">
+        {t(
+          'Only successfully completed (delivered) orders count toward your limit. Placed, pending, rejected, cancelled and failed orders are never counted. Your billing cycle runs monthly from your activation date and the free limit resets automatically each cycle.'
+        )}
+      </p>
 
       {/* ─── PAYMENT SELECTION MODAL ─── */}
       {paymentModalPlan && (
@@ -623,7 +504,7 @@ export default function VendorSubscriptionPage() {
                 </span>
               </div>
               <h3 className="text-[22px] font-black tracking-tight text-white">
-                {t(`${paymentModalPlan.planType} Plan`)}
+                {paymentModalPlan.name ? t(paymentModalPlan.name) : t(`${paymentModalPlan.planType} Plan`)}
               </h3>
               <div className="text-[13px] text-purple-200/90 mt-1 space-y-0.5">
                 <div>
@@ -653,6 +534,17 @@ export default function VendorSubscriptionPage() {
                 <div className="p-3 bg-purple-50 border border-purple-200 text-purple-800 rounded-xl text-[12.5px] flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin shrink-0" />
                   <span>{paymentStepMessage}</span>
+                </div>
+              )}
+
+              {paymentModalPlan.tierCode && (
+                <div className="p-3.5 bg-purple-50 border border-purple-200 text-purple-900 rounded-xl text-[12.5px] space-y-1">
+                  <p className="font-bold">{t('Before you pay')}</p>
+                  <p>
+                    {t('This plan includes')} <strong>{paymentModalPlan.freeOrdersPerMonth} {t('free completed orders')}</strong>{' '}
+                    {t('per monthly billing cycle. After that,')} <strong>₹{paymentModalPlan.extraChargePerOrder} {t('per completed order')}</strong>{' '}
+                    {t('is deducted from your wallet automatically. Refunded or returned orders are credited back.')}
+                  </p>
                 </div>
               )}
 

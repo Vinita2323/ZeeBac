@@ -11,7 +11,29 @@ const subscriptionPlanSchema = new mongoose.Schema(
       type: String,
       enum: ['1 Month', '3 Months', 'Yearly', 'Monthly', '3 Month'],
       required: true,
-      unique: true,
+    },
+    // Order-based tier (Independent Seller / Established Retailers / Business
+    // Enterprise / Brand-Manufacturer). Legacy duration plans have no tierCode.
+    tierCode: {
+      type: String,
+      enum: ['INDEPENDENT', 'ESTABLISHED', 'ENTERPRISE', 'BRAND', null],
+      default: null,
+    },
+    // Free completed online orders per monthly billing cycle (null = unlimited / legacy plan)
+    freeOrdersPerMonth: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    // Charge (INR) deducted from the vendor wallet for every completed order beyond the free limit
+    extraChargePerOrder: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    sortOrder: {
+      type: Number,
+      default: 0,
     },
     durationDays: {
       type: Number,
@@ -47,80 +69,72 @@ const subscriptionPlanSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+subscriptionPlanSchema.index({ tierCode: 1 }, { unique: true, partialFilterExpression: { tierCode: { $type: 'string' } } });
+
 /**
- * Seed default subscription plans (1 Month, 3 Months, Yearly) if missing.
+ * The four order-based monthly tiers. Price is the same for every shop type,
+ * so both pricing fields carry the monthly fee (keeps resolvePlanPrice simple).
+ */
+export const DEFAULT_TIER_PLANS = [
+  { tierCode: 'INDEPENDENT', name: 'Independent Seller', price: 499, freeOrdersPerMonth: 150, extraChargePerOrder: 6, sortOrder: 1 },
+  { tierCode: 'ESTABLISHED', name: 'Established Retailers', price: 799, freeOrdersPerMonth: 200, extraChargePerOrder: 5, sortOrder: 2 },
+  { tierCode: 'ENTERPRISE', name: 'Business Enterprise', price: 999, freeOrdersPerMonth: 300, extraChargePerOrder: 4, sortOrder: 3 },
+  { tierCode: 'BRAND', name: 'Brand/Manufacturer', price: 1499, freeOrdersPerMonth: 500, extraChargePerOrder: 4, sortOrder: 4 },
+];
+
+let legacyIndexChecked = false;
+
+/**
+ * Seeds the four monthly order-based tiers if missing.
+ * The first time tiers are created, the old duration-based plans (1 Month /
+ * 3 Months / Yearly) are deactivated so vendors only see the new tiers.
+ * Admin can re-activate them from the plans page.
  */
 subscriptionPlanSchema.statics.seedDefaultsIfEmpty = async function () {
-  const defaultPlans = [
-    {
-      name: '1 Month Plan',
-      planType: '1 Month',
-      durationDays: 30,
-      pricing: {
-        independentStore: 499,
-        chainBrand: 999,
-      },
-      features: [
-        'Listed on Customer Map & Search',
-        'Offer Cashbacks to ZeeBac users',
-        'QR Code & In-Store Payments',
-        'Real-Time Analytics & Reports',
-        'Standard Vendor Support',
-      ],
-      description: 'Perfect for local merchants looking to increase recurring customer footfall.',
-      isActive: true,
-    },
-    {
-      name: '3 Months Plan',
-      planType: '3 Months',
-      durationDays: 90,
-      pricing: {
-        independentStore: 1299,
-        chainBrand: 2699,
-      },
-      features: [
-        'All 1 Month Plan Features',
-        'Save ~13% on Quarterly Billing',
-        'Priority Listing in Search Results',
-        'Enhanced Business Analytics',
-        'Priority Merchant Support',
-      ],
-      description: 'Our most popular quarterly plan for established stores seeking steady footfall growth.',
-      isActive: true,
-    },
-    {
-      name: 'Yearly Plan',
-      planType: 'Yearly',
-      durationDays: 365,
-      pricing: {
-        independentStore: 4999,
-        chainBrand: 9999,
-      },
-      features: [
-        'All 3 Months Plan Features',
-        '2 Months Free (Save ~17%)',
-        'Top Priority Placement in Search',
-        'Dedicated Account Manager',
-        'Promotional Banners on ZeeBac App',
-      ],
-      description: 'Best value for long-term growth with top priority search boost and dedicated manager.',
-      isActive: true,
-    },
-  ];
-
-  for (const defPlan of defaultPlans) {
-    // Check if this plan or its alias already exists
-    let existing;
-    if (defPlan.planType === '1 Month') {
-      existing = await this.findOne({ planType: { $in: ['1 Month', 'Monthly'] } });
-    } else if (defPlan.planType === '3 Months') {
-      existing = await this.findOne({ planType: { $in: ['3 Months', '3 Month'] } });
-    } else {
-      existing = await this.findOne({ planType: 'Yearly' });
+  // planType used to be unique; four tiers share planType "1 Month", so drop the old index once.
+  if (!legacyIndexChecked) {
+    legacyIndexChecked = true;
+    try {
+      const indexes = await this.collection.indexes();
+      const legacy = indexes.find((i) => i.key && i.key.planType === 1 && i.unique);
+      if (legacy) await this.collection.dropIndex(legacy.name);
+    } catch (_) {
+      // collection may not exist yet
     }
+  }
 
-    if (!existing) {
-      await this.create(defPlan);
+  const existingTiers = await this.countDocuments({ tierCode: { $type: 'string' } });
+  if (existingTiers >= DEFAULT_TIER_PLANS.length) return;
+
+  if (existingTiers === 0) {
+    await this.updateMany({ $or: [{ tierCode: null }, { tierCode: { $exists: false } }] }, { $set: { isActive: false } });
+  }
+
+  for (const t of DEFAULT_TIER_PLANS) {
+    const found = await this.findOne({ tierCode: t.tierCode });
+    if (found) continue;
+    try {
+      await this.create({
+        name: t.name,
+        planType: '1 Month',
+        tierCode: t.tierCode,
+        durationDays: 30,
+        pricing: { independentStore: t.price, chainBrand: t.price },
+        freeOrdersPerMonth: t.freeOrdersPerMonth,
+        extraChargePerOrder: t.extraChargePerOrder,
+        sortOrder: t.sortOrder,
+        features: [
+          `${t.freeOrdersPerMonth} free completed online orders every billing cycle`,
+          `₹${t.extraChargePerOrder} per completed order after the free limit (deducted from wallet)`,
+          'Listed on Customer Map & Search',
+          'Offer Cashbacks to ZeeBac users',
+          'QR Code & In-Store Payments',
+        ],
+        description: `₹${t.price}/month · ${t.freeOrdersPerMonth} free orders · ₹${t.extraChargePerOrder}/extra order`,
+        isActive: true,
+      });
+    } catch (err) {
+      if (err?.code !== 11000) throw err; // created concurrently
     }
   }
 };

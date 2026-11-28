@@ -23,6 +23,7 @@ import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
 import { computeOrderCharges } from '../utils/orderPricing.util.js';
 import { creditSellerForDeliveredOrder, reverseOrderCredit } from '../utils/sellerSettlement.util.js';
+import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
 import { createRazorpayCheckoutOrder, applyCapturedOrderPayment, initiateOrderRefund } from '../utils/orderPayment.util.js';
 import { getRazorpayInstance, verifyRazorpaySignature } from '../utils/razorpay.util.js';
 
@@ -937,6 +938,9 @@ export const updateOrderStatus = async (req, res) => {
 
         // 3. Centralized settlement: credit seller's share (online → available, COD → on hold)
         await creditSellerForDeliveredOrder(order, { session });
+
+        // 4. Subscription order quota: count this completed order; deduct extra charge if over the free limit
+        await recordCompletedOrderUsage(order, { session });
 
         await order.save({ session });
       });

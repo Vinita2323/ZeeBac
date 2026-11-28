@@ -24,6 +24,7 @@ import logger from '../utils/logger.js';
 import { sendOtpSms } from '../utils/sms.util.js';
 import { verifyOtpOnly } from './auth.controller.js';
 import { getVendorSubscriptionState, resolvePlanPrice, calculateNewSubscriptionDates } from '../utils/subscription.util.js';
+import { buildPlanSnapshot, syncOpenCycleWithPlan, getVendorUsageSummary, getVendorCycleHistory, getCycleOrders } from '../utils/orderUsage.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 import { buildSnapshot, diffSnapshots, validateApplicationComplete, isManufacturerOrWholesaler } from '../utils/vendorApplication.util.js';
@@ -3045,7 +3046,7 @@ export const getVendorSubscriptionPlans = async (req, res) => {
   try {
     await SubscriptionPlan.seedDefaultsIfEmpty();
     const vendor = await Vendor.findById(req.user.id);
-    const plans = await SubscriptionPlan.find({ isActive: true }).sort({ durationDays: 1 });
+    const plans = await SubscriptionPlan.find({ isActive: true }).sort({ sortOrder: 1, durationDays: 1 });
 
     const isBrand = vendor?.shopType === 'Chain & Brand';
     const plansWithEffectivePrice = plans.map(p => ({
@@ -3090,10 +3091,49 @@ export const getVendorSubscriptionStatus = async (req, res) => {
         shopType: vendor.shopType,
         isNewUserBonusEligible,
         newUserBonusDays: 10,
+        planName: vendor.subscription?.planName || null,
+        tierCode: vendor.subscription?.tierCode || null,
+        freeOrdersPerMonth: vendor.subscription?.tierCode ? vendor.subscription.freeOrdersPerMonth : null,
+        extraChargePerOrder: vendor.subscription?.tierCode ? vendor.subscription.extraChargePerOrder : 0,
       },
     });
   } catch (error) {
     logger.error(`Error in getVendorSubscriptionStatus: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// GET /vendor/subscription/usage — current billing cycle quota & extra charges
+export const getVendorOrderUsage = async (req, res) => {
+  try {
+    const data = await getVendorUsageSummary(req.user.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    logger.error(`Error in getVendorOrderUsage: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// GET /vendor/subscription/usage/history — past billing cycles
+export const getVendorOrderUsageHistory = async (req, res) => {
+  try {
+    const data = await getVendorCycleHistory(req.user.id, { limit: req.query.limit });
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    logger.error(`Error in getVendorOrderUsageHistory: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// GET /vendor/subscription/usage/cycles/:cycleId — every counted order in a cycle
+export const getVendorCycleOrders = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.cycleId)) return res.status(400).json({ success: false, message: 'Invalid cycle id' });
+    const data = await getCycleOrders(req.user.id, req.params.cycleId);
+    if (!data) return res.status(404).json({ success: false, message: 'Cycle not found' });
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    logger.error(`Error in getVendorCycleOrders: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
@@ -3222,8 +3262,10 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
     const vendor = await Vendor.findById(req.user.id);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-    const targetPlan = planType || planId || payment?.planType || '1 Month';
+    // The plan stored on the pending payment wins: the client cannot swap plans between order and verify.
+    const targetPlan = (payment?.planId && String(payment.planId)) || planId || planType || payment?.planType || '1 Month';
     const planInfo = await resolvePlanPrice(targetPlan, vendor.shopType);
+    if (payment?.planType) planInfo.planType = payment.planType; // label chosen when the order was created
 
     if (Math.abs(verifiedAmount - planInfo.price) > 1) {
       await SubscriptionPayment.findOneAndUpdate(
@@ -3248,6 +3290,7 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
     const newDates = calculateNewSubscriptionDates(vendor.subscription, totalDurationDays);
 
     vendor.hasUsedNewUserBonus = true;
+    const planSnapshot = buildPlanSnapshot(planInfo, vendor.subscription, newDates.startDate);
     vendor.subscription = {
       planType: planInfo.planType,
       price: planInfo.price,
@@ -3258,8 +3301,10 @@ export const verifySubscriptionRazorpayPayment = async (req, res) => {
       expiredAt: null,
       bonusDaysApplied: bonusDays,
       paymentId: razorpay_payment_id,
+      ...planSnapshot,
     };
     await vendor.save();
+    await syncOpenCycleWithPlan(vendor).catch((e) => logger.warn(`[subscription] cycle sync failed: ${e.message}`));
 
     const baseAmount = Math.round((planInfo.price / 1.18) * 100) / 100;
     const gstAmount = Math.round((planInfo.price - baseAmount) * 100) / 100;
@@ -3423,6 +3468,7 @@ export const paySubscriptionFromWallet = async (req, res) => {
 
       // 4. Update vendor subscription
       vendor.hasUsedNewUserBonus = true;
+      const planSnapshot = buildPlanSnapshot(planInfo, vendor.subscription, newDates.startDate);
       vendor.subscription = {
         planType: planInfo.planType,
         price: planInfo.price,
@@ -3433,9 +3479,11 @@ export const paySubscriptionFromWallet = async (req, res) => {
         expiredAt: null,
         bonusDaysApplied: bonusDays,
         paymentId: transactionId,
+        ...planSnapshot,
       };
       await vendor.save({ session });
     });
+    await syncOpenCycleWithPlan(vendor).catch((e) => logger.warn(`[subscription] cycle sync failed: ${e.message}`));
 
     logger.info(`[vendor.controller] Vendor ${vendor._id} subscription activated via Wallet (${planInfo.planType}) with ${bonusDays} bonus days`);
 

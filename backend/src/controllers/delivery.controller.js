@@ -12,6 +12,7 @@ import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
 import logger from '../utils/logger.js';
 import { creditSellerForDeliveredOrder } from '../utils/sellerSettlement.util.js';
+import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
 import { getIO } from '../socket/index.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
 
@@ -1338,6 +1339,12 @@ export const updateDeliveryOrderStatus = async (req, res) => {
       // Centralized settlement: credit seller's share (COD stays on hold until admin confirms collection)
       await creditSellerForDeliveredOrder(order);
       await order.save();
+      // Subscription order quota (idempotent; anything missed here is caught up by syncVendorUsage)
+      try {
+        await recordCompletedOrderUsage(order);
+      } catch (usageErr) {
+        logger.error(`[delivery] order usage recording failed for ${order.orderId}: ${usageErr.message}`);
+      }
 
       // Check if Cash in Hand reaches or exceeds limit
       const effectiveCashLimit = Number(rider.maxCashLimit || payoutConfig.maxCashInHandLimit || 1500);

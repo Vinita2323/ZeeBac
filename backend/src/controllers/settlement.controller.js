@@ -18,6 +18,7 @@ import { initiateOrderRefund } from '../utils/orderPayment.util.js';
 import { r2 } from '../utils/orderPricing.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import logger from '../utils/logger.js';
+import { reverseOrderUsage, getVendorUsageSummary, getVendorCycleHistory } from '../utils/orderUsage.util.js';
 import { notifyAdmins } from '../utils/adminNotification.js';
 
 const sendError = (res, err, ctx) => {
@@ -379,6 +380,22 @@ export const adminRefundOrder = async (req, res) => {
       actorId: req.user.id,
     });
     await order.save();
+
+    // Subscription quota (Option A): a full refund — or an explicit reverseOrderUsage=true —
+    // un-counts the order and credits back any extra order charge. Idempotent.
+    const paid = Number(order.razorpay?.amountPaid || order.finalPayableAmount || 0);
+    const refundedTotal = r2((order.refunds || []).filter((x) => x.status !== 'FAILED').reduce((sum, x) => sum + Number(x.amount || 0), 0));
+    const wantUsageReversal =
+      req.body?.reverseOrderUsage === true || (req.body?.reverseOrderUsage !== false && paid > 0 && refundedTotal >= paid);
+    let usageReversal = null;
+    if (wantUsageReversal) {
+      try {
+        usageReversal = await reverseOrderUsage({ order, reason: `Refund ${record.refundId}: ${reason}`, actorId: req.user.id });
+      } catch (usageErr) {
+        logger.error(`[refund] order usage reversal failed for ${order.orderId}: ${usageErr.message}`);
+      }
+    }
+
     await writeAudit(req, {
       action: 'ORDER_REFUND_INITIATED',
       entityType: 'Order',
@@ -387,11 +404,54 @@ export const adminRefundOrder = async (req, res) => {
       amount: record.amount,
       before,
       after: { refundedAmount: order.refundedAmount, settlementStatus: order.financials?.settlementStatus },
-      meta: { refundId: record.refundId, reason, sellerReversal: reversal ? r2(-reversal.amount) : 0 },
+      meta: { refundId: record.refundId, reason, sellerReversal: reversal ? r2(-reversal.amount) : 0, usageReversal },
     });
-    res.json({ success: true, message: `Refund of ₹${record.amount} initiated`, data: { refund: record, sellerReversal: reversal ? r2(-reversal.amount) : 0 } });
+    res.json({ success: true, message: `Refund of ₹${record.amount} initiated`, data: { refund: record, sellerReversal: reversal ? r2(-reversal.amount) : 0, usageReversal } });
   } catch (err) {
     sendError(res, err, 'refund');
+  }
+};
+
+// POST /admin/settlements/orders/:orderId/reverse-usage { reason }
+// For returns/refunds handled outside Razorpay (COD, pickup): un-count the order from the
+// vendor's monthly quota and credit back the extra order charge, if one was deducted.
+export const adminReverseOrderUsage = async (req, res) => {
+  try {
+    const order = await findOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    const reason = String(req.body?.reason || '').trim();
+    if (reason.length < 3) return res.status(400).json({ success: false, message: 'Reason is required' });
+    const result = await reverseOrderUsage({ order, reason: `Return/refund: ${reason}`, actorId: req.user.id });
+    if (!result.reversed) return res.status(400).json({ success: false, message: `Nothing to reverse (${result.reason})` });
+    await writeAudit(req, {
+      action: 'ORDER_USAGE_REVERSED',
+      entityType: 'Order',
+      entityId: order.orderId,
+      vendorId: order.vendorId,
+      amount: result.refundAmount,
+      meta: { reason, classification: result.classification },
+    });
+    res.json({
+      success: true,
+      message: result.refundAmount > 0 ? `Order un-counted and ₹${result.refundAmount} credited back to the seller wallet` : 'Order un-counted from the monthly quota',
+      data: result,
+    });
+  } catch (err) {
+    sendError(res, err, 'reverse order usage');
+  }
+};
+
+// GET /admin/settlements/vendors/:vendorId/order-usage — current cycle + history
+export const adminGetVendorOrderUsage = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.vendorId)) return res.status(400).json({ success: false, message: 'Invalid vendor id' });
+    const [current, history] = await Promise.all([
+      getVendorUsageSummary(req.params.vendorId),
+      getVendorCycleHistory(req.params.vendorId, { limit: req.query.limit }),
+    ]);
+    res.json({ success: true, data: { ...current, history } });
+  } catch (err) {
+    sendError(res, err, 'order usage');
   }
 };
 

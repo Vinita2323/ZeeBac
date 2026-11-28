@@ -31,6 +31,9 @@ import {
   subscribePlan,
   getVendorSubscriptionPlans,
   getVendorSubscriptionStatus,
+  getVendorOrderUsage,
+  getVendorOrderUsageHistory,
+  getVendorCycleOrders,
   createSubscriptionRazorpayOrder,
   verifySubscriptionRazorpayPayment,
   cancelSubscriptionRazorpayOrder,
@@ -131,6 +134,9 @@ router.post('/products/:id/clearance-discount', requireApprovedVendor, applyProd
 // Subscription Routes (Phase 6) — available to all authenticated vendors
 router.get('/subscription/plans', getVendorSubscriptionPlans);
 router.get('/subscription/status', getVendorSubscriptionStatus);
+router.get('/subscription/usage', getVendorOrderUsage);
+router.get('/subscription/usage/history', getVendorOrderUsageHistory);
+router.get('/subscription/usage/cycles/:cycleId', getVendorCycleOrders);
 router.post('/subscription/create-order', createSubscriptionRazorpayOrder);
 router.post('/subscription/verify-payment', verifySubscriptionRazorpayPayment);
 router.post('/subscription/cancel-order', cancelSubscriptionRazorpayOrder);

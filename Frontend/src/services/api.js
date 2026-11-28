@@ -578,6 +578,14 @@ export const AdminAPI = {
     const res = await apiClient.delete(`/admin/subscription-plans/${id}`);
     return res.data;
   },
+  getVendorOrderUsage: async (vendorId) => {
+    const res = await apiClient.get(`/admin/settlements/vendors/${vendorId}/order-usage`);
+    return res.data;
+  },
+  reverseOrderUsage: async (orderId, reason) => {
+    const res = await apiClient.post(`/admin/settlements/orders/${orderId}/reverse-usage`, { reason });
+    return res.data;
+  },
   activateVendorSubscription: async (vendorId, data = {}) => {
     const res = await apiClient.post(`/admin/vendors/${vendorId}/activate-subscription`, data);
     return res.data;
@@ -873,6 +881,18 @@ export const VendorAPI = {
   // Subscriptions (Vendor)
   getSubscriptionPlans: async () => {
     const res = await apiClient.get('/vendor/subscription/plans');
+    return res.data;
+  },
+  getOrderUsage: async () => {
+    const res = await apiClient.get('/vendor/subscription/usage');
+    return res.data;
+  },
+  getOrderUsageHistory: async (limit = 12) => {
+    const res = await apiClient.get(`/vendor/subscription/usage/history?limit=${limit}`);
+    return res.data;
+  },
+  getCycleOrders: async (cycleId) => {
+    const res = await apiClient.get(`/vendor/subscription/usage/cycles/${cycleId}`);
     return res.data;
   },
   getSubscriptionStatus: async () => {

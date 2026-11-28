@@ -255,6 +255,15 @@ const vendorSchema = new mongoose.Schema(
       lastRenewedAt: Date,
       expiredAt: Date,
       bonusDaysApplied: { type: Number, default: 0 },
+      // Order-quota snapshot taken at purchase time (admin edits to a plan never
+      // change what an already-subscribed merchant agreed to).
+      planId: String, // SubscriptionPlan id (string: tolerant of legacy values)
+      planName: String,
+      tierCode: { type: String, enum: ['INDEPENDENT', 'ESTABLISHED', 'ENTERPRISE', 'BRAND', null], default: null },
+      freeOrdersPerMonth: { type: Number, default: null }, // null = unlimited (legacy plan)
+      extraChargePerOrder: { type: Number, default: 0 },
+      // Billing cycles run monthly from this date (IST), e.g. 15 Nov → 14 Dec.
+      cycleAnchor: Date,
     },
     hasUsedNewUserBonus: {
       type: Boolean,

@@ -93,6 +93,12 @@ export default function SubscriptionPlansPage() {
           ? editingPlan.features
           : String(editingPlan.features || '').split('\n').map((s) => s.trim()).filter(Boolean),
         isActive: editingPlan.isActive,
+        ...(editingPlan.tierCode
+          ? {
+              freeOrdersPerMonth: Number(editingPlan.freeOrdersPerMonth),
+              extraChargePerOrder: Number(editingPlan.extraChargePerOrder),
+            }
+          : {}),
       };
 
       const res = await AdminAPI.updateSubscriptionPlan(editingPlan._id, payload);
@@ -266,7 +272,7 @@ export default function SubscriptionPlansPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700">
-                      {plan.planType} Plan
+                      {plan.tierCode ? 'Monthly Tier' : `${plan.planType} Plan`}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -308,6 +314,24 @@ export default function SubscriptionPlansPage() {
                   </div>
                 </div>
               </div>
+
+              {plan.tierCode && (
+                <div className="grid grid-cols-2 gap-3 p-4 bg-emerald-50/60 rounded-2xl border border-emerald-100">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Free orders / cycle</span>
+                    <div className="text-[20px] font-black text-emerald-900">{plan.freeOrdersPerMonth}</div>
+                  </div>
+                  <div className="border-l border-emerald-200 pl-3">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Extra per order</span>
+                    <div className="text-[20px] font-black text-emerald-900">₹{plan.extraChargePerOrder}</div>
+                  </div>
+                  {stats?.subscribersByTier && (
+                    <div className="col-span-2 text-[12px] text-gray-600">
+                      Active subscribers: <strong>{stats.subscribersByTier[plan.tierCode] || 0}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Features List */}
               <div className="space-y-2 pt-1">
@@ -544,6 +568,42 @@ export default function SubscriptionPlansPage() {
                   />
                 </div>
               </div>
+
+              {editingPlan.tierCode && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                      Free orders / cycle
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editingPlan.freeOrdersPerMonth ?? ''}
+                      onChange={(e) => setEditingPlan({ ...editingPlan, freeOrdersPerMonth: e.target.value })}
+                      required
+                      className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                      Extra charge per order (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editingPlan.extraChargePerOrder ?? ''}
+                      onChange={(e) => setEditingPlan({ ...editingPlan, extraChargePerOrder: e.target.value })}
+                      required
+                      className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-[13.5px] focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <p className="col-span-2 text-[11.5px] text-gray-500">
+                    Changes apply to new purchases and renewals. Merchants already subscribed keep the limits they bought.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">

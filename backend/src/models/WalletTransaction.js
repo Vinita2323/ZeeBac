@@ -25,7 +25,7 @@ const walletTransactionSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription', 'mobile_recharge', 'platform_fee', 'recharge', 'reserve_topup', 'order_payment'],
+      enum: ['cashback', 'cashout', 'refund', 'settlement', 'welcome_bonus', 'referral_bonus', 'scratch_card_reward', 'payment_received', 'withdrawal', 'cashback_payout', 'cashback_earned', 'purchase', 'subscription', 'mobile_recharge', 'platform_fee', 'recharge', 'reserve_topup', 'order_payment', 'extra_order_fee', 'extra_order_fee_reversal'],
     },
     amount: {
       type: Number,

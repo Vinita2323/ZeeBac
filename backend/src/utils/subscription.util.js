@@ -214,6 +214,11 @@ export const resolvePlanPrice = async (planTypeOrId, shopType) => {
     plan = await SubscriptionPlan.findById(planTypeOrId);
   }
 
+  // Order-based tier by code (INDEPENDENT / ESTABLISHED / ENTERPRISE / BRAND)
+  if (!plan && typeof planTypeOrId === 'string' && /^[A-Za-z]+$/.test(planTypeOrId.trim())) {
+    plan = await SubscriptionPlan.findOne({ tierCode: planTypeOrId.trim().toUpperCase() });
+  }
+
   if (!plan && typeof planTypeOrId === 'string') {
     const raw = planTypeOrId.trim();
     let searchTypes = [raw];
@@ -226,9 +231,13 @@ export const resolvePlanPrice = async (planTypeOrId, shopType) => {
       searchTypes = ['Yearly'];
     }
 
-    plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes }, isActive: true });
+    // Prefer legacy duration plans for duration strings; tiers are picked by id or tierCode.
+    plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes }, isActive: true, tierCode: null });
     if (!plan) {
-      plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes } });
+      plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes }, tierCode: null });
+    }
+    if (!plan) {
+      plan = await SubscriptionPlan.findOne({ planType: { $in: searchTypes } }).sort({ sortOrder: 1 });
     }
     if (!plan) {
       plan = await SubscriptionPlan.findOne({ planType: raw });
@@ -280,5 +289,9 @@ export const resolvePlanPrice = async (planTypeOrId, shopType) => {
     shopType: isBrand ? 'Chain & Brand' : 'Independent Store',
     price,
     durationDays,
+    planName: plan?.name || planType,
+    tierCode: plan?.tierCode || null,
+    freeOrdersPerMonth: plan?.tierCode ? Number(plan.freeOrdersPerMonth ?? 0) : null,
+    extraChargePerOrder: plan?.tierCode ? Number(plan.extraChargePerOrder || 0) : 0,
   };
 };

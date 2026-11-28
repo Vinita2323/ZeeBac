@@ -15,6 +15,7 @@ import useLanguageStore from '../../../store/useLanguageStore';
 import { formatOrderTime, playStoreNewOrderAlarm, playRiderDeclinedTone } from '../../../utils/voiceUtils';
 import { isManufacturerOrWholesaler } from '../../../utils/vendorSectorUtils';
 import useSupportConfig from '../../../hooks/useSupportConfig';
+import OrderUsageCard from '../components/OrderUsageCard';
 
 export default function DashboardPage() {
   const { supportPhone: helplinePhone } = useSupportConfig();
@@ -656,6 +657,9 @@ export default function DashboardPage() {
           <span className="material-symbols-outlined text-purple-300">chevron_right</span>
         </div>
       </div>
+
+      {/* Monthly free-order usage for the current billing cycle */}
+      {subscriptionInfo?.isSubActive && <OrderUsageCard compact />}
 
       {/* Subscription & Store Status Banners */}
       {/* Alert 1: Subscription Required / Store Inactive */}

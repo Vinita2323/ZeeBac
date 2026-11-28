@@ -1252,30 +1252,43 @@ export default function B2BBillingPage() {
                 ) : (
                   <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
                     {retailItems.map((item, idx) => (
-                      <div key={item.productId || `custom-${idx}`} className="py-3 flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0">
-                          {item.image ? (
-                            <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
-                          ) : (
-                            <span className="material-symbols-outlined text-purple-600">inventory_2</span>
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-[13px] text-slate-900 truncate">{item.name}</h4>
-                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-mono mt-0.5">
-                            <span>₹{item.price}</span>
-                            <span className="text-purple-600 font-bold bg-purple-50 px-1 rounded text-[10px]">
-                              {item.cashbackPercentage}% CB (₹{((item.price * item.cashbackPercentage) / 100).toFixed(1)})
-                            </span>
-                            {item.stock < 999 && (
-                              <span className="text-slate-400 text-[10px]">Stock: {item.stock}</span>
+                      <div key={item.productId || `custom-${idx}`} className="py-3 space-y-2.5">
+                        {/* Row 1: image + name/details + remove */}
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0">
+                            {item.image ? (
+                              <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="material-symbols-outlined text-purple-600">inventory_2</span>
                             )}
                           </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-[13.5px] text-slate-900 leading-snug line-clamp-2 break-words">{item.name}</h4>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-slate-500 mt-1">
+                              <span className="font-semibold text-slate-700">₹{item.price} / unit</span>
+                              <span className="text-purple-700 font-bold bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-md text-[10.5px] whitespace-nowrap">
+                                {item.cashbackPercentage}% CB · ₹{((item.price * item.cashbackPercentage) / 100).toFixed(1)}
+                              </span>
+                              {item.stock < 999 && (
+                                <span className="text-slate-400 text-[10.5px] whitespace-nowrap">Stock: {item.stock}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => removeRetailItem(item.productId)}
+                            aria-label="Remove item"
+                            className="shrink-0 w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
                         </div>
 
+                        {/* Row 2: qty stepper + line total */}
+                        <div className="flex items-center justify-between gap-3 pl-[60px]">
                         {/* Qty Stepper */}
-                        <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
+                        <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 shrink-0">
                           <button
                             onClick={() => updateRetailQty(item.productId, -1)}
                             className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-slate-700 hover:bg-slate-200 active:scale-90 font-bold cursor-pointer"
@@ -1294,16 +1307,10 @@ export default function B2BBillingPage() {
                         </div>
 
                         {/* Line Total */}
-                        <div className="text-right min-w-[70px]">
-                          <p className="font-display font-black text-[14px] text-slate-900">
-                            ₹{item.total}
-                          </p>
-                          <button
-                            onClick={() => removeRetailItem(item.productId)}
-                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                          >
-                            Remove
-                          </button>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10.5px] text-slate-400 font-semibold uppercase tracking-wide">Total</p>
+                          <p className="font-display font-black text-[15px] text-slate-900">₹{item.total}</p>
+                        </div>
                         </div>
                       </div>
                     ))}

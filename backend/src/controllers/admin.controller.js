@@ -13,7 +13,8 @@ import SupportTicket from '../models/SupportTicket.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
 import { debitWallet, creditWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
-import { getVendorSubscriptionState } from '../utils/subscription.util.js';
+import { getVendorSubscriptionState, resolvePlanPrice } from '../utils/subscription.util.js';
+import { buildPlanSnapshot, syncOpenCycleWithPlan } from '../utils/orderUsage.util.js';
 
 // ─── Dashboard Stats ───
 export const getDashboardStats = async (req, res) => {
@@ -1607,7 +1608,13 @@ export const refundTransaction = async (req, res) => {
 export const getAdminSubscriptionPlans = async (req, res) => {
   try {
     await SubscriptionPlan.seedDefaultsIfEmpty();
-    const plans = await SubscriptionPlan.find().sort({ durationDays: 1 });
+    const plans = await SubscriptionPlan.find().sort({ sortOrder: 1, durationDays: 1 });
+
+    const tierAgg = await Vendor.aggregate([
+      { $match: { 'subscription.status': 'ACTIVE', 'subscription.tierCode': { $type: 'string' } } },
+      { $group: { _id: '$subscription.tierCode', count: { $sum: 1 } } },
+    ]);
+    const subscribersByTier = Object.fromEntries(tierAgg.map((t) => [t._id, t.count]));
 
     const totalSubscribers = await Vendor.countDocuments({ 'subscription.status': 'ACTIVE' });
     const oneMonthSubscribers = await Vendor.countDocuments({
@@ -1643,6 +1650,7 @@ export const getAdminSubscriptionPlans = async (req, res) => {
           threeMonthSubscribers,
           yearlySubscribers,
           monthlySubscribers: oneMonthSubscribers, // backwards compatibility
+          subscribersByTier,
           expiredVendors,
           totalSubscriptionRevenue,
           totalSubscriptionCount,
@@ -1657,12 +1665,26 @@ export const getAdminSubscriptionPlans = async (req, res) => {
   }
 };
 
+const validateQuotaFields = ({ freeOrdersPerMonth, extraChargePerOrder }) => {
+  if (freeOrdersPerMonth !== undefined && freeOrdersPerMonth !== null && freeOrdersPerMonth !== '') {
+    const n = Number(freeOrdersPerMonth);
+    if (!Number.isInteger(n) || n < 0) return 'Free orders per month must be a whole number ≥ 0';
+  }
+  if (extraChargePerOrder !== undefined && extraChargePerOrder !== null && extraChargePerOrder !== '') {
+    const n = Number(extraChargePerOrder);
+    if (!Number.isFinite(n) || n < 0 || Math.round(n * 100) !== n * 100) return 'Extra charge per order must be ≥ 0 with at most 2 decimals';
+  }
+  return null;
+};
+
 export const createAdminSubscriptionPlan = async (req, res) => {
   try {
-    const { name, planType, durationDays, pricing, features, description, isActive } = req.body;
+    const { name, planType, durationDays, pricing, features, description, isActive, tierCode, freeOrdersPerMonth, extraChargePerOrder, sortOrder } = req.body;
     if (!name || !planType || !durationDays || !pricing) {
       return res.status(400).json({ success: false, message: 'Missing required plan fields' });
     }
+    const quotaErr = validateQuotaFields({ freeOrdersPerMonth, extraChargePerOrder });
+    if (quotaErr) return res.status(400).json({ success: false, message: quotaErr });
 
     const plan = await SubscriptionPlan.create({
       name,
@@ -1675,6 +1697,10 @@ export const createAdminSubscriptionPlan = async (req, res) => {
       features: Array.isArray(features) ? features : [],
       description: description || '',
       isActive: isActive !== undefined ? isActive : true,
+      tierCode: tierCode || null,
+      freeOrdersPerMonth: freeOrdersPerMonth === undefined || freeOrdersPerMonth === null || freeOrdersPerMonth === '' ? null : Number(freeOrdersPerMonth),
+      extraChargePerOrder: Number(extraChargePerOrder || 0),
+      sortOrder: Number(sortOrder || 0),
     });
 
     res.status(201).json({ success: true, message: 'Subscription plan created', data: plan });
@@ -1687,10 +1713,16 @@ export const createAdminSubscriptionPlan = async (req, res) => {
 export const updateAdminSubscriptionPlan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, durationDays, pricing, features, description, isActive } = req.body;
+    const { name, durationDays, pricing, features, description, isActive, freeOrdersPerMonth, extraChargePerOrder, sortOrder } = req.body;
 
     const plan = await SubscriptionPlan.findById(id);
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+    const quotaErr = validateQuotaFields({ freeOrdersPerMonth, extraChargePerOrder });
+    if (quotaErr) return res.status(400).json({ success: false, message: quotaErr });
+    // Changes apply to new purchases/renewals only — active vendors keep the limits they bought.
+    if (freeOrdersPerMonth !== undefined) plan.freeOrdersPerMonth = freeOrdersPerMonth === null || freeOrdersPerMonth === '' ? null : Number(freeOrdersPerMonth);
+    if (extraChargePerOrder !== undefined) plan.extraChargePerOrder = Number(extraChargePerOrder || 0);
+    if (sortOrder !== undefined) plan.sortOrder = Number(sortOrder || 0);
 
     if (name !== undefined) plan.name = name;
     if (durationDays !== undefined) plan.durationDays = Number(durationDays);
@@ -1749,10 +1781,19 @@ export const deleteAdminSubscriptionPlan = async (req, res) => {
 export const adminActivateVendorSubscription = async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { planType = '1 Month', days, includeNewUserBonus = false } = req.body;
+    const { planId, tierCode, days, includeNewUserBonus = false } = req.body;
+    let { planType = '1 Month' } = req.body;
 
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    // Order-based tier (planId or tierCode) → snapshot its free-order limit & extra charge
+    let planInfo = null;
+    if (planId || tierCode) {
+      planInfo = await resolvePlanPrice(planId || tierCode, vendor.shopType);
+      if (!planInfo.plan) return res.status(400).json({ success: false, message: 'Subscription plan not found' });
+      planType = planInfo.planType;
+    }
 
     let effectiveDays = Number(days);
     if (!effectiveDays || isNaN(effectiveDays)) {
@@ -1771,6 +1812,11 @@ export const adminActivateVendorSubscription = async (req, res) => {
       vendor.hasUsedNewUserBonus = true;
     }
 
+    const planSnapshot = planInfo
+      ? buildPlanSnapshot(planInfo, vendor.subscription, now)
+      : { tierCode: null, freeOrdersPerMonth: null, extraChargePerOrder: 0, planName: planType, cycleAnchor: now };
+    // Manual activation always restarts the subscription today, so the cycle restarts too.
+    planSnapshot.cycleAnchor = now;
     vendor.subscription = {
       planType,
       price: 0,
@@ -1779,13 +1825,16 @@ export const adminActivateVendorSubscription = async (req, res) => {
       expiresAt,
       lastRenewedAt: now,
       bonusDaysApplied: bonusDays,
+      ...planSnapshot,
     };
     await vendor.save();
+    await syncOpenCycleWithPlan(vendor).catch((e) => logger.warn(`[admin] cycle sync failed: ${e.message}`));
 
     // Record manual activation in subscription audit log
     const transactionId = `SUB-ADM-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
     await SubscriptionPayment.create({
       vendorId: vendor._id,
+      planId: planInfo?.planId || undefined,
       planType,
       shopType: vendor.shopType || 'Independent Store',
       amount: 0,
