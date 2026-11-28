@@ -26,8 +26,18 @@ Cashback offers and rewards are subject to change without notice. Zeebac reserve
 ## 4. Vendor Agreements
 Vendors must provide accurate business information and honor all promotional offers listed on the Zeebac platform. Failure to do so may result in account suspension or termination.`;
 
+const AUDIENCE_LABELS = { customer: 'Customer', vendor: 'Vendor', delivery: 'Delivery Partner' };
+const AUDIENCE_TABS = [
+  { key: 'customer', label: 'Customers', icon: 'person', path: '' },
+  { key: 'vendor', label: 'Vendors', icon: 'storefront', path: '/vendor' },
+  { key: 'delivery', label: 'Delivery Partners', icon: 'two_wheeler', path: '/delivery' },
+];
+
 export default function LegalContentManagerPage() {
   const [activeTab, setActiveTab] = useState('privacy'); // 'privacy' | 'terms'
+  // Each app has its own documents: 'customer' | 'vendor' | 'delivery'
+  const [audience, setAudience] = useState('customer');
+  const [allLegal, setAllLegal] = useState(null); // server copy per audience
   const [viewMode, setViewMode] = useState('edit'); // 'edit' | 'split' | 'preview'
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,25 +58,28 @@ export default function LegalContentManagerPage() {
     fetchContent();
   }, []);
 
+  const applyAudience = (legal, aud) => {
+    const docSet = legal?.[aud];
+    if (!docSet) return;
+    setPrivacyPolicy({
+      title: docSet.privacyPolicy?.title || 'Privacy Policy',
+      content: docSet.privacyPolicy?.content || DEFAULT_PRIVACY,
+      lastUpdated: docSet.privacyPolicy?.lastUpdated || null,
+    });
+    setTermsOfService({
+      title: docSet.termsOfService?.title || 'Terms of Service',
+      content: docSet.termsOfService?.content || DEFAULT_TERMS,
+      lastUpdated: docSet.termsOfService?.lastUpdated || null,
+    });
+  };
+
   const fetchContent = async () => {
     try {
       setLoading(true);
       const res = await AdminAPI.getLegalContent();
-      if (res?.success && res.data) {
-        if (res.data.privacyPolicy) {
-          setPrivacyPolicy({
-            title: res.data.privacyPolicy.title || 'Privacy Policy',
-            content: res.data.privacyPolicy.content || DEFAULT_PRIVACY,
-            lastUpdated: res.data.privacyPolicy.lastUpdated || null,
-          });
-        }
-        if (res.data.termsOfService) {
-          setTermsOfService({
-            title: res.data.termsOfService.title || 'Terms of Service',
-            content: res.data.termsOfService.content || DEFAULT_TERMS,
-            lastUpdated: res.data.termsOfService.lastUpdated || null,
-          });
-        }
+      if (res?.success && res.data?.legal) {
+        setAllLegal(res.data.legal);
+        applyAudience(res.data.legal, audience);
       }
     } catch (err) {
       console.error('Failed to fetch legal content:', err);
@@ -76,34 +89,43 @@ export default function LegalContentManagerPage() {
     }
   };
 
+  const isDirty = () => {
+    const saved = allLegal?.[audience];
+    if (!saved) return false;
+    return (
+      saved.privacyPolicy?.title !== privacyPolicy.title ||
+      saved.privacyPolicy?.content !== privacyPolicy.content ||
+      saved.termsOfService?.title !== termsOfService.title ||
+      saved.termsOfService?.content !== termsOfService.content
+    );
+  };
+
+  const switchAudience = (next) => {
+    if (next === audience) return;
+    if (isDirty() && !window.confirm('You have unsaved changes for this app. Switch anyway and discard them?')) return;
+    setAudience(next);
+    applyAudience(allLegal, next);
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
       const payload = {
-        privacyPolicy: {
-          title: privacyPolicy.title,
-          content: privacyPolicy.content,
-        },
-        termsOfService: {
-          title: termsOfService.title,
-          content: termsOfService.content,
-        },
+        audience,
+        privacyPolicy: { title: privacyPolicy.title, content: privacyPolicy.content },
+        termsOfService: { title: termsOfService.title, content: termsOfService.content },
       };
       const res = await AdminAPI.updateLegalContent(payload);
       if (res?.success) {
-        toast.success('Legal content updated & published live!');
-        if (res.data?.privacyPolicy?.lastUpdated) {
-          setPrivacyPolicy((prev) => ({ ...prev, lastUpdated: res.data.privacyPolicy.lastUpdated }));
-        }
-        if (res.data?.termsOfService?.lastUpdated) {
-          setTermsOfService((prev) => ({ ...prev, lastUpdated: res.data.termsOfService.lastUpdated }));
-        }
+        toast.success(`${AUDIENCE_LABELS[audience]} legal content published live!`);
+        setAllLegal((prev) => ({ ...prev, [audience]: res.data }));
+        applyAudience({ [audience]: res.data }, audience);
       } else {
         toast.error(res?.message || 'Failed to save changes');
       }
     } catch (err) {
       console.error(err);
-      toast.error('Error saving legal content');
+      toast.error(err.response?.data?.message || 'Error saving legal content');
     } finally {
       setSaving(false);
     }
@@ -195,7 +217,33 @@ export default function LegalContentManagerPage() {
             <h1 className="font-display text-[24px] font-black tracking-tight text-on-surface">Legal &amp; Policy CMS</h1>
           </div>
           <p className="text-body-sm text-on-surface-variant mt-1">
-            Edit Privacy Policy and Terms of Service displayed across customer &amp; vendor apps in real-time.
+            Each app has its own Privacy Policy and Terms. Pick the app, edit, then Save &amp; Publish — only that app changes.
+          </p>
+          {/* Which app's documents are being edited */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {AUDIENCE_TABS.map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                onClick={() => switchAudience(a.key)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                  audience === a.key ? 'bg-primary text-white shadow-sm' : 'border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">{a.icon}</span>
+                {a.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11.5px] text-on-surface-variant mt-2">
+            Live at{' '}
+            <a className="underline font-bold text-primary" href={`/privacy${AUDIENCE_TABS.find((a) => a.key === audience).path}`} target="_blank" rel="noopener noreferrer">
+              /privacy{AUDIENCE_TABS.find((a) => a.key === audience).path}
+            </a>{' '}
+            and{' '}
+            <a className="underline font-bold text-primary" href={`/terms${AUDIENCE_TABS.find((a) => a.key === audience).path}`} target="_blank" rel="noopener noreferrer">
+              /terms{AUDIENCE_TABS.find((a) => a.key === audience).path}
+            </a>
           </p>
         </div>
 
@@ -223,7 +271,7 @@ export default function LegalContentManagerPage() {
             ) : (
               <>
                 <span className="material-symbols-outlined text-[16px]">save</span>
-                Save &amp; Publish Live
+                Save &amp; Publish for {AUDIENCE_LABELS[audience]}s
               </>
             )}
           </button>

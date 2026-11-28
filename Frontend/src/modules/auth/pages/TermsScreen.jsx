@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AuthAPI } from '../../../services/api';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 
@@ -17,6 +17,9 @@ Vendors must provide accurate business information and honor all promotional off
 
 export default function TermsScreen() {
   const navigate = useNavigate();
+  // /privacy, /privacy/vendor, /privacy/delivery (same for /terms) — each audience has its own document
+  const { audience: audienceParam } = useParams();
+  const audience = ['vendor', 'delivery'].includes(audienceParam) ? audienceParam : 'customer';
   const [content, setContent] = useState(DEFAULT_TERMS);
   const [title, setTitle] = useState('Terms of Service');
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -26,7 +29,7 @@ export default function TermsScreen() {
     let isMounted = true;
     const loadContent = async () => {
       try {
-        const res = await AuthAPI.getLegalContent();
+        const res = await AuthAPI.getLegalContent(audience);
         if (isMounted && res?.success && res.data?.termsOfService) {
           const tos = res.data.termsOfService;
           if (tos.content) setContent(tos.content);
@@ -43,7 +46,7 @@ export default function TermsScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [audience]);
 
   const renderSections = (text) => {
     if (!text) return null;
@@ -84,7 +87,7 @@ export default function TermsScreen() {
     <div className="bg-[#f8f9fc] min-h-screen flex flex-col font-body-lg text-on-surface">
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md px-4 py-3 flex items-center gap-3 border-b border-outline-variant/10 shadow-sm">
         <button 
-          onClick={() => safeNavigateBack(navigate, '/login')}
+          onClick={() => safeNavigateBack(navigate, { customer: '/profile', vendor: '/vendor/profile', delivery: '/delivery/profile' }[audience])}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors cursor-pointer"
           title="Go Back"
         >

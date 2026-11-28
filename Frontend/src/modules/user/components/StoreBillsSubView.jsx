@@ -396,7 +396,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
               {Number(selectedBill.cashbackAmount) > 0 && (
                 <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 text-center space-y-0.5 text-[11px] font-sans">
                   <p className="text-[10px] font-bold uppercase text-purple-700">
-                    🎁 Zeebac Instant Reward
+                    <span className="material-symbols-outlined text-[13px] align-middle">redeem</span> Zeebac Instant Reward
                   </p>
                   <p className="font-black text-purple-900 text-[14px]">
                     +₹{Number(selectedBill.cashbackAmount).toFixed(0)} Cashback
@@ -438,7 +438,7 @@ export default function StoreBillsSubView({ onBack, t = (k, d) => d || k }) {
                 type="button"
                 onClick={() => {
                   const bill = selectedBill;
-                  const text = `🧾 *Zeebac Bill Receipt*\nStore: ${bill.vendorStoreName || 'Zeebac Store'}\nBill No: ${bill.billNumber || bill.transactionId}\nCustomer: ${bill.customerName || 'Customer'} (${bill.customerZeebacId || ''})\nTotal: ₹${bill.amount}\n🎁 *Cashback Credited:* ₹${bill.cashbackAmount || 0} Points in Zeebac Wallet!\nThank you!`;
+                  const text = `*Zeebac Bill Receipt*\nStore: ${bill.vendorStoreName || 'Zeebac Store'}\nBill No: ${bill.billNumber || bill.transactionId}\nCustomer: ${bill.customerName || 'Customer'} (${bill.customerZeebacId || ''})\nTotal: ₹${bill.amount}\n*Cashback Credited:* ₹${bill.cashbackAmount || 0} Points in Zeebac Wallet!\nThank you!`;
                   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                 }}
                 className="py-3 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"

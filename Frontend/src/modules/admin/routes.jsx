@@ -3,10 +3,12 @@ import AdminLayout from './components/common/AdminLayout';
 
 import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
+import UserDetailPage from './pages/UserDetailPage';
 import VendorsPage from './pages/VendorsPage';
 import VendorApplicationDetailPage from './pages/VendorApplicationDetailPage';
 import DeliveryPartnersPage from './pages/DeliveryPartnersPage';
 import DeliveryOperationsPage from './pages/DeliveryOperationsPage';
+import AdminOrdersPage from './pages/AdminOrdersPage';
 import RiderSettlementsPage from './pages/RiderSettlementsPage';
 import RiderCashLedgerPage from './pages/RiderCashLedgerPage';
 import RiderEarningsPage from './pages/RiderEarningsPage';
@@ -37,12 +39,14 @@ export default function AdminRoutes() {
         <Route path="/coins" element={<CoinsPage />} />
         <Route path="/profile" element={<AdminProfilePage />} />
         <Route path="/users" element={<UsersPage />} />
+        <Route path="/users/:id" element={<UserDetailPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
         <Route path="/vendors/:id" element={<VendorApplicationDetailPage />} />
         <Route path="/delivery-partners" element={<DeliveryPartnersPage />} />
         <Route path="/rider-settlements" element={<RiderSettlementsPage />} />
         <Route path="/rider-cash-ledger" element={<RiderCashLedgerPage />} />
         <Route path="/rider-earnings" element={<RiderEarningsPage />} />
+        <Route path="/orders" element={<AdminOrdersPage />} />
         <Route path="/delivery-operations" element={<DeliveryOperationsPage />} />
         <Route path="/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />

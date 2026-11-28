@@ -50,14 +50,28 @@ export default function VendorTopBar() {
   return (
     <>
       <header className="sticky top-0 z-30 bg-white px-3.5 sm:px-5 py-2.5 flex items-center justify-between border-b border-slate-100 shadow-[0_1px_4px_rgba(0,0,0,0.03)]">
-        {/* Left: Proper Zeebac Logo + Role Badge */}
-        <div className="flex items-center gap-2">
-          <img 
-            alt="Zeebac Logo" 
-            className="h-[44px] sm:h-[48px] object-contain cursor-pointer active:scale-95 transition-transform" 
-            src="/Logo (6).png"
+        {/* Left: Single Brand Logo on Mobile/Tablet (hidden on lg+ where Sidebar displays the logo) */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
             onClick={() => navigate('/vendor')}
-          />
+            className="flex lg:hidden items-center gap-2 cursor-pointer active:scale-95 transition-transform"
+          >
+            <img
+              alt="ZeeBac Logo"
+              className="h-11 sm:h-12 w-11 sm:w-12 object-contain shrink-0"
+              src="/Logo (6).png"
+            />
+            <span className="font-display font-black text-[20px] sm:text-[22px] leading-none tracking-tight text-slate-900">
+              Zee<span className="text-primary">Bac</span>
+            </span>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-2 min-w-0">
+            <span className="font-display font-black text-[15px] text-slate-900 truncate max-w-[260px]">
+              {currentUser?.storeName || 'Partner Store'}
+            </span>
+          </div>
+
           {currentUser?.businessType === 'Manufacturer' ? (
             <span className="hidden xs:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
               <span>🏭</span>

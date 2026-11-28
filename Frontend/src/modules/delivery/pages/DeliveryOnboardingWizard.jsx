@@ -1405,7 +1405,10 @@ export default function DeliveryOnboardingWizard() {
                     className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
                   />
                   <span className="text-[11.5px] text-slate-700 leading-snug">
-                    I hereby declare that the documents and information provided are true to the best of my knowledge. I agree to ZeeBac delivery partner service terms and conduct guidelines.
+                    I hereby declare that the documents and information provided are true to the best of my knowledge. I agree to ZeeBac delivery partner{' '}
+                    <a href="/terms/delivery" target="_blank" rel="noopener noreferrer" className="underline font-bold text-purple-700" onClick={(e) => e.stopPropagation()}>Terms &amp; Conditions</a>{' '}
+                    and{' '}
+                    <a href="/privacy/delivery" target="_blank" rel="noopener noreferrer" className="underline font-bold text-purple-700" onClick={(e) => e.stopPropagation()}>Privacy Policy</a>.
                   </span>
                 </label>
                 {errors.acceptedTerms && (

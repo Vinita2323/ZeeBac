@@ -238,8 +238,9 @@ export const AuthAPI = {
     const res = await apiClient.get('/auth/me');
     return res.data;
   },
-  getLegalContent: async () => {
-    const res = await apiClient.get('/auth/content/legal');
+  // audience: 'customer' | 'vendor' | 'delivery'
+  getLegalContent: async (audience = 'customer') => {
+    const res = await apiClient.get('/auth/content/legal', { params: { audience } });
     return res.data;
   }
 };
@@ -394,16 +395,28 @@ export const AdminAPI = {
     const res = await apiClient.patch(`/admin/vendors/${id}/request-limit`, { dailyRequestLimitOverride });
     return res.data;
   },
-  getUsers: async (page = 1, search = '') => {
-    const res = await apiClient.get(`/admin/users?page=${page}&search=${search}`);
+  getUsers: async (page = 1, search = '', status = '') => {
+    const res = await apiClient.get(`/admin/users?page=${page}&search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
     return res.data;
   },
-  suspendUser: async (id) => {
-    const res = await apiClient.patch(`/admin/users/${id}/suspend`);
+  getUserById: async (id) => {
+    const res = await apiClient.get(`/admin/users/${id}`);
+    return res.data;
+  },
+  suspendUser: async (id, reason = '') => {
+    const res = await apiClient.patch(`/admin/users/${id}/suspend`, { reason });
+    return res.data;
+  },
+  blockUser: async (id, reason = '') => {
+    const res = await apiClient.patch(`/admin/users/${id}/block`, { reason });
     return res.data;
   },
   unsuspendUser: async (id) => {
     const res = await apiClient.patch(`/admin/users/${id}/unsuspend`);
+    return res.data;
+  },
+  deleteUser: async (id) => {
+    const res = await apiClient.delete(`/admin/users/${id}`);
     return res.data;
   },
   // Payouts & Withdrawals
@@ -1136,6 +1149,14 @@ export const UserAPI = {
     const res = await apiClient.put('/user/me', data);
     return res.data;
   },
+  // Profile photo: validated upload (JPG/PNG/WEBP, max 5 MB) → stored image URL
+  uploadProfilePhoto: async (file) => {
+    const form = new FormData();
+    form.append('profilePhoto', file);
+    const res = await apiClient.post('/user/profile/photo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return res.data;
+  },
+  removeProfilePhoto: async () => (await apiClient.delete('/user/profile/photo')).data,
   // `data` must be a FormData instance (a real bill photo is now mandatory
   // and goes through multer, not a base64 string in a JSON body).
   createCashbackRequest: async (data) => {

@@ -23,6 +23,7 @@ import { getIO } from '../socket/socket.js';
 import logger from '../utils/logger.js';
 import { computeOrderCharges } from '../utils/orderPricing.util.js';
 import { creditSellerForDeliveredOrder, reverseOrderCredit } from '../utils/sellerSettlement.util.js';
+import { enrichOrderItems } from '../utils/orderItemEnricher.util.js';
 import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
 import { cancelOrder, CancellationError } from '../utils/orderCancellation.util.js';
 import { deductOrderStock } from '../utils/orderStock.util.js';
@@ -159,7 +160,9 @@ export const createOrder = async (req, res) => {
         quantity,
         cashbackPercentage: boundedRate,
         cashbackPoints: lineCashbackPoints,
-        image: dbProd?.image || item.image || null,
+        image: dbProd?.image || dbProd?.images?.[0] || item.image || null,
+        sku: dbProd?.sku || item.sku || '',
+        variant: item.variant || dbProd?.variant || (dbProd?.unit && dbProd.unit !== 'Pcs' ? dbProd.unit : '') || '',
         category: dbProd?.category || item.category || 'General',
         brandName: dbProd?.branding?.brandName || item.brandName || null,
         binCode,
@@ -1124,6 +1127,7 @@ export const getMyCustomerOrders = async (req, res) => {
     const rawOrders = await Order.find(query)
       .populate('vendorId', 'storeName phone address location storeLogo city zeebacId')
       .populate('riderDetails.riderId', 'name phone vehicleNo currentLocation')
+      .populate('items.productId', 'image images sku unit')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
@@ -1132,6 +1136,9 @@ export const getMyCustomerOrders = async (req, res) => {
       const obj = ord.toObject ? ord.toObject() : ord;
       if (obj.riderDetails && !obj.riderDetails.deliveryOtp) {
         obj.riderDetails.deliveryOtp = String(obj.orderId || '').replace(/\D/g, '').slice(-4) || '1234';
+      }
+      if (Array.isArray(obj.items)) {
+        obj.items = enrichOrderItems(obj.items);
       }
       return obj;
     });
@@ -1160,21 +1167,32 @@ export const getOrderById = async (req, res) => {
     const isObjectId = mongoose.Types.ObjectId.isValid(id);
     const query = isObjectId ? { $or: [{ _id: id }, { orderId: id }] } : { orderId: id };
 
-    const order = await Order.findOne(query);
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    const rawOrder = await Order.findOne(query).populate(
+      'items.productId',
+      'image images sku unit warehouseLocation barcode batchNumber expiryDate'
+    );
+    if (!rawOrder) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    const orderVendorId = rawOrder.vendorId?._id ? rawOrder.vendorId._id.toString() : rawOrder.vendorId.toString();
+    const orderCustomerId = rawOrder.customerId?._id ? rawOrder.customerId._id.toString() : rawOrder.customerId.toString();
 
     // Robust authorization check with normalized phone match
     const userPhoneClean = req.user.phone ? String(req.user.phone).replace(/\D/g, '').slice(-10) : '';
-    const orderPhoneClean = order.customerPhone ? String(order.customerPhone).replace(/\D/g, '').slice(-10) : '';
+    const orderPhoneClean = rawOrder.customerPhone ? String(rawOrder.customerPhone).replace(/\D/g, '').slice(-10) : '';
     const phoneMatches = Boolean(userPhoneClean && orderPhoneClean && userPhoneClean === orderPhoneClean);
 
-    const isOwner = order.customerId.toString() === req.user.id || phoneMatches;
-    const isVendor = order.vendorId.toString() === req.user.id;
+    const isOwner = orderCustomerId === req.user.id || phoneMatches;
+    const isVendor = orderVendorId === req.user.id;
     const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
-    const isRider = req.user.role === 'delivery_partner' && (order.riderDetails?.riderId?.toString() === req.user.id?.toString());
+    const isRider = req.user.role === 'delivery_partner' && (rawOrder.riderDetails?.riderId?.toString() === req.user.id?.toString());
 
     if (!isOwner && !isVendor && !isAdmin && !isRider) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const order = rawOrder.toObject ? rawOrder.toObject() : rawOrder;
+    if (Array.isArray(order.items)) {
+      order.items = enrichOrderItems(order.items);
     }
 
     res.status(200).json({ success: true, data: order });
@@ -1202,7 +1220,7 @@ export const getVendorOrders = async (req, res) => {
     const rawOrders = await Order.find(query)
       .populate('customerId', 'name phone location')
       .populate('riderDetails.riderId', 'name phone vehicleNo currentLocation')
-      .populate('items.productId', 'warehouseLocation barcode batchNumber expiryDate')
+      .populate('items.productId', 'image images sku unit warehouseLocation barcode batchNumber expiryDate')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
@@ -1218,7 +1236,7 @@ export const getVendorOrders = async (req, res) => {
         obj.pickupOtp = obj.riderDetails?.pickupOtp || String(obj.orderId || '').replace(/\D/g, '').slice(-4) || '1234';
       }
       if (Array.isArray(obj.items)) {
-        obj.items = obj.items.map((item) => {
+        obj.items = enrichOrderItems(obj.items).map((item) => {
           const prod = item.productId && typeof item.productId === 'object' ? item.productId : null;
           const loc = item.warehouseLocation?.binCode
             ? item.warehouseLocation

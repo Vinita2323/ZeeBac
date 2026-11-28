@@ -25,87 +25,113 @@ Cashback offers and rewards are subject to change without notice. Zeebac reserve
 ## 4. Vendor Agreements
 Vendors must provide accurate business information and honor all promotional offers listed on the Zeebac platform. Failure to do so may result in account suspension or termination.`;
 
-// Helper to ensure at least one document exists
+export const LEGAL_AUDIENCES = ['customer', 'vendor', 'delivery'];
+const AUDIENCE_LABEL = { customer: 'Customer', vendor: 'Vendor', delivery: 'Delivery Partner' };
+const DEFAULT_TITLES = {
+  customer: { privacyPolicy: 'Privacy Policy', termsOfService: 'Terms of Service' },
+  vendor: { privacyPolicy: 'Vendor Privacy Policy', termsOfService: 'Vendor Terms & Conditions' },
+  delivery: { privacyPolicy: 'Delivery Partner Privacy Policy', termsOfService: 'Delivery Partner Terms & Conditions' },
+};
+export const normalizeAudience = (a) => {
+  const v = String(a || '').toLowerCase();
+  if (['vendor', 'vendors', 'merchant', 'seller', 'store'].includes(v)) return 'vendor';
+  if (['delivery', 'rider', 'riders', 'delivery-partner', 'delivery_partner', 'partner'].includes(v)) return 'delivery';
+  return 'customer';
+};
+
+// Ensures the content document exists and every audience has its own Privacy Policy + Terms.
+// Missing audience documents are seeded once from the existing shared copy, so nothing goes blank.
 export const getOrSeedPlatformContent = async () => {
   let doc = await PlatformContent.findOne();
   if (!doc) {
     doc = await PlatformContent.create({
-      privacyPolicy: {
-        title: 'Privacy Policy',
-        content: DEFAULT_PRIVACY_POLICY,
-        lastUpdated: new Date(),
-      },
-      termsOfService: {
-        title: 'Terms of Service',
-        content: DEFAULT_TERMS_OF_SERVICE,
-        lastUpdated: new Date(),
-      },
+      privacyPolicy: { title: 'Privacy Policy', content: DEFAULT_PRIVACY_POLICY, lastUpdated: new Date() },
+      termsOfService: { title: 'Terms of Service', content: DEFAULT_TERMS_OF_SERVICE, lastUpdated: new Date() },
     });
   }
+  let changed = false;
+  for (const aud of LEGAL_AUDIENCES) {
+    for (const key of ['privacyPolicy', 'termsOfService']) {
+      const cur = doc.legal?.[aud]?.[key];
+      if (!cur || !cur.content) {
+        const shared = doc[key] || {};
+        doc.set(`legal.${aud}.${key}`, {
+          title: aud === 'customer' ? shared.title || DEFAULT_TITLES.customer[key] : DEFAULT_TITLES[aud][key],
+          content: shared.content || (key === 'privacyPolicy' ? DEFAULT_PRIVACY_POLICY : DEFAULT_TERMS_OF_SERVICE),
+          lastUpdated: shared.lastUpdated || new Date(),
+        });
+        changed = true;
+      }
+    }
+  }
+  if (changed) await doc.save();
   return doc;
 };
 
-// Public: GET /api/auth/content/legal
+const pickAudience = (doc, aud) => ({
+  audience: aud,
+  privacyPolicy: doc.legal[aud].privacyPolicy,
+  termsOfService: doc.legal[aud].termsOfService,
+});
+
+// Public: GET /api/auth/content/legal?audience=customer|vendor|delivery
 export const getPublicLegalContent = async (req, res) => {
+  const aud = normalizeAudience(req.query.audience);
   try {
     const doc = await getOrSeedPlatformContent();
-    return res.status(200).json({
-      success: true,
-      data: {
-        privacyPolicy: doc.privacyPolicy,
-        termsOfService: doc.termsOfService,
-      },
-    });
+    return res.status(200).json({ success: true, data: pickAudience(doc, aud) });
   } catch (error) {
     logger.error(`[getPublicLegalContent] Error: ${error.message}`);
     return res.status(200).json({
       success: true,
       data: {
-        privacyPolicy: { title: 'Privacy Policy', content: DEFAULT_PRIVACY_POLICY, lastUpdated: new Date() },
-        termsOfService: { title: 'Terms of Service', content: DEFAULT_TERMS_OF_SERVICE, lastUpdated: new Date() },
+        audience: aud,
+        privacyPolicy: { title: DEFAULT_TITLES[aud].privacyPolicy, content: DEFAULT_PRIVACY_POLICY, lastUpdated: new Date() },
+        termsOfService: { title: DEFAULT_TITLES[aud].termsOfService, content: DEFAULT_TERMS_OF_SERVICE, lastUpdated: new Date() },
       },
     });
   }
 };
 
-// Admin: GET /api/admin/content/legal
+// Admin: GET /api/admin/content/legal → { customer, vendor, delivery } (+ legacy top-level fields)
 export const getAdminLegalContent = async (req, res) => {
   try {
     const doc = await getOrSeedPlatformContent();
-    return res.status(200).json({ success: true, data: doc });
+    const legal = Object.fromEntries(LEGAL_AUDIENCES.map((a) => [a, pickAudience(doc, a)]));
+    return res.status(200).json({
+      success: true,
+      data: { legal, audiences: LEGAL_AUDIENCES.map((a) => ({ key: a, label: AUDIENCE_LABEL[a] })), privacyPolicy: doc.privacyPolicy, termsOfService: doc.termsOfService },
+    });
   } catch (error) {
     logger.error(`[getAdminLegalContent] Error: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// Admin: PUT /api/admin/content/legal
+// Admin: PUT /api/admin/content/legal { audience, privacyPolicy?, termsOfService? }
+// Updates ONLY the given audience. (No audience → customer, for older admin clients.)
 export const updateAdminLegalContent = async (req, res) => {
   try {
     const { privacyPolicy, termsOfService } = req.body;
-    let doc = await getOrSeedPlatformContent();
+    const aud = normalizeAudience(req.body.audience);
+    const doc = await getOrSeedPlatformContent();
 
-    if (privacyPolicy) {
-      if (privacyPolicy.title !== undefined) doc.privacyPolicy.title = privacyPolicy.title;
-      if (privacyPolicy.content !== undefined) doc.privacyPolicy.content = privacyPolicy.content;
-      doc.privacyPolicy.lastUpdated = new Date();
+    for (const [key, incoming] of [['privacyPolicy', privacyPolicy], ['termsOfService', termsOfService]]) {
+      if (!incoming) continue;
+      const title = incoming.title !== undefined ? String(incoming.title).trim() : doc.legal[aud][key].title;
+      const content = incoming.content !== undefined ? String(incoming.content) : doc.legal[aud][key].content;
+      if (!title) return res.status(400).json({ success: false, message: 'Title is required' });
+      if (!content.trim()) return res.status(400).json({ success: false, message: 'Content cannot be empty' });
+      doc.set(`legal.${aud}.${key}`, { title, content, lastUpdated: new Date() });
+      // Keep the legacy shared copy in sync with the customer version (older app builds read it).
+      if (aud === 'customer') doc.set(key, { title, content, lastUpdated: new Date() });
     }
-
-    if (termsOfService) {
-      if (termsOfService.title !== undefined) doc.termsOfService.title = termsOfService.title;
-      if (termsOfService.content !== undefined) doc.termsOfService.content = termsOfService.content;
-      doc.termsOfService.lastUpdated = new Date();
-    }
-
-    if (req.user?.id) {
-      doc.updatedBy = req.user.id;
-    }
-
+    if (req.user?.id) doc.updatedBy = req.user.id;
     await doc.save();
     return res.status(200).json({
       success: true,
-      message: 'Legal content updated successfully',
-      data: doc,
+      message: `${AUDIENCE_LABEL[aud]} legal content updated successfully`,
+      data: pickAudience(doc, aud),
     });
   } catch (error) {
     logger.error(`[updateAdminLegalContent] Error: ${error.message}`);

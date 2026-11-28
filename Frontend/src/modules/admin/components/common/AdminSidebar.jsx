@@ -11,6 +11,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
   const [openGroups, setOpenGroups] = useState({});
+  const [pageSearch, setPageSearch] = useState('');
 
   useEffect(() => {
     const fetchOpenTickets = async () => {
@@ -43,6 +44,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
         { label: 'Rider Earnings', icon: 'savings', path: '/admin/rider-earnings' },
       ],
     },
+    { label: 'Orders', icon: 'shopping_bag', path: '/admin/orders' },
     { label: 'Live Deliveries', icon: 'route', path: '/admin/delivery-operations' },
     { label: 'Subscription Plans', icon: 'card_membership', path: '/admin/subscriptions' },
     { label: 'Supply Chain & B2B', icon: 'hub', path: '/admin/supply-chain' },
@@ -66,6 +68,29 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     }
   };
 
+  const searchTerm = pageSearch.trim().toLowerCase();
+  const filteredNavItems = searchTerm
+    ? navItems
+        .map((item) => {
+          if (item.children) {
+            const parentMatches = item.label.toLowerCase().includes(searchTerm);
+            const matchingChildren = parentMatches
+              ? item.children
+              : item.children.filter((c) => c.label.toLowerCase().includes(searchTerm));
+            if (matchingChildren.length === 0) return null;
+            return { ...item, children: matchingChildren, forceOpen: true };
+          }
+          return item.label.toLowerCase().includes(searchTerm) ? item : null;
+        })
+        .filter(Boolean)
+    : navItems;
+
+  const firstSearchTarget = (() => {
+    const first = filteredNavItems[0];
+    if (!first) return null;
+    return first.children ? first.children[0]?.path : first.path;
+  })();
+
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
   };
@@ -80,12 +105,25 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     <>
       <aside className="h-full w-full bg-[#e5dbf7] text-[#4b3370] flex flex-col border-r border-[#cbbedf] shadow-[1px_0_10px_rgba(124,58,237,0.03)]">
       {/* Logo Area */}
-      <div className={`h-[64px] flex items-center ${isCollapsed ? 'justify-center' : 'px-5 justify-between'} border-b border-[#cbbedf] relative shrink-0`}>
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'pl-6'} w-full`}>
-          {isCollapsed ? (
-            <span className="text-[#381a6c] font-display font-black text-[24px] tracking-tight leading-none cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/admin')}>Z</span>
-          ) : (
-            <span className="text-[#381a6c] font-display font-black text-[22px] tracking-tight leading-none cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/admin')}>Zeebac</span>
+      <div className={`h-[64px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'pl-4 pr-11 justify-between'} border-b border-[#cbbedf] relative shrink-0`}>
+        <div
+          onClick={() => handleNavClick('/admin')}
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start gap-2.5'} w-full cursor-pointer hover:opacity-90 transition-opacity`}
+        >
+          <img
+            src="/Logo (6).png"
+            alt="ZeeBac Logo"
+            className={`object-contain shrink-0 transition-all duration-300 ${isCollapsed ? 'h-9 w-9' : 'h-10 w-10'}`}
+          />
+          {!isCollapsed && (
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="text-[#381a6c] font-display font-black text-[21px] tracking-tight leading-none">
+                Zee<span className="text-primary">Bac</span>
+              </span>
+              <span className="px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded bg-white/75 text-[#5b3b96] border border-[#cbbedf]">
+                Admin
+              </span>
+            </div>
           )}
         </div>
 
@@ -112,13 +150,53 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
         )}
       </div>
 
+      {/* Sidebar Page Search */}
+      {!isCollapsed && (
+        <div className="px-3 pt-3 pb-1 shrink-0">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#70549c] text-[17px]">
+              search
+            </span>
+            <input
+              type="text"
+              value={pageSearch}
+              onChange={(e) => setPageSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchTerm && firstSearchTarget) {
+                  handleNavClick(firstSearchTarget);
+                } else if (e.key === 'Escape') {
+                  setPageSearch('');
+                }
+              }}
+              placeholder="Search any page..."
+              className="w-full h-9 pl-8 pr-7 bg-white/80 hover:bg-white focus:bg-white border border-[#cbbedf] rounded-xl text-[12.5px] font-medium text-[#381a6c] placeholder:text-[#70549c]/70 focus:outline-none focus:border-primary transition-all shadow-2xs"
+            />
+            {pageSearch && (
+              <button
+                type="button"
+                onClick={() => setPageSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#70549c] hover:text-[#381a6c] cursor-pointer flex items-center"
+                title="Clear search"
+              >
+                <span className="material-symbols-outlined text-[15px]">close</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Navigation Links */}
-      <nav className={`flex-1 overflow-y-auto py-4 ${isCollapsed ? 'px-2' : 'px-3'} space-y-1 scroll-hide`}>
-        {navItems.map((item) => {
+      <nav className={`flex-1 overflow-y-auto py-3 ${isCollapsed ? 'px-2' : 'px-3'} space-y-1 scroll-hide`}>
+        {filteredNavItems.length === 0 ? (
+          <p className="text-center text-[12px] font-medium text-[#70549c] py-6 px-2">
+            No pages matching "{pageSearch}"
+          </p>
+        ) : (
+          filteredNavItems.map((item) => {
           // Dropdown group (e.g. Delivery Partners)
           if (item.children) {
             const childActive = item.children.some((c) => location.pathname.startsWith(c.path));
-            const isOpen = openGroups[item.label] ?? childActive;
+            const isOpen = item.forceOpen || (openGroups[item.label] ?? childActive);
             return (
               <div key={item.label} className="space-y-1">
                 <button
@@ -219,7 +297,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
               )}
             </button>
           );
-        })}
+        }))}
       </nav>
 
       {/* Bottom Profile Area */}

@@ -8,8 +8,11 @@ import {
   rejectVendor,
   updateVendorRequestLimit,
   getAllUsers,
+  getAdminUserById,
   suspendUser,
+  blockUser,
   unsuspendUser,
+  deleteUser,
   getCashbackRules,
   createCashbackRule,
   updateCashbackRule,
@@ -145,8 +148,11 @@ router.patch('/vendors/:id/request-limit', updateVendorRequestLimit);
 
 // ─── User Management ───
 router.get('/users', getAllUsers);
+router.get('/users/:id', getAdminUserById);
 router.patch('/users/:id/suspend', suspendUser);
+router.patch('/users/:id/block', blockUser);
 router.patch('/users/:id/unsuspend', unsuspendUser);
+router.delete('/users/:id', deleteUser);
 
 // ─── Payouts & Withdrawals ───
 router.get('/payouts/pending', getPendingPayouts);

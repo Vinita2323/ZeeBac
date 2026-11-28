@@ -18,7 +18,7 @@ const sections = [
       { label: 'My Orders', to: '/orders' },
       { label: 'Wallet & Points', to: '/wallet' },
       { label: 'Transaction History', to: '/passbook' },
-      { label: 'Refer & Earn', to: '/profile', state: { subView: 'refer-earn' } },
+      { label: 'Refer & Earn', to: '/refer-earn' },
     ],
   },
   {
@@ -31,7 +31,7 @@ const sections = [
   {
     title: 'Help & Legal',
     links: [
-      { label: 'Help & Support', to: '/profile', state: { subView: 'support' } },
+      { label: 'Help & Support', to: '/profile/support' },
       { label: 'Chat Support', to: '/chat' },
       { label: 'Terms of Service', to: '/terms' },
       { label: 'Privacy Policy', to: '/privacy' },

@@ -267,7 +267,7 @@ export default function WalletScreen() {
 
         {/* Cashback Requests History Link Banner */}
         <div 
-          onClick={() => navigate('/profile', { state: { subView: 'audits' } })}
+          onClick={() => navigate('/profile/audits')}
           className="bg-white border border-outline-variant/30 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors shadow-sm"
         >
           <div className="flex items-center gap-4">
@@ -570,7 +570,7 @@ function CashoutSubView({
             {/* Title */}
             <div>
               <h2 className="font-display text-[22px] font-black text-on-surface">
-                {result.isAuto ? '✅ Withdrawal Successful!' : '⏳ Request Submitted!'}
+                {result.isAuto ? 'Withdrawal Successful!' : 'Request Submitted!'}
               </h2>
               <p className="text-on-surface-variant text-[13px] mt-1.5 leading-relaxed">
                 {result.isAuto
@@ -825,7 +825,7 @@ function CashoutSubView({
               </div>
               <button
                 type="button"
-                onClick={() => navigate('/profile', { state: { openLinkedAccounts: true } })}
+                onClick={() => navigate('/profile/linked-accounts')}
                 className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <span className="material-symbols-outlined text-[18px]">add_circle</span>
@@ -875,7 +875,7 @@ function CashoutSubView({
                   <div className="text-right">
                     <p className="font-bold text-body-sm">₹{tx.amount.toFixed(2)}</p>
                     <p className={`text-[10px] font-bold ${tx.status === 'Success' ? 'text-green-600' : tx.status === 'Pending' ? 'text-orange-600' : 'text-red-600'}`}>
-                      {tx.status === 'Success' ? '✅ Processed' : tx.status === 'Pending' ? '⏳ Pending' : '❌ Failed'}
+                      <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">{tx.status === 'Success' ? 'check_circle' : tx.status === 'Pending' ? 'schedule' : 'cancel'}</span>{tx.status === 'Success' ? 'Processed' : tx.status === 'Pending' ? 'Pending' : 'Failed'}</span>
                     </p>
                   </div>
                 </div>
@@ -943,7 +943,7 @@ function PerksSubView({ balance, activities, onBack }) {
       const res = await UserAPI.claimScratchCard();
       if (res.success) {
         setScratchCardsClaimed(res.data.scratchCardsClaimed);
-        alert(`🎉 You won ₹${res.data.rewardAmount}! Added to your wallet.`);
+        alert(`You won ₹${res.data.rewardAmount}! Added to your wallet.`);
       } else {
         alert(res.message || 'Failed to scratch card');
       }
@@ -971,7 +971,7 @@ function PerksSubView({ balance, activities, onBack }) {
 
           <div className="relative z-10 text-center space-y-1 mt-4">
             <div className="inline-block px-3 py-1 bg-white/10 rounded-full border border-white/20 mb-2">
-              <span className="text-[11px] font-bold tracking-widest uppercase">🔥 5-Day Streak</span>
+              <span className="text-[11px] font-bold tracking-widest uppercase inline-flex items-center gap-1"><span className="material-symbols-outlined text-[14px] align-middle">local_fire_department</span> 5-Day Streak</span>
             </div>
             <h2 className="text-[32px] font-display font-black leading-tight">Reward Hub</h2>
             <p className="text-white/80 text-body-sm">Keep shopping to unlock exclusive rewards</p>

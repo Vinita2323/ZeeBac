@@ -659,7 +659,7 @@ export default function VendorDetailScreen() {
                 className="text-[11px] font-extrabold text-slate-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
                 title="View Customer Ratings & Reviews"
               >
-                <span className="text-amber-500 font-black">★</span>
+                <span className="material-symbols-outlined text-amber-500 text-[14px] align-middle" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
                 <span>{vendor.stats?.totalReviews > 0 ? vendor.stats.avgRating : (vendor.rating || '4.5')}</span>
                 <span className="text-slate-400 font-normal text-[10px]">
                   ({vendor.stats?.totalReviews > 0 ? `${vendor.stats.totalReviews}` : 'Reviews'})
@@ -1233,7 +1233,7 @@ export default function VendorDetailScreen() {
                   {cartItemsCount} {cartItemsCount === 1 ? 'item' : 'items'} • ₹{Math.round((Number(cartTotalAmount) || 0) * 100) / 100}
                 </p>
                 <p className="text-[11px] font-bold text-amber-300 mt-0.5 flex items-center gap-1">
-                  <span>🎉 Earn ₹{Math.round((Number(cartTotalCashback) || 0) * 100) / 100} Cashback</span>
+                  <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-[14px] align-middle">celebration</span> Earn ₹{Math.round((Number(cartTotalCashback) || 0) * 100) / 100} Cashback</span>
                 </p>
               </div>
             </div>

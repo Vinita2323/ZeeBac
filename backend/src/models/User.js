@@ -130,6 +130,12 @@ const userSchema = new mongoose.Schema(
       enum: ['Active', 'Suspended', 'Banned'],
       default: 'Active',
     },
+    statusReason: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    statusUpdatedAt: Date,
     referralCode: {
       type: String,
       unique: true,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
+import AdminOrderDetailModal, { getAdminOrderStageMeta } from '../components/AdminOrderDetailModal';
 
 const formatAddress = (addr) => {
   if (!addr) return '';
@@ -22,12 +23,14 @@ export default function DeliveryOperationsPage() {
   const [liveData, setLiveData] = useState({
     activeOrders: [],
     unassignedOrders: [],
+    processingOrders: [],
     onlineRiders: [],
-    stats: { inTransitCount: 0, unassignedCount: 0, onlineRidersCount: 0 },
+    stats: { inTransitCount: 0, unassignedCount: 0, processingCount: 0, onlineRidersCount: 0 },
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('ACTIVE'); // 'ACTIVE', 'UNASSIGNED', 'FLEET'
+  const [activeTab, setActiveTab] = useState('ACTIVE'); // 'ACTIVE', 'UNASSIGNED', 'PROCESSING', 'FLEET'
+  const [detailOrder, setDetailOrder] = useState(null);
 
   // Manual Assign Modal
   const [assignModalOrder, setAssignModalOrder] = useState(null);
@@ -41,7 +44,49 @@ export default function DeliveryOperationsPage() {
 
   const activeOrdersList = Array.isArray(liveData.activeOrders) ? liveData.activeOrders : [];
   const unassignedOrdersList = Array.isArray(liveData.unassignedOrders) ? liveData.unassignedOrders : [];
+  const processingOrdersList = Array.isArray(liveData.processingOrders) ? liveData.processingOrders : [];
   const onlineRidersList = Array.isArray(liveData.onlineRiders) ? liveData.onlineRiders : [];
+
+  const renderItemPreviewCell = (ord) => {
+    const first = ord.items?.[0];
+    const extra = (ord.items?.length || 0) - 1;
+    if (!first) return <span className="text-slate-400">—</span>;
+    return (
+      <div className="flex items-center gap-2 max-w-[240px]">
+        {first.image ? (
+          <img
+            src={first.image}
+            alt={first.name}
+            className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0 bg-slate-50"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="font-bold text-slate-900 truncate text-[11.5px]">
+            {first.quantity}× {first.name}
+            {extra > 0 && <span className="ml-1 text-[#7c3aed] font-black">+{extra}</span>}
+          </p>
+          {(first.variant || first.sku) && (
+            <div className="flex items-center gap-1 flex-wrap mt-0.5">
+              {first.variant && (
+                <span className="text-[9.5px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded">
+                  {first.variant}
+                </span>
+              )}
+              {first.sku && (
+                <span className="text-[9.5px] font-mono font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded">
+                  SKU: {first.sku}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const fetchLiveOperations = useCallback(async () => {
     try {
@@ -52,15 +97,18 @@ export default function DeliveryOperationsPage() {
           ? raw.activeOrders
           : (Array.isArray(raw.activeDeliveries) ? raw.activeDeliveries : []);
         const unassigned = Array.isArray(raw.unassignedOrders) ? raw.unassignedOrders : [];
+        const processing = Array.isArray(raw.processingOrders) ? raw.processingOrders : [];
         const fleet = Array.isArray(raw.onlineRiders) ? raw.onlineRiders : [];
 
         setLiveData({
           activeOrders: active,
           unassignedOrders: unassigned,
+          processingOrders: processing,
           onlineRiders: fleet,
           stats: {
             inTransitCount: raw.stats?.inTransitCount ?? raw.totalActive ?? active.length,
             unassignedCount: raw.stats?.unassignedCount ?? raw.totalUnassigned ?? unassigned.length,
+            processingCount: raw.stats?.processingCount ?? raw.totalProcessing ?? processing.length,
             onlineRidersCount: raw.stats?.onlineRidersCount ?? raw.totalOnlineRiders ?? fleet.length,
           },
         });
@@ -247,6 +295,20 @@ export default function DeliveryOperationsPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab('PROCESSING')}
+            className={`py-2 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'PROCESSING'
+                ? 'bg-[#7c3aed] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>All Processing</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'PROCESSING' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              {processingOrdersList.length}
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('FLEET')}
             className={`py-2 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'FLEET'
@@ -276,6 +338,7 @@ export default function DeliveryOperationsPage() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[10.5px]">
                     <th className="py-3 px-3">Order</th>
+                    <th className="py-3 px-3">Ordered Items (Photo / Variant / SKU)</th>
                     <th className="py-3 px-3">Pickup Store</th>
                     <th className="py-3 px-3">Customer Drop</th>
                     <th className="py-3 px-3">Assigned Rider</th>
@@ -285,7 +348,7 @@ export default function DeliveryOperationsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {activeOrdersList.map((ord) => (
-                    <tr key={ord._id} className="hover:bg-slate-50/70">
+                    <tr key={ord._id} onClick={() => setDetailOrder(ord)} className="hover:bg-purple-50/40 cursor-pointer">
                       <td className="py-3 px-3">
                         <strong className="text-slate-900 block font-mono text-xs">
                           #{String(ord.orderId || ord._id).slice(-6)}
@@ -294,6 +357,8 @@ export default function DeliveryOperationsPage() {
                           ₹{ord.finalAmount || ord.totalAmount} • {ord.items?.length || 1} items
                         </span>
                       </td>
+
+                      <td className="py-3 px-3">{renderItemPreviewCell(ord)}</td>
 
                       <td className="py-3 px-3 max-w-[200px]">
                         <strong className="text-slate-900 block truncate">
@@ -306,7 +371,7 @@ export default function DeliveryOperationsPage() {
 
                       <td className="py-3 px-3 max-w-[200px]">
                         <strong className="text-slate-900 block truncate">
-                          {ord.deliveryAddress?.receiverName || ord.user?.name || 'Customer'}
+                          {ord.deliveryAddress?.receiverName || ord.customerName || ord.user?.name || 'Customer'}
                         </strong>
                         <span className="text-[11px] text-slate-500 block truncate">
                           {formatAddress(ord.deliveryAddress)}
@@ -330,7 +395,13 @@ export default function DeliveryOperationsPage() {
                         {getStageBadge(ord.orderStatus)}
                       </td>
 
-                      <td className="py-3 px-3 text-right space-x-1.5 whitespace-nowrap">
+                      <td onClick={(e) => e.stopPropagation()} className="py-3 px-3 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => setDetailOrder(ord)}
+                          className="py-1 px-2.5 rounded-lg bg-[#7c3aed] text-white hover:bg-[#6d28d9] font-bold text-[11px] cursor-pointer"
+                        >
+                          View
+                        </button>
                         <button
                           onClick={() => {
                             setAssignModalOrder(ord);
@@ -369,6 +440,7 @@ export default function DeliveryOperationsPage() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[10.5px]">
                     <th className="py-3 px-3">Order ID</th>
+                    <th className="py-3 px-3">Ordered Items (Photo / Variant / SKU)</th>
                     <th className="py-3 px-3">Placed At</th>
                     <th className="py-3 px-3">Pickup Store</th>
                     <th className="py-3 px-3">Customer Area</th>
@@ -378,10 +450,12 @@ export default function DeliveryOperationsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {unassignedOrdersList.map((ord) => (
-                    <tr key={ord._id} className="hover:bg-slate-50/70">
+                    <tr key={ord._id} onClick={() => setDetailOrder(ord)} className="hover:bg-purple-50/40 cursor-pointer">
                       <td className="py-3 px-3 font-mono font-bold text-slate-900">
                         #{String(ord.orderId || ord._id).slice(-6)}
+                        <span className="block text-[10px] font-sans text-purple-700">{ord.orderStatus}</span>
                       </td>
+                      <td className="py-3 px-3">{renderItemPreviewCell(ord)}</td>
                       <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
                         {ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                       </td>
@@ -399,10 +473,16 @@ export default function DeliveryOperationsPage() {
                       <td className="py-3 px-3 font-mono font-bold text-slate-900">
                         ₹{ord.finalAmount || ord.totalAmount}
                       </td>
-                      <td className="py-3 px-3 text-right">
+                      <td onClick={(e) => e.stopPropagation()} className="py-3 px-3 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => setDetailOrder(ord)}
+                          className="py-1 px-2.5 rounded-lg bg-purple-50 text-[#7c3aed] hover:bg-purple-100 font-bold text-xs cursor-pointer"
+                        >
+                          View
+                        </button>
                         <button
                           onClick={() => setAssignModalOrder(ord)}
-                          className="py-1 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1 ml-auto"
+                          className="py-1 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer inline-flex items-center gap-1"
                         >
                           <span className="material-symbols-outlined text-[14px]">person_add</span>
                           <span>Assign Partner</span>
@@ -410,6 +490,73 @@ export default function DeliveryOperationsPage() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: ALL PROCESSING ORDERS (STORE + DELIVERY) */}
+        {activeTab === 'PROCESSING' && (
+          <div className="overflow-x-auto">
+            {processingOrdersList.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-xs">
+                No orders are currently in processing.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[10.5px]">
+                    <th className="py-3 px-3">Order</th>
+                    <th className="py-3 px-3">Ordered Items (Photo / Variant / SKU)</th>
+                    <th className="py-3 px-3">Store &amp; Customer</th>
+                    <th className="py-3 px-3">Amount &amp; Cashback</th>
+                    <th className="py-3 px-3">Processing Stage</th>
+                    <th className="py-3 px-3 text-right">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {processingOrdersList.map((ord) => {
+                    const meta = getAdminOrderStageMeta(ord.orderStatus);
+                    return (
+                      <tr key={ord._id} onClick={() => setDetailOrder(ord)} className="hover:bg-purple-50/40 cursor-pointer">
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <strong className="font-mono text-slate-900 block">#{ord.orderId}</strong>
+                          <span className="text-[10.5px] text-slate-400">
+                            {ord.fulfillmentType === 'pickup' ? 'Pickup' : 'Delivery'} • {ord.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">{renderItemPreviewCell(ord)}</td>
+                        <td className="py-3 px-3">
+                          <strong className="text-slate-900 block truncate max-w-[170px]">
+                            {ord.vendor?.storeName || ord.vendorName || 'Store'}
+                          </strong>
+                          <span className="text-[11px] text-slate-500 block truncate max-w-[170px]">
+                            {ord.customerName || 'Customer'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <strong className="font-mono text-slate-900 block">₹{ord.finalAmount || ord.totalAmount}</strong>
+                          <span className="text-[10px] font-bold text-purple-700">
+                            +{ord.totalCashbackPoints || 0} Pts CB
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold ${meta.cls}`}>
+                            {meta.label}
+                          </span>
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()} className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => setDetailOrder(ord)}
+                            className="py-1 px-3 rounded-lg bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-xs cursor-pointer"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -561,6 +708,8 @@ export default function DeliveryOperationsPage() {
           </div>
         </div>
       )}
+
+      {detailOrder && <AdminOrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />}
     </div>
   );
 }

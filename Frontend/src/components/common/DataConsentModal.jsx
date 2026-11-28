@@ -1,6 +1,9 @@
 // One-time, mandatory data-usage notice shown right after login (user &
 // vendor alike) before any feature permission is requested.
 export default function DataConsentModal({ open, onAgree }) {
+  // Show the legal documents for the app the person is using (customer / vendor / delivery partner)
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const suffix = path.startsWith('/vendor') ? '/vendor' : path.startsWith('/delivery') ? '/delivery' : '';
   if (!open) return null;
 
   return (
@@ -35,11 +38,11 @@ export default function DataConsentModal({ open, onAgree }) {
         </ul>
         <p className="text-[11.5px] text-on-surface-variant/80 leading-relaxed text-center">
           Read the full{' '}
-          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary font-bold underline">
+          <a href={`/privacy${suffix}`} target="_blank" rel="noopener noreferrer" className="text-primary font-bold underline">
             Privacy Policy
           </a>
           {' '}and{' '}
-          <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary font-bold underline">
+          <a href={`/terms${suffix}`} target="_blank" rel="noopener noreferrer" className="text-primary font-bold underline">
             Terms of Service
           </a>.
         </p>

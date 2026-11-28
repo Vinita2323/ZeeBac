@@ -71,7 +71,9 @@ export const useCartStore = create((set, get) => ({
         price: Number(product.price) || 0,
         originalPrice: Number(product.discountPrice ? product.discountPrice : Math.round(Number(product.price) * 1.15)),
         cashbackPercentage: cashbackRate,
-        image: product.image,
+        image: product.image || (Array.isArray(product.images) ? product.images[0] : ''),
+        sku: product.sku || '',
+        variant: product.variant || (product.unit && product.unit !== 'Pcs' ? product.unit : ''),
         category: product.category || 'General',
         quantity: 1,
       });

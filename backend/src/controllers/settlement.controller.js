@@ -16,6 +16,7 @@ import {
 } from '../utils/sellerSettlement.util.js';
 import { initiateOrderRefund } from '../utils/orderPayment.util.js';
 import { r2 } from '../utils/orderPricing.util.js';
+import { enrichOrderItems } from '../utils/orderItemEnricher.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import logger from '../utils/logger.js';
 import Wallet from '../models/Wallet.js';
@@ -160,7 +161,7 @@ export const adminGetSellerLedger = async (req, res) => {
   }
 };
 
-// GET /admin/settlements/orders — order-wise financials
+// GET /admin/settlements/orders — order-wise financials + full item & processing visibility
 export const adminGetOrderFinancials = async (req, res) => {
   try {
     const { limit, skip, page } = pageParams(req.query);
@@ -168,18 +169,53 @@ export const adminGetOrderFinancials = async (req, res) => {
     if (req.query.vendorId && mongoose.isValidObjectId(req.query.vendorId)) filter.vendorId = req.query.vendorId;
     if (req.query.settlementStatus) filter['financials.settlementStatus'] = req.query.settlementStatus;
     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
-    if (req.query.search) filter.orderId = { $regex: String(req.query.search).replace(/[^A-Za-z0-9-]/g, ''), $options: 'i' };
-    const [orders, total] = await Promise.all([
+    if (req.query.orderStatus) {
+      if (req.query.orderStatus === 'PROCESSING') {
+        filter.orderStatus = {
+          $in: [
+            'PLACED',
+            'CONFIRMED',
+            'PREPARING',
+            'READY_FOR_PICKUP',
+            'RIDER_ASSIGNED',
+            'ARRIVED_AT_PICKUP',
+            'PICKED_UP',
+            'OUT_FOR_DELIVERY',
+            'ARRIVED_AT_CUSTOMER',
+          ],
+        };
+      } else {
+        filter.orderStatus = req.query.orderStatus;
+      }
+    }
+    if (req.query.search) {
+      const clean = String(req.query.search).replace(/[^A-Za-z0-9-\s]/g, '').trim();
+      if (clean) {
+        filter.$or = [
+          { orderId: { $regex: clean, $options: 'i' } },
+          { storeName: { $regex: clean, $options: 'i' } },
+          { customerName: { $regex: clean, $options: 'i' } },
+          { 'items.name': { $regex: clean, $options: 'i' } },
+          { 'items.sku': { $regex: clean, $options: 'i' } },
+        ];
+      }
+    }
+    const [rawOrders, total] = await Promise.all([
       Order.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .populate('items.productId', 'image images sku unit warehouseLocation barcode')
         .select(
-          'orderId storeName vendorId customerName fulfillmentType paymentMethod paymentStatus orderStatus itemTotal packagingCharge deliveryCharge platformFee taxAmount tipAmount pointsRedeemed finalPayableAmount razorpay.status razorpay.paymentId razorpay.fee razorpay.tax refundedAmount refunds financials createdAt riderDetails.deliveredAt'
+          'orderId storeName vendorId vendorZeebacId customerName customerPhone deliveryAddress deliverySchedule orderNotes items totalCashbackPoints cashbackSettled cashbackIssued estimatedPrepTime packingStatus fulfillmentType paymentMethod paymentStatus orderStatus itemTotal packagingCharge deliveryCharge platformFee taxAmount tipAmount pointsRedeemed finalPayableAmount razorpay.status razorpay.paymentId razorpay.fee razorpay.tax refundedAmount refunds financials createdAt riderDetails.name riderDetails.phone riderDetails.vehicleNo riderDetails.deliveredAt'
         )
         .lean(),
       Order.countDocuments(filter),
     ]);
+    const orders = rawOrders.map((ord) => ({
+      ...ord,
+      items: Array.isArray(ord.items) ? enrichOrderItems(ord.items) : [],
+    }));
     res.json({ success: true, data: { orders, pagination: { page, limit, total } } });
   } catch (err) {
     sendError(res, err, 'order financials');
@@ -189,7 +225,10 @@ export const adminGetOrderFinancials = async (req, res) => {
 // GET /admin/settlements/orders/:orderId
 export const adminGetOrderFinancialDetail = async (req, res) => {
   try {
-    const order = await findOrder(req.params.orderId);
+    const order = await findOrder(req.params.orderId).populate(
+      'items.productId',
+      'image images sku unit warehouseLocation barcode'
+    );
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     const [ledger, audit] = await Promise.all([
       SellerLedger.find({ orderId: order._id }).sort({ createdAt: 1 }).lean(),
@@ -197,6 +236,9 @@ export const adminGetOrderFinancialDetail = async (req, res) => {
     ]);
     const o = order.toObject();
     if (o.riderDetails) delete o.riderDetails.deliveryOtp;
+    if (Array.isArray(o.items)) {
+      o.items = enrichOrderItems(o.items);
+    }
     res.json({ success: true, data: { order: o, ledger, audit } });
   } catch (err) {
     sendError(res, err, 'order detail');

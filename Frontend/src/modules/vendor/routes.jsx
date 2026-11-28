@@ -20,6 +20,7 @@ import StorefrontPage from './pages/StorefrontPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
 import RequestsPage from './pages/RequestsPage';
+import VendorOrderDetailPage from './pages/VendorOrderDetailPage';
 import SupportPage from './pages/SupportPage';
 import VendorSubscriptionPage from './pages/VendorSubscriptionPage';
 import VendorLoanPage from './pages/VendorLoanPage';
@@ -84,7 +85,9 @@ export default function VendorRoutes() {
             <Route path="chat" element={<ChatPage />} />
             <Route path="log-transaction" element={<VendorLogTransactionScreen />} />
             <Route path="requests" element={<RequestsPage />} />
+            <Route path="requests/:orderId" element={<VendorOrderDetailPage />} />
             <Route path="orders" element={<RequestsPage />} />
+            <Route path="orders/:orderId" element={<VendorOrderDetailPage />} />
             <Route path="storefront" element={<StorefrontPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="inventory" element={<InventoryPage />} />

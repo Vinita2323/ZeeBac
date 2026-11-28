@@ -140,7 +140,7 @@ export default function StoriesReel({ location }) {
                     {/* Offer Tag Badge Indicator */}
                     {hasOffer && (
                       <span className="absolute -top-0.5 -right-0.5 text-[11px] bg-amber-400 border-2 border-white rounded-full p-0.5 shadow-sm" title="Special Offer Inside">
-                        🔥
+                        <span className="material-symbols-outlined text-[14px] align-middle">local_fire_department</span>
                       </span>
                     )}
                   </div>

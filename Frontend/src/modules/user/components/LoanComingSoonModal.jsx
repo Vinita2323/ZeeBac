@@ -112,7 +112,7 @@ export default function LoanComingSoonModal({ isOpen, onClose }) {
               <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
                 <span className="material-symbols-outlined text-[22px]">check_circle</span>
               </div>
-              <p className="text-sm font-bold text-emerald-900">You're on the Priority Waitlist! 🎉</p>
+              <p className="text-sm font-bold text-emerald-900">You're on the Priority Waitlist!</p>
               <p className="text-xs text-emerald-700">
                 You will be among the first users to be notified and granted early loan access when it goes live.
               </p>

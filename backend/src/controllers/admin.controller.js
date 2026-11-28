@@ -10,7 +10,10 @@ import PartnerOffer from '../models/PartnerOffer.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import SubscriptionPayment from '../models/SubscriptionPayment.js';
 import SupportTicket from '../models/SupportTicket.js';
+import Order from '../models/Order.js';
+import Review from '../models/Review.js';
 import logger from '../utils/logger.js';
+import { enrichOrderItems } from '../utils/orderItemEnricher.util.js';
 import { sendNotification } from '../services/notification.service.js';
 import { debitWallet, creditWallet, InsufficientBalanceError } from '../utils/wallet.util.js';
 import { getVendorSubscriptionState, resolvePlanPrice } from '../utils/subscription.util.js';
@@ -587,34 +590,66 @@ export const rejectVendor = async (req, res) => {
 // ─── User Management ───
 export const getAllUsers = async (req, res) => {
   try {
-    const { search, page = 1, limit = 20 } = req.query;
+    const { search, status, page = 1, limit = 20 } = req.query;
 
-    let query = {};
+    const query = {};
+    if (status && ['Active', 'Suspended', 'Banned'].includes(status)) {
+      query.status = status;
+    }
     if (search) {
-      query = {
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } }
-        ]
-      };
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { zeebacId: { $regex: search, $options: 'i' } },
+      ];
     }
 
     const users = await User.find(query)
       .select('-refreshToken')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit, 10));
 
-    const usersWithStats = await Promise.all(users.map(async (u) => {
-      const wallet = await Wallet.findOne({ ownerId: u._id, ownerType: 'User' }).select('balance');
-      const totalTx = await WalletTransaction.countDocuments({ ownerId: u._id });
-      return {
-        ...u.toObject(),
-        walletBalance: wallet?.balance || 0,
-        totalTransactions: totalTx
-      };
-    }));
+    const usersWithStats = await Promise.all(
+      users.map(async (u) => {
+        const [wallet, totalTx, orderStatsAgg, totalReviews] = await Promise.all([
+          Wallet.findOne({ ownerId: u._id, ownerType: 'User' }).select('balance').lean(),
+          WalletTransaction.countDocuments({ ownerId: u._id }),
+          Order.aggregate([
+            { $match: { customerId: u._id } },
+            {
+              $group: {
+                _id: null,
+                totalOrders: { $sum: 1 },
+                deliveredOrders: { $sum: { $cond: [{ $eq: ['$orderStatus', 'DELIVERED'] }, 1, 0] } },
+                cancelledOrders: { $sum: { $cond: [{ $eq: ['$orderStatus', 'CANCELLED'] }, 1, 0] } },
+                totalOrderSpend: {
+                  $sum: {
+                    $cond: [{ $ne: ['$orderStatus', 'CANCELLED'] }, { $ifNull: ['$finalPayableAmount', 0] }, 0],
+                  },
+                },
+                lastOrderAt: { $max: '$createdAt' },
+              },
+            },
+          ]),
+          Review.countDocuments({ customerId: u._id }),
+        ]);
+
+        const ordStats = orderStatsAgg[0] || {};
+        return {
+          ...u.toObject(),
+          walletBalance: wallet?.balance || 0,
+          totalTransactions: totalTx,
+          totalOrders: ordStats.totalOrders || 0,
+          deliveredOrders: ordStats.deliveredOrders || 0,
+          cancelledOrders: ordStats.cancelledOrders || 0,
+          totalOrderSpend: Math.round((ordStats.totalOrderSpend || 0) * 100) / 100,
+          lastOrderAt: ordStats.lastOrderAt || null,
+          totalReviews: totalReviews || 0,
+        };
+      })
+    );
 
     const total = await User.countDocuments(query);
 
@@ -623,10 +658,10 @@ export const getAllUsers = async (req, res) => {
       data: usersWithStats,
       meta: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit)
-      }
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     logger.error(`Error in getAllUsers: ${error.message}`);
@@ -634,9 +669,147 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+export const getAdminUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isObjId = mongoose.Types.ObjectId.isValid(id);
+    const user = await User.findOne(isObjId ? { $or: [{ _id: id }, { zeebacId: id }] } : { zeebacId: id })
+      .select('-refreshToken')
+      .populate('referredBy', 'name phone zeebacId');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const phoneTen = user.phone ? String(user.phone).replace(/\D/g, '').slice(-10) : '';
+    const orderOr = [{ customerId: user._id }];
+    if (user.phone) orderOr.push({ customerPhone: user.phone });
+    if (phoneTen) {
+      orderOr.push({ customerPhone: phoneTen });
+      orderOr.push({ customerPhone: `+91${phoneTen}` });
+    }
+
+    const [wallet, walletTransactions, rawOrders, storeReviews, inStoreTransactions] = await Promise.all([
+      Wallet.findOne({ ownerId: user._id, ownerType: 'User' }).lean(),
+      WalletTransaction.find({ ownerId: user._id }).sort({ createdAt: -1 }).limit(30).lean(),
+      Order.find({ $or: orderOr })
+        .populate('vendorId', 'storeName zeebacId city')
+        .populate('items.productId', 'image images sku unit')
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean(),
+      Review.find({ customerId: user._id })
+        .populate('vendorId', 'storeName zeebacId city')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Transaction.find({ customerId: user._id }).sort({ createdAt: -1 }).limit(30).lean(),
+    ]);
+
+    const orders = rawOrders.map((ord) => ({
+      ...ord,
+      items: Array.isArray(ord.items) ? enrichOrderItems(ord.items) : [],
+    }));
+
+    const deliveredOrders = orders.filter((o) => o.orderStatus === 'DELIVERED');
+    const cancelledOrders = orders.filter((o) => o.orderStatus === 'CANCELLED');
+    const processingOrders = orders.filter((o) => !['DELIVERED', 'CANCELLED', 'FAILED_DELIVERY'].includes(o.orderStatus));
+    const nonCancelled = orders.filter((o) => o.orderStatus !== 'CANCELLED');
+    const totalOrderSpend = Math.round(nonCancelled.reduce((s, o) => s + Number(o.finalPayableAmount ?? o.totalAmount ?? 0), 0) * 100) / 100;
+    const totalCashbackEarned = Math.round(
+      deliveredOrders.reduce((s, o) => s + Number(o.cashbackIssued ?? o.totalCashbackPoints ?? 0), 0) * 100
+    ) / 100;
+    const totalPointsRedeemed = Math.round(
+      nonCancelled.reduce((s, o) => s + Number(o.pointsRedeemed || 0), 0) * 100
+    ) / 100;
+    const latePenalties = orders.filter((o) => o.lateCancellationPenalty?.applied);
+    const latePenaltyAmount = Math.round(
+      latePenalties.reduce((s, o) => s + Number(o.lateCancellationPenalty?.amount || 0), 0) * 100
+    ) / 100;
+
+    // Collect order-level ratings (store + rider) alongside standalone store Reviews
+    const orderRatings = [];
+    orders.forEach((ord) => {
+      if (ord.vendorFeedback?.rating) {
+        orderRatings.push({
+          _id: `ord_vendor_${ord._id}`,
+          source: 'ORDER_VENDOR',
+          orderId: ord.orderId,
+          targetName: ord.storeName || ord.vendorId?.storeName || 'Store',
+          targetSub: ord.vendorZeebacId || ord.vendorId?.zeebacId || '',
+          rating: ord.vendorFeedback.rating,
+          comment: ord.vendorFeedback.comment || '',
+          tags: ord.vendorFeedback.tags || [],
+          ratedAt: ord.vendorFeedback.ratedAt || ord.updatedAt,
+        });
+      }
+      if (ord.riderFeedback?.rating) {
+        orderRatings.push({
+          _id: `ord_rider_${ord._id}`,
+          source: 'ORDER_RIDER',
+          orderId: ord.orderId,
+          targetName: ord.riderDetails?.name || 'Delivery Rider',
+          targetSub: ord.riderDetails?.vehicleNo || ord.riderDetails?.phone || '',
+          rating: ord.riderFeedback.rating,
+          comment: ord.riderFeedback.comment || '',
+          tags: ord.riderFeedback.tags || [],
+          ratedAt: ord.riderFeedback.ratedAt || ord.updatedAt,
+        });
+      }
+    });
+
+    const allRatings = [
+      ...storeReviews.map((r) => Number(r.rating || 0)),
+      ...orderRatings.map((r) => Number(r.rating || 0)),
+    ].filter((n) => n > 0);
+    const avgRatingGiven = allRatings.length
+      ? Math.round((allRatings.reduce((a, b) => a + b, 0) / allRatings.length) * 10) / 10
+      : null;
+
+    const flaggedTransactionsCount = inStoreTransactions.filter((t) => t.status === 'Flagged').length;
+
+    const behaviorStats = {
+      totalOrders: orders.length,
+      processingOrders: processingOrders.length,
+      deliveredOrders: deliveredOrders.length,
+      cancelledOrders: cancelledOrders.length,
+      cancellationRate: orders.length > 0 ? Math.round((cancelledOrders.length / orders.length) * 100) : 0,
+      totalOrderSpend,
+      avgOrderValue: nonCancelled.length > 0 ? Math.round((totalOrderSpend / nonCancelled.length) * 100) / 100 : 0,
+      totalCashbackEarned,
+      totalPointsRedeemed,
+      walletBalance: wallet?.balance || 0,
+      latePenaltiesCount: latePenalties.length,
+      latePenaltyAmount,
+      totalStoreReviews: storeReviews.length,
+      totalOrderRatings: orderRatings.length,
+      avgRatingGiven,
+      totalInStoreTransactions: inStoreTransactions.length,
+      flaggedTransactionsCount,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user,
+        wallet: wallet || { balance: 0 },
+        behaviorStats,
+        orders,
+        storeReviews,
+        orderRatings,
+        walletTransactions,
+        inStoreTransactions,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error in getAdminUserById: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 export const suspendUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const { reason = '' } = req.body || {};
 
     const user = await User.findById(id);
     if (!user) {
@@ -644,15 +817,45 @@ export const suspendUser = async (req, res) => {
     }
 
     user.status = 'Suspended';
+    user.statusReason = String(reason || '').trim();
+    user.statusUpdatedAt = new Date();
+    user.refreshToken = null;
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'User suspended successfully',
+      message: 'User deactivated (suspended) successfully',
       data: user,
     });
   } catch (error) {
     logger.error(`Error in suspendUser: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const blockUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason = '' } = req.body || {};
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.status = 'Banned';
+    user.statusReason = String(reason || '').trim();
+    user.statusUpdatedAt = new Date();
+    user.refreshToken = null;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'User blocked successfully',
+      data: user,
+    });
+  } catch (error) {
+    logger.error(`Error in blockUser: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
@@ -667,15 +870,43 @@ export const unsuspendUser = async (req, res) => {
     }
 
     user.status = 'Active';
+    user.statusReason = '';
+    user.statusUpdatedAt = new Date();
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'User unsuspended successfully',
+      message: 'User activated successfully',
       data: user,
     });
   } catch (error) {
     logger.error(`Error in unsuspendUser: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    await Promise.all([
+      Wallet.deleteMany({ ownerId: user._id, ownerType: 'User' }),
+      WalletTransaction.deleteMany({ ownerId: user._id }),
+      Review.deleteMany({ customerId: user._id }),
+      User.deleteOne({ _id: user._id }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted permanently',
+    });
+  } catch (error) {
+    logger.error(`Error in deleteUser: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

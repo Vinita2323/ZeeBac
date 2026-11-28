@@ -66,16 +66,6 @@ export default function AdminTopBar({ onMenuClick }) {
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
-
-        {/* Left side: Search Bar */}
-        <div className="relative group hidden md:block">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 group-focus-within:text-primary transition-colors text-[18px]">search</span>
-          <input 
-            type="text" 
-            placeholder="Search platform..." 
-            className="w-60 focus:w-80 h-10 bg-slate-50/50 border border-slate-200 rounded-xl pl-10 pr-4 text-[13px] focus:outline-none focus:border-primary focus:bg-white focus:shadow-[0_2px_12px_rgba(124,58,237,0.06)] transition-all duration-300"
-          />
-        </div>
       </div>
 
       {/* Right side: Actions & Profile */}

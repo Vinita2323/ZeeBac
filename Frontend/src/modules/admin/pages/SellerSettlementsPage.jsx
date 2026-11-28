@@ -509,14 +509,40 @@ function OrdersTab() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50">
-              <tr><Th>Order</Th><Th>Store</Th><Th>Payment</Th><Th right>Customer paid</Th><Th right>Items+pack</Th><Th right>Delivery</Th><Th right>Fee+GST</Th><Th right>PG fee</Th><Th right>Seller</Th><Th right>Admin</Th><Th>Settlement</Th></tr>
+              <tr><Th>Order</Th><Th>Items (Image / Variant / SKU)</Th><Th>Store</Th><Th>Payment</Th><Th right>Customer paid</Th><Th right>Items+pack</Th><Th right>Delivery</Th><Th right>Fee+GST</Th><Th right>PG fee</Th><Th right>Seller</Th><Th right>Admin</Th><Th>Settlement</Th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(data?.orders || []).map((o) => (
+              {(data?.orders || []).map((o) => {
+                const first = o.items?.[0];
+                const extra = (o.items?.length || 0) - 1;
+                return (
                 <tr key={o._id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openDetail(o)}>
                   <Td>
                     <p className="font-mono font-bold">{o.orderId}</p>
                     <p className="text-[10.5px] text-slate-500">{when(o.createdAt)} · {o.orderStatus}</p>
+                  </Td>
+                  <Td>
+                    {first ? (
+                      <div className="flex items-center gap-2 max-w-[230px]">
+                        {first.image ? (
+                          <img src={first.image} alt={first.name} className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[15px]">inventory_2</span>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-[11.5px] text-slate-800 truncate">
+                            {first.quantity}× {first.name}{extra > 0 ? ` +${extra}` : ''}
+                          </p>
+                          {(first.variant || first.sku) && (
+                            <p className="text-[10px] text-slate-500 truncate font-mono">
+                              {[first.variant, first.sku ? `SKU: ${first.sku}` : ''].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : '—'}
                   </Td>
                   <Td>{o.storeName}</Td>
                   <Td className="text-[11.5px]">{o.paymentMethod} · {o.paymentStatus}{o.refundedAmount > 0 && <span className="text-red-600"> · refunded {money(o.refundedAmount)}</span>}</Td>
@@ -529,7 +555,8 @@ function OrdersTab() {
                   <Td right mono>{o.financials?.adminShare != null ? money(o.financials.adminShare) : '—'}</Td>
                   <Td className="text-[11px] font-bold">{o.financials?.settlementStatus || '—'}</Td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -544,8 +571,13 @@ function OrdersTab() {
       {detail && (
         <div className="fixed inset-0 z-40 bg-black/40 flex justify-end" onClick={() => setDetail(null)}>
           <div className="bg-slate-50 w-full max-w-xl h-full overflow-y-auto p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between">
-              <h2 className="font-black text-[17px] font-mono">{detail.order.orderId}</h2>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="font-black text-[17px] font-mono">{detail.order.orderId}</h2>
+                <p className="text-[11.5px] text-slate-500">
+                  {detail.order.storeName} · Customer: {detail.order.customerName} · Status: <b>{detail.order.orderStatus}</b>
+                </p>
+              </div>
               <div className="flex gap-2">
                 {detail.order.razorpay?.status === 'CAPTURED' && (
                   <button onClick={refund} className="px-3 py-1.5 rounded-xl border border-red-200 bg-white text-red-600 text-[12px] font-bold">Refund</button>
@@ -553,6 +585,35 @@ function OrdersTab() {
                 <button onClick={() => setDetail(null)} className="material-symbols-outlined text-slate-400">close</button>
               </div>
             </div>
+            {detail.order.items?.length > 0 && (
+              <Card title={`Ordered Products (${detail.order.items.length})`}>
+                <div className="divide-y divide-slate-100">
+                  {detail.order.items.map((item, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between gap-3 text-[12px]">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">{item.name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="text-[11px] text-slate-500">Qty {item.quantity} × {money(item.price)}</span>
+                            {item.variant && <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded">{item.variant}</span>}
+                            {item.sku && <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded">SKU: {item.sku}</span>}
+                            {Number(item.cashbackPoints) > 0 && <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded">+{item.cashbackPoints} pts CB</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-slate-900 shrink-0">{money(Number(item.price || 0) * Number(item.quantity || 1))}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
             <Card title="Bill & split">
               <div className="p-4 text-[12.5px] space-y-1">
                 {[

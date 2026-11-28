@@ -549,6 +549,9 @@ function App() {
           <Route path="/verify-otp" element={<AuthOTPScreen />} />
           <Route path="/terms" element={<TermsScreen />} />
           <Route path="/privacy" element={<PrivacyPolicyScreen />} />
+          {/* Vendor / delivery-partner versions (separate documents managed by admin) */}
+          <Route path="/terms/:audience" element={<TermsScreen />} />
+          <Route path="/privacy/:audience" element={<PrivacyPolicyScreen />} />
 
           {/* ─── Vendor App Auth (Separate App) ─── */}
           <Route path="/vendor-app" element={<VendorLandingScreen />} />

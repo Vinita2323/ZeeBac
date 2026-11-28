@@ -377,8 +377,8 @@ export default function AuthLoginScreen({ role = 'customer', initialMode = 'logi
         {/* Footer */}
         <p className="text-center text-[11px] text-slate-400">
           By continuing, you agree to our{' '}
-          <Link to="/terms" className="underline hover:text-slate-600">Terms</Link> &{' '}
-          <Link to="/privacy" className="underline hover:text-slate-600">Privacy</Link>
+          <Link to={isVendor ? '/terms/vendor' : '/terms'} className="underline hover:text-slate-600">Terms</Link> &{' '}
+          <Link to={isVendor ? '/privacy/vendor' : '/privacy'} className="underline hover:text-slate-600">Privacy</Link>
         </p>
       </div>
     </div>

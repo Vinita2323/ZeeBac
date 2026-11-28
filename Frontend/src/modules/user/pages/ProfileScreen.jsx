@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { UserAPI, SupportAPI } from '../../../services/api';
 import BottomNavBar from '../components/common/BottomNavBar';
 import useAuthStore from '../../../store/useAuthStore';
@@ -8,33 +8,53 @@ import useQrCode from '../../../hooks/useQrCode';
 import { getBiometricSupportStatus, describeBiometricUnsupportedReason, registerBiometricCredential } from '../../../utils/biometric.util';
 import LoanComingSoonModal from '../components/LoanComingSoonModal';
 import useLanguageStore from '../../../store/useLanguageStore';
-import { useBackableSubview } from '../../../utils/navigationUtils';
 import StoreBillsSubView from '../components/StoreBillsSubView';
 import OnlineOrdersSubView from '../components/OnlineOrdersSubView';
 import { toast } from 'react-hot-toast';
 
-export default function ProfileScreen() {
+const PROFILE_SECTIONS = ['edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn', 'audits', 'bills'];
+const PROFILE_SECTION_ALIASES = { invoices: 'bills', edit: 'edit-profile', qr: 'qr-code', refer: 'refer-earn' };
+// Sections that live at their own top-level URL instead of /profile/<section>
+const TOP_LEVEL_SECTION_PATHS = { 'refer-earn': '/refer-earn' };
+const sectionPath = (s) => TOP_LEVEL_SECTION_PATHS[s] || `/profile/${s}`;
+
+export default function ProfileScreen({ forcedSection = null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const logout = useAuthStore((state) => state.logout);
   const updateProfileStore = useAuthStore((state) => state.updateProfile);
   const currentUser = useAuthStore((state) => state.currentUser) || {};
   const { t } = useLanguageStore();
-  const [subView, setSubView] = useState(() => {
-    if (location.state?.openLinkedAccounts) return 'linked-accounts';
-    if (location.state?.openBills || location.search?.includes('tab=bills') || location.search?.includes('subView=bills')) return 'bills';
-    if (location.state?.subView) return location.state.subView;
-    return null;
-  }); // null, 'edit-profile', 'linked-accounts', 'support', 'qr-code', 'refer-earn', 'audits', 'bills'
+  // Each profile section has its own URL: /profile/<section>. The URL is the single source of truth,
+  // so refresh, share links and the browser/hardware back button all work naturally.
+  const { section: routeSection } = useParams();
+  const section = forcedSection || routeSection;
+  const subView = PROFILE_SECTION_ALIASES[section] || (PROFILE_SECTIONS.includes(section) ? section : null);
 
-  // Deep-link into a subview (e.g. footer / Home quick actions) even when already on /profile
+  const setSubView = useCallback(
+    (next) => {
+      if (next) {
+        navigate(sectionPath(PROFILE_SECTION_ALIASES[next] || next), { state: { fromProfile: true } });
+      } else if (location.state?.fromProfile) {
+        navigate(-1); // opened from the profile menu → step back to it (no duplicate history entry)
+      } else {
+        navigate('/profile', { replace: true }); // opened from elsewhere / deep link → go to the profile menu
+      }
+    },
+    [navigate, location.state]
+  );
+
+  // Legacy links (state / query based) → redirect to the section URL
   useEffect(() => {
-    if (location.state?.subView) setSubView(location.state.subView);
-  }, [location.key]);
-
-  // Make the browser/hardware back button close an open subview one step at
-  // a time instead of jumping straight past Profile to the previous route.
-  useBackableSubview(subView, setSubView);
+    const legacy =
+      (location.state?.openLinkedAccounts && 'linked-accounts') ||
+      ((location.state?.openBills || /[?&](tab|subView)=bills/.test(location.search)) && 'bills') ||
+      location.state?.subView;
+    if (legacy && !section) navigate(sectionPath(PROFILE_SECTION_ALIASES[legacy] || legacy), { replace: true });
+    else if (!forcedSection && subView && TOP_LEVEL_SECTION_PATHS[subView]) navigate(TOP_LEVEL_SECTION_PATHS[subView], { replace: true, state: location.state }); // /profile/refer-earn → /refer-earn
+    else if (section && !subView) navigate('/profile', { replace: true }); // unknown section
+    else if (section === 'orders' || section === 'my-orders') navigate('/orders', { replace: true });
+  }, [location.key, section]);
 
   const [showLoanModal, setShowLoanModal] = useState(false);
   
@@ -72,25 +92,52 @@ export default function ProfileScreen() {
   const cameraInputRef = useRef(null);
   const [showImageOptions, setShowImageOptions] = useState(false);
 
-  const handleImageUpload = (e) => {
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result;
-        const updatedProfile = { ...profile, profileImage: base64String };
-        setProfile(updatedProfile);
-        
-        // Update globally and in backend
-        updateProfileStore({ profileImage: base64String });
-        try {
-          await UserAPI.updateProfile({ profileImage: base64String });
-        } catch (error) {
-          console.error("Failed to update profile image on backend", error);
-        }
-        setShowImageOptions(false);
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // allow picking the same file again
+    if (!file) return;
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error(t('Please choose a JPG, PNG or WEBP image'));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(t('Photo is too large. Please choose an image under 5 MB.'));
+      return;
+    }
+    const previous = profile.profileImage;
+    const preview = URL.createObjectURL(file);
+    setProfile((p) => ({ ...p, profileImage: preview })); // instant preview
+    setShowImageOptions(false);
+    setPhotoBusy(true);
+    try {
+      const res = await UserAPI.uploadProfilePhoto(file);
+      const url = res?.data?.profileImage;
+      if (!res?.success || !url) throw new Error(res?.message || 'Upload failed');
+      setProfile((p) => ({ ...p, profileImage: url }));
+      updateProfileStore({ profileImage: url });
+      toast.success(t('Profile photo updated'));
+    } catch (error) {
+      setProfile((p) => ({ ...p, profileImage: previous }));
+      toast.error(error.response?.data?.message || t('Could not upload photo. Please try again.'));
+    } finally {
+      URL.revokeObjectURL(preview);
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    const previous = profile.profileImage;
+    setProfile((p) => ({ ...p, profileImage: null }));
+    setShowImageOptions(false);
+    try {
+      await UserAPI.removeProfilePhoto();
+      updateProfileStore({ profileImage: null });
+      toast.success(t('Profile photo removed'));
+    } catch (error) {
+      setProfile((p) => ({ ...p, profileImage: previous }));
+      toast.error(t('Could not remove photo. Please try again.'));
     }
   };
 
@@ -177,7 +224,7 @@ export default function ProfileScreen() {
       const status = await getBiometricSupportStatus();
       if (!status.supported) {
         setBiometrics(false);
-        setSecurityToast(`⚠️ ${describeBiometricUnsupportedReason(status.reason, status.detail)}`);
+        setSecurityToast(`${describeBiometricUnsupportedReason(status.reason, status.detail)}`);
         setTimeout(() => setSecurityToast(''), 7000);
         return;
       }
@@ -198,7 +245,7 @@ export default function ProfileScreen() {
           }
         });
         setBiometrics(true);
-        setSecurityToast('✅ Biometric security enabled! Cashouts are now protected with your fingerprint / Face ID.');
+        setSecurityToast('Biometric security enabled! Cashouts are now protected with your fingerprint / Face ID.');
         setTimeout(() => setSecurityToast(''), 4000);
       } else {
         setSecurityToast(bioRes.error || 'Biometric registration cancelled.');
@@ -252,7 +299,7 @@ export default function ProfileScreen() {
       if (pinMode === 'setup') {
         await enrollBiometrics();
       } else {
-        setSecurityToast('✅ 4-Digit Security PIN updated successfully.');
+        setSecurityToast('4-Digit Security PIN updated successfully.');
         setTimeout(() => setSecurityToast(''), 3500);
       }
     }
@@ -336,7 +383,7 @@ export default function ProfileScreen() {
       <EditProfileSubView 
         initialProfile={{ ...profile, zeebacId: customerZeebacId }} 
         onSave={handleProfileSave}
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -350,7 +397,7 @@ export default function ProfileScreen() {
         userPhone={currentUser?.phone || profile.phone}
         userName={currentUser?.name || profile.name}
         onSave={handleSavePaymentDetails}
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -360,7 +407,7 @@ export default function ProfileScreen() {
   if (subView === 'support') {
     return (
       <SupportSubView
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -371,7 +418,7 @@ export default function ProfileScreen() {
     return (
       <QRCodeSubView
         profile={profile}
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -382,7 +429,7 @@ export default function ProfileScreen() {
     return (
       <ReferEarnSubView
         profile={profile}
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -392,7 +439,7 @@ export default function ProfileScreen() {
   if (subView === 'audits') {
     return (
       <PendingAuditsSubView
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         onSelectRequest={(reqId) => navigate(`/request/${reqId}`)}
         t={t}
       />
@@ -403,7 +450,7 @@ export default function ProfileScreen() {
   if (subView === 'bills' || subView === 'invoices') {
     return (
       <StoreBillsSubView
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -413,7 +460,7 @@ export default function ProfileScreen() {
   if (subView === 'orders' || subView === 'my-orders') {
     return (
       <OnlineOrdersSubView
-        onBack={() => window.history.back()}
+        onBack={() => setSubView(null)}
         t={t}
       />
     );
@@ -444,14 +491,14 @@ export default function ProfileScreen() {
               type="file" 
               ref={fileInputRef} 
               className="hidden" 
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handleImageUpload}
             />
             <input 
               type="file" 
               ref={cameraInputRef} 
               className="hidden" 
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               capture="user"
               onChange={handleImageUpload}
             />
@@ -461,14 +508,23 @@ export default function ProfileScreen() {
               ) : (
                 <span className="font-display font-black text-[32px]">{profile.name.charAt(0).toUpperCase()}</span>
               )}
-              {/* Overlay on hover/click */}
+              {/* Overlay on hover (desktop) */}
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <span className="material-symbols-outlined text-white text-[20px]">photo_camera</span>
               </div>
+              {photoBusy && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
             </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center z-10">
-              <span className="material-symbols-outlined text-white text-[12px] font-bold">check</span>
-            </div>
+            {/* Always-visible "change photo" badge (works on touch screens too) */}
+            <span
+              aria-label={t('Change profile photo')}
+              className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#7c3aed] rounded-full border-2 border-white flex items-center justify-center z-10 shadow-sm"
+            >
+              <span className="material-symbols-outlined text-white text-[15px]">photo_camera</span>
+            </span>
           </div>
           <div className="flex-grow min-w-0">
             <h2 className="text-body-lg md:text-[20px] font-extrabold text-on-surface leading-tight truncate">{profile.name}</h2>
@@ -533,7 +589,7 @@ export default function ProfileScreen() {
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 flex items-center justify-center text-[#0F4C81] text-lg font-black shrink-0">
-              ⭐
+              <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -695,6 +751,24 @@ export default function ProfileScreen() {
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </div>
             </div>
+
+            {/* Legal: customer Privacy Policy & Terms (managed by admin) */}
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {[
+                { label: t('Privacy Policy'), icon: 'shield_person', to: '/privacy' },
+                { label: t('Terms & Conditions'), icon: 'gavel', to: '/terms' },
+              ].map((item) => (
+                <button
+                  key={item.to}
+                  type="button"
+                  onClick={() => navigate(item.to)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-white border border-outline-variant/20 hover:bg-surface-container-low active:scale-[0.98] transition-all cursor-pointer text-left"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-primary shrink-0">{item.icon}</span>
+                  <span className="text-[12.5px] font-bold text-on-surface leading-tight">{item.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -749,12 +823,7 @@ export default function ProfileScreen() {
             </div>
             {profile.profileImage && (
               <button 
-                onClick={async () => {
-                  const updatedProfile = { ...profile, profileImage: null };
-                  setProfile(updatedProfile);
-                  await onSave(updatedProfile);
-                  setShowImageOptions(false);
-                }}
+                onClick={handleRemovePhoto}
                 className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold bg-red-50 hover:bg-red-100 transition-colors active:scale-95"
               >
                 <span className="material-symbols-outlined text-[20px]">delete</span>
@@ -1028,7 +1097,7 @@ function LinkedAccountsSubView({ initialPayments, userPhone, userName, onSave, o
       if (result?.success) {
         setIsVerified(true);
         setShowOtpModal(false);
-        setToastMessage('✅ Bank account verified and linked successfully!');
+        setToastMessage('Bank account verified and linked successfully!');
         setTimeout(() => setToastMessage(''), 4500);
       } else {
         setOtpError(result?.message || 'Invalid OTP. Please try again.');

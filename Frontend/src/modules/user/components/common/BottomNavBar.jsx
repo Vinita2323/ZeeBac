@@ -23,7 +23,14 @@ export default function BottomNavBar() {
   ];
 
   const isItemActive = (item) =>
-    location.pathname === item.path || (item.path === '/profile' && (location.pathname === '/orders' || location.pathname === '/my-orders'));
+    location.pathname === item.path ||
+    (item.path === '/profile' &&
+      (location.pathname.startsWith('/profile/') ||
+        location.pathname === '/refer-earn' ||
+        location.pathname === '/orders' ||
+        location.pathname === '/my-orders' ||
+        location.pathname.startsWith('/orders/') ||
+        location.pathname.startsWith('/my-orders/')));
 
   return (
     <>

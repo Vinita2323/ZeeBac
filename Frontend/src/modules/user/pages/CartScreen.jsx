@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { safeNavigateBack } from '../../../utils/navigationUtils';
 import { OrderAPI, UserAPI } from '../../../services/api';
@@ -6,10 +6,7 @@ import useAuthStore from '../../../store/useAuthStore';
 import useCartStore from '../../../store/useCartStore';
 import useLanguageStore from '../../../store/useLanguageStore';
 import BottomNavBar from '../components/common/BottomNavBar';
-import PayAtStoreCard from '../components/PayAtStoreCard';
-import { playNotificationChime, speakVoice } from '../../../utils/voiceUtils';
 import { getStoreTimingStatus } from '../../../utils/storeTiming';
-import { getSocket } from '../../../services/socket';
 
 // Helper to format address object or string
 const formatAddress = (addr) => {
@@ -404,8 +401,6 @@ export default function CartScreen() {
   // Checkout states
   // 'Online' (Razorpay into admin account) | 'Cash' (COD / pay at store) | 'Points'
   const [paymentMethod, setPaymentMethod] = useState(finalPayableAmount === 0 && walletBalance >= grossBillTotal ? 'Points' : 'Online');
-  // Razorpay checkout data kept so the customer can retry if they close the payment sheet
-  const [pendingRazorpay, setPendingRazorpay] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Direct UPI Intent Modal state
@@ -413,36 +408,6 @@ export default function CartScreen() {
   const [utrInput, setUtrInput] = useState('');
   const [isVerifyingUpi, setIsVerifyingUpi] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-
-  // Active Order Live Tracking state
-  const [activeOrder, setActiveOrder] = useState(null);
-
-  // If navigating from profile viewOrders, smoothly redirect to /orders
-  useEffect(() => {
-    if (location.state?.viewOrders) {
-      navigate('/orders', { replace: true });
-    }
-  }, [location.state?.viewOrders, navigate]);
-
-  // Auto-fetch latest active order on mount if cart is empty
-  useEffect(() => {
-    let isMounted = true;
-    const fetchLatestOrder = async () => {
-      try {
-        const res = await OrderAPI.getMyOrders({ limit: 10 });
-        if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          const active = res.data.find((o) => !['DELIVERED', 'CANCELLED'].includes(o.orderStatus));
-          if (active && (!items || items.length === 0)) {
-            setActiveOrder(active);
-          }
-        }
-      } catch (_) {}
-    };
-    fetchLatestOrder();
-    return () => {
-      isMounted = false;
-    };
-  }, [items]);
 
   // Sync payment method when points redemption changes
   useEffect(() => {
@@ -452,106 +417,6 @@ export default function CartScreen() {
       setPaymentMethod('Online');
     }
   }, [finalPayableAmount, pointsRedeemed]);
-
-  // Live order socket updates
-  useEffect(() => {
-    if (!activeOrder?.orderId) return;
-
-    let socket;
-    try {
-      socket = getSocket();
-    } catch (_) {}
-
-    const handleStatusUpdate = (data) => {
-      if (data?.orderId === activeOrder.orderId) {
-        setActiveOrder((prev) => ({
-          ...prev,
-          orderStatus: data.orderStatus,
-        }));
-      }
-    };
-
-    const handleRiderAssigned = (data) => {
-      if (data?.orderId === activeOrder.orderId) {
-        setActiveOrder((prev) => ({
-          ...prev,
-          orderStatus: data.orderStatus || 'RIDER_ASSIGNED',
-          riderDetails: data.rider,
-        }));
-      }
-    };
-
-    const handleDelivered = (data) => {
-      if (data?.orderId === activeOrder.orderId) {
-        setActiveOrder((prev) => ({
-          ...prev,
-          orderStatus: 'DELIVERED',
-          cashbackSettled: true,
-        }));
-        if (updateBalance && data.cashbackEarned) {
-          updateBalance(Math.round((walletBalance + Number(data.cashbackEarned || 0)) * 100) / 100);
-        }
-      }
-    };
-
-    const handleCancelled = (data) => {
-      if (data?.orderId === activeOrder.orderId) {
-        setActiveOrder((prev) => ({
-          ...prev,
-          orderStatus: 'CANCELLED',
-          cancellationReason: data.cancellationReason || 'Store was unable to accept this order',
-          cancelledBy: data.cancelledBy || 'VENDOR',
-        }));
-        if (data.pointsRefunded && data.refundedPoints && updateBalance) {
-          updateBalance(Math.round((walletBalance + Number(data.refundedPoints || 0)) * 100) / 100);
-        }
-      }
-    };
-
-    // Store pickup: merchant generated the bill / confirmed payment
-    const handleStoreBill = (data) => {
-      if (data?.orderId === activeOrder.orderId) {
-        setActiveOrder((prev) => ({
-          ...prev,
-          storeBill: data.storeBill,
-          paymentStatus: data.paymentStatus,
-          paymentMethod: data.paymentMethod,
-        }));
-        if (data.paymentStatus === 'PAID') playNotificationChime('incoming');
-      }
-    };
-
-    if (socket) {
-      socket.on('order:store_bill', handleStoreBill);
-      socket.on('order:status_update', handleStatusUpdate);
-      socket.on('order:rider_assigned', handleRiderAssigned);
-      socket.on('order:delivered', handleDelivered);
-      socket.on('order:cancelled', handleCancelled);
-    }
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await OrderAPI.getOrderById(activeOrder.orderId);
-        if (res.success && res.data) {
-          setActiveOrder(res.data);
-          if (res.data.orderStatus === 'DELIVERED' || res.data.orderStatus === 'CANCELLED') {
-            clearInterval(interval);
-          }
-        }
-      } catch (_) {}
-    }, 6000);
-
-    return () => {
-      if (socket) {
-        socket.off('order:store_bill', handleStoreBill);
-        socket.off('order:status_update', handleStatusUpdate);
-        socket.off('order:rider_assigned', handleRiderAssigned);
-        socket.off('order:delivered', handleDelivered);
-        socket.off('order:cancelled', handleCancelled);
-      }
-      clearInterval(interval);
-    };
-  }, [activeOrder?.orderId, walletBalance, updateBalance]);
 
   // Copy Payee UPI ID
   const handleCopyVpa = (vpa) => {
@@ -753,66 +618,14 @@ export default function CartScreen() {
   // ─────────────────────────────────────────────────────────────
   // Core Checkout: End-to-End Direct UPI Intent & Points Handler
   // ─────────────────────────────────────────────────────────────
-  const loadRazorpayScript = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) return resolve(true);
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-
-  // Opens Razorpay checkout. The webhook is the source of truth; the handler
-  // below only confirms instantly. Retrying reuses the same Razorpay order, so
-  // the customer can never be charged twice for one order.
-  const openRazorpayCheckout = async (rzp) => {
-    const loaded = await loadRazorpayScript();
-    if (!loaded) {
-      alert('Could not load the payment page. Please check your internet and tap "Complete Payment".');
-      return;
-    }
-    const instance = new window.Razorpay({
-      key: rzp.keyId,
-      order_id: rzp.razorpayOrderId,
-      amount: rzp.amount,
-      currency: rzp.currency || 'INR',
-      name: rzp.name || 'ZeeBac',
-      description: rzp.description,
-      prefill: rzp.prefill,
-      theme: { color: '#6d28d9' },
-      handler: async (response) => {
-        try {
-          const v = await OrderAPI.verifyRazorpayPayment(rzp.orderId, response);
-          if (v.success) {
-            setActiveOrder(v.data.order);
-            setPendingRazorpay(null);
-            playNotificationChime('incoming');
-          }
-        } catch (err) {
-          // The webhook will still confirm it; live polling picks the update up.
-          console.warn('Payment verification pending', err);
-        }
+  const navigateToOrderTracking = (order, extraState = {}) => {
+    navigate(`/orders/${order.orderId}`, {
+      replace: true,
+      state: {
+        initialOrder: order,
+        ...extraState,
       },
     });
-    instance.on('payment.failed', (resp) => {
-      alert(resp?.error?.description || 'Payment failed. You can try again with "Complete Payment".');
-    });
-    instance.open();
-  };
-
-  const retryOnlinePayment = async (order) => {
-    try {
-      if (pendingRazorpay && pendingRazorpay.orderId === order.orderId) return openRazorpayCheckout(pendingRazorpay);
-      const res = await OrderAPI.getRazorpayCheckout(order.orderId);
-      if (res.success) {
-        const rzp = { ...res.data, orderId: order.orderId };
-        setPendingRazorpay(rzp);
-        openRazorpayCheckout(rzp);
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Could not start payment. Please try again.');
-    }
   };
 
   const handlePlaceOrder = async () => {
@@ -862,6 +675,8 @@ export default function CartScreen() {
           quantity: item.quantity,
           cashbackPercentage: item.cashbackPercentage,
           image: item.image,
+          sku: item.sku || '',
+          variant: item.variant || '',
           category: item.category,
         })),
       };
@@ -909,8 +724,8 @@ export default function CartScreen() {
       // ── CASE 2: CASH ON DELIVERY (COD) / PAY ON DELIVERY ──
       if (order.paymentMethod === 'CASH') {
         clearCart();
-        setActiveOrder(order);
         setIsProcessing(false);
+        navigateToOrderTracking(order);
         return;
       }
 
@@ -918,17 +733,15 @@ export default function CartScreen() {
       if ((order.paymentMethod === 'ONLINE' || order.paymentMethod === 'RAZORPAY') && res.data.razorpay) {
         const rzp = { ...res.data.razorpay, orderId: order.orderId };
         clearCart();
-        setActiveOrder(order);
-        setPendingRazorpay(rzp);
         setIsProcessing(false);
-        openRazorpayCheckout(rzp);
+        navigateToOrderTracking(order, { pendingRazorpay: rzp });
         return;
       }
 
       // ── CASE 4: 100% ZEEBAC POINTS FLOW ──
       clearCart();
-      setActiveOrder(order);
       setIsProcessing(false);
+      navigateToOrderTracking(order);
     } catch (err) {
       console.error('Order checkout error', err);
       alert(err.response?.data?.message || 'Unable to process order right now. Please try again.');
@@ -951,8 +764,8 @@ export default function CartScreen() {
       const res = await OrderAPI.verifyOrderUpi(upiIntentData.orderId, cleanUtr);
       if (res.success && res.data?.order) {
         clearCart();
-        setActiveOrder(res.data.order);
         setUpiIntentData(null);
+        navigateToOrderTracking(res.data.order);
       } else {
         alert(res.message || 'Payment verification failed');
       }
@@ -974,8 +787,8 @@ export default function CartScreen() {
       const res = await OrderAPI.verifyOrderUpi(upiIntentData.orderId, dummyUtr);
       if (res.success && res.data?.order) {
         clearCart();
-        setActiveOrder(res.data.order);
         setUpiIntentData(null);
+        navigateToOrderTracking(res.data.order);
       } else {
         alert(res.message || 'Payment verification failed');
       }
@@ -989,7 +802,7 @@ export default function CartScreen() {
   // ─────────────────────────────────────────────────────────────
   // 1. EMPTY CART STATE
   // ─────────────────────────────────────────────────────────────
-  if (items.length === 0 && !activeOrder && !upiIntentData) {
+  if (items.length === 0 && !upiIntentData) {
     return (
       <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-28">
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md px-4 py-3 border-b border-slate-100 shadow-xs flex items-center justify-between">
@@ -1044,421 +857,7 @@ export default function CartScreen() {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. LIVE ORDER TRACKING & RIDER STATUS SCREEN
-  // ─────────────────────────────────────────────────────────────
-  if (activeOrder) {
-    const isDelivered = activeOrder.orderStatus === 'DELIVERED';
-    const isCancelled = activeOrder.orderStatus === 'CANCELLED';
-    const isRiderAssigned = ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeOrder.orderStatus);
-
-    return (
-      <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-10">
-        <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md px-4 py-3 border-b border-slate-100 shadow-xs flex items-center justify-between">
-          <button
-            onClick={() => navigate('/orders')}
-            className="text-[12px] font-bold text-purple-700 hover:underline flex items-center gap-0.5 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-            <span>All Orders</span>
-          </button>
-          <h1 className="font-display font-black text-[16.5px] text-slate-900">
-            {isDelivered
-              ? 'Order Delivered 🎉'
-              : isCancelled
-              ? 'Order Cancelled ❌'
-              : 'Order Tracking & Delivery'}
-          </h1>
-          <button
-            onClick={() => navigate('/orders')}
-            className="w-8 h-8 rounded-full hover:bg-purple-50 text-purple-700 flex items-center justify-center cursor-pointer"
-            title="View All Orders"
-          >
-            <span className="material-symbols-outlined text-[20px]">list_alt</span>
-          </button>
-        </header>
-
-        <main className="flex-1 app-container px-4 py-6 space-y-4 text-left">
-          {/* Status Progress Card */}
-          <div
-            className={`rounded-3xl p-5 border shadow-md space-y-4 transition-all ${
-              isCancelled
-                ? 'bg-rose-50/50 border-rose-200'
-                : isDelivered
-                ? 'bg-emerald-50/40 border-emerald-200'
-                : 'bg-white border-purple-100'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span
-                className={`px-3 py-1 rounded-full font-black text-[11px] tracking-wider uppercase ${
-                  isCancelled
-                    ? 'bg-rose-100 text-rose-800'
-                    : isDelivered
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-purple-50 text-primary'
-                }`}
-              >
-                Order #{activeOrder.orderId}
-              </span>
-              <span className="text-[12px] font-bold text-slate-500">
-                {new Date(activeOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-
-            {activeOrder.deliverySchedule?.deliveryType === 'SCHEDULED' && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2.5 text-amber-900 text-[12px]">
-                <span className="material-symbols-outlined text-amber-700 text-[20px]">calendar_clock</span>
-                <div className="text-left">
-                  <p className="font-extrabold text-[12.5px] text-amber-900">Scheduled Delivery Order</p>
-                  <p className="text-[11px] text-amber-800 font-medium">
-                    📅 Date: <strong>{activeOrder.deliverySchedule.scheduledDate || 'Scheduled'}</strong> • ⏰ Slot: <strong>{activeOrder.deliverySchedule.scheduledSlot || 'Slot'}</strong>
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <h2 className="font-display font-black text-[20px] text-slate-900">
-              {isDelivered
-                ? (activeOrder.fulfillmentType === 'pickup' ? 'Order Picked Up Successfully! 🎉' : 'Order Delivered Successfully! 🎉')
-                : isCancelled
-                ? 'Order Cancelled by Store'
-                : activeOrder.orderStatus === 'OUT_FOR_DELIVERY'
-                ? 'Rider is Out for Delivery! 🛵'
-                : activeOrder.orderStatus === 'RIDER_ASSIGNED'
-                ? 'Rider Assigned & Collecting Order'
-                : activeOrder.orderStatus === 'READY_FOR_PICKUP'
-                ? (activeOrder.fulfillmentType === 'pickup' ? 'Order Packed & Ready for Counter Pickup! 🛍️' : 'Order Packed & Ready for Rider Pickup! 📦')
-                : activeOrder.orderStatus === 'CONFIRMED' || activeOrder.orderStatus === 'PREPARING'
-                ? 'Store Accepted & Preparing Order 🍳'
-                : 'Order Placed with Store (Waiting for Store to Accept)'}
-            </h2>
-
-            {isCancelled ? (
-              <div className="bg-white rounded-2xl p-4 border border-rose-200 space-y-2.5">
-                <div className="flex items-center gap-2 text-rose-700 font-bold text-[13.5px]">
-                  <span className="material-symbols-outlined text-[20px] text-rose-600">info</span>
-                  <span>Cancellation Reason</span>
-                </div>
-                <p className="text-[12.5px] text-rose-950 leading-relaxed font-semibold">
-                  "{activeOrder.cancellationReason || 'Store was unable to fulfill this order at this time.'}"
-                </p>
-                {activeOrder.pointsRedeemed > 0 && (
-                  <div className="bg-emerald-50 rounded-xl p-2.5 border border-emerald-200 text-[11.5px] text-emerald-800 font-bold flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
-                    <span>₹{activeOrder.pointsRedeemed} Zeebac Points refunded to your wallet.</span>
-                  </div>
-                )}
-                <button
-                  onClick={() => {
-                    setActiveOrder(null);
-                    navigate('/explore');
-                  }}
-                  className="w-full mt-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[12.5px] cursor-pointer shadow-xs active:scale-95 transition-all text-center"
-                >
-                  Explore Other Partner Stores
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Live Progress Bar */}
-                <div className="grid grid-cols-4 gap-2 pt-1 text-center">
-                  {[
-                    { label: 'Placed', active: true, icon: 'receipt_long' },
-                    {
-                      label: activeOrder.fulfillmentType === 'pickup' ? 'Packed' : 'Prepared',
-                      active: ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(
-                        activeOrder.orderStatus
-                      ),
-                      icon: 'inventory_2',
-                    },
-                    {
-                      label: activeOrder.fulfillmentType === 'pickup' ? 'Ready' : 'On the Way',
-                      active: activeOrder.fulfillmentType === 'pickup'
-                        ? ['READY_FOR_PICKUP', 'DELIVERED'].includes(activeOrder.orderStatus)
-                        : ['READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER', 'DELIVERED'].includes(activeOrder.orderStatus),
-                      icon: activeOrder.fulfillmentType === 'pickup' ? 'store' : 'two_wheeler',
-                    },
-                    {
-                      label: activeOrder.fulfillmentType === 'pickup' ? 'Collected' : 'Delivered',
-                      active: isDelivered,
-                      icon: 'check_circle',
-                    },
-                  ].map((step, idx) => (
-                    <div key={idx} className="flex flex-col items-center gap-1">
-                      <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                          step.active
-                            ? 'btn-primary-gradient text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-400'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">{step.icon}</span>
-                      </div>
-                      <span
-                        className={`text-[10px] font-bold ${
-                          step.active ? 'text-primary' : 'text-slate-400'
-                        }`}
-                      >
-                        {step.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Guaranteed Product Cashback Reward Banner */}
-                <div
-                  className={`p-4 rounded-2xl border text-center space-y-1 transition-all ${
-                    isDelivered
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                      : 'bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-100/60 border-purple-200'
-                  }`}
-                >
-                  <p className="text-[11px] uppercase tracking-wider font-extrabold text-primary">
-                    {isDelivered ? '🎉 Points Credited to Zeebac Wallet' : 'Decided Product Cashback Reward'}
-                  </p>
-                  <p className="font-display font-black text-[24px] text-primary">
-                    +{activeOrder.totalCashbackPoints} Zeebac Points
-                  </p>
-                  <p className="text-[11px] text-slate-600">
-                    {isDelivered
-                      ? 'Aapke Zeebac Wallet me 1 Point = ₹1 credit ho chuka hai. Kisi bhi partner store par use karein!'
-                      : 'Order deliver hote hi ye points aapke wallet me automatic credit honge.'}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Rider Details Card */}
-          {isRiderAssigned && activeOrder.riderDetails?.name && (
-            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 text-primary flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[18px]">two_wheeler</span>
-                  </div>
-                  <div>
-                    <h3 className="font-display font-black text-[13px] text-slate-900">
-                      Assigned Delivery Rider
-                    </h3>
-                    <p className="text-[10.5px] text-slate-500">Live Delivery Partner</p>
-                  </div>
-                </div>
-
-                <a
-                  href={`tel:${activeOrder.riderDetails.phone}`}
-                  className="px-3 py-1.5 rounded-xl bg-purple-50 text-primary hover:bg-purple-100 font-bold text-[11px] flex items-center gap-1 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[15px]">call</span>
-                  <span>Call Rider</span>
-                </a>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[12px]">
-                <div className="bg-slate-50 p-2.5 rounded-xl">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Rider Name</p>
-                  <p className="font-black text-slate-800 text-[13px]">{activeOrder.riderDetails.name}</p>
-                </div>
-                <div className="bg-slate-50 p-2.5 rounded-xl">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Vehicle / Phone</p>
-                  <p className="font-bold text-slate-800 text-[12px]">
-                    {activeOrder.riderDetails.vehicleNo || activeOrder.riderDetails.phone}
-                  </p>
-                </div>
-              </div>
-
-              {/* Pickup Verification Badge */}
-              {activeOrder.riderDetails?.pickupProofImage && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-emerald-900">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
-                    <span>Order Bill & Package Inspected at Pickup</span>
-                  </div>
-                  <a
-                    href={activeOrder.riderDetails.pickupProofImage}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10.5px] text-emerald-700 font-extrabold underline flex items-center gap-0.5"
-                  >
-                    <span>View Proof</span>
-                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-                  </a>
-                </div>
-              )}
-
-              {/* Online order not paid yet: let the customer reopen Razorpay */}
-              {['ONLINE', 'RAZORPAY'].includes(activeOrder.paymentMethod) &&
-                activeOrder.paymentStatus === 'PENDING' &&
-                activeOrder.orderStatus !== 'CANCELLED' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-                    <p className="text-[12px] font-bold text-amber-900">
-                      Payment pending: your order is sent to the store once payment is received.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => retryOnlinePayment(activeOrder)}
-                      className="w-full py-2.5 rounded-xl bg-purple-700 text-white font-black text-[12.5px]"
-                    >
-                      Complete Payment ₹{formatCurrency(activeOrder.finalPayableAmount)}
-                    </button>
-                  </div>
-                )}
-
-              {/* Store Pickup: Pay at Store (merchant bills, customer pays seller directly) */}
-              {activeOrder.fulfillmentType === 'pickup' && activeOrder.paymentMethod === 'CASH' && !isDelivered && Number(activeOrder.finalPayableAmount) > 0 && (
-                <PayAtStoreCard order={activeOrder} />
-              )}
-
-              {/* Delivery OTP Badge */}
-              {activeOrder.riderDetails?.deliveryOtp && !isDelivered && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center space-y-0.5">
-                  <p className="text-[10.5px] font-bold text-amber-800 uppercase tracking-wider">
-                    {activeOrder.fulfillmentType === 'pickup'
-                      ? 'Show this Pickup Code at the Store Counter'
-                      : 'Share OTP with Rider upon Delivery'}
-                  </p>
-                  <p className="font-mono font-black text-[22px] text-amber-900 tracking-widest">
-                    {activeOrder.riderDetails.deliveryOtp}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Delivery Address & Store */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2 text-[12px]">
-            <div className="flex items-start gap-2.5">
-              <span className="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">storefront</span>
-              <div>
-                <p className="font-black text-slate-900">{activeOrder.storeName}</p>
-                <p className="text-slate-500 text-[11px]">{activeOrder.vendorZeebacId}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5 pt-2 border-t border-slate-100">
-              <span className="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">location_on</span>
-              <div>
-                <p className="font-bold text-slate-800">Delivery Address</p>
-                <p className="text-slate-500 text-[11px]">{formatAddress(activeOrder.deliveryAddress)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Purchased Items List */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
-            <h3 className="font-display font-black text-[13.5px] text-slate-900 border-b border-slate-100 pb-2">
-              Purchased Items ({activeOrder.items?.length || 0})
-            </h3>
-            <div className="divide-y divide-slate-100">
-              {activeOrder.items?.map((item, idx) => (
-                <div key={idx} className="py-2.5 flex items-center justify-between text-[12px]">
-                  <div className="min-w-0 pr-2">
-                    <p className="font-bold text-slate-900 truncate">{item.name}</p>
-                    <p className="text-[11px] text-slate-500">
-                      Qty: {item.quantity} × ₹{item.price}
-                    </p>
-                    <span className="inline-block text-[9.5px] font-extrabold text-primary bg-purple-50 px-1.5 py-0.2 rounded-md mt-0.5">
-                      {item.cashbackPercentage}% Cashback = +{formatCurrency(item.cashbackPoints)} Zeebac Points
-                    </span>
-                  </div>
-                  <span className="font-black text-slate-900 shrink-0">
-                    ₹{item.price * item.quantity}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Bill Summary */}
-            <div className="pt-2 border-t border-slate-100 space-y-1 text-[12px]">
-              <div className="flex justify-between text-slate-600">
-                <span>Items Subtotal:</span>
-                <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(activeOrder.itemTotal || activeOrder.totalAmount)}</span>
-              </div>
-              {activeOrder.deliveryCharge !== undefined && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Delivery Charge:</span>
-                  <span className="font-mono text-slate-900 font-bold">
-                    {activeOrder.deliveryCharge === 0 ? 'FREE' : `₹${formatCurrency(activeOrder.deliveryCharge)}`}
-                  </span>
-                </div>
-              )}
-              {activeOrder.packagingCharge !== undefined && activeOrder.packagingCharge > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Packaging & Handling:</span>
-                  <span className="font-mono text-slate-900 font-bold">₹{formatCurrency(activeOrder.packagingCharge)}</span>
-                </div>
-              )}
-              {activeOrder.taxAmount !== undefined && activeOrder.taxAmount > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Taxes & GST ({activeOrder.taxPercentage || 5}%):</span>
-                  <span className="font-mono text-slate-900 font-bold">₹{formatCurrency(activeOrder.taxAmount)}</span>
-                </div>
-              )}
-              {activeOrder.tipAmount !== undefined && activeOrder.tipAmount > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Delivery Partner Tip:</span>
-                  <span className="font-mono text-purple-700 font-bold">₹{formatCurrency(activeOrder.tipAmount)}</span>
-                </div>
-              )}
-              {activeOrder.pointsRedeemed > 0 && (
-                <div className="flex justify-between text-emerald-600 font-bold">
-                  <span>Zeebac Points Redeemed:</span>
-                  <span className="font-mono">-₹{formatCurrency(activeOrder.pointsRedeemed)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-[13.5px] font-black text-slate-900 pt-1 border-t border-slate-100">
-                <span>
-                  {activeOrder.paymentMethod === 'CASH'
-                    ? 'Pay on Delivery (Cash/UPI):'
-                    : activeOrder.paymentMethod === 'ONLINE'
-                    ? 'Total Paid (Online):'
-                    : activeOrder.paymentMethod === 'ZEEBAC_POINTS'
-                    ? 'Total Paid (Points):'
-                    : `Total Paid (${activeOrder.paymentMethod}):`}
-                </span>
-                <span className="text-primary font-mono text-[15px]">
-                  ₹{formatCurrency(activeOrder.finalPayableAmount)}
-                </span>
-              </div>
-              {activeOrder.paymentMethod === 'CASH' && activeOrder.paymentStatus !== 'PAID' && (
-                <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2 text-[11.5px]">
-                  <span className="material-symbols-outlined text-amber-700 text-[18px]">payments</span>
-                  <span>Please keep <strong>₹{formatCurrency(activeOrder.finalPayableAmount)}</strong> ready in cash or pay via UPI QR to delivery rider upon arrival.</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="space-y-2 pt-2">
-            <button
-              onClick={() => navigate('/orders')}
-              className="w-full py-3.5 rounded-2xl btn-primary-gradient text-white font-bold text-[13px] shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">local_shipping</span>
-              <span>Track Live Delivery & All Orders</span>
-            </button>
-            <button
-              onClick={() => navigate('/wallet')}
-              className="w-full py-3 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[13px] cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
-              <span>View Zeebac Points Wallet</span>
-            </button>
-            <button
-              onClick={() => navigate('/home')}
-              className="w-full py-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[13px] cursor-pointer active:scale-95 transition-all"
-            >
-              Back to Home
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // 3. FULL SHOPPING CART & ZOMATO-STYLE STEP-BY-STEP FLOW
+  // 2. FULL SHOPPING CART & ZOMATO-STYLE STEP-BY-STEP FLOW
   // ─────────────────────────────────────────────────────────────
   return (
     <div className="mesh-gradient text-on-surface min-h-screen flex flex-col font-body-lg pb-36">
@@ -1634,7 +1033,7 @@ export default function CartScreen() {
             >
               <div className="flex items-center justify-between">
                 <span className="font-black text-[12.5px] text-slate-900 flex items-center gap-1">
-                  ⚡ Instant
+                  <span className="material-symbols-outlined text-[14px] align-middle">bolt</span> Instant
                 </span>
                 {deliveryType === 'INSTANT' && storeTimingInfo.isOpen && (
                   <span className="w-2 h-2 rounded-full bg-purple-600" />
@@ -1656,7 +1055,7 @@ export default function CartScreen() {
             >
               <div className="flex items-center justify-between">
                 <span className="font-black text-[12.5px] text-slate-900 flex items-center gap-1">
-                  📅 Scheduled
+                  <span className="material-symbols-outlined text-[14px] align-middle">calendar_month</span> Scheduled
                 </span>
                 {(deliveryType === 'SCHEDULED' || !storeTimingInfo.isOpen) && (
                   <span className="w-2 h-2 rounded-full bg-purple-600" />
@@ -1744,7 +1143,7 @@ export default function CartScreen() {
                         : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold'
                     }`}
                   >
-                    <span className="block text-[11px] leading-tight">Custom 📅</span>
+                    <span className="block text-[11px] leading-tight"><span className="material-symbols-outlined text-[12px] align-middle">calendar_month</span> Custom</span>
                     <span className={`block text-[9px] truncate ${dateMode === 'custom' ? 'text-purple-100' : 'text-slate-400'}`}>
                       Pick Date
                     </span>
@@ -1793,7 +1192,7 @@ export default function CartScreen() {
                         timeMode === 'custom' ? 'bg-white text-purple-700 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      Custom Time ⏰
+                      <span className="material-symbols-outlined text-[14px] align-middle">schedule</span> Custom Time
                     </button>
                   </div>
                 </div>
@@ -1891,7 +1290,7 @@ export default function CartScreen() {
 
               {!storeTimingInfo.isOpen && (
                 <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg leading-tight border border-amber-200">
-                  🌙 Note: Store is closed right now. Your order will be prepared and delivered on this scheduled date and slot.
+                  <span className="material-symbols-outlined text-[14px] align-middle">bedtime</span> Note: Store is closed right now. Your order will be prepared and delivered on this scheduled date and slot.
                 </p>
               )}
             </div>
@@ -1978,7 +1377,7 @@ export default function CartScreen() {
                   : 'bg-purple-50 text-primary hover:bg-purple-100'
               }`}
             >
-              {!meetsMinRedeem ? `Min ${MIN_REDEEMABLE_POINTS} pts` : !canStoreRedeem ? 'Limit Reached' : usePoints ? 'Points Applied ✓' : 'Apply Points'}
+              {!meetsMinRedeem ? `Min ${MIN_REDEEMABLE_POINTS} pts` : !canStoreRedeem ? 'Limit Reached' : usePoints ? 'Points Applied' : 'Apply Points'}
             </button>
           </div>
 
@@ -2180,7 +1579,7 @@ export default function CartScreen() {
           {!isPickup && safeTip > 0 && (
             <div className="flex justify-between items-center text-slate-600">
               <span className="flex items-center gap-1.5">
-                <span>🛵 Delivery Partner Tip</span>
+                <span className="inline-flex items-center gap-1"><span className="material-symbols-outlined text-[14px] align-middle">two_wheeler</span> Delivery Partner Tip</span>
                 <span className="text-[9.5px] bg-purple-100 text-purple-800 font-black px-1.5 py-0.2 rounded">100% to rider</span>
               </span>
               <span className="font-bold text-slate-900 font-mono">₹{formatCurrency(safeTip)}</span>
@@ -2893,7 +2292,7 @@ export default function CartScreen() {
                 </button>
               </div>
 
-              {/* ⚡ One-Tap Test Dummy Payment Button for Manual E2E Testing */}
+              {/* One-Tap Test Dummy Payment Button for Manual E2E Testing */}
               <button
                 type="button"
                 onClick={handleDummyTestPay}
@@ -2901,7 +2300,7 @@ export default function CartScreen() {
                 className="w-full py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[15px] text-amber-600">bolt</span>
-                <span>⚡ Test Mode: 1-Click Dummy Payment & Verify</span>
+                <span>Test Mode: 1-Click Dummy Payment & Verify</span>
               </button>
             </div>
           </div>

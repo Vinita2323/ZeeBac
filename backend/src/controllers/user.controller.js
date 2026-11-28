@@ -1404,7 +1404,15 @@ export const getCustomerBills = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const { name, email, phone, profileImage, preferences } = req.body; // allowing phone update might require OTP in real scenario, keeping it simple here
-    const update = { name, email, phone, profileImage };
+    // Only fields actually sent are updated (sending just one field must not blank the others).
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (email !== undefined) update.email = email;
+    if (phone !== undefined) update.phone = phone;
+    // Profile photos go through POST /user/profile/photo (validated upload → image URL).
+    // Raw base64 images are no longer stored in the user record.
+    if (profileImage === null || profileImage === '') update.profileImage = null;
+    else if (typeof profileImage === 'string' && !profileImage.startsWith('data:')) update.profileImage = profileImage;
     if (preferences && typeof preferences === 'object') {
       for (const key of ['pushNotifications', 'smsNotifications', 'emailPromos']) {
         if (typeof preferences[key] === 'boolean') {
@@ -1421,6 +1429,37 @@ export const updateUserProfile = async (req, res) => {
   } catch (error) {
     logger.error(`updateUserProfile error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+const MAX_PROFILE_PHOTO_BYTES = 5 * 1024 * 1024;
+
+// POST /user/profile/photo  (multipart field: profilePhoto) — JPG / PNG / WEBP, max 5 MB
+export const uploadProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Choose a photo to upload' });
+    if (req.file.size > MAX_PROFILE_PHOTO_BYTES) {
+      return res.status(400).json({ success: false, message: 'Photo is too large. Please choose an image under 5 MB.' });
+    }
+    const url = req.file.url || (req.file.filename?.startsWith('http') ? req.file.filename : null);
+    if (!url) return res.status(500).json({ success: false, message: 'Could not store the photo. Please try again.' });
+    const user = await User.findByIdAndUpdate(req.user.id, { profileImage: url }, { returnDocument: 'after', select: 'profileImage name' });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.status(200).json({ success: true, message: 'Profile photo updated', data: { profileImage: user.profileImage } });
+  } catch (error) {
+    logger.error(`uploadProfilePhoto error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to update profile photo' });
+  }
+};
+
+// DELETE /user/profile/photo
+export const removeProfilePhoto = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.id, { $unset: { profileImage: 1 } });
+    res.status(200).json({ success: true, message: 'Profile photo removed', data: { profileImage: null } });
+  } catch (error) {
+    logger.error(`removeProfilePhoto error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to remove profile photo' });
   }
 };
 

@@ -195,6 +195,13 @@ export default function DeliveryLoginScreen() {
             </button>
           </form>
         )}
+
+        {/* Delivery partner legal documents (managed by admin) */}
+        <p className="text-center text-[11px] text-slate-400 pt-3">
+          By continuing, you agree to our{' '}
+          <Link to="/terms/delivery" className="underline hover:text-slate-600">Terms</Link> &{' '}
+          <Link to="/privacy/delivery" className="underline hover:text-slate-600">Privacy Policy</Link>
+        </p>
       </div>
 
       {/* Footer Switcher */}

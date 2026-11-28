@@ -600,7 +600,7 @@ export default function ScanQRScreen() {
                 <div className="flex items-center gap-2 bg-white/15 backdrop-blur-xs px-3 py-2 rounded-xl text-xs font-medium mt-2">
                   <span className="material-symbols-outlined text-amber-300 text-[18px]">savings</span>
                   <span>
-                    🎁 Instant Cashback: <strong className="text-amber-300 font-bold">+₹{Number(pendingPosBill.cashbackAmount || (pendingPosBill.amount * 0.1)).toFixed(2)} ({pendingPosBill.cashbackRate || 10}%)</strong> will be credited to your wallet!
+                    <span className="material-symbols-outlined text-[13px] align-middle">redeem</span> Instant Cashback: <strong className="text-amber-300 font-bold">+₹{Number(pendingPosBill.cashbackAmount || (pendingPosBill.amount * 0.1)).toFixed(2)} ({pendingPosBill.cashbackRate || 10}%)</strong> will be credited to your wallet!
                   </span>
                 </div>
               </div>
@@ -654,7 +654,7 @@ export default function ScanQRScreen() {
                     <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-600 text-white shadow-xs">
-                      ⚡ 1-Tap Pay
+                      <span className="material-symbols-outlined text-[14px] align-middle">bolt</span> 1-Tap Pay
                     </span>
                   )}
                 </button>

@@ -37,6 +37,16 @@ const orderItemSchema = new mongoose.Schema(
       type: String,
       get: sanitizeMediaUrl,
     },
+    sku: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    variant: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     category: String,
     brandName: String,
     binCode: {

@@ -386,7 +386,7 @@ export default function HomeScreen() {
               <span className="text-[11px] text-purple-100 font-bold">Zeebac Points (1 Pt = ₹1)</span>
             </div>
             <div className="flex items-center gap-1 text-white text-[11.5px] font-bold group-hover:text-purple-200 transition-colors">
-              <span className="text-amber-300">⭐ Redeem Points</span>
+              <span className="text-amber-300 inline-flex items-center gap-1"><span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span> Redeem Points</span>
               <span className="material-symbols-outlined text-[14px]">chevron_right</span>
             </div>
           </div>
@@ -395,7 +395,7 @@ export default function HomeScreen() {
         {/* Live Order Tracker Banner */}
         {activeOrder && (
           <div
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate(`/orders/${activeOrder.orderId}`)}
             className="bg-gradient-to-r from-purple-900 via-indigo-950 to-purple-900 text-white p-3.5 lg:p-5 rounded-2xl lg:rounded-3xl shadow-md border border-purple-400/30 flex items-center justify-between gap-3 cursor-pointer hover:border-purple-300 transition-all active:scale-[0.99]"
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -420,13 +420,13 @@ export default function HomeScreen() {
                     {activeOrder.orderStatus === 'READY_FOR_PICKUP'
                       ? (activeOrder.fulfillmentType === 'pickup' ? 'Ready at Counter' : 'Ready for Pickup')
                       : activeOrder.orderStatus === 'OUT_FOR_DELIVERY' || activeOrder.orderStatus === 'PICKED_UP'
-                      ? 'Out for Delivery 🛵'
+                      ? 'Out for Delivery'
                       : activeOrder.orderStatus === 'RIDER_ASSIGNED'
                       ? 'Rider Assigned'
                       : activeOrder.orderStatus === 'CONFIRMED' || activeOrder.orderStatus === 'PREPARING'
                       ? 'Store Preparing'
                       : activeOrder.orderStatus === 'DELIVERED'
-                      ? 'Delivered ✅'
+                      ? 'Delivered'
                       : 'Order Placed'}
                   </span>
                   <span className="text-[10.5px] text-purple-200 font-mono">#{activeOrder.orderId}</span>
@@ -460,7 +460,7 @@ export default function HomeScreen() {
             {[
               { label: t('Scan & Pay'), icon: 'qr_code_scanner', onClick: () => navigate('/scan'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
               { label: t('My Orders'), icon: 'local_shipping', onClick: () => navigate('/orders'), bg: 'from-[#4c1d95] via-[#6d28d9] to-[#7c3aed]', highlight: Boolean(activeOrder) },
-              { label: t('My QR'), icon: 'qr_code_2', onClick: () => navigate('/profile', { state: { subView: 'qr-code' } }), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
+              { label: t('My QR'), icon: 'qr_code_2', onClick: () => navigate('/profile/qr-code'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
               { label: t('Wallet'), icon: 'account_balance_wallet', onClick: () => navigate('/wallet'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
               { label: t('History'), icon: 'history', onClick: () => navigate('/passbook'), bg: 'from-[#16082f] via-[#3b0764] to-[#6000da]' },
             ].map((action) => (
@@ -660,7 +660,7 @@ export default function HomeScreen() {
                       </p>
                       <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-[10.5px]">
-                          <span className="text-amber-500 font-black">★</span>
+                          <span className="material-symbols-outlined text-amber-500 text-[14px] align-middle" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
                           <span>{vendor.stats?.totalReviews > 0 ? vendor.stats.avgRating : (vendor.rating || 4.5)}</span>
                           {vendor.stats?.totalReviews > 0 && (
                             <span className="text-slate-400 font-medium text-[9px]">({vendor.stats.totalReviews})</span>

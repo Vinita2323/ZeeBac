@@ -20,6 +20,7 @@ import NotificationsScreen from './pages/NotificationsScreen';
 import BnplScreen from './pages/BnplScreen';
 import CartScreen from './pages/CartScreen';
 import OrdersScreen from './pages/OrdersScreen';
+import OrderTrackingScreen from './pages/OrderTrackingScreen';
 import ProtectedRoute from '../auth/components/ProtectedRoute';
 
 export default function UserRoutes() {
@@ -45,6 +46,8 @@ export default function UserRoutes() {
         <Route path="/request-cashback" element={<RequestCashbackScreen />} />
         <Route path="/request/:id" element={<RequestDetailsScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />
+        <Route path="/profile/:section" element={<ProfileScreen />} />
+        <Route path="/refer-earn" element={<ProfileScreen forcedSection="refer-earn" />} />
         <Route path="/scan" element={<ScanQRScreen />} />
         <Route path="/find-vendor" element={<FindVendorScreen />} />
         <Route path="/pay-vendor" element={<PayVendorScreen />} />
@@ -52,7 +55,9 @@ export default function UserRoutes() {
         <Route path="/bnpl" element={<BnplScreen />} />
         <Route path="/cart" element={<CartScreen />} />
         <Route path="/orders" element={<OrdersScreen />} />
+        <Route path="/orders/:orderId" element={<OrderTrackingScreen />} />
         <Route path="/my-orders" element={<OrdersScreen />} />
+        <Route path="/my-orders/:orderId" element={<OrderTrackingScreen />} />
         <Route path="/notifications" element={<NotificationsScreen />} />
       </Route>
     </Routes>

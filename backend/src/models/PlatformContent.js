@@ -1,5 +1,14 @@
 import mongoose from 'mongoose';
 
+const legalDocSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: '' },
+    content: { type: String, default: '' },
+    lastUpdated: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const platformContentSchema = new mongoose.Schema(
   {
     privacyPolicy: {
@@ -29,6 +38,13 @@ const platformContentSchema = new mongoose.Schema(
         type: Date,
         default: Date.now,
       },
+    },
+    // Separate legal documents per app audience. Each is edited independently by admin.
+    // (privacyPolicy / termsOfService above are the legacy shared copy, kept in sync with `customer`.)
+    legal: {
+      customer: { privacyPolicy: legalDocSchema, termsOfService: legalDocSchema },
+      vendor: { privacyPolicy: legalDocSchema, termsOfService: legalDocSchema },
+      delivery: { privacyPolicy: legalDocSchema, termsOfService: legalDocSchema },
     },
     supportWhatsapp: {
       type: String,

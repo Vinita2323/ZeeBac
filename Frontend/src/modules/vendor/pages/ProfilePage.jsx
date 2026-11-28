@@ -824,10 +824,10 @@ export default function ProfilePage({ openDocs = false }) {
             </span>
           </button>
 
-          {/* 9. Terms & Conditions */}
+          {/* 9. Vendor Terms & Conditions and Privacy Policy (vendor versions, managed by admin) */}
           <button
             type="button"
-            onClick={() => navigate('/terms')}
+            onClick={() => navigate('/terms/vendor')}
             className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -836,6 +836,24 @@ export default function ProfilePage({ openDocs = false }) {
               </div>
               <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
                 {t('Terms & Conditions')}
+              </span>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">
+              chevron_right
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/privacy/vendor')}
+            className="w-full px-3.5 py-3 md:px-5 md:py-4 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">shield_person</span>
+              </div>
+              <span className="text-[13px] font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">
+                {t('Privacy Policy')}
               </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:translate-x-0.5 transition-transform">

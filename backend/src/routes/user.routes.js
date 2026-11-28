@@ -16,6 +16,8 @@ import {
   getMyWallet,
   getMyTransactions,
   updateUserProfile,
+  uploadProfilePhoto,
+  removeProfilePhoto,
   createCashbackRequest,
   getMyCashbackRequests,
   getCashbackRequestById,
@@ -89,6 +91,8 @@ router.delete('/vendors/:vendorId/reviews', deleteReview);
 
 // Profile (Phase 4E)
 router.put('/me', updateUserProfile);
+router.post('/profile/photo', upload.single('profilePhoto'), uploadProfilePhoto);
+router.delete('/profile/photo', removeProfilePhoto);
 
 router.get('/vendors/:vendorId/media', getVendorMedia);
 router.get('/vendors/:vendorId/promotions', getVendorPromotions);

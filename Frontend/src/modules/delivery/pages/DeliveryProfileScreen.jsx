@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { DeliveryAPI } from '../../../services/api';
 import useDeliveryStore from '../../../store/useDeliveryStore';
 import { toast } from 'react-hot-toast';
-import { playDeliveryOrderAlarm } from '../../../utils/voiceUtils';
+import { playDeliveryOrderAlarm } from '../../../utils/voiceUtils';
+
 import useSupportConfig, { toTelHref } from '../../../hooks/useSupportConfig';
 
 export default function DeliveryProfileScreen() {
@@ -349,6 +350,27 @@ export default function DeliveryProfileScreen() {
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-[20px] text-slate-600">description</span>
                 <span className="font-bold">Partner Service Agreement</span>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-slate-400">chevron_right</span>
+            </button>
+            {/* Delivery partner Terms & Privacy (managed by admin) */}
+            <button
+              onClick={() => navigate('/terms/delivery')}
+              className="w-full py-2.5 flex items-center justify-between text-slate-800 hover:text-purple-700 cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-slate-600">gavel</span>
+                <span className="font-bold">Terms & Conditions</span>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-slate-400">chevron_right</span>
+            </button>
+            <button
+              onClick={() => navigate('/privacy/delivery')}
+              className="w-full py-2.5 flex items-center justify-between text-slate-800 hover:text-purple-700 cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-slate-600">shield_person</span>
+                <span className="font-bold">Privacy Policy</span>
               </div>
               <span className="material-symbols-outlined text-[18px] text-slate-400">chevron_right</span>
             </button>

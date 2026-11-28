@@ -154,8 +154,11 @@ export const customerLogin = async (req, res) => {
       await user.save();
     }
 
-    if (user.status === 'Suspended') {
-      return res.status(403).json({ success: false, message: 'Account suspended' });
+    if (user.status === 'Suspended' || user.status === 'Banned') {
+      return res.status(403).json({
+        success: false,
+        message: user.status === 'Banned' ? 'Account blocked by administrator' : 'Account suspended',
+      });
     }
 
     const tokens = sendTokens(res, user);

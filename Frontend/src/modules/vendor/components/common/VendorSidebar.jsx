@@ -82,24 +82,31 @@ export default function VendorSidebar({ onClose, isCollapsed, onToggleCollapse }
   return (
     <aside className="h-full bg-white/80 backdrop-blur-xl border-r border-outline-variant/20 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       {/* Logo Area */}
-      <div className={`h-20 flex items-center ${isCollapsed ? 'justify-center' : 'pl-5 pr-12'} border-b border-outline-variant/10 relative`}>
-        <div className={`flex items-center w-full ${isCollapsed ? 'justify-center' : 'justify-start gap-2.5'}`}>
+      <div className={`h-20 flex items-center ${isCollapsed ? 'justify-center' : 'pl-5 pr-10'} border-b border-outline-variant/10 relative`}>
+        <div
+          onClick={() => navigate('/vendor')}
+          className={`flex items-center w-full cursor-pointer ${isCollapsed ? 'justify-center' : 'justify-start gap-2.5'}`}
+        >
           <img
-            alt="Zeebac Logo"
-            className={`object-contain transition-all duration-300 cursor-pointer ${isCollapsed ? 'h-9 max-w-[56px]' : 'h-12'}`}
+            alt="ZeeBac Logo"
+            className={`object-contain transition-all duration-300 shrink-0 ${isCollapsed ? 'h-11 w-11' : 'h-12 w-12'}`}
             src="/Logo (6).png"
-            onClick={() => navigate('/vendor')}
           />
           {!isCollapsed && (
-            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded tracking-wider whitespace-nowrap ${
-              isManufacturer
-                ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                : isWholesaleMerchant
-                ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                : 'bg-primary/10 text-primary'
-            }`}>
-              {isManufacturer ? 'Manufacturer' : isWholesaleMerchant ? 'Wholesaler' : 'Retailer'}
-            </span>
+            <div className="min-w-0 flex flex-col">
+              <span className="font-display font-black text-[21px] leading-none tracking-tight text-slate-900">
+                Zee<span className="text-primary">Bac</span>
+              </span>
+              <span className={`mt-1 self-start px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded tracking-wider whitespace-nowrap ${
+                isManufacturer
+                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                  : isWholesaleMerchant
+                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                  : 'bg-primary/10 text-primary'
+              }`}>
+                {isManufacturer ? 'Manufacturer' : isWholesaleMerchant ? 'Wholesaler' : 'Retailer'}
+              </span>
+            </div>
           )}
         </div>
 

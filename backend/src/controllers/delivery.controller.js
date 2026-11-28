@@ -19,6 +19,7 @@ import { settleDeliveredOrderCoins } from '../utils/coinFlows.util.js';
 import { LATE_CANCEL_STAGES } from '../utils/pointsPolicy.util.js';
 import { getIO } from '../socket/index.js';
 import { haversineDistanceMeters } from '../utils/geo.util.js';
+import { enrichOrderItems } from '../utils/orderItemEnricher.util.js';
 
 const safeSocketEmit = (room, event, data) => {
   try {
@@ -2018,20 +2019,42 @@ export const adminReactivateDeliveryPartner = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const adminGetLiveDeliveryOperations = async (req, res) => {
   try {
-    const [activeDeliveries, unassignedOrders, onlineRiders] = await Promise.all([
+    const itemPopulate = 'image images sku unit warehouseLocation barcode';
+    const [activeDeliveriesRaw, unassignedOrdersRaw, processingOrdersRaw, onlineRiders] = await Promise.all([
       Order.find({
         fulfillmentType: 'delivery',
         orderStatus: { $in: ['RIDER_ASSIGNED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER'] },
       })
         .populate('vendorId', 'storeName phone address location')
+        .populate('items.productId', itemPopulate)
         .sort({ updatedAt: -1 })
         .lean(),
       Order.find({
         fulfillmentType: 'delivery',
-        orderStatus: { $in: ['PLACED', 'CONFIRMED', 'PREPARING'] },
+        orderStatus: { $in: ['PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'] },
         $or: [{ 'riderDetails.name': { $in: [null, ''] } }, { 'riderDetails.phone': { $in: [null, ''] } }],
       })
         .populate('vendorId', 'storeName phone address location')
+        .populate('items.productId', itemPopulate)
+        .sort({ createdAt: -1 })
+        .lean(),
+      Order.find({
+        orderStatus: {
+          $in: [
+            'PLACED',
+            'CONFIRMED',
+            'PREPARING',
+            'READY_FOR_PICKUP',
+            'RIDER_ASSIGNED',
+            'ARRIVED_AT_PICKUP',
+            'PICKED_UP',
+            'OUT_FOR_DELIVERY',
+            'ARRIVED_AT_CUSTOMER',
+          ],
+        },
+      })
+        .populate('vendorId', 'storeName phone address location')
+        .populate('items.productId', itemPopulate)
         .sort({ createdAt: -1 })
         .lean(),
       DeliveryPartner.find({
@@ -2042,19 +2065,35 @@ export const adminGetLiveDeliveryOperations = async (req, res) => {
         .lean(),
     ]);
 
+    const formatAdminOrder = (ord) => ({
+      ...ord,
+      vendor: ord.vendorId && typeof ord.vendorId === 'object' ? ord.vendorId : undefined,
+      vendorName: ord.storeName || ord.vendorId?.storeName,
+      deliveryPartner: ord.riderDetails?.name ? ord.riderDetails : undefined,
+      finalAmount: ord.finalPayableAmount ?? ord.totalAmount,
+      items: Array.isArray(ord.items) ? enrichOrderItems(ord.items) : [],
+    });
+
+    const activeDeliveries = activeDeliveriesRaw.map(formatAdminOrder);
+    const unassignedOrders = unassignedOrdersRaw.map(formatAdminOrder);
+    const processingOrders = processingOrdersRaw.map(formatAdminOrder);
+
     return res.status(200).json({
       success: true,
       data: {
         activeDeliveries,
         activeOrders: activeDeliveries,
         unassignedOrders,
+        processingOrders,
         onlineRiders,
         totalActive: activeDeliveries.length,
         totalUnassigned: unassignedOrders.length,
+        totalProcessing: processingOrders.length,
         totalOnlineRiders: onlineRiders.length,
         stats: {
           inTransitCount: activeDeliveries.length,
           unassignedCount: unassignedOrders.length,
+          processingCount: processingOrders.length,
           onlineRidersCount: onlineRiders.length,
         },
       },

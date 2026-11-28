@@ -123,7 +123,7 @@ export default function ApplyLoanScreen() {
               <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
                 <span className="material-symbols-outlined text-[28px]">check_circle</span>
               </div>
-              <h3 className="text-[15px] font-black text-emerald-950">You're on the Priority Waitlist! 🎉</h3>
+              <h3 className="text-[15px] font-black text-emerald-950">You're on the Priority Waitlist!</h3>
               <p className="text-xs text-emerald-700 leading-relaxed">
                 Thank you for showing interest. You will receive priority access and exclusive lower interest rates once Zeebac Instant Loans are unlocked.
               </p>
