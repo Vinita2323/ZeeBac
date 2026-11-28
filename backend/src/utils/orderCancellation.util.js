@@ -16,6 +16,7 @@ import { restoreOrderStock } from './orderStock.util.js';
 import { runInTransaction } from './sellerSettlement.util.js';
 import { initiateOrderRefund } from './orderPayment.util.js';
 import logger from './logger.js';
+import { notifyRider } from './riderNotify.util.js';
 
 export class CancellationError extends Error {
   constructor(message, code = 'CANCEL_NOT_ALLOWED', status = 400) {
@@ -101,6 +102,9 @@ export const cancelOrder = async ({ order, cancelledBy, reason, chargeCustomer, 
         .select('isOnline')
         .session(session || null);
       if (rider) {
+        if (finalStatus === 'CANCELLED') {
+          notifyRider({ riderId: rider._id, type: 'rider_order', title: `Order #${fresh.orderId} cancelled`, message: `${fresh.cancellationReason || 'The order was cancelled'}. You are free to take the next order.`, referenceId: fresh._id, referenceType: 'Order' });
+        }
         await DeliveryPartner.updateOne(
           { _id: rider._id, activeOrderId: fresh._id },
           { $set: { activeOrderId: null, status: rider.isOnline ? 'AVAILABLE' : 'OFFLINE' } },

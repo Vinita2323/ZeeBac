@@ -32,6 +32,14 @@ export default function AdminNotificationsPage() {
           <h1 className="text-2xl font-black text-on-surface tracking-tight font-display">System Notifications</h1>
           <p className="text-sm text-on-surface-variant mt-1">Monitor all alerts, fraud flags, and system updates.</p>
         </div>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => navigate('/admin/send-notifications')}
+          className="px-4 py-2 bg-primary text-white font-bold text-[13px] rounded-lg flex items-center gap-1.5"
+        >
+          <span className="material-symbols-outlined text-[18px]">campaign</span>
+          Send notification
+        </button>
         {hasUnread && (
           <button
             onClick={markAllAsRead}
@@ -40,6 +48,7 @@ export default function AdminNotificationsPage() {
             Mark all as read
           </button>
         )}
+        </div>
       </div>
 
       {isLoading ? (

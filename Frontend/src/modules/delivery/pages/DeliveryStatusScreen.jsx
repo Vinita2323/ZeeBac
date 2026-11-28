@@ -1301,7 +1301,7 @@ export default function DeliveryStatusScreen() {
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                        UPI ID (for instant payouts)
+                        UPI ID (for payouts)
                       </label>
                       <input
                         type="text"

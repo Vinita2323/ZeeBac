@@ -268,12 +268,26 @@ export const AdminAPI = {
   getSettlementReconciliation: async (params = {}) => (await apiClient.get('/admin/settlements/reconciliation', { params })).data,
   getSettlementAuditLogs: async (params = {}) => (await apiClient.get('/admin/settlements/audit-logs', { params })).data,
   getOrderPricingConfig: async () => (await apiClient.get('/admin/settlements/config')).data,
+  // Rider Updates page content
+  getRiderUpdates: async (kind = '') => (await apiClient.get('/admin/delivery/updates', { params: kind ? { kind } : {} })).data,
+  createRiderUpdate: async (form) => (await apiClient.post('/admin/delivery/updates', form, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
+  updateRiderUpdate: async (id, form) => (await apiClient.put(`/admin/delivery/updates/${id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
+  deleteRiderUpdate: async (id) => (await apiClient.delete(`/admin/delivery/updates/${id}`)).data,
+  pushRiderUpdate: async (id) => (await apiClient.post(`/admin/delivery/updates/${id}/push`)).data,
+  getAdminDeliveryZones: async () => (await apiClient.get('/admin/delivery/zones')).data,
   // Zeebac coins
   getCoinTopups: async (params = {}) => (await apiClient.get('/admin/coins/topups', { params })).data,
   approveCoinTopup: async (id, note = '') => (await apiClient.post(`/admin/coins/topups/${id}/approve`, { note })).data,
   rejectCoinTopup: async (id, note) => (await apiClient.post(`/admin/coins/topups/${id}/reject`, { note })).data,
   getVendorCoinOverview: async (params = {}) => (await apiClient.get('/admin/coins/vendors', { params })).data,
   getVendorCoinTransactions: async (vendorId, params = {}) => (await apiClient.get(`/admin/coins/vendors/${vendorId}/transactions`, { params })).data,
+  // Send notifications to customers / vendors / delivery partners
+  getBroadcasts: async (page = 1) => (await apiClient.get('/admin/broadcasts', { params: { page } })).data,
+  lookupBroadcastRecipient: async (role, q) => (await apiClient.get('/admin/broadcasts/lookup', { params: { role, q } })).data,
+  getBroadcastFilters: async () => (await apiClient.get('/admin/broadcasts/filters')).data,
+  previewBroadcast: async (audience) => (await apiClient.post('/admin/broadcasts/preview', { audience })).data,
+  sendBroadcast: async (data) => (await apiClient.post('/admin/broadcasts', data)).data,
+  cancelBroadcast: async (id) => (await apiClient.post(`/admin/broadcasts/${id}/cancel`)).data,
   updateOrderPricingConfig: async (data) => (await apiClient.put('/admin/settlements/config', data)).data,
   // Delivery Partner Management & Operations
   getDeliveryStats: async () => {
@@ -1488,6 +1502,12 @@ export const B2BAPI = {
 
 // ─── Delivery Partner (Rider) API ───
 export const DeliveryAPI = {
+  // Updates page: admin announcements / stories / videos + rider notifications
+  getUpdatesFeed: async () => (await apiClient.get('/delivery/updates')).data,
+  getNotifications: async (page = 1) => (await apiClient.get('/delivery/notifications', { params: { page } })).data,
+  markNotificationRead: async (id) => (await apiClient.patch(`/delivery/notifications/${id}/read`)).data,
+  markAllNotificationsRead: async () => (await apiClient.post('/delivery/notifications/read-all')).data,
+  saveFcmToken: async (token) => (await apiClient.post('/delivery/fcm-token', { token })).data,
   checkPhone: async (phone) => {
     const res = await apiClient.get(`/delivery/check-phone?phone=${encodeURIComponent(phone)}`);
     return res.data;
@@ -1564,7 +1584,10 @@ export const DeliveryAPI = {
     return res.data;
   },
   logout: async () => {
-    const res = await apiClient.post('/delivery/logout');
+    // Pass this device's push token so the server stops sending pushes here after logout
+    const fcmToken = localStorage.getItem('zeebac_delivery_fcm_token') || undefined;
+    const res = await apiClient.post('/delivery/logout', { fcmToken });
+    localStorage.removeItem('zeebac_delivery_fcm_token');
     return res.data;
   },
   getZones: async (params) => {

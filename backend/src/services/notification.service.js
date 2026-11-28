@@ -31,8 +31,15 @@ export const sendNotification = async ({
   referenceId,
   referenceType,
   data = {},
+  url,
 }) => {
   try {
+    // FCM only accepts string values in `data` — a single number would make Firebase reject the whole push.
+    const pushData = Object.fromEntries(
+      Object.entries({ ...data, ...(url ? { url } : {}) })
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)])
+    );
     // 1. Save to MongoDB (In-App history)
     const notification = await Notification.create({
       recipientId,
@@ -50,7 +57,7 @@ export const sendNotification = async ({
     // notification bell updates instantly instead of waiting on polling.
     try {
       const idStr = String(recipientId);
-      const room = recipientType === 'vendor' ? `vendor_${idStr}` : `user_${idStr}`;
+      const room = recipientType === 'vendor' ? `vendor_${idStr}` : recipientType === 'delivery' ? `rider_${idStr}` : `user_${idStr}`;
       getIO().to(room).emit('new_notification', notification);
     } catch (ioErr) {
       logger.warn(`sendNotification: socket emit skipped (${ioErr.message})`);
@@ -72,6 +79,7 @@ export const sendNotification = async ({
           icon: icon || 'notifications',
           referenceId: referenceId ? String(referenceId) : '',
           referenceType: referenceType || '',
+          ...pushData,
         },
         android: {
           priority: 'high',
@@ -100,7 +108,7 @@ export const sendNotification = async ({
               icon: icon || 'notifications',
               referenceId: referenceId ? String(referenceId) : '',
               referenceType: referenceType || '',
-              ...data,
+              ...pushData,
             },
           },
         },
@@ -129,6 +137,11 @@ export const sendNotification = async ({
             if (recipientType === 'vendor') {
               const Vendor = (await import('../models/Vendor.js')).default;
               await Vendor.findByIdAndUpdate(recipientId, {
+                $pull: { fcmTokens: { $in: invalidTokens } },
+              });
+            } else if (recipientType === 'delivery') {
+              const DeliveryPartner = (await import('../models/DeliveryPartner.js')).default;
+              await DeliveryPartner.findByIdAndUpdate(recipientId, {
                 $pull: { fcmTokens: { $in: invalidTokens } },
               });
             } else if (recipientType === 'admin') {

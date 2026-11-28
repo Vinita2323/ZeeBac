@@ -41,7 +41,10 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
   let targetUrl = '/';
-  if (data.isChat === 'true' || data.conversationId) {
+  // Explicit in-app destination sent by the server (e.g. rider order → /delivery/dashboard)
+  if (data.url && typeof data.url === 'string' && data.url.startsWith('/')) {
+    targetUrl = data.url;
+  } else if (data.isChat === 'true' || data.conversationId) {
     targetUrl = data.role === 'vendor' ? '/vendor/chat' : '/chat';
   } else if (data.referenceType === 'transaction' || data.type === 'credit') {
     targetUrl = data.role === 'vendor' ? '/vendor/wallet' : '/wallet';

@@ -81,7 +81,9 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
 
   // Identify notification classification: Only vendor sees the "Tell Customer OTP" card
   const isVendorNotification = notif.recipientType === 'vendor';
-  const isCashOtpNotif = Boolean(
+  // Messages written by admin always use the plain card (never guessed as cashback / OTP receipts)
+  const isAdminMessage = notif.type === 'admin_message';
+  const isCashOtpNotif = !isAdminMessage && Boolean(
     isVendorNotification && (
       notif.title?.includes('OTP') ||
       notif.message?.includes('OTP') ||
@@ -91,7 +93,7 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
     )
   );
 
-  const isSuccessNotif = Boolean(
+  const isSuccessNotif = !isAdminMessage && Boolean(
     notif.title?.includes('Successful') ||
     notif.title?.includes('Approved') ||
     notif.title?.includes('Credited') ||
@@ -337,6 +339,7 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
   const adminStyle = ADMIN_TYPE_STYLES[notif.type];
   const accentColor = adminStyle?.color || '#7c3aed';
   const iconName = notif.icon || adminStyle?.icon || 'info';
+  const hasLink = Boolean(notif.data?.url);
   const isAdminType = Boolean(adminStyle);
 
   return (
@@ -345,7 +348,7 @@ export default function NotificationItemCard({ notif, onMarkAsRead, onCardClick 
         if (!notif.isRead) onMarkAsRead?.(notif._id);
         onCardClick?.(notif);
       }}
-      className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] p-3.5 sm:p-4 transition-all text-left relative"
+      className={`bg-white rounded-2xl border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] p-3.5 sm:p-4 transition-all text-left relative ${hasLink ? 'cursor-pointer hover:shadow-md' : ''}`}
       style={{ borderLeft: `4px solid ${accentColor}` }}
     >
       <div className="flex items-start gap-3 sm:gap-3.5">

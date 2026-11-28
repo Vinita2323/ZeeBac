@@ -197,6 +197,8 @@ const deliveryPartnerSchema = new mongoose.Schema(
       address: String,
       updatedAt: Date,
     },
+    // Firebase Cloud Messaging device tokens (rider app push notifications)
+    fcmTokens: { type: [String], default: [] },
     activeOrderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Order',

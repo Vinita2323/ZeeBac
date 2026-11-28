@@ -29,6 +29,8 @@ import {
   checkInRiderGig,
 } from '../controllers/delivery.controller.js';
 
+import { getRiderUpdatesFeed, getRiderNotifications, markRiderNotificationRead, markAllRiderNotificationsRead, saveRiderFcmToken } from '../controllers/riderUpdates.controller.js';
+
 const router = express.Router();
 
 // Public auth endpoints
@@ -66,5 +68,12 @@ router.get('/earnings', getDeliveryEarnings);
 router.post('/withdraw', withdrawDeliveryEarnings);
 router.post('/deposit-cash', depositDeliveryCash);
 router.post('/logout', deliveryLogout);
+
+// Updates page: admin announcements / stories / videos + the rider's own notifications
+router.get('/updates', getRiderUpdatesFeed);
+router.post('/fcm-token', saveRiderFcmToken);
+router.get('/notifications', getRiderNotifications);
+router.post('/notifications/read-all', markAllRiderNotificationsRead);
+router.patch('/notifications/:id/read', markRiderNotificationRead);
 
 export default router;

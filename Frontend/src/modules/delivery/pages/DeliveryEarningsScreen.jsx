@@ -395,7 +395,7 @@ export default function DeliveryEarningsScreen() {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">Gig Incentives & Surge Bonuses</h4>
-                  <p className="text-[10px] text-slate-400 font-medium">Earn extra up to ₹300 per day</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Surge and night bonuses are added per delivery</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-slate-700">

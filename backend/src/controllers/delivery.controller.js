@@ -12,6 +12,7 @@ import { creditWallet, debitWallet } from '../utils/wallet.util.js';
 import { recordCashbackIssuance } from '../utils/cashbackSettlement.util.js';
 import logger from '../utils/logger.js';
 import { sendNotification } from '../services/notification.service.js';
+import { notifyRider } from '../utils/riderNotify.util.js';
 import { creditSellerForDeliveredOrder } from '../utils/sellerSettlement.util.js';
 import { recordCompletedOrderUsage } from '../utils/orderUsage.util.js';
 import { cancelOrder, CancellationError } from '../utils/orderCancellation.util.js';
@@ -1172,6 +1173,7 @@ export const updateDeliveryOrderStatus = async (req, res) => {
           { $set: { activeOrderId: null, status: rider.isOnline ? 'AVAILABLE' : 'OFFLINE' } }
         );
         const updatedRider = await DeliveryPartner.findById(rider._id).select('totalEarnings');
+        notifyRider({ riderId: rider._id, type: 'rider_payout', title: `Return trip paid: ₹${tripPayout}`, message: `Order #${order.orderId} was returned (${reason}). The trip is added to your earnings.`, referenceId: order._id, referenceType: 'Order' });
         rider.totalEarnings = updatedRider?.totalEarnings;
 
         const payload = {
@@ -1449,10 +1451,11 @@ export const updateDeliveryOrderStatus = async (req, res) => {
         // Automatically pause rider duty and take offline!
         rider.isOnline = false;
         rider.status = 'OFFLINE';
+        notifyRider({ riderId: rider._id, type: 'rider_cash', title: 'Cash limit reached — orders paused', message: `You are holding ₹${rider.cashInHand} (limit ₹${effectiveCashLimit}). Deposit cash to start taking orders again.` });
         safeSocketEmit(`rider_${rider._id}`, 'delivery:cash_limit_exceeded', {
           cashInHand: rider.cashInHand,
           maxCashLimit: effectiveCashLimit,
-          message: `🚨 Cash in hand limit reached (₹${rider.cashInHand} / ₹${effectiveCashLimit}). Orders paused until cash is deposited.`,
+          message: `Cash in hand limit reached (₹${rider.cashInHand} / ₹${effectiveCashLimit}). Orders paused until cash is deposited.`,
         });
       } else {
         rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
@@ -1838,6 +1841,7 @@ export const adminApproveDeliveryPartner = async (req, res) => {
     });
 
     await partner.save();
+    notifyRider({ riderId: partner._id, type: 'rider_account', title: 'Your application is approved', message: 'Welcome to the Zeebac fleet! Go online from the dashboard to start receiving orders.' });
 
     safeSocketEmit(`rider:${partner.riderId}`, 'partner:approved', {
       riderId: partner.riderId,
@@ -1890,6 +1894,7 @@ export const adminRejectDeliveryPartner = async (req, res) => {
     });
 
     await partner.save();
+    notifyRider({ riderId: partner._id, type: 'rider_account', title: 'Application needs changes', message: `Reason: ${reason.trim()}. Please update your details and resubmit.` });
 
     safeSocketEmit(`rider:${partner.riderId}`, 'partner:rejected', {
       riderId: partner.riderId,
@@ -1970,6 +1975,7 @@ export const adminSuspendDeliveryPartner = async (req, res) => {
     });
 
     await partner.save();
+    notifyRider({ riderId: partner._id, type: 'rider_account', title: 'Account suspended', message: `${partner.suspensionReason}. Contact the rider helpline for help.` });
 
     return res.status(200).json({
       success: true,
@@ -2003,6 +2009,7 @@ export const adminReactivateDeliveryPartner = async (req, res) => {
     });
 
     await partner.save();
+    notifyRider({ riderId: partner._id, type: 'rider_account', title: 'Account reactivated', message: 'You can go online and take orders again.' });
 
     return res.status(200).json({
       success: true,
@@ -2183,6 +2190,7 @@ export const adminAssignDeliveryOrder = async (req, res) => {
       safeSocketEmit(room, 'delivery:assigned', { orderId: order.orderId, message: `Admin assigned you order #${order.orderId} from ${order.storeName}` });
     }
 
+    notifyRider({ riderId: rider._id, type: 'rider_order', title: `New order assigned: #${order.orderId}`, message: `Pick up from ${order.storeName || 'the store'}${order.deliveryAddress?.city ? ` and deliver in ${order.deliveryAddress.city}` : ''}. Open the dashboard to start.`, referenceId: order._id, referenceType: 'Order', data: { orderId: order.orderId } });
     logger.info(`[Admin] Order ${order.orderId} manually assigned to ${rider.name}`);
 
     return res.status(200).json({
@@ -2211,6 +2219,7 @@ export const adminCancelDeliveryAssignment = async (req, res) => {
         rider.activeOrderId = null;
         rider.status = rider.isOnline ? 'AVAILABLE' : 'OFFLINE';
         await rider.save();
+        notifyRider({ riderId: rider._id, type: 'rider_order', title: `Order #${order.orderId} unassigned`, message: 'Admin removed you from this delivery. You are free to take the next order.', referenceId: order._id, referenceType: 'Order' });
       }
     }
 
@@ -2653,6 +2662,7 @@ export const adminSettleRiderCash = async (req, res) => {
 
     await rider.save();
 
+    notifyRider({ riderId: rider._id, type: 'rider_cash', title: `₹${settleAmt} cash cleared by admin`, message: `Remaining cash in hand: ₹${rider.cashInHand}.` });
     safeSocketEmit(`rider_${rider._id}`, 'delivery:cash_cleared', {
       settledAmount: settleAmt,
       remainingCashInHand: rider.cashInHand,
@@ -2722,6 +2732,7 @@ export const adminProcessRiderWithdrawal = async (req, res) => {
         requestId, status: 'COMPLETED', amount: Math.abs(entry.amount), payoutMethod, utr: entry.utr,
         message: `Your withdrawal of ₹${Math.abs(entry.amount)} has been paid${payoutMethod === 'ONLINE' ? ` (UTR ${cleanUtr})` : ' in cash'}.`,
       });
+      notifyRider({ riderId: updated._id, type: 'rider_payout', title: `Payout of ₹${Math.abs(entry.amount)} sent`, message: payoutMethod === 'ONLINE' ? `Paid to your bank/UPI. UTR ${cleanUtr}.` : 'Paid to you in cash by the Zeebac team.', data: { amount: Math.abs(entry.amount), utr: entry.utr, payoutMethod } });
       return res.status(200).json({ success: true, message: 'Rider withdrawal marked as paid', data: { request: entry } });
     }
 
@@ -2752,6 +2763,7 @@ export const adminProcessRiderWithdrawal = async (req, res) => {
     }
     updated.totalEarnings = round2(updated.totalEarnings);
     await updated.save();
+    notifyRider({ riderId: updated._id, type: 'rider_payout', title: `Withdrawal of ₹${refundAmt} rejected`, message: `The amount is back in your earnings.${cleanRemarks ? ` Reason: ${cleanRemarks}` : ''}`, data: { amount: refundAmt } });
     safeSocketEmit(`rider_${updated._id}`, 'delivery:withdrawal_processed', {
       requestId, status: 'REJECTED', amount: refundAmt,
       message: `Your withdrawal of ₹${refundAmt} was rejected and refunded to your earnings.${cleanRemarks ? ` Reason: ${cleanRemarks}` : ''}`,
@@ -2811,6 +2823,7 @@ export const adminVerifyRiderCashDeposit = async (req, res) => {
         depositId, amount: deposit.amount,
         message: `Your UPI deposit of ₹${deposit.amount} (UTR ${deposit.utr}) was rejected.${cleanNote ? ` Reason: ${cleanNote}` : ''}`,
       });
+      notifyRider({ riderId: updated._id, type: 'rider_cash', title: `UPI deposit of ₹${deposit.amount} rejected`, message: `UTR ${deposit.utr} could not be verified.${cleanNote ? ` Reason: ${cleanNote}` : ''} Your cash in hand is unchanged.` });
       return res.status(200).json({ success: true, message: 'Deposit rejected', data: { cashInHand: round2(updated.cashInHand) } });
     }
 
@@ -2833,6 +2846,7 @@ export const adminVerifyRiderCashDeposit = async (req, res) => {
     updated.cashInHand = Math.max(0, round2(updated.cashInHand));
     await updated.save();
 
+    notifyRider({ riderId: updated._id, type: 'rider_cash', title: `Cash deposit verified: ₹${clearAmt}`, message: `Remaining cash in hand: ₹${updated.cashInHand}.` });
     safeSocketEmit(`rider_${updated._id}`, 'delivery:cash_cleared', {
       settledAmount: clearAmt,
       remainingCashInHand: updated.cashInHand,
@@ -3745,6 +3759,9 @@ export const deliveryLogout = async (req, res) => {
       { $set: { isOnline: false, status: 'OFFLINE' } }
     );
     const wentOffline = result.modifiedCount > 0 || result.matchedCount > 0;
+    // Stop push notifications to this device after logout
+    const fcmToken = typeof req.body?.fcmToken === 'string' ? req.body.fcmToken.trim() : '';
+    if (fcmToken) await DeliveryPartner.updateOne({ _id: req.user.id }, { $pull: { fcmTokens: fcmToken } });
     return res.status(200).json({
       success: true,
       message: wentOffline ? 'Logged out and set Offline' : 'Logged out. You still have an active delivery assigned.',

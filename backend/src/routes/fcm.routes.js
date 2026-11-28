@@ -1,12 +1,14 @@
 import express from 'express';
 import { saveMobileFcmToken } from '../controllers/notification.controller.js';
+import { protect } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-// Support both /mobile/save, /save, and /
-router.post('/mobile/save', saveMobileFcmToken);
-router.post('/save', saveMobileFcmToken);
-router.post('/', saveMobileFcmToken);
+// Login required: the token is always saved on the LOGGED-IN account (never a userId from the body),
+// otherwise anyone could attach their phone to another person's account and read their notifications.
+router.post('/mobile/save', protect, saveMobileFcmToken);
+router.post('/save', protect, saveMobileFcmToken);
+router.post('/', protect, saveMobileFcmToken);
 
 // Friendly info for GET requests (e.g. testing in browser)
 const getInfoHandler = (req, res) => {

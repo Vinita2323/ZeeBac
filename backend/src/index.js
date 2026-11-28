@@ -7,6 +7,7 @@ import { connectDB } from './config/db.js';
 import logger from './utils/logger.js';
 import { initSocket } from './socket/socket.js';
 import { startRiderPresenceSweep } from './utils/riderPresence.util.js';
+import { startBroadcastScheduler } from './utils/adminBroadcast.util.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -18,6 +19,9 @@ connectDB().then(() => {
 
   // Auto-offline riders whose app has been inactive (no poll / GPS / socket) for a while
   startRiderPresenceSweep();
+
+  // Sends admin notifications that were scheduled for later
+  startBroadcastScheduler();
 
   httpServer.listen(PORT, () => {
     logger.info(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

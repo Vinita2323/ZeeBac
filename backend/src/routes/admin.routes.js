@@ -1,3 +1,4 @@
+import { upload } from '../middlewares/multer.middleware.js';
 import express from 'express';
 import {
   getDashboardStats,
@@ -110,6 +111,8 @@ import {
 } from '../controllers/settlement.controller.js';
 
 import { getAdminProfile, updateAdminProfile, changeAdminPassword } from '../controllers/adminProfile.controller.js';
+import { adminListRiderUpdates, adminCreateRiderUpdate, adminUpdateRiderUpdate, adminDeleteRiderUpdate, adminListDeliveryZones, adminPushRiderUpdate } from '../controllers/riderUpdates.controller.js';
+import { lookupRecipient, getBroadcastFilterOptions, previewBroadcast, createBroadcast, listBroadcasts, cancelBroadcast } from '../controllers/adminBroadcast.controller.js';
 const router = express.Router();
 
 // All routes require authentication and admin/super_admin role
@@ -242,6 +245,22 @@ router.post('/delivery/partners/:id/cash-deposits/:depositId/verify', adminVerif
 router.get('/delivery/operations/live', adminGetLiveDeliveryOperations);
 router.post('/delivery/operations/assign', adminAssignDeliveryOrder);
 router.post('/delivery/operations/cancel-assignment', adminCancelDeliveryAssignment);
+
+// Rider Updates page content (announcements / stories / training videos)
+router.get('/delivery/updates', adminListRiderUpdates);
+router.get('/delivery/zones', adminListDeliveryZones);
+router.post('/delivery/updates', upload.single('storyMedia'), adminCreateRiderUpdate);
+router.put('/delivery/updates/:id', upload.single('storyMedia'), adminUpdateRiderUpdate);
+router.delete('/delivery/updates/:id', adminDeleteRiderUpdate);
+router.post('/delivery/updates/:id/push', adminPushRiderUpdate);
+
+// ─── Send notifications to customers / vendors / delivery partners ───
+router.get('/broadcasts', listBroadcasts);
+router.get('/broadcasts/lookup', lookupRecipient);
+router.get('/broadcasts/filters', getBroadcastFilterOptions);
+router.post('/broadcasts/preview', previewBroadcast);
+router.post('/broadcasts', createBroadcast);
+router.post('/broadcasts/:id/cancel', cancelBroadcast);
 
 // Dynamic Payout Configuration
 router.get('/delivery/payout-config', getAdminDeliveryPayoutConfig);

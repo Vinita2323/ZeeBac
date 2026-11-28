@@ -42,6 +42,7 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
         { label: 'Deposits & Payouts', icon: 'account_balance_wallet', path: '/admin/rider-settlements' },
         { label: 'Rider Cash Ledger', icon: 'payments', path: '/admin/rider-cash-ledger' },
         { label: 'Rider Earnings', icon: 'savings', path: '/admin/rider-earnings' },
+        { label: 'Rider Updates', icon: 'campaign', path: '/admin/rider-updates' },
       ],
     },
     { label: 'Orders', icon: 'shopping_bag', path: '/admin/orders' },
@@ -58,7 +59,8 @@ export default function AdminSidebar({ isCollapsed, onToggleCollapse, onMobileCl
     { label: 'Rewards Manager', icon: 'military_tech', path: '/admin/rewards' },
     { label: 'Support Tickets', icon: 'headset_mic', path: '/admin/support', badge: openTicketsCount > 0 ? openTicketsCount : null },
     { label: 'Legal & Policies', icon: 'gavel', path: '/admin/legal-content' },
-    { label: 'Notifications', icon: 'campaign', path: '/admin/notifications' },
+    { label: 'Notifications', icon: 'notifications', path: '/admin/notifications' },
+    { label: 'Send Notifications', icon: 'campaign', path: '/admin/send-notifications' },
   ];
 
   const handleNavClick = (path) => {

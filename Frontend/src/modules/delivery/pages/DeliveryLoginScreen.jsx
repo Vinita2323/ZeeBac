@@ -79,7 +79,7 @@ export default function DeliveryLoginScreen() {
           Zeebac Delivery Partner
         </h1>
         <p className="text-[13px] text-slate-500 font-medium">
-          Deliver orders, earn instant payouts, and track routes
+          Deliver orders, earn per trip, and track routes
         </p>
       </div>
 

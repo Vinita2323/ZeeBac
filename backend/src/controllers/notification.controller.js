@@ -120,8 +120,10 @@ export const saveAdminFcmToken = async (req, res) => {
 export const saveMobileFcmToken = async (req, res) => {
   try {
     const token = req.body.token || req.body.fcmToken || req.body.fcm_token || req.body.deviceToken;
-    const role = req.body.role || req.user?.role || 'customer';
-    const userId = req.body.userId || req.body.user_id || req.user?.id;
+    // Identity comes only from the verified login token (body userId/role are ignored)
+    const role = req.user?.role || 'customer';
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Login required' });
 
     if (!token) {
       return res.status(400).json({
@@ -131,7 +133,11 @@ export const saveMobileFcmToken = async (req, res) => {
     }
 
     if (userId) {
-      if (role === 'vendor') {
+      if (role === 'delivery_partner' || role === 'delivery') {
+        const DeliveryPartner = (await import('../models/DeliveryPartner.js')).default;
+        await DeliveryPartner.updateMany({ _id: { $ne: userId }, fcmTokens: token }, { $pull: { fcmTokens: token } });
+        await DeliveryPartner.updateOne({ _id: userId }, { $addToSet: { fcmTokens: token } });
+      } else if (role === 'vendor') {
         await Vendor.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
       } else if (role === 'admin' || role === 'super_admin') {
         await AdminUser.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });

@@ -5,17 +5,16 @@ const notificationSchema = new mongoose.Schema(
     recipientId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      refPath: 'recipientType',
     },
     recipientType: {
       type: String,
       required: true,
-      enum: ['customer', 'vendor', 'admin'],
+      enum: ['customer', 'vendor', 'admin', 'delivery'],
     },
     type: {
       type: String,
       required: true,
-      enum: ['approval', 'credit', 'cashback_credited', 'referral', 'system', 'promotion', 'VENDOR_KYC', 'FRAUD_ALERT', 'SUPPORT_TICKET', 'PAYOUT_REQUEST', 'HIGH_VALUE_REQUEST', 'INVENTORY_EXPIRY_ALERT'],
+      enum: ['approval', 'credit', 'cashback_credited', 'referral', 'system', 'promotion', 'VENDOR_KYC', 'FRAUD_ALERT', 'SUPPORT_TICKET', 'PAYOUT_REQUEST', 'HIGH_VALUE_REQUEST', 'INVENTORY_EXPIRY_ALERT', 'rider_order', 'rider_payout', 'rider_account', 'rider_cash', 'announcement', 'admin_message'],
     },
     title: {
       type: String,
@@ -55,6 +54,8 @@ const notificationSchema = new mongoose.Schema(
 // Index for fast recipient queries
 notificationSchema.index({ recipientId: 1, createdAt: -1 });
 notificationSchema.index({ recipientId: 1, isRead: 1 });
+// Lets an interrupted admin broadcast resume without notifying anyone twice
+notificationSchema.index({ 'data.broadcastId': 1, recipientId: 1 }, { partialFilterExpression: { 'data.broadcastId': { $exists: true } } });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;

@@ -1,314 +1,287 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DeliveryTopBar from '../components/DeliveryTopBar';
 import DeliveryBottomNav from '../components/DeliveryBottomNav';
+import { DeliveryAPI } from '../../../services/api';
+import { getSocket } from '../../../services/socket';
 import { toast } from 'react-hot-toast';
 
+const NOTIF_STYLE = {
+  rider_order: { icon: 'two_wheeler', cls: 'bg-purple-100 text-purple-700' },
+  rider_payout: { icon: 'payments', cls: 'bg-emerald-100 text-emerald-700' },
+  rider_cash: { icon: 'account_balance_wallet', cls: 'bg-amber-100 text-amber-700' },
+  rider_account: { icon: 'badge', cls: 'bg-blue-100 text-blue-700' },
+  announcement: { icon: 'campaign', cls: 'bg-slate-100 text-slate-700' },
+  admin_message: { icon: 'campaign', cls: 'bg-purple-100 text-purple-700' },
+};
+
+const timeAgo = (d) => {
+  const s = Math.max(1, Math.floor((Date.now() - new Date(d).getTime()) / 1000));
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+
+/** YouTube links → embeddable URL; anything else is played with <video>. */
+const youtubeEmbed = (url) => {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1&rel=0` : null;
+};
+const youtubeThumb = (url) => {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null;
+};
+
 export default function DeliveryUpdatesScreen() {
+  const navigate = useNavigate();
+  const [feed, setFeed] = useState({ stories: [], videos: [], announcements: [] });
+  const [notifs, setNotifs] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [activeStory, setActiveStory] = useState(null);
 
-  const stories = [
-    {
-      id: 'story_fest',
-      title: 'MAHA FESTIVAL MELA',
-      color: 'from-amber-500 to-red-600',
-      badge: 'Festival',
-      img: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&auto=format&fit=crop&q=80',
-      description: 'Diwali & Festival Bonus: Earn upto ₹500 extra per 10 deliveries this weekend!',
-    },
-    {
-      id: 'story_safety',
-      title: 'ROAD SAFETY',
-      color: 'from-blue-600 to-indigo-700',
-      badge: 'Safety',
-      img: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=400&auto=format&fit=crop&q=80',
-      description: 'Always wear a helmet and check vehicle lights. Free emergency insurance active on all trips.',
-    },
-    {
-      id: 'story_tips',
-      title: 'TOP RATINGS',
-      color: 'from-emerald-600 to-teal-700',
-      badge: 'Tips',
-      img: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?w=400&auto=format&fit=crop&q=80',
-      description: 'Polite greeting at customer doorsteps leads to 3x higher tips in Zeebac Partner app!',
-    },
-  ];
+  const load = useCallback(async () => {
+    setLoadError('');
+    try {
+      const [f, n] = await Promise.all([DeliveryAPI.getUpdatesFeed(), DeliveryAPI.getNotifications()]);
+      if (f?.success) setFeed(f.data);
+      if (n?.success) {
+        setNotifs(n.data.rows);
+        setUnread(n.data.unread);
+      }
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Could not load updates. Pull to refresh or try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const videos = [
-    {
-      id: 'vid_1',
-      title: 'Start Your Delivery Journey',
-      duration: '2:33',
-      views: '951.9K Views',
-      likes: '114.9K Likes',
-      thumbnail: 'https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?w=600&auto=format&fit=crop&q=80',
-      desc: 'Complete step-by-step walkthrough for order pickup, OTP verification, and navigation.',
-    },
-    {
-      id: 'vid_2',
-      title: 'Road Safety & Emergency Protocol',
-      duration: '3:15',
-      views: '1.89M Views',
-      likes: '240K Likes',
-      thumbnail: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=600&auto=format&fit=crop&q=80',
-      desc: 'How to use the SOS siren and request immediate roadside assistance if vehicle breaks down.',
-    },
-    {
-      id: 'vid_3',
-      title: 'How to Maximize Daily Earnings with Gigs',
-      duration: '4:10',
-      views: '540K Views',
-      likes: '85K Likes',
-      thumbnail: 'https://images.unsplash.com/photo-1580674684081-7617fbf3d745?w=600&auto=format&fit=crop&q=80',
-      desc: 'Pick high surge peak hours (evening slots) to earn upto ₹1,200+ per day.',
-    },
-  ];
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const notifications = [
-    {
-      id: 1,
-      title: 'Welcome to Zeebac Fleet',
-      desc: 'Keep your status Online from the dashboard feed to start receiving customer deliveries in your operating area.',
-      time: 'Official Notice',
-      type: 'hub',
-    },
-    {
-      id: 2,
-      title: 'Instant Direct Payouts',
-      desc: 'Delivery fees are automatically credited to your Pocket immediately upon customer drop verification.',
-      time: 'System Info',
-      type: 'earning',
-    },
-    {
-      id: 3,
-      title: 'Safety & Emergency Protocol',
-      desc: 'In case of breakdown or road hazard, tap the SOS button on top for emergency police and roadside contact.',
-      time: 'Safety Guide',
-      type: 'weather',
-    },
-  ];
+  // New notifications arrive live (socket room rider_<id>)
+  useEffect(() => {
+    const socket = getSocket?.();
+    if (!socket) return undefined;
+    const onNew = (n) => {
+      if (n?.recipientType !== 'delivery') return;
+      setNotifs((prev) => [n, ...prev.filter((x) => x._id !== n._id)]);
+      setUnread((u) => u + 1);
+    };
+    socket.on('new_notification', onNew);
+    return () => socket.off('new_notification', onNew);
+  }, []);
+
+  const markAll = async () => {
+    if (!unread) return toast.success('All caught up');
+    try {
+      await DeliveryAPI.markAllNotificationsRead();
+      setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnread(0);
+      window.dispatchEvent(new Event('rider-notifications-read'));
+    } catch {
+      toast.error('Could not update notifications');
+    }
+  };
+
+  const openNotif = async (n) => {
+    if (!n.isRead) {
+      setNotifs((prev) => prev.map((x) => (x._id === n._id ? { ...x, isRead: true } : x)));
+      setUnread((u) => Math.max(0, u - 1));
+      DeliveryAPI.markNotificationRead(n._id).catch(() => {});
+      window.dispatchEvent(new Event('rider-notifications-read'));
+    }
+    if (n.data?.url && String(n.data.url).startsWith('/')) navigate(n.data.url);
+    else if (n.type === 'rider_order') navigate('/delivery/dashboard');
+    else if (n.type === 'rider_payout' || n.type === 'rider_cash') navigate('/delivery/earnings');
+  };
 
   return (
     <div className="min-h-screen bg-[#f5f6f8] text-slate-900 pb-20 font-sans">
-      {/* Top Header */}
       <DeliveryTopBar />
 
       <main className="max-w-[480px] mx-auto p-4 space-y-4">
-        {/* ─── Stories Bar (From Image 5) ─── */}
-        <div className="flex items-center gap-3 overflow-x-auto scroll-hide py-1">
-          {/* Add story / your story */}
-          <div className="flex flex-col items-center shrink-0 cursor-pointer group">
-            <div className="relative w-16 h-16 rounded-full bg-slate-200 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-500 group-hover:border-purple-600 transition-all">
-              <span className="material-symbols-outlined text-[24px]">add</span>
-            </div>
-            <span className="text-[11px] font-bold text-slate-600 mt-1">Your story</span>
+        {loadError && (
+          <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center justify-between gap-2">
+            <span>{loadError}</span>
+            <button onClick={load} className="px-2.5 py-1 rounded-lg bg-white border border-red-200 cursor-pointer">Retry</button>
           </div>
+        )}
 
-          {/* Stories List */}
-          {stories.map((story) => (
-            <div
-              key={story.id}
-              onClick={() => setActiveStory(story)}
-              className="flex flex-col items-center shrink-0 cursor-pointer group"
-            >
-              <div className="p-0.5 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-400 group-hover:scale-105 transition-all">
-                <div className="w-15 h-15 rounded-full overflow-hidden bg-slate-900 border-2 border-white">
-                  <img
-                    src={story.img}
-                    alt={story.title}
-                    className="w-full h-full object-cover"
-                  />
+        {typeof Notification !== 'undefined' && Notification.permission === 'denied' && (
+          <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-[11.5px] flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] text-amber-700">notifications_off</span>
+            <span>
+              <strong>Phone alerts are blocked.</strong> To get order alerts when the app is closed, allow notifications for this site in your
+              browser settings (tap the lock icon next to the address), then reopen the app.
+            </span>
+          </div>
+        )}
+
+        {/* ─── Stories (admin-published) ─── */}
+        {feed.stories.length > 0 && (
+          <div className="flex items-center gap-3 overflow-x-auto scroll-hide py-1">
+            {feed.stories.map((story) => (
+              <button key={story._id} onClick={() => setActiveStory(story)} className="flex flex-col items-center shrink-0 cursor-pointer group">
+                <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-purple-600 to-amber-500">
+                  <img src={story.imageUrl} alt={story.title} className="w-full h-full rounded-full object-cover border-2 border-white" />
                 </div>
-              </div>
-              <span className="text-[10.5px] font-bold text-slate-800 mt-1 max-w-[70px] truncate text-center">
-                {story.title}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* ─── Notification Banner Card (From Image 5) ─── */}
-        <div className="bg-[#eef5ff] rounded-2xl p-3.5 border border-blue-100 flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">notifications</span>
-            </div>
-            <div>
-              <p className="text-xs font-black text-slate-900">Check all your notifications</p>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Today, {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}
-              </p>
-            </div>
+                <span className="text-[11px] font-bold text-slate-700 mt-1 max-w-[72px] truncate">{story.badge || story.title}</span>
+              </button>
+            ))}
           </div>
-          <button
-            onClick={() => toast.success('All notifications up to date')}
-            className="px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs transition-all active:scale-95 cursor-pointer shadow-2xs"
-          >
-            View
-          </button>
-        </div>
+        )}
 
-        {/* ─── Videos for You Section (From Image 5) ─── */}
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <h3 className="font-display font-black text-base text-slate-900">Videos for you</h3>
-            <button
-              onClick={() => toast.success('More videos coming soon')}
-              className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-0.5 cursor-pointer"
-            >
-              <span>View all</span>
-              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+        {/* ─── Notifications (real, for this rider) ─── */}
+        <section className="bg-white rounded-2xl border border-slate-100 shadow-2xs">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <h3 className="font-display font-black text-base text-slate-900 flex items-center gap-2">
+              Notifications
+              {unread > 0 && <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">{unread} new</span>}
+            </h3>
+            <button onClick={markAll} className="text-[11px] font-bold text-purple-700 cursor-pointer disabled:opacity-40" disabled={!unread}>
+              Mark all read
             </button>
           </div>
+          {loading ? (
+            <div className="p-4 space-y-2">
+              {[0, 1, 2].map((i) => <div key={i} className="h-12 rounded-xl bg-slate-100 animate-pulse" />)}
+            </div>
+          ) : notifs.length === 0 ? (
+            <div className="px-4 pb-5 pt-2 text-center">
+              <span className="material-symbols-outlined text-[32px] text-slate-300">notifications_off</span>
+              <p className="text-xs font-bold text-slate-600 mt-1">No notifications yet</p>
+              <p className="text-[11px] text-slate-400">Order assignments, payouts and account updates will show up here.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {notifs.map((n) => {
+                const st = NOTIF_STYLE[n.type] || NOTIF_STYLE.announcement;
+                return (
+                  <button key={n._id} onClick={() => openNotif(n)} className={`w-full px-4 py-3 flex items-start gap-3 text-left cursor-pointer hover:bg-slate-50 ${n.isRead ? '' : 'bg-purple-50/40'}`}>
+                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${st.cls}`}>
+                      <span className="material-symbols-outlined text-[18px]">{st.icon}</span>
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className={`text-xs ${n.isRead ? 'font-bold text-slate-700' : 'font-black text-slate-900'}`}>{n.title}</span>
+                        <span className="text-[10px] text-slate-400 shrink-0">{timeAgo(n.createdAt)}</span>
+                      </span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">{n.message}</span>
+                    </span>
+                    {!n.isRead && <span className="w-2 h-2 rounded-full bg-purple-600 mt-1.5 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-          <div className="flex items-center gap-3 overflow-x-auto scroll-hide pb-2">
-            {videos.map((vid) => (
-              <div
-                key={vid.id}
-                onClick={() => setSelectedVideo(vid)}
-                className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-2xs min-w-[240px] max-w-[240px] shrink-0 cursor-pointer group hover:border-purple-300 transition-all"
-              >
-                {/* Thumbnail with overlay */}
-                <div className="relative h-32 bg-slate-900 overflow-hidden">
-                  <img
-                    src={vid.thumbnail}
-                    alt={vid.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300 opacity-90"
-                  />
-                  {/* Play Button Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-11 h-11 rounded-full bg-white/90 shadow-md text-slate-900 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <span className="material-symbols-outlined text-[24px] fill-current">play_arrow</span>
+        {/* ─── Announcements from Zeebac ─── */}
+        {feed.announcements.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="font-display font-black text-sm text-slate-900">From Zeebac</h3>
+            {feed.announcements.map((a) => (
+              <div key={a._id} className="bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden">
+                {a.imageUrl && <img src={a.imageUrl} alt="" className="w-full h-32 object-cover" />}
+                <div className="p-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-purple-700">campaign</span>
+                    <h4 className="font-bold text-xs text-slate-900 flex-1">{a.title}</h4>
+                    {a.badge && <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-black">{a.badge}</span>}
+                  </div>
+                  {a.body && <p className="text-[11.5px] text-slate-600 mt-1.5 leading-relaxed whitespace-pre-line">{a.body}</p>}
+                  <p className="text-[10px] text-slate-400 mt-2">{new Date(a.startAt || a.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* ─── Training videos ─── */}
+        {feed.videos.length > 0 && (
+          <section className="space-y-2.5">
+            <h3 className="font-display font-black text-base text-slate-900">Training videos</h3>
+            <div className="flex gap-3 overflow-x-auto scroll-hide pb-1">
+              {feed.videos.map((v) => {
+                const thumb = v.imageUrl || youtubeThumb(v.videoUrl);
+                return (
+                  <button key={v._id} onClick={() => setSelectedVideo(v)} className="w-56 shrink-0 bg-white rounded-2xl border border-slate-100 overflow-hidden text-left cursor-pointer group">
+                    <div className="relative h-28 bg-slate-900">
+                      {thumb && <img src={thumb} alt="" className="w-full h-full object-cover opacity-80" />}
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <span className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow">
+                          <span className="material-symbols-outlined text-[24px] text-slate-900">play_arrow</span>
+                        </span>
+                      </span>
                     </div>
-                  </div>
-                  {/* Duration Pill */}
-                  <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-[10px] font-mono font-bold">
-                    {vid.duration}
-                  </div>
-                </div>
+                    <div className="p-2.5">
+                      <h4 className="font-black text-xs text-slate-900 line-clamp-1 group-hover:text-purple-700">{v.title}</h4>
+                      {v.body && <p className="text-[10.5px] text-slate-500 line-clamp-2 mt-0.5">{v.body}</p>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-                {/* Video Info */}
-                <div className="p-3">
-                  <h4 className="font-display font-black text-xs text-slate-900 line-clamp-1 group-hover:text-purple-700 transition-colors">
-                    {vid.title}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-medium mt-1">
-                    {vid.views} • {vid.likes}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── Recent Notifications Feed ─── */}
-        <div>
-          <h3 className="font-display font-black text-sm text-slate-900 mb-2.5">
-            Partner Updates & Announcements
-          </h3>
-          <div className="space-y-2">
-            {notifications.map((notif) => (
-              <div
-                key={notif.id}
-                className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-start gap-3"
-              >
-                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="material-symbols-outlined text-[18px]">campaign</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h5 className="font-bold text-xs text-slate-900">{notif.title}</h5>
-                    <span className="text-[10px] text-slate-400 font-medium">{notif.time}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{notif.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {!loading && !loadError && feed.stories.length + feed.videos.length + feed.announcements.length === 0 && (
+          <p className="text-center text-[11px] text-slate-400 pt-2">No announcements or training videos right now.</p>
+        )}
       </main>
 
-      {/* ─── VIDEO PLAYER MODAL ─── */}
+      {/* Video player */}
       {selectedVideo && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900 rounded-3xl max-w-md w-full overflow-hidden text-white shadow-2xl border border-slate-700">
-            <div className="relative aspect-video bg-black flex items-center justify-center">
-              <img
-                src={selectedVideo.thumbnail}
-                alt={selectedVideo.title}
-                className="w-full h-full object-cover opacity-60"
-              />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-white text-slate-900 flex items-center justify-center shadow-xl animate-pulse">
-                  <span className="material-symbols-outlined text-[36px]">play_arrow</span>
-                </div>
-                <p className="text-xs font-bold text-white/90 mt-2">Training Video Simulation</p>
-              </div>
-              <button
-                onClick={() => setSelectedVideo(null)}
-                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer hover:bg-black"
-              >
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setSelectedVideo(null)}>
+          <div className="w-full max-w-[480px] bg-slate-900 rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="relative aspect-video bg-black">
+              {youtubeEmbed(selectedVideo.videoUrl) ? (
+                <iframe
+                  src={youtubeEmbed(selectedVideo.videoUrl)}
+                  title={selectedVideo.title}
+                  className="w-full h-full"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <video src={selectedVideo.videoUrl} controls autoPlay playsInline className="w-full h-full" />
+              )}
+              <button onClick={() => setSelectedVideo(null)} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer" aria-label="Close video">
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
-            <div className="p-4 space-y-2">
-              <h3 className="font-display font-black text-sm text-white">
-                {selectedVideo.title}
-              </h3>
-              <p className="text-xs text-slate-300 font-medium">{selectedVideo.desc}</p>
-              <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800">
-                <span>{selectedVideo.views}</span>
-                <span>{selectedVideo.likes}</span>
-              </div>
+            <div className="p-4">
+              <h3 className="font-display font-black text-sm text-white">{selectedVideo.title}</h3>
+              {selectedVideo.body && <p className="text-xs text-slate-300 mt-1">{selectedVideo.body}</p>}
             </div>
           </div>
         </div>
       )}
 
-      {/* ─── STORY MODAL ─── */}
+      {/* Story viewer */}
       {activeStory && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-gradient-to-b from-slate-900 to-black rounded-3xl max-w-sm w-full p-5 text-white shadow-2xl border border-white/10 relative overflow-hidden">
-            <button
-              onClick={() => setActiveStory(null)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center z-10 cursor-pointer"
-            >
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setActiveStory(null)}>
+          <div className="w-full max-w-[420px] rounded-3xl overflow-hidden bg-slate-900 relative" onClick={(e) => e.stopPropagation()}>
+            <img src={activeStory.imageUrl} alt={activeStory.title} className="w-full max-h-[60vh] object-cover" />
+            <button onClick={() => setActiveStory(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer" aria-label="Close story">
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
-
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black uppercase">
-              {activeStory.badge}
-            </span>
-
-            <h3 className="font-display font-black text-xl text-white mt-2">
-              {activeStory.title}
-            </h3>
-
-            <div className="my-4 h-52 rounded-2xl overflow-hidden border border-white/10">
-              <img
-                src={activeStory.img}
-                alt={activeStory.title}
-                className="w-full h-full object-cover"
-              />
+            <div className="p-4">
+              {activeStory.badge && <span className="px-2 py-0.5 rounded-full bg-white/15 text-white text-[10px] font-black uppercase">{activeStory.badge}</span>}
+              <h3 className="font-display font-black text-lg text-white mt-2">{activeStory.title}</h3>
+              {activeStory.body && <p className="text-sm text-slate-200 mt-1 whitespace-pre-line">{activeStory.body}</p>}
             </div>
-
-            <p className="text-xs text-slate-200 leading-relaxed font-medium">
-              {activeStory.description}
-            </p>
-
-            <button
-              onClick={() => setActiveStory(null)}
-              className="w-full mt-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all cursor-pointer"
-            >
-              Got it
-            </button>
           </div>
         </div>
       )}
 
-      {/* Bottom Nav */}
       <DeliveryBottomNav />
     </div>
   );
 }
-

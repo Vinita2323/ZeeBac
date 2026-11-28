@@ -4,9 +4,23 @@ import { apiClient, AdminAPI } from '../services/api.js';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
+const waitForActiveWorker = (registration, timeoutMs = 10000) =>
+  new Promise((resolve) => {
+    if (!registration || registration.active) return resolve();
+    const worker = registration.installing || registration.waiting;
+    if (!worker) return resolve();
+    const timer = setTimeout(resolve, timeoutMs);
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  });
+
 /**
  * Request notification permission and save FCM token to backend
- * @param {string} role - 'customer' | 'vendor' | 'admin'
+ * @param {string} role - 'customer' | 'vendor' | 'admin' | 'delivery'
  */
 export const requestNotificationPermission = async (role = 'customer') => {
   try {
@@ -31,6 +45,9 @@ export const requestNotificationPermission = async (role = 'customer') => {
       try {
         registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         console.log('Firebase Service Worker registered successfully:', registration.scope);
+        // getToken() fails with "no active Service Worker" if called before the worker activates
+        // (always the case the very first time someone allows notifications).
+        await waitForActiveWorker(registration);
       } catch (swErr) {
         console.warn('Service worker registration fallback:', swErr);
       }
@@ -47,6 +64,18 @@ export const requestNotificationPermission = async (role = 'customer') => {
     }
 
     console.log('🔑 FCM Token obtained successfully:', token);
+
+    // Delivery partners: authenticated rider endpoint only (token saved on the rider account)
+    if (role === 'delivery') {
+      try {
+        await apiClient.post('/delivery/fcm-token', { token });
+        localStorage.setItem('zeebac_delivery_fcm_token', token);
+      } catch (saveErr) {
+        console.warn('Could not save rider push token:', saveErr?.response?.data?.message || saveErr.message);
+        return null;
+      }
+      return token;
+    }
 
     // Save token to backend API (mobile save endpoint + role endpoint)
     try {

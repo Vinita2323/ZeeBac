@@ -497,7 +497,7 @@ export default function DeliveryProfileScreen() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Payout UPI ID (Instant Payouts)</label>
+                <label className="block font-bold text-slate-700 mb-1">Payout UPI ID</label>
                 <input
                   type="text"
                   value={editUpiId}

@@ -91,6 +91,7 @@ export default function NotificationsScreen() {
               key={notif._id}
               notif={notif}
               onMarkAsRead={markAsRead}
+              onCardClick={(n) => n.data?.url && n.data.url.startsWith('/') && navigate(n.data.url)}
             />
           ))
         )}
